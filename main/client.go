@@ -110,30 +110,20 @@ func getSignedCertificate(p *ubirch.Protocol, name string, uid uuid.UUID) ([]byt
 	}
 	log.Print("jsonKeyReg:", string(jsonKeyReg))
 
-	signature, err := p.Sign(name, jsonKeyReg, ubirch.Plain)
+	signatureTestString := "Ubirch TestString"
+
+	signature, err := p.Sign(name, []byte(signatureTestString), ubirch.Plain)
 	if err != nil {
 		return nil, err
 	}
 	fmt.Println("cap:", cap(signature), "len:", len(signature), "var:", hex.EncodeToString(signature))
 	var data = make([]byte, 0, 0)
-	data = append(data, jsonKeyReg...)
+	data = append(data, []byte(signatureTestString)...)
 	data = append(data, []byte{0xc4, 0x40}...)
 	data = append(data, signature...)
 	fmt.Println(len(data))
 	_, err = p.Crypto.Verify(uid, data)
 	log.Println(err)
-
-	//signature := asn1.RawValue{}
-	//
-	//_, err = asn1.Unmarshal(signature, &signature)
-	//if err != nil {
-	//return nil, err
-	//}
-	//// The format of our DER string is 0x02 + rlen + r + 0x02 + slen + s
-	//rLen := signature.Bytes[1] // The entire length of R + offset of 2 for 0x02 and rlen
-	//r := signature.Bytes[2 : rLen+2]
-	//// Ignore the next 0x02 and slen bytes and just take the start of S to the end of the byte array
-	//s := signature.Bytes[rLen+4:]
 
 	return json.Marshal(SignedKeyRegistration{
 		keyRegistration,
