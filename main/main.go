@@ -196,16 +196,43 @@ func main() {
 	sEnc := base64.StdEncoding.EncodeToString([]byte(auth))
 	log.Println("base64:", sEnc)
 
-	resp, err := post(cert,
-		fmt.Sprintf("%spubkey", conf.KeyService),
-		sEnc,
-		map[string]string{"Content-Type": "application/json"})
+	// todo this post will be included later
+	//
+	// resp, err := post(cert,
+	//         fmt.Sprintf("%spubkey", conf.KeyService),
+	//         sEnc,
+	//         map[string]string{"Content-Type": "application/json"})
+	//
+	// if err != nil {
+	//         log.Printf("unable to read response body: %v", err)
+	// } else {
+	//         log.Printf("response: %s", string(resp))
+	// }
 
-	if err != nil {
-		log.Printf("unable to read response body: %v", err)
-	} else {
-		log.Printf("response: %s", string(resp))
-	}
+	//// test json to understand
+	// type ColorGroup struct {
+	//         ID     int
+	//         Name   string
+	//         Colors []string
+	// }
+	// group := ColorGroup{
+	//         ID:     1,
+	//         Name:   "Reds",
+	//         Colors: []string{"Crimson", "Red", "Ruby", "Maroon"},
+	// }
+	// b, err := json.Marshal(group)
+	// if err != nil {
+	//         fmt.Println("error:", err)
+	// }
+	// log.Println("JSON TEST" , string(b))
+	// type signature struct{
+	//         name string
+	//        data string
+	// }
+	// var Signature []signature
+	// log.Println("SIGNATURE RAW", signature)
+	// _, err = json.Unmarshal([]byte(b), &signature)
+	// log.Println("SIGNATURE UNMARSHALED", string(signature))
 
 	udpConnect()
 }

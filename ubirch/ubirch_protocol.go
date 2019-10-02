@@ -128,7 +128,7 @@ func (p *Protocol) Sign(name string, value []byte, protocol ProtocolType) ([]byt
 
 	switch protocol {
 	case Plain:
-		return signed{protocol, id, 0x00, value, nil}.sign(p)
+		return p.Crypto.Sign(id, value)
 	case Signed:
 		return signed{protocol, id, 0x00, value, nil}.sign(p)
 	case Chained:

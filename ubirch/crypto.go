@@ -189,10 +189,14 @@ func (c *CryptoContext) Verify(id uuid.UUID, data []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	r, s, err := signatureToPoints(data[len(data)-66:])
-	if err != nil {
-		return nil, err
-	}
+	r, s := &big.Int{}, &big.Int{}
+
+	r.SetBytes(data[len(data)-64 : len(data)-32])
+	s.SetBytes(data[len(data)-32:])
+	//r, s, err := signatureToPoints(data[len(data)-66:])
+	//if err != nil {
+	//	return nil, err
+	//}
 
 	value := data[0 : len(data)-64]
 	if ecdsa.Verify(pub, value, r, s) {
