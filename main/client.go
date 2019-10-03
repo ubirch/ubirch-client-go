@@ -3,11 +3,9 @@ package main
 import (
 	"bytes"
 	"crypto/ecdsa"
+	"crypto/sha256"
 	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/asn1"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
@@ -16,9 +14,23 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"strings"
 	"time"
 )
+
+type KeyRegistration struct {
+	Algorithm      string `json:"algorithm"`
+	Created        string `json:"created"`
+	HwDeviceId     string `json:"hwDeviceId"`
+	PubKey         string `json:"pubKey"`
+	PubKeyId       string `json:"pubKeyId"`
+	ValidNotAfter  string `json:"validNotAfter"`
+	ValidNotBefore string `json:"validNotBefore"`
+}
+
+type SignedKeyRegistration struct {
+	PubKeyInfo KeyRegistration `json:"pubKeyInfo"`
+	Signature  string          `json:"signature"`
+}
 
 ////noinspection GoUnusedExportedType
 type CertificateInterface interface {
@@ -30,105 +42,105 @@ type CertificateInterface interface {
 // This function will get the public key from the card and create a json registration package
 // to be sent to the ubirch key service. The json structure is signed and sent to ubirch.
 func getSignedCertificate(p *ubirch.Protocol, name string, uid uuid.UUID) ([]byte, error) {
-	type KeyRegistration struct {
-		Algorithm      string `json:"algorithm"`
-		Created        string `json:"created"`
-		HwDeviceId     string `json:"hwDeviceId"`
-		PubKey         string `json:"pubKey"`
-		PubKeyId       string `json:"pubKeyId"`
-		ValidNotAfter  string `json:"validNotAfter"`
-		ValidNotBefore string `json:"validNotBefore"`
-	}
-
-	type SignedKeyRegistration struct {
-		PubKeyInfo KeyRegistration `json:"pubKeyInfo"`
-		Signature  string          `json:"signature"`
-	}
 	const timeFormat = "2006-01-02T15:04:05.000Z"
+	// load a valid certificate from file
+	var cert SignedKeyRegistration
+	err := loadKeyCertificate(&cert, uid)
+	if err != nil { // there is no certificate stored yet
+		// get the key
+		pubKey, err := p.GetKey(name)
+		if err != nil {
+			panic("key not available: " + err.Error())
+		}
+		// decode the key
+		block, _ := pem.Decode(pubKey)
+		if block == nil {
+			panic("failed to parse PEM block containing the public key")
+		}
+		// extract X and Y from the key
+		pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+		if err != nil {
+			panic("failed to parse DER encoded public key: " + err.Error())
+		}
+		pubKeyBytes := make([]byte, 0, 0)
+		switch pub := pub.(type) {
+		case *ecdsa.PublicKey:
+			fmt.Println("pub is of type ECDSA:", pub)
+			pubKeyBytes = append(pubKeyBytes, pub.X.Bytes()...)
+			pubKeyBytes = append(pubKeyBytes, pub.Y.Bytes()...)
+		default:
+			panic("unknown type of public key")
+		}
+		pub64 := base64.StdEncoding.EncodeToString(pubKeyBytes)
+		// put it all together
+		now := time.Now()
+		keyRegistration := KeyRegistration{
+			"ecdsa-p256v1",
+			now.Format(timeFormat),
+			uid.String(),
+			string(pub64),
+			string(pub64),
+			now.Add(time.Duration(24 * 365 * time.Hour)).Format(timeFormat),
+			now.Format(timeFormat),
+		}
+		jsonKeyReg, err := json.Marshal(keyRegistration)
+		if err != nil {
+			return nil, err
+		}
+		keyHash := hash(jsonKeyReg)
+		signature, err := p.Sign(name, keyHash, ubirch.Plain)
+		if err != nil {
+			return nil, err
+		}
+		//verifySignature(p,keyHash,uid)
 
-	pubKey, err := p.GetKey(name)
-	var pubKeyPure = make([]byte, 0, 0)
+		// fill the certificate
+		cert.PubKeyInfo = keyRegistration
+		cert.Signature = base64.StdEncoding.EncodeToString(signature)
+		err = saveKeyCertificate(&cert, uid)
+		if err != nil {
+			// todo: storing went wrong
+		}
+	}
+
+	return json.Marshal(cert)
+}
+
+func saveKeyCertificate(cert *SignedKeyRegistration, uid uuid.UUID) error {
+	certString, _ := json.MarshalIndent(cert, "", "  ")
+	filename := fmt.Sprintf("../%s_certificate.json", uid.String())
+	err := ioutil.WriteFile(filename, certString, 444)
 	if err != nil {
-		return nil, err
+		log.Printf("unable to store key certificate: %v", err)
+		return err
 	} else {
-		n1 := strings.Index(string(pubKey), "\n") + 1
-		n2 := strings.Index(string(pubKey[n1:]), "\n") + n1 + 1
-		n3 := strings.Index(string(pubKey[n2:]), "\n") + n2 + 1
-		pubKeyPure = append(pubKeyPure, pubKey[n1:n2-1]...)
-		pubKeyPure = append(pubKeyPure, pubKey[n2:n3-1]...)
+		log.Printf("saved key certificate")
+		return nil
 	}
-	fmt.Println("PUREKEY:", string(pubKey))
+}
 
-	block, _ := pem.Decode(pubKey)
-	if block == nil {
-		panic("failed to parse PEM block containing the public key")
-	}
-
-	// this is just to prove that the key is in the right format
-	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+func loadKeyCertificate(cert *SignedKeyRegistration, uid uuid.UUID) (err error) {
+	filename := fmt.Sprintf("../%s_certificate.json", uid.String())
+	contextBytes, err := ioutil.ReadFile(filename)
 	if err != nil {
-		panic("failed to parse DER encoded public key: " + err.Error())
+		return err
 	}
-
-	switch pub := pub.(type) {
-	case *ecdsa.PublicKey:
-		fmt.Println("pub is of type ECDSA:", pub)
-	default:
-		panic("unknown type of public key")
-	}
-
-	type publicKeyInfo struct {
-		Raw       asn1.RawContent
-		Algorithm pkix.AlgorithmIdentifier
-		PublicKey asn1.BitString
-	}
-
-	bitString := publicKeyInfo{}
-	_, err = asn1.Unmarshal(block.Bytes, &bitString)
+	err = json.Unmarshal(contextBytes, cert)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("unable to deserialize certificate: %v", err)
+	} else {
+		log.Printf("loaded key certificate")
 	}
-	pubKeyBytes := bitString.PublicKey.Bytes[1:]
-	fmt.Printf("hexkey (%d) %x\n", len(pubKeyBytes), pubKeyBytes)
-	// ich brauch bitString.PublicKey.Bytes
-	pub64 := base64.StdEncoding.EncodeToString(pubKeyBytes)
-	fmt.Println("BLOCK", pub64)
+	return err
+}
 
-	now := time.Now()
-	keyRegistration := KeyRegistration{
-		"ecdsa-p256v1",
-		now.Format(timeFormat),
-		uid.String(),
-		string(pub64),
-		string(pub64),
-		now.Add(time.Duration(24 * 365 * time.Hour)).Format(timeFormat),
-		now.Format(timeFormat),
-	}
-	jsonKeyReg, err := json.Marshal(keyRegistration)
-	if err != nil {
-		return nil, err
-	}
-	log.Print("jsonKeyReg:", string(jsonKeyReg))
-
-	signatureTestString := "Ubirch TestString"
-
-	signature, err := p.Sign(name, []byte(signatureTestString), ubirch.Plain)
-	if err != nil {
-		return nil, err
-	}
-	fmt.Println("cap:", cap(signature), "len:", len(signature), "var:", hex.EncodeToString(signature))
-	var data = make([]byte, 0, 0)
-	data = append(data, []byte(signatureTestString)...)
-	data = append(data, []byte{0xc4, 0x40}...)
-	data = append(data, signature...)
-	fmt.Println(len(data))
-	_, err = p.Crypto.Verify(uid, data)
-	log.Println(err)
-
-	return json.Marshal(SignedKeyRegistration{
-		keyRegistration,
-		base64.StdEncoding.EncodeToString(signature),
-	})
+// Helper function to compute the SHA256 hash of the given string of bytes.
+func hash(b []byte) []byte {
+	h := sha256.New()
+	// hash the body bytes
+	h.Write(b)
+	// compute the SHA256 hash
+	return h.Sum(nil)
 }
 
 // post A http request to the backend service and
@@ -150,4 +162,18 @@ func post(upp []byte, url string, auth string, headers map[string]string) ([]byt
 		defer resp.Body.Close()
 		return ioutil.ReadAll(resp.Body)
 	}
+}
+
+// verify the signature, CURRENTLY NOT USED
+// the signature has to be hashed
+func verifySignature(p *ubirch.Protocol, hashedSignature []byte, uid uuid.UUID) (err error) {
+	var data = make([]byte, 0, 0)
+	data = append(data, hashedSignature...)
+	data = append(data, []byte{0xc4, 0x40}...)
+	data = append(data, hashedSignature...)
+	_, err = p.Crypto.Verify(uid, data)
+	if err != nil {
+		log.Println(err)
+	}
+	return err
 }

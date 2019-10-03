@@ -17,7 +17,7 @@ import (
 )
 
 func saveProtocolContext(p *ubirch.Protocol) error {
-	contextBytes, _ := json.Marshal(p)
+	contextBytes, _ := json.MarshalIndent(p, "", "  ")
 	err := ioutil.WriteFile("../protocol.json", contextBytes, 444)
 	if err != nil {
 		log.Printf("unable to store protocol context: %v", err)
@@ -84,24 +84,29 @@ func handleUDPConnection(conn *net.UDPConn) {
 	n, addr, err := conn.ReadFromUDP(buffer)
 
 	fmt.Println("UDP client : ", addr)
-	fmt.Println("Received from UDP client :  ", string(buffer[:n]))
+	fmt.Println("Received from UDP client :  ", hex.EncodeToString(buffer[:n]))
 	fmt.Println(buffer[:n])
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	// todo:
+	//  handle the received messages
+	//  post the messages to the backend
+	//  also handle the keys and maybe the certificates
+
+	// todo: write message back to client is not necessary
 	// NOTE : Need to specify client address in WriteToUDP() function
 	//        otherwise, you will get this error message
 	//        write udp : write: destination address required if you use Write() function instead of WriteToUDP()
 
-	// write message back to client
-	message := []byte("Hello UDP client!")
-	_, err = conn.WriteToUDP(message, addr)
-
-	if err != nil {
-		log.Println(err)
-	}
+	//message := []byte("Hello UDP client!")
+	//_, err = conn.WriteToUDP(message, addr)
+	//
+	//if err != nil {
+	//	log.Println(err)
+	//}
 
 }
 
@@ -143,6 +148,7 @@ func main() {
 		Crypto:     context,
 		Signatures: map[uuid.UUID][]byte{},
 	}
+	//todo: when registering a device, extend the config with "Username: uid"
 	conf := config{
 		Username:   "",
 		Password:   "",
@@ -151,6 +157,7 @@ func main() {
 		Data:       "",
 	}
 
+	// todo: BEGIN of the old stuff
 	err := loadConfig(&conf)
 	if err != nil {
 		log.Printf("conf not found, or unable to load: %v", err)
@@ -181,58 +188,34 @@ func main() {
 	}()
 
 	_ = saveProtocolContext(&p)
+	// todo END OF THE OLD STUFF
 
+	// todo: this is the key handling
 	uid, _ := uuid.Parse(conf.Username)
-
 	cert, err := getSignedCertificate(&p, name, uid)
 	if err != nil {
 		log.Printf("could not generate certificate: %v", err)
 	} else {
 		log.Printf("certificate: %s", string(cert))
+
 	}
 
 	auth := fmt.Sprintf("%s:%s", conf.Username, conf.Password)
-	log.Println("combined ", auth)
-	sEnc := base64.StdEncoding.EncodeToString([]byte(auth))
-	log.Println("base64:", sEnc)
+	authEnc := base64.StdEncoding.EncodeToString([]byte(auth))
 
-	// todo this post will be included later
-	//
-	// resp, err := post(cert,
-	//         fmt.Sprintf("%spubkey", conf.KeyService),
-	//         sEnc,
-	//         map[string]string{"Content-Type": "application/json"})
-	//
-	// if err != nil {
-	//         log.Printf("unable to read response body: %v", err)
-	// } else {
-	//         log.Printf("response: %s", string(resp))
-	// }
+	// http post the key registry
+	resp, err := post(cert,
+		fmt.Sprintf("%spubkey", conf.KeyService),
+		authEnc,
+		map[string]string{"Content-Type": "application/json"})
 
-	//// test json to understand
-	// type ColorGroup struct {
-	//         ID     int
-	//         Name   string
-	//         Colors []string
-	// }
-	// group := ColorGroup{
-	//         ID:     1,
-	//         Name:   "Reds",
-	//         Colors: []string{"Crimson", "Red", "Ruby", "Maroon"},
-	// }
-	// b, err := json.Marshal(group)
-	// if err != nil {
-	//         fmt.Println("error:", err)
-	// }
-	// log.Println("JSON TEST" , string(b))
-	// type signature struct{
-	//         name string
-	//        data string
-	// }
-	// var Signature []signature
-	// log.Println("SIGNATURE RAW", signature)
-	// _, err = json.Unmarshal([]byte(b), &signature)
-	// log.Println("SIGNATURE UNMARSHALED", string(signature))
+	if err != nil {
+		log.Printf("unable to read response body: %v", err)
+	} else {
+		log.Printf("response: %s", string(resp))
+	}
+	// todo: end of key handling
 
+	// connect a udp server to listen to messages
 	udpConnect()
 }

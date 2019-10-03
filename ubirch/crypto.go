@@ -198,7 +198,7 @@ func (c *CryptoContext) Verify(id uuid.UUID, data []byte) ([]byte, error) {
 	//	return nil, err
 	//}
 
-	value := data[0 : len(data)-64]
+	value := data[0 : len(data)-66]
 	if ecdsa.Verify(pub, value, r, s) {
 		return value, nil
 	}
