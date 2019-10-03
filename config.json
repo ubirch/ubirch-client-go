@@ -1,7 +1,0 @@
-{
-  "username": "a67649a4-af32-422c-8272-c1e87d0a8880",
-  "password": "somethingyouknow",
-  "keyService": "https://key.dev.ubirch.com/api/keyService/v1/",
-  "niomon": "https://niomon.dev.ubirch.com/",
-  "data": "https://data.dev.ubirch.com/v1/"
-}

@@ -9,4 +9,4 @@ require (
 	github.com/thinkberg/ubirch-protocol-go/ubirch v0.0.0
 )
 
-replace github.com/thinkberg/ubirch-protocol-go/ubirch => ../ubirch
+replace github.com/thinkberg/ubirch-protocol-go/ubirch => ../../ubirch-protocol-go/ubirch

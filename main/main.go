@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -10,15 +11,20 @@ import (
 	"github.com/thinkberg/ubirch-protocol-go/ubirch"
 	"io/ioutil"
 	"log"
-	"net"
 	"os"
 	"os/signal"
 	"syscall"
 )
 
-func saveProtocolContext(p *ubirch.Protocol) error {
+type ExtendedProtocol struct {
+	ubirch.Protocol
+	Certificates map[uuid.UUID]SignedKeyRegistration
+}
+
+// saves current ubirch-protocol context, storing keys and signatures
+func saveProtocolContext(p *ExtendedProtocol) error {
 	contextBytes, _ := json.MarshalIndent(p, "", "  ")
-	err := ioutil.WriteFile("../protocol.json", contextBytes, 444)
+	err := ioutil.WriteFile("protocol.json", contextBytes, 444)
 	if err != nil {
 		log.Printf("unable to store protocol context: %v", err)
 		return err
@@ -28,8 +34,9 @@ func saveProtocolContext(p *ubirch.Protocol) error {
 	}
 }
 
-func loadProtocolContext(p *ubirch.Protocol) error {
-	contextBytes, err := ioutil.ReadFile("../protocol.json")
+// loads current ubirch-protocol context, loading keys and signatures
+func loadProtocolContext(p *ExtendedProtocol) error {
+	contextBytes, err := ioutil.ReadFile("protocol.json")
 	if err != nil {
 		return err
 	}
@@ -45,177 +52,111 @@ func loadProtocolContext(p *ubirch.Protocol) error {
 	}
 }
 
-// configuration of the device
-type config struct {
-	Username   string `json:"username"`
-	Password   string `json:"password"`
-	KeyService string `json:"keyService"`
-	Niomon     string `json:"niomon"`
-	Data       string `json:"data"`
-}
-
-// load the configuration
-func loadConfig(c *config) error {
-	contextBytes, err := ioutil.ReadFile("../config.json")
-	if err != nil {
-		return err
-	}
-
-	err = json.Unmarshal(contextBytes, c)
-	if err != nil {
-		log.Fatalf("unable to deserialize context: %v", err)
-		return err
-	} else {
-		log.Printf("loaded protocol context")
-		return nil
-	}
-}
-
-/*!
-UDP connection handling.
-Receive from and reply to the UDP client.
-*/
-func handleUDPConnection(conn *net.UDPConn) {
-
-	// here is where you want to do stuff like read or write to client
-
-	buffer := make([]byte, 1024)
-
-	n, addr, err := conn.ReadFromUDP(buffer)
-
-	fmt.Println("UDP client : ", addr)
-	fmt.Println("Received from UDP client :  ", hex.EncodeToString(buffer[:n]))
-	fmt.Println(buffer[:n])
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// todo:
-	//  handle the received messages
-	//  post the messages to the backend
-	//  also handle the keys and maybe the certificates
-
-	// todo: write message back to client is not necessary
-	// NOTE : Need to specify client address in WriteToUDP() function
-	//        otherwise, you will get this error message
-	//        write udp : write: destination address required if you use Write() function instead of WriteToUDP()
-
-	//message := []byte("Hello UDP client!")
-	//_, err = conn.WriteToUDP(message, addr)
-	//
-	//if err != nil {
-	//	log.Println(err)
-	//}
-
-}
-
-func udpConnect() {
-	hostName := "192.168.1.126"
-	portNum := "15001"
-	service := hostName + ":" + portNum
-
-	udpAddr, err := net.ResolveUDPAddr("udp4", service)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// setup listener for incoming UDP connection
-	ln, err := net.ListenUDP("udp", udpAddr)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	fmt.Println("UDP server up and listening on port 15001")
-
-	defer ln.Close()
-
-	for {
-		// wait for UDP client to connect
-		handleUDPConnection(ln)
-	}
-}
-
 func main() {
-	// creata a name
-	name := "A"
+	// load configuration
+	conf := Config{}
+	err := conf.Load("config.json")
+	if err != nil {
+		log.Fatalf("unable to load configuration: %v", err)
+	}
+
 	// create a Crypto context
 	context := &ubirch.CryptoContext{&keystore.Keystore{}, map[string]uuid.UUID{}}
+
 	// create a ubirch Protocol
-	p := ubirch.Protocol{
-		Crypto:     context,
-		Signatures: map[uuid.UUID][]byte{},
-	}
-	//todo: when registering a device, extend the config with "Username: uid"
-	conf := config{
-		Username:   "",
-		Password:   "",
-		KeyService: "",
-		Niomon:     "",
-		Data:       "",
-	}
+	p := ExtendedProtocol{}
+	p.Crypto = context
+	p.Signatures = map[uuid.UUID][]byte{}
+	p.Certificates = map[uuid.UUID]SignedKeyRegistration{}
 
-	// todo: BEGIN of the old stuff
-	err := loadConfig(&conf)
-	if err != nil {
-		log.Printf("conf not found, or unable to load: %v", err)
-	}
-
-	// load the Protocol and if it is not available, create a new one
+	// try to load an existing p context (keystore)
 	err = loadProtocolContext(&p)
 	if err != nil {
-		log.Printf("keystore not found, or unable to load: %v", err)
-		uid, _ := uuid.Parse(conf.Username)
-		err = p.GenerateKey(name, uid)
-		if err != nil {
-			log.Fatalf("can't add key to key store: %v", err)
-		}
+		log.Printf("empty keystore: %v", err)
 	}
 
-	data, _ := hex.DecodeString("010203040506070809FF")
-	encoded, err := p.Sign(name, data, ubirch.Chained)
-	if err != nil {
-		log.Fatalf("creating signed upp failed: %v", err)
-	}
-	log.Print(hex.EncodeToString(encoded))
-
+	// set up graceful shutdown handling
+	sigs := make(chan os.Signal, 1)
+	done := make(chan bool, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
-		log.Println("Listening signals...")
-		c := make(chan os.Signal, 1) // we need to reserve to buffer size 1, so the notifier are not blocked
-		signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+		sig := <-sigs
+		log.Println(sig)
+		done <- true
+
+		log.Println("saving p context")
+		err := saveProtocolContext(&p)
+		if err != nil {
+			log.Printf("unable to save p context: %v", err)
+			os.Exit(1)
+		}
+
+		os.Exit(0)
 	}()
 
-	_ = saveProtocolContext(&p)
-	// todo END OF THE OLD STUFF
+	// create a message handler that parses the UDP message and creates UPPs
+	handler := make(chan UDPMessage, 100)
+	go func() {
+		registeredUUIDs := make(map[uuid.UUID]bool)
+		for {
+			select {
+			case msg := <-handler:
+				log.Printf("received %v: %s\n", msg.addr, hex.EncodeToString(msg.data))
+				if len(msg.data) > 16 {
+					uid, err := uuid.FromBytes(msg.data[:16])
+					if err != nil {
+						log.Printf("warning: UUID not parsable: (%s) %v\n", hex.EncodeToString(msg.data[:16]), err)
+						continue
+					}
+					name := uid.String()
 
-	// todo: this is the key handling
-	uid, _ := uuid.Parse(conf.Username)
-	cert, err := getSignedCertificate(&p, name, uid)
-	if err != nil {
-		log.Printf("could not generate certificate: %v", err)
-	} else {
-		log.Printf("certificate: %s", string(cert))
+					// check if certificate exists and generate key pair + registration
+					_, err = p.Crypto.GetKey(name)
+					if err != nil {
+						err = p.Crypto.GenerateKey(name, uid)
+						if err != nil {
+							log.Printf("%s: unable to generate key pair: %v\n", name, err)
+							continue
+						}
+					}
+					_, registered := registeredUUIDs[uid]
+					if !registered {
+						cert, err := getSignedCertificate(&p, name, uid)
+						if err != nil {
+							log.Printf("%sunable to generate signed certificate: %v\n", name, err)
+							continue
+						}
+						resp, err := post(cert, fmt.Sprintf("%spubkey", conf.KeyService),
+							map[string]string{"Content-Type": "application/json"})
+						if err != nil {
+							log.Printf("%s: unable to register public key: %v\n", name, err)
+							continue
+						}
+						log.Printf("%s: registered key: %v", name, string(resp))
+						registeredUUIDs[uid] = true
+					}
 
-	}
-
-	auth := fmt.Sprintf("%s:%s", conf.Username, conf.Password)
-	authEnc := base64.StdEncoding.EncodeToString([]byte(auth))
-
-	// http post the key registry
-	resp, err := post(cert,
-		fmt.Sprintf("%spubkey", conf.KeyService),
-		authEnc,
-		map[string]string{"Content-Type": "application/json"})
-
-	if err != nil {
-		log.Printf("unable to read response body: %v", err)
-	} else {
-		log.Printf("response: %s", string(resp))
-	}
-	// todo: end of key handling
+					// send UPP
+					hash := sha256.Sum256(msg.data[16:])
+					log.Printf("%s: hash %s (%s)\n", name, base64.StdEncoding.EncodeToString(hash[:]),
+						hex.EncodeToString(hash[:]))
+					upp, err := p.Sign(name, hash[:], ubirch.Chained)
+					if err != nil {
+						log.Printf("%s: unable to create UPP: %v", name, err)
+					}
+					log.Printf("%s: UPP %s\n", name, hex.EncodeToString(upp))
+				}
+			case <-done:
+				log.Println("finishing handler")
+				return
+			}
+		}
+	}()
 
 	// connect a udp server to listen to messages
-	udpConnect()
+	udpServer := UDPServer{handler}
+	err = udpServer.Listen("", 15001)
+	if err != nil {
+		log.Fatalf("error starting UDP server: %v", err)
+	}
 }
