@@ -57,7 +57,14 @@ func main() {
 	conf := Config{}
 	err := conf.Load("config.json")
 	if err != nil {
-		log.Fatalf("unable to load configuration: %v", err)
+		fmt.Println("ERROR: unable to load configuration: ", err)
+		fmt.Println("ERROR: a configuration file is required to run the client")
+		fmt.Println()
+		fmt.Println("Follow these steps to configure this client:")
+		fmt.Println("  1. visit https://console.demo.ubirch.com and register a user")
+		fmt.Println("  2. register a new device and save the device configuration in config.json")
+		fmt.Println("  3. restart the client")
+		os.Exit(1)
 	}
 
 	// create a Crypto context
