@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"crypto/sha256"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
@@ -102,8 +103,24 @@ func getSignedCertificate(p *ExtendedProtocol, name string, uid uuid.UUID) ([]by
 	return json.Marshal(cert)
 }
 
+//func dump(r *http.Request) {
+//	output, err := httputil.DumpRequest(r, true)
+//	if err != nil {
+//		fmt.Println("Error dumping request:", err)
+//		return
+//	}
+//	fmt.Println(string(output))
+//}
+
 // post A http request to the backend service and
 func post(upp []byte, url string, headers map[string]string) ([]byte, error) {
+	// force HTTP/1.1 as HTTP/2 will break the headers on the server
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSNextProto: make(map[string]func(authority string, c *tls.Conn) http.RoundTripper),
+		},
+	}
+
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(upp))
 	if err != nil {
 		log.Printf("can't make new post request: %v", err)
@@ -112,11 +129,13 @@ func post(upp []byte, url string, headers map[string]string) ([]byte, error) {
 		for k, v := range headers {
 			req.Header.Set(k, v)
 		}
+
 		//req.Header.Set("Authorization", fmt.Sprintf("Basic %s", auth))
-		resp, err := (&http.Client{}).Do(req)
+		resp, err := client.Do(req)
 		if err != nil {
-			log.Printf("post failed; %v", err)
+			return nil, err
 		}
+
 		//noinspection GoUnhandledErrorResult
 		defer resp.Body.Close()
 		return ioutil.ReadAll(resp.Body)

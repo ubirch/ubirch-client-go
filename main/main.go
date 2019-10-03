@@ -47,7 +47,7 @@ func loadProtocolContext(p *ExtendedProtocol) error {
 		return err
 	} else {
 		log.Printf("loaded protocol context")
-		log.Println(p.Signatures)
+		log.Printf("%d certificates, %d signatures\n", len(p.Certificates), len(p.Signatures))
 		return nil
 	}
 }
@@ -91,7 +91,6 @@ func main() {
 		log.Println(sig)
 		done <- true
 
-		log.Println("saving p context")
 		err := saveProtocolContext(&p)
 		if err != nil {
 			log.Printf("unable to save p context: %v", err)
@@ -133,8 +132,7 @@ func main() {
 							log.Printf("%sunable to generate signed certificate: %v\n", name, err)
 							continue
 						}
-						resp, err := post(cert, fmt.Sprintf("%spubkey", conf.KeyService),
-							map[string]string{"Content-Type": "application/json"})
+						resp, err := post(cert, conf.KeyService, map[string]string{"Content-Type": "application/json"})
 						if err != nil {
 							log.Printf("%s: unable to register public key: %v\n", name, err)
 							continue
@@ -143,15 +141,29 @@ func main() {
 						registeredUUIDs[uid] = true
 					}
 
-					// send UPP
-					hash := sha256.Sum256(msg.data[16:])
-					log.Printf("%s: hash %s (%s)\n", name, base64.StdEncoding.EncodeToString(hash[:]),
+					// send UPP (hash
+					hash := sha256.Sum256(msg.data)
+					log.Printf("%s: hash %s (%s)\n", name,
+						base64.StdEncoding.EncodeToString(hash[:]),
 						hex.EncodeToString(hash[:]))
 					upp, err := p.Sign(name, hash[:], ubirch.Chained)
 					if err != nil {
-						log.Printf("%s: unable to create UPP: %v", name, err)
+						log.Printf("%s: unable to create UPP: %v\n", name, err)
+						continue
 					}
 					log.Printf("%s: UPP %s\n", name, hex.EncodeToString(upp))
+
+					auth := fmt.Sprintf("%s:%s", name, conf.Password)
+					resp, err := post(upp, conf.Niomon, map[string]string{
+						"x-ubirch-hardware-id": name,
+						"x-ubirch-auth-type":   "ubirch",
+						"x-ubirch-credential":  base64.StdEncoding.EncodeToString([]byte(auth)),
+					})
+					if err != nil {
+						log.Printf("%s: send failed: %q\n", name, resp)
+						continue
+					}
+					log.Printf("%s: %q\n", name, resp)
 				}
 			case <-done:
 				log.Println("finishing handler")

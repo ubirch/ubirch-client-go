@@ -8,7 +8,6 @@ import (
 
 // configuration of the device
 type Config struct {
-	Username   string `json:"username"`
 	Password   string `json:"password"`
 	KeyService string `json:"keyService"`
 	Niomon     string `json:"niomon"`
@@ -24,10 +23,10 @@ func (c *Config) Load(filename string) error {
 
 	err = json.Unmarshal(contextBytes, c)
 	if err != nil {
-		log.Fatalf("unable to deserialize context: %v", err)
+		log.Fatalf("unable to load configuration %v", err)
 		return err
 	} else {
-		log.Printf("loaded protocol context")
+		log.Printf("configuration found")
 		return nil
 	}
 }
