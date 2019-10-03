@@ -71,14 +71,14 @@ func getSignedCertificate(p *ExtendedProtocol, name string, uid uuid.UUID) ([]by
 		pub64 := base64.StdEncoding.EncodeToString(pubKeyBytes)
 
 		// put it all together
-		now := time.Now()
+		now := time.Now().UTC()
 		keyRegistration := KeyRegistration{
 			"ecdsa-p256v1",
 			now.Format(timeFormat),
 			uid.String(),
-			string(pub64),
-			string(pub64),
-			now.Add(time.Duration(24 * 365 * time.Hour)).Format(timeFormat),
+			pub64,
+			pub64,
+			now.Add(24 * 365 * time.Hour).Format(timeFormat),
 			now.Format(timeFormat),
 		}
 
@@ -88,8 +88,8 @@ func getSignedCertificate(p *ExtendedProtocol, name string, uid uuid.UUID) ([]by
 			return nil, err
 		}
 
-		keyHash := sha256.Sum256(jsonKeyReg)
-		signature, err := p.Sign(name, keyHash[:], ubirch.Plain)
+		jsonKeyRegHash := sha256.Sum256(jsonKeyReg)
+		signature, err := p.Sign(name, jsonKeyRegHash[:], ubirch.Plain)
 		if err != nil {
 			return nil, err
 		}
@@ -131,6 +131,7 @@ func post(upp []byte, url string, headers map[string]string) ([]byte, error) {
 		}
 
 		//req.Header.Set("Authorization", fmt.Sprintf("Basic %s", auth))
+		//req.Header.Set("X-Niomon-Purge-Caches", "true")
 		resp, err := client.Do(req)
 		if err != nil {
 			return nil, err

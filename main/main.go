@@ -129,15 +129,16 @@ func main() {
 					if !registered {
 						cert, err := getSignedCertificate(&p, name, uid)
 						if err != nil {
-							log.Printf("%sunable to generate signed certificate: %v\n", name, err)
+							log.Printf("%s: unable to generate signed certificate: %v\n", name, err)
 							continue
 						}
+
 						resp, err := post(cert, conf.KeyService, map[string]string{"Content-Type": "application/json"})
 						if err != nil {
 							log.Printf("%s: unable to register public key: %v\n", name, err)
 							continue
 						}
-						log.Printf("%s: registered key: %v", name, string(resp))
+						log.Printf("%s: registered key: (%d) %v", name, len(resp), string(resp))
 						registeredUUIDs[uid] = true
 					}
 
@@ -146,18 +147,20 @@ func main() {
 					log.Printf("%s: hash %s (%s)\n", name,
 						base64.StdEncoding.EncodeToString(hash[:]),
 						hex.EncodeToString(hash[:]))
+
 					upp, err := p.Sign(name, hash[:], ubirch.Chained)
 					if err != nil {
 						log.Printf("%s: unable to create UPP: %v\n", name, err)
 						continue
 					}
 					log.Printf("%s: UPP %s\n", name, hex.EncodeToString(upp))
+					ok, err := p.Verify(name, upp, ubirch.Chained)
+					log.Printf("self verification: %v: (error: %v)", ok, err)
 
-					auth := fmt.Sprintf("%s:%s", name, conf.Password)
 					resp, err := post(upp, conf.Niomon, map[string]string{
 						"x-ubirch-hardware-id": name,
 						"x-ubirch-auth-type":   "ubirch",
-						"x-ubirch-credential":  base64.StdEncoding.EncodeToString([]byte(auth)),
+						"x-ubirch-credential":  base64.StdEncoding.EncodeToString([]byte(conf.Password)),
 					})
 					if err != nil {
 						log.Printf("%s: send failed: %q\n", name, resp)
