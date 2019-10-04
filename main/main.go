@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/paypal/go.crypto/keystore"
-	"github.com/thinkberg/ubirch-protocol-go/ubirch"
+	"github.com/ubirch/ubirch-protocol-go/ubirch"
 	"io/ioutil"
 	"log"
 	"os"
