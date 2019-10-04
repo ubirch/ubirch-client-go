@@ -9,7 +9,7 @@ The hashes are generated using SHA256 for the whole UDP payload.
 
 ## Install
 
-* build for ARM: `cd main; GOARCH=arm go build`
+* build for ARM: `./build.sh`
 * copy `start.sh`, `main/main`, and the `config.json` the target machine
 * run `./start.sh`
 
@@ -35,4 +35,3 @@ The output looks somewhat like this *started and stopped after first packet):
 
 - The configuration from console.demo.ubirch.com sets the msgpack endpoint for 
   key registration. **Remove the `/mpack` from the end of the keyService URL!**
-  
