@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"crypto/ecdsa"
-	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
@@ -88,8 +87,7 @@ func getSignedCertificate(p *ExtendedProtocol, name string, uid uuid.UUID) ([]by
 			return nil, err
 		}
 
-		jsonKeyRegHash := sha256.Sum256(jsonKeyReg)
-		signature, err := p.Sign(name, jsonKeyRegHash[:], ubirch.Plain)
+		signature, err := p.Sign(name, jsonKeyReg, ubirch.Plain)
 		if err != nil {
 			return nil, err
 		}
@@ -130,8 +128,6 @@ func post(upp []byte, url string, headers map[string]string) ([]byte, error) {
 			req.Header.Set(k, v)
 		}
 
-		//req.Header.Set("Authorization", fmt.Sprintf("Basic %s", auth))
-		//req.Header.Set("X-Niomon-Purge-Caches", "true")
 		resp, err := client.Do(req)
 		if err != nil {
 			return nil, err

@@ -132,6 +132,7 @@ func main() {
 							log.Printf("%s: unable to generate signed certificate: %v\n", name, err)
 							continue
 						}
+						log.Printf("CERT [%s]\n", cert)
 
 						resp, err := post(cert, conf.KeyService, map[string]string{"Content-Type": "application/json"})
 						if err != nil {
@@ -154,8 +155,12 @@ func main() {
 						continue
 					}
 					log.Printf("%s: UPP %s\n", name, hex.EncodeToString(upp))
-					ok, err := p.Verify(name, upp, ubirch.Chained)
-					log.Printf("self verification: %v: (error: %v)", ok, err)
+					//ok, err := p.Verify(name, upp, ubirch.Chained)
+					//if err != nil || !ok {
+					//	log.Printf("self verification failed: %v\n", err)
+					//} else {
+					//	log.Println("self verification okay")
+					//}
 
 					resp, err := post(upp, conf.Niomon, map[string]string{
 						"x-ubirch-hardware-id": name,
