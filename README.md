@@ -11,7 +11,9 @@ The hashes are generated using SHA256 for the whole UDP payload.
 
 * build for ARM: `./build.sh`
 * copy `start.sh`, `main/main`, and the `config.json` the target machine
-* run `./start.sh`
+* run `screen ./start.sh` (if it fails, use root or fix screen)
+  - to exit screen presse `Ctrl-a d`
+  - to reattach to the session, run `screen -R`
 
 The output looks somewhat like this *started and stopped after first packet):
 ```
