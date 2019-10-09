@@ -172,6 +172,12 @@ func main() {
 						continue
 					}
 					log.Printf("%s: %q\n", name, resp)
+
+					// save state for every message
+					err = saveProtocolContext(&p)
+					if err != nil {
+						log.Printf("unable to save protocol context: %v", err)
+					}
 				}
 			case <-done:
 				log.Println("finishing handler")
