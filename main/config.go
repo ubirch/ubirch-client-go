@@ -12,6 +12,11 @@ type Config struct {
 	KeyService string `json:"keyService"`
 	Niomon     string `json:"niomon"`
 	Data       string `json:"data"`
+	Mqtt       struct {
+		Address  string `json:"address"`
+		User     string `json:"user"`
+		Password string `json:"password"`
+	}
 }
 
 // load the configuration

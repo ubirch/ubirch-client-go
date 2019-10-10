@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -9,12 +10,16 @@ import (
 	"github.com/google/uuid"
 	"github.com/paypal/go.crypto/keystore"
 	"github.com/ubirch/ubirch-protocol-go/ubirch"
+	"io"
 	"io/ioutil"
 	"log"
+	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 )
+import MQTT "github.com/eclipse/paho.mqtt.golang"
 
 type ExtendedProtocol struct {
 	ubirch.Protocol
@@ -23,8 +28,6 @@ type ExtendedProtocol struct {
 
 // saves current ubirch-protocol context, storing keys and signatures
 func saveProtocolContext(p *ExtendedProtocol) error {
-	create
-	backup
 	err := os.Rename("protocol.json", "protocol.json.bck")
 	if err != nil {
 		log.Printf("unable to create protocol context backup: %v", err)
@@ -41,25 +44,40 @@ func saveProtocolContext(p *ExtendedProtocol) error {
 	}
 }
 
-// loads current ubirch-protocol context, loading keys and signatures
-func loadProtocolContext(p *ExtendedProtocol) error {
-	contextBytes, err := ioutil.ReadFile("protocol.json")
+func loadProtocolContextJson(p *ExtendedProtocol, contextBytes []byte) error {
+	err := json.Unmarshal(contextBytes, p)
 	if err != nil {
-		contextBytes, err = ioutil.ReadFile("protocol.json.bck")
-		if err != nil {
-			return err
-		}
-	}
-
-	err = json.Unmarshal(contextBytes, p)
-	if err != nil {
-		log.Fatalf("unable to deserialize context: %v", err)
+		log.Printf("unable to deserialize context: %v", err)
 		return err
 	} else {
 		log.Printf("loaded protocol context")
 		log.Printf("%d certificates, %d signatures\n", len(p.Certificates), len(p.Signatures))
 		return nil
 	}
+}
+
+// loads current ubirch-protocol context, loading keys and signatures
+func loadProtocolContext(p *ExtendedProtocol, file string) error {
+	contextBytes, err := ioutil.ReadFile(file)
+	if err != nil {
+		file = file + ".bck"
+		contextBytes, err = ioutil.ReadFile(file)
+		if err != nil {
+			return err
+		}
+	}
+	err = loadProtocolContextJson(p, contextBytes)
+	if err != nil {
+		if strings.HasSuffix(file, ".bck") {
+			return err
+		} else {
+			err = loadProtocolContext(p, file+".bck")
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func main() {
@@ -87,7 +105,7 @@ func main() {
 	p.Certificates = map[uuid.UUID]SignedKeyRegistration{}
 
 	// try to load an existing p context (keystore)
-	err = loadProtocolContext(&p)
+	err = loadProtocolContext(&p, "protocol.json")
 	if err != nil {
 		log.Printf("empty keystore: %v", err)
 	}
@@ -195,6 +213,47 @@ func main() {
 			}
 		}
 	}()
+
+	mqttHandler := func(client MQTT.Client, msg MQTT.Message) {
+		data := msg.Payload()
+		fmt.Printf("MSG: %s\n", hex.EncodeToString(data))
+
+		verified, err := p.Verify("switch", data, ubirch.Chained)
+		if err != nil {
+			log.Printf("error verifying message: %v", err)
+		}
+		if !verified {
+			log.Printf("message signature can't be verified")
+		}
+
+		raddr, err := net.ResolveUDPAddr("udp", "127.0.0.1:14001")
+		if err != nil {
+			return
+		}
+		conn, err := net.DialUDP("udp", nil, raddr)
+		if err != nil {
+			return
+		}
+		//noinspection ALL
+		defer conn.Close()
+
+		n, err := io.Copy(conn, bytes.NewReader(data))
+		if err != nil {
+			log.Printf("can't write to UDP socket: %v", err)
+		} else {
+			log.Printf("sent %d bytes to UDP: %s", n, hex.EncodeToString(data))
+		}
+		log.Printf("sent command %s to UDP socket", hex.EncodeToString(data))
+
+		//token := client.Publish("nn/result", 0, false, text)
+		//token.Wait()
+	}
+
+	// set up mqtt client
+	err = mqtt(conf.Mqtt.Address, conf.Mqtt.User, conf.Mqtt.Password, mqttHandler)
+	if err != nil {
+		log.Printf("mqtt client failed to start: %v", err)
+	}
 
 	// connect a udp server to listen to messages
 	udpServer := UDPServer{handler}
