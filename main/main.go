@@ -23,8 +23,15 @@ type ExtendedProtocol struct {
 
 // saves current ubirch-protocol context, storing keys and signatures
 func saveProtocolContext(p *ExtendedProtocol) error {
+	create
+	backup
+	err := os.Rename("protocol.json", "protocol.json.bck")
+	if err != nil {
+		log.Printf("unable to create protocol context backup: %v", err)
+	}
+
 	contextBytes, _ := json.MarshalIndent(p, "", "  ")
-	err := ioutil.WriteFile("protocol.json", contextBytes, 444)
+	err = ioutil.WriteFile("protocol.json", contextBytes, 444)
 	if err != nil {
 		log.Printf("unable to store protocol context: %v", err)
 		return err
@@ -38,7 +45,10 @@ func saveProtocolContext(p *ExtendedProtocol) error {
 func loadProtocolContext(p *ExtendedProtocol) error {
 	contextBytes, err := ioutil.ReadFile("protocol.json")
 	if err != nil {
-		return err
+		contextBytes, err = ioutil.ReadFile("protocol.json.bck")
+		if err != nil {
+			return err
+		}
 	}
 
 	err = json.Unmarshal(contextBytes, p)
