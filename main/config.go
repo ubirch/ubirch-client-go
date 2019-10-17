@@ -19,7 +19,7 @@ type Config struct {
 	}
 }
 
-// load the configuration
+// read the configuration
 func (c *Config) Load(filename string) error {
 	contextBytes, err := ioutil.ReadFile(filename)
 	if err != nil {
@@ -28,7 +28,7 @@ func (c *Config) Load(filename string) error {
 
 	err = json.Unmarshal(contextBytes, c)
 	if err != nil {
-		log.Fatalf("unable to load configuration %v", err)
+		log.Fatalf("unable to read configuration %v", err)
 		return err
 	} else {
 		log.Printf("configuration found")
