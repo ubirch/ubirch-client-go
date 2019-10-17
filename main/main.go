@@ -87,7 +87,7 @@ func (p *ExtendedProtocol) load(file string) error {
 }
 
 // handle graceful shutdown
-func shutdown(sigs chan os.Signal, done chan bool, p *ExtendedProtocol) {
+func shutdown(sigs chan os.Signal, p *ExtendedProtocol, done chan bool) {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	sig := <-sigs
@@ -219,7 +219,7 @@ func main() {
 	// set up graceful shutdown handling
 	sigs := make(chan os.Signal, 1)
 	done := make(chan bool, 1)
-	go shutdown(sigs, done, &p)
+	go shutdown(sigs, &p, done)
 
 	// create a messages channel that parses the UDP message and creates UPPs
 	messages := make(chan UDPMessage, 100)
