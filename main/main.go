@@ -1,16 +1,20 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	MQTT "github.com/eclipse/paho.mqtt.golang"
 	"github.com/google/uuid"
 	"github.com/paypal/go.crypto/keystore"
 	"github.com/ubirch/ubirch-protocol-go/ubirch"
+	"io"
 	"io/ioutil"
 	"log"
+	"net"
 	"os"
 	"os/signal"
 	"strings"
@@ -105,6 +109,11 @@ func shutdown(sigs chan os.Signal, p *ExtendedProtocol, done chan bool) {
 
 // handle incoming udp messages, create and send a ubirch protocol message (UPP)
 func handler(handler chan UDPMessage, p *ExtendedProtocol, conf Config, done chan bool) {
+	//client, err := mqtt(conf.Mqtt.Address, conf.Mqtt.User, conf.Mqtt.Password, nil)
+	//if err != nil {
+	//	log.Printf("unable to connect to MQTT server: %v", err)
+	//}
+
 	registeredUUIDs := make(map[uuid.UUID]bool)
 	for {
 		select {
@@ -160,7 +169,7 @@ func handler(handler chan UDPMessage, p *ExtendedProtocol, conf Config, done cha
 
 				resp, err := post(upp, conf.Niomon, map[string]string{
 					"x-ubirch-hardware-id": name,
-					"x-ubirch-auth-type":   "ubirch",
+					"x-ubirch-auth-type":   conf.Auth,
 					"x-ubirch-credential":  base64.StdEncoding.EncodeToString([]byte(conf.Password)),
 				})
 				if err != nil {

@@ -1,7 +1,7 @@
 #! /usr/bin/env bash
 SCRIPTPATH="$( cd "$(dirname "$0")" || exit ; pwd -P )"
-if [ ! -f $SCRIPTPATH/main ]; then
-  echo "Missing 'main' program file"
+if [ ! -f $SCRIPTPATH/ubirch-go-client ]; then
+  echo "Missing 'ubirch-go-client' program file"
   exit 1
 fi
 if [ ! -f $SCRIPTPATH/config.json ]; then

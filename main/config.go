@@ -8,6 +8,7 @@ import (
 
 // configuration of the device
 type Config struct {
+	Auth       string `json:"auth"`
 	Password   string `json:"password"`
 	KeyService string `json:"keyService"`
 	Niomon     string `json:"niomon"`
@@ -30,8 +31,11 @@ func (c *Config) Load(filename string) error {
 	if err != nil {
 		log.Fatalf("unable to read configuration %v", err)
 		return err
-	} else {
-		log.Printf("configuration found")
-		return nil
 	}
+
+	log.Printf("configuration found")
+	if c.Auth == "" {
+		c.Auth = "ubirch"
+	}
+	return nil
 }
