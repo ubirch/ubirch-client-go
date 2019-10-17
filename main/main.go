@@ -1,94 +1,27 @@
 package main
 
 import (
-	"bytes"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
-	MQTT "github.com/eclipse/paho.mqtt.golang"
 	"github.com/google/uuid"
 	"github.com/paypal/go.crypto/keystore"
 	"github.com/ubirch/ubirch-protocol-go/ubirch"
-	"io"
-	"io/ioutil"
 	"log"
-	"net"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 )
 
 const (
-	ConfigFile  = "config.json"
-	ContextFile = "protocol.json"
+	ConfigFile   = "config.json"
+	ContextFile  = "protocol.json"
+	PortSigner   = 15001
+	PortVerifier = 15002
 )
 
 var (
 	Version = "v1.0.0"
 	Build   = "local"
 )
-
-type ExtendedProtocol struct {
-	ubirch.Protocol
-	Certificates map[uuid.UUID]SignedKeyRegistration
-}
-
-// saves current ubirch-protocol context, storing keys and signatures
-func (p *ExtendedProtocol) save(file string) error {
-	err := os.Rename(file, file+".bck")
-	if err != nil {
-		log.Printf("unable to create protocol context backup: %v", err)
-	}
-
-	contextBytes, _ := json.MarshalIndent(p, "", "  ")
-	err = ioutil.WriteFile(file, contextBytes, 444)
-	if err != nil {
-		log.Printf("unable to store protocol context: %v", err)
-		return err
-	} else {
-		log.Printf("saved protocol context")
-		return nil
-	}
-}
-
-func (p *ExtendedProtocol) read(contextBytes []byte) error {
-	err := json.Unmarshal(contextBytes, p)
-	if err != nil {
-		log.Printf("unable to deserialize context: %v", err)
-		return err
-	} else {
-		log.Printf("loaded protocol context")
-		log.Printf("%d certificates, %d signatures\n", len(p.Certificates), len(p.Signatures))
-		return nil
-	}
-}
-
-// loads current ubirch-protocol context, loading keys and signatures
-func (p *ExtendedProtocol) load(file string) error {
-	contextBytes, err := ioutil.ReadFile(file)
-	if err != nil {
-		file = file + ".bck"
-		contextBytes, err = ioutil.ReadFile(file)
-		if err != nil {
-			return err
-		}
-	}
-	err = p.read(contextBytes)
-	if err != nil {
-		if strings.HasSuffix(file, ".bck") {
-			return err
-		} else {
-			err = p.load(file + ".bck")
-			if err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
 
 // handle graceful shutdown
 func shutdown(sigs chan os.Signal, p *ExtendedProtocol, done chan bool) {
@@ -105,90 +38,6 @@ func shutdown(sigs chan os.Signal, p *ExtendedProtocol, done chan bool) {
 	}
 
 	os.Exit(0)
-}
-
-// handle incoming udp messages, create and send a ubirch protocol message (UPP)
-func handler(handler chan UDPMessage, p *ExtendedProtocol, conf Config, done chan bool) {
-	//client, err := mqtt(conf.Mqtt.Address, conf.Mqtt.User, conf.Mqtt.Password, nil)
-	//if err != nil {
-	//	log.Printf("unable to connect to MQTT server: %v", err)
-	//}
-
-	registeredUUIDs := make(map[uuid.UUID]bool)
-	for {
-		select {
-		case msg := <-handler:
-			log.Printf("received %v: %s\n", msg.addr, hex.EncodeToString(msg.data))
-			if len(msg.data) > 16 {
-				uid, err := uuid.FromBytes(msg.data[:16])
-				if err != nil {
-					log.Printf("warning: UUID not parsable: (%s) %v\n", hex.EncodeToString(msg.data[:16]), err)
-					continue
-				}
-				name := uid.String()
-
-				// check if certificate exists and generate key pair + registration
-				_, err = p.Crypto.GetKey(name)
-				if err != nil {
-					err = p.Crypto.GenerateKey(name, uid)
-					if err != nil {
-						log.Printf("%s: unable to generate key pair: %v\n", name, err)
-						continue
-					}
-				}
-				_, registered := registeredUUIDs[uid]
-				if !registered {
-					cert, err := getSignedCertificate(p, name, uid)
-					if err != nil {
-						log.Printf("%s: unable to generate signed certificate: %v\n", name, err)
-						continue
-					}
-					log.Printf("CERT [%s]\n", cert)
-
-					resp, err := post(cert, conf.KeyService, map[string]string{"Content-Type": "application/json"})
-					if err != nil {
-						log.Printf("%s: unable to register public key: %v\n", name, err)
-						continue
-					}
-					log.Printf("%s: registered key: (%d) %v", name, len(resp), string(resp))
-					registeredUUIDs[uid] = true
-				}
-
-				// send UPP (hash
-				hash := sha256.Sum256(msg.data)
-				log.Printf("%s: hash %s (%s)\n", name,
-					base64.StdEncoding.EncodeToString(hash[:]),
-					hex.EncodeToString(hash[:]))
-
-				upp, err := p.Sign(name, hash[:], ubirch.Chained)
-				if err != nil {
-					log.Printf("%s: unable to create UPP: %v\n", name, err)
-					continue
-				}
-				log.Printf("%s: UPP %s\n", name, hex.EncodeToString(upp))
-
-				resp, err := post(upp, conf.Niomon, map[string]string{
-					"x-ubirch-hardware-id": name,
-					"x-ubirch-auth-type":   conf.Auth,
-					"x-ubirch-credential":  base64.StdEncoding.EncodeToString([]byte(conf.Password)),
-				})
-				if err != nil {
-					log.Printf("%s: send failed: %q\n", name, resp)
-					continue
-				}
-				log.Printf("%s: %q\n", name, resp)
-
-				// save state for every message
-				err = p.save(ContextFile)
-				if err != nil {
-					log.Printf("unable to save protocol context: %v", err)
-				}
-			}
-		case <-done:
-			log.Println("finishing handler")
-			return
-		}
-	}
 }
 
 func main() {
@@ -231,13 +80,26 @@ func main() {
 	go shutdown(sigs, &p, done)
 
 	// create a messages channel that parses the UDP message and creates UPPs
-	messages := make(chan UDPMessage, 100)
-	go handler(messages, &p, conf, done)
+	msgsToSign := make(chan UDPMessage, 100)
+	go sign(msgsToSign, &p, conf, done)
 
 	// connect a udp server to listen to messages
-	udpServer := UDPServer{messages}
-	err = udpServer.Listen("", 15001)
+	udpSrvSign := UDPServer{handler: msgsToSign}
+	err = udpSrvSign.Listen("", PortSigner)
 	if err != nil {
-		log.Fatalf("error starting UDP server: %v", err)
+		log.Fatalf("error starting signing service: %v", err)
 	}
+
+	// create a messages channel that hashes messages and fetches the UPP to verify
+	msgsToVrfy := make(chan UDPMessage, 100)
+	go verify(msgsToVrfy, &p, conf, done)
+
+	udpSrvVrfy := UDPServer{handler: msgsToVrfy}
+	err = udpSrvVrfy.Listen("", PortVerifier)
+	if err != nil {
+		log.Fatalf("error starting verification service: %v", err)
+	}
+
+	// wait forever, exit is handled via shutdown
+	select {}
 }

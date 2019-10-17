@@ -27,21 +27,25 @@ func (srv *UDPServer) Listen(addr string, port int) error {
 	if err != nil {
 		return err
 	}
-	defer listener.Close()
 
 	log.Printf("UDP server up and listening on %v", udpAddr)
 
-	for {
-		buffer := make([]byte, 1024)
+	go func() {
+		defer listener.Close()
 
-		// wait for UDP packats
-		n, addr, err := listener.ReadFromUDP(buffer)
-		if err != nil {
-			log.Printf("error reading udp: %v", err)
-			return err
+		for {
+			buffer := make([]byte, 1024)
+
+			// wait for UDP packats
+			n, addr, err := listener.ReadFromUDP(buffer)
+			if err != nil {
+				log.Fatalf("error reading udp: %v", err)
+			}
+
+			// handle message asynchronously, just warn if handling failed
+			srv.handler <- UDPMessage{addr, buffer[:n]}
 		}
+	}()
 
-		// handle message asynchronously, just warn if handling failed
-		srv.handler <- UDPMessage{addr, buffer[:n]}
-	}
+	return nil
 }
