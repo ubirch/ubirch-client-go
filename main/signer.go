@@ -20,7 +20,7 @@ func sign(handler chan UDPMessage, p *ExtendedProtocol, conf Config, done chan b
 	for {
 		select {
 		case msg := <-handler:
-			log.Printf("received %v: %s\n", msg.addr, hex.EncodeToString(msg.data))
+			log.Printf("signer received %v: %s\n", msg.addr, hex.EncodeToString(msg.data))
 			if len(msg.data) > 16 {
 				uid, err := uuid.FromBytes(msg.data[:16])
 				if err != nil {
@@ -69,6 +69,12 @@ func sign(handler chan UDPMessage, p *ExtendedProtocol, conf Config, done chan b
 				}
 				log.Printf("%s: UPP %s\n", name, hex.EncodeToString(upp))
 
+				// save state for every message
+				err = p.save(ContextFile)
+				if err != nil {
+					log.Printf("unable to save protocol context: %v", err)
+				}
+
 				resp, err := post(upp, conf.Niomon, map[string]string{
 					"x-ubirch-hardware-id": name,
 					"x-ubirch-auth-type":   conf.Auth,
@@ -80,14 +86,9 @@ func sign(handler chan UDPMessage, p *ExtendedProtocol, conf Config, done chan b
 				}
 				log.Printf("%s: %q\n", name, resp)
 
-				// save state for every message
-				err = p.save(ContextFile)
-				if err != nil {
-					log.Printf("unable to save protocol context: %v", err)
-				}
 			}
 		case <-done:
-			log.Println("finishing handler")
+			log.Println("finishing signer")
 			return
 		}
 	}

@@ -6,7 +6,7 @@ import sys
 import time
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # UDP
-input = "switch-to-ubirch.txt"
+input = "plc-a-data.txt"
 interval = 30
 if len(sys.argv) > 1:
     input = sys.argv[1]
