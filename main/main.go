@@ -26,12 +26,15 @@ var (
 )
 
 // handle graceful shutdown
-func shutdown(sigs chan os.Signal, p *ExtendedProtocol, wg *sync.WaitGroup, cancel context.CancelFunc) {
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+func shutdown(signals chan os.Signal, p *ExtendedProtocol, wg *sync.WaitGroup, cancel context.CancelFunc) {
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
-	sig := <-sigs
+	// block until we receive a SIGINT or SIGTERM
+	sig := <-signals
 	log.Printf("shutting down after receiving: %v", sig)
-	// wait for all go routings do end
+
+	// wait for all go routings to end, cancels the go routines contexts
+	// and waits for the wait group
 	cancel()
 	wg.Wait()
 
@@ -78,12 +81,14 @@ func main() {
 		log.Printf("empty keystore: %v", err)
 	}
 
+	// create a waitgroup that contains all asynchronous operations
+	// a cancellable context is used to stop the operations gracefully
 	wg := sync.WaitGroup{}
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// set up graceful shutdown handling
-	sigs := make(chan os.Signal, 1)
-	go shutdown(sigs, &p, &wg, cancel)
+	signals := make(chan os.Signal, 1)
+	go shutdown(signals, &p, &wg, cancel)
 
 	// create a messages channel that parses the UDP message and creates UPPs
 	msgsToSign := make(chan UDPMessage, 100)
