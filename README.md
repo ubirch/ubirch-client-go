@@ -9,8 +9,10 @@ The hashes are generated using SHA256 for the whole UDP payload.
 
 ## Install
 
-* build for ARM: `./build.sh`
-* copy `start.sh`, `main/main`, and the `config.json` the target machine
+A `Makefile` is provided to aid compiling and creating an executable for the target architecture.
+
+* build for ARM: run `make`
+* copy `start.sh`, `main/ubirch-go-client`, and the `config.json` the target machine
 * run `screen ./start.sh` (if it fails, use root or fix screen)
   - to exit screen presse `Ctrl-a d`
   - to reattach to the session, run `screen -R`
@@ -37,3 +39,23 @@ The output looks somewhat like this *started and stopped after first packet):
 
 - The configuration from console.demo.ubirch.com sets the msgpack endpoint for 
   key registration. **Remove the `/mpack` from the end of the keyService URL!**
+
+## Copyright
+
+```
+Copyright (c) 2019 ubirch GmbH
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```
+
+Authors: Matthias L. Jugel, Waldemar Grünwald, Roxana Meixner
