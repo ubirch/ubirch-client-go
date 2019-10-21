@@ -1,16 +1,20 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch"
 	"log"
+	"sync"
 )
 
 // hash a message and retrieve corresponding UPP to verify it
-func verify(handler chan UDPMessage, p *ExtendedProtocol, conf Config, done chan bool) {
+func verifier(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx context.Context, wg *sync.WaitGroup) {
+	defer wg.Done()
+
 	for {
 		select {
 		case msg := <-handler:
@@ -63,8 +67,8 @@ func verify(handler chan UDPMessage, p *ExtendedProtocol, conf Config, done chan
 					log.Printf("unable to save protocol context: %v", err)
 				}
 			}
-		case <-done:
-			log.Println("finishing signer")
+		case <-ctx.Done():
+			log.Println("finishing verifier")
 			return
 		}
 	}

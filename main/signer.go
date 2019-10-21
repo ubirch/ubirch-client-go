@@ -1,20 +1,19 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch"
 	"log"
+	"sync"
 )
 
 // handle incoming udp messages, create and send a ubirch protocol message (UPP)
-func sign(handler chan UDPMessage, p *ExtendedProtocol, conf Config, done chan bool) {
-	//client, err := mqtt(conf.Mqtt.Address, conf.Mqtt.User, conf.Mqtt.Password, nil)
-	//if err != nil {
-	//	log.Printf("unable to connect to MQTT server: %v", err)
-	//}
+func signer(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx context.Context, wg *sync.WaitGroup) {
+	defer wg.Done()
 
 	registeredUUIDs := make(map[uuid.UUID]bool)
 	for {
@@ -87,7 +86,7 @@ func sign(handler chan UDPMessage, p *ExtendedProtocol, conf Config, done chan b
 				log.Printf("%s: %q\n", name, resp)
 
 			}
-		case <-done:
+		case <-ctx.Done():
 			log.Println("finishing signer")
 			return
 		}

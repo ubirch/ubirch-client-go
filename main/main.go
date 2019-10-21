@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/paypal/go.crypto/keystore"
@@ -8,6 +9,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 )
 
@@ -24,12 +26,14 @@ var (
 )
 
 // handle graceful shutdown
-func shutdown(sigs chan os.Signal, p *ExtendedProtocol, done chan bool) {
+func shutdown(sigs chan os.Signal, p *ExtendedProtocol, wg *sync.WaitGroup, cancel context.CancelFunc) {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	sig := <-sigs
-	log.Println(sig)
-	done <- true
+	log.Printf("shutting down after receiving: %v", sig)
+	// wait for all go routings do end
+	cancel()
+	wg.Wait()
 
 	err := p.save(ContextFile)
 	if err != nil {
@@ -57,14 +61,14 @@ func main() {
 	}
 
 	// create a Crypto context
-	context := &ubirch.CryptoContext{
+	cryptoContext := &ubirch.CryptoContext{
 		Keystore: &keystore.Keystore{},
 		Names:    map[string]uuid.UUID{},
 	}
 
 	// create a ubirch Protocol
 	p := ExtendedProtocol{}
-	p.Crypto = context
+	p.Crypto = cryptoContext
 	p.Signatures = map[uuid.UUID][]byte{}
 	p.Certificates = map[uuid.UUID]SignedKeyRegistration{}
 
@@ -74,31 +78,37 @@ func main() {
 		log.Printf("empty keystore: %v", err)
 	}
 
+	wg := sync.WaitGroup{}
+	ctx, cancel := context.WithCancel(context.Background())
+
 	// set up graceful shutdown handling
 	sigs := make(chan os.Signal, 1)
-	done := make(chan bool, 1)
-	go shutdown(sigs, &p, done)
+	go shutdown(sigs, &p, &wg, cancel)
 
 	// create a messages channel that parses the UDP message and creates UPPs
 	msgsToSign := make(chan UDPMessage, 100)
-	go sign(msgsToSign, &p, conf, done)
+	go signer(msgsToSign, &p, conf, ctx, &wg)
+	wg.Add(1)
 
 	// connect a udp server to listen to messages
 	udpSrvSign := UDPServer{handler: msgsToSign}
-	err = udpSrvSign.Listen("", PortSigner)
+	err = udpSrvSign.Listen("", PortSigner, ctx, &wg)
 	if err != nil {
 		log.Fatalf("error starting signing service: %v", err)
 	}
+	wg.Add(1)
 
 	// create a messages channel that hashes messages and fetches the UPP to verify
 	msgsToVrfy := make(chan UDPMessage, 100)
-	go verify(msgsToVrfy, &p, conf, done)
+	go verifier(msgsToVrfy, &p, conf, ctx, &wg)
+	wg.Add(1)
 
 	udpSrvVrfy := UDPServer{handler: msgsToVrfy}
-	err = udpSrvVrfy.Listen("", PortVerifier)
+	err = udpSrvVrfy.Listen("", PortVerifier, ctx, &wg)
 	if err != nil {
 		log.Fatalf("error starting verification service: %v", err)
 	}
+	wg.Add(1)
 
 	// wait forever, exit is handled via shutdown
 	select {}
