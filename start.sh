@@ -10,7 +10,7 @@ if [ ! -f $SCRIPTPATH/config.json ]; then
 fi
 
 while (true); do
-  $SCRIPTPATH/main
+  $SCRIPTPATH/ubirch-go-client
   echo "Press Ctrl-C to stop!"
   sleep 5
 done
