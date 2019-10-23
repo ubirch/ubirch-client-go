@@ -108,7 +108,6 @@ func signer(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx conte
 				if err != nil {
 					log.Printf("%s: unable to create Cumulocity client: %v\n", name, err)
 				}
-				defer c8yClient.Disconnect(0)
 
 				// send values to Cumulocity
 				switchName1 := "switch1" // FIXME give better names and declare outside loop
@@ -122,6 +121,7 @@ func signer(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx conte
 				if err != nil {
 					log.Printf("%s: unable to send value for %s to Cumulocity: %v\n", name, switchName2, err)
 				}
+				c8yClient.Disconnect(0)
 			}
 		case <-ctx.Done():
 			log.Println("finishing signer")
