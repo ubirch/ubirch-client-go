@@ -112,7 +112,7 @@ func main() {
 	go signer(msgsToSign, &p, conf, ctx, &wg)
 	wg.Add(1)
 
-	// connect a udp server to listen to messages
+	// connect a udp server to listen to messages to ubirch (sign)
 	udpSrvSign := UDPServer{handler: msgsToSign}
 	err = udpSrvSign.Listen(conf.Interface.RxCert, ctx, &wg)
 	if err != nil {
@@ -125,6 +125,7 @@ func main() {
 	go verifier(msgsToVrfy, &p, conf, ctx, &wg)
 	wg.Add(1)
 
+	// connect a udp server to listen to messages to verify
 	udpSrvVrfy := UDPServer{handler: msgsToVrfy}
 	err = udpSrvVrfy.Listen(conf.Interface.RxVerify, ctx, &wg)
 	if err != nil {
