@@ -45,7 +45,7 @@ func signer(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx conte
 				name := uid.String()
 
 				// check if certificate exists and generate key pair + registration
-				_, err = p.Crypto.GetKey(name)
+				_, err = p.Crypto.GetPublicKey(name)
 				if err != nil {
 					err = p.Crypto.GenerateKey(name, uid)
 					if err != nil {

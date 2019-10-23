@@ -20,7 +20,6 @@ import (
 	"context"
 	"log"
 	"net"
-	"strconv"
 	"sync"
 )
 
@@ -34,8 +33,8 @@ type UDPServer struct {
 }
 
 //noinspection GoUnhandledErrorResult
-func (srv *UDPServer) Listen(addr string, port int, ctx context.Context, wg *sync.WaitGroup) error {
-	udpAddr, err := net.ResolveUDPAddr("udp4", addr+":"+strconv.Itoa(port))
+func (srv *UDPServer) Listen(addr string, ctx context.Context, wg *sync.WaitGroup) error {
+	udpAddr, err := net.ResolveUDPAddr("udp4", addr)
 	if err != nil {
 		return err
 	}

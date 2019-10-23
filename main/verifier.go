@@ -17,65 +17,183 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch"
 	"log"
+	"net"
+	"net/http"
+	"strings"
 	"sync"
+)
+
+type verification struct {
+	Chain []byte `json:"chain"`
+	Seal  []byte `json:"seal"`
+}
+
+func (p *ExtendedProtocol) checkAndRetrieveKey(id uuid.UUID, conf Config) error {
+	_, err := p.Crypto.GetPublicKey(id.String())
+	if err == nil {
+		return nil
+	}
+
+	resp, err := http.Get(conf.KeyService + "/current/hardwareId/" + id.String())
+	if err != nil {
+		log.Printf("unable to retrieve public key info for %s: %v", id.String(), resp)
+		return err
+	}
+
+	keys := make([]SignedKeyRegistration, 1)
+	decoder := json.NewDecoder(resp.Body)
+	_ = resp.Body.Close()
+
+	err = decoder.Decode(&keys)
+	if err != nil {
+		log.Printf("unable to decode key registration info: %v", err)
+		return err
+	}
+
+	log.Printf("public key (%s): %s", keys[0].PubKeyInfo.HwDeviceId, keys[0].PubKeyInfo.PubKey)
+	pubKeyBytes, err := base64.StdEncoding.DecodeString(keys[0].PubKeyInfo.PubKey)
+	if err != nil {
+		log.Printf("public key not in base64 encoding: %v", err)
+		return err
+	}
+	err = p.Crypto.SetPublicKey(id.String(), id, pubKeyBytes)
+	if err != nil {
+		log.Printf("unable to store public key: %v", err)
+		return err
+	}
+
+	return nil
+}
+
+func loadUPP(hash [32]byte, conf Config) ([]byte, error) {
+	hashString := base64.StdEncoding.EncodeToString(hash[:])
+	log.Printf("checking hash %s", hashString)
+
+	resp, err := http.Post(conf.VerifyService, "text/plain", strings.NewReader(hashString))
+	if err != nil {
+		log.Printf("network error: unable to retrieve data certificate: %v", err)
+		return nil, err
+	}
+	//noinspection ALL
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		log.Printf("unable to retrieve data certificate: response code %s", resp.Status)
+		return nil, errors.New(resp.Status)
+	}
+
+	vf := verification{}
+	decoder := json.NewDecoder(resp.Body)
+	err = decoder.Decode(&vf)
+	if err != nil {
+		log.Printf("unable to decode verification response: %v", err)
+		return nil, err
+	}
+	_ = resp.Body.Close()
+	upp := vf.Seal
+	log.Printf("UPP: %s", hex.EncodeToString(upp))
+	return upp, nil
+}
+
+const (
+	OK_VERIFIED           = 0x00
+	ERR_UUID_INVALID      = 0xE0
+	ERR_UPP_NOT_FOUND     = 0xE1
+	ERR_KEY_NOT_FOUND     = 0xE2
+	ERR_SIG_FAILED        = 0xF0
+	ERR_SIG_INVALID       = 0xF1
+	ERR_UPP_DECODE_FAILED = 0xF2
+	ERR_HASH_MISMATCH     = 0xF3
 )
 
 // hash a message and retrieve corresponding UPP to verify it
 func verifier(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
+	addr, _ := net.ResolveUDPAddr("udp", conf.Interface.Tx)
+	connection, err := net.DialUDP("udp", nil, addr)
+	if err != nil {
+		panic(fmt.Sprintf("network error setting up response sender: %v", err))
+	}
+	//noinspection ALL
+	defer connection.Close()
+
+	sendResponse := func(code byte) {
+		_, err := connection.Write([]byte{code})
+		if err != nil {
+			log.Printf("%s: can't send response: %02x", code)
+		}
+	}
+
 	for {
 		select {
 		case msg := <-handler:
 			log.Printf("verifier received %v: %s\n", msg.addr, hex.EncodeToString(msg.data))
+
 			if len(msg.data) > 16 {
 				uid, err := uuid.FromBytes(msg.data[:16])
 				if err != nil {
 					log.Printf("warning: UUID not parsable: (%s) %v\n", hex.EncodeToString(msg.data[:16]), err)
+					sendResponse(ERR_UUID_INVALID)
 					continue
 				}
 				name := uid.String()
 
-				// check if certificate exists and generate key pair + registration
-				_, err = p.Crypto.GetKey(name)
-				if err != nil {
-					err = p.Crypto.GenerateKey(name, uid)
-					if err != nil {
-						log.Printf("%s: unable to generate key pair: %v\n", name, err)
-						continue
-					}
-				}
-
-				// create hash to verify
 				hash := sha256.Sum256(msg.data)
-				log.Printf("%s: hash %s (%s)\n", name,
-					base64.StdEncoding.EncodeToString(hash[:]),
-					hex.EncodeToString(hash[:]))
-
-				verified, err := p.Verify(name, hash[:], ubirch.Chained)
+				upp, err := loadUPP(hash, conf)
 				if err != nil {
-					log.Printf("%s: unable to verify UPP: %v\n", name, err)
+					log.Printf("%s: unable to load corresponding UPP: %v", name, err)
+					sendResponse(ERR_UPP_NOT_FOUND)
 					continue
 				}
-				log.Printf("%s: UPP %s\n", name, verified)
 
-				//resp, err := post(upp, conf.Niomon, map[string]string{
-				//	"x-ubirch-hardware-id": name,
-				//	"x-ubirch-auth-type":   conf.Auth,
-				//	"x-ubirch-credential":  base64.StdEncoding.EncodeToString([]byte(conf.Password)),
-				//})
-				//if err != nil {
-				//	log.Printf("%s: send failed: %q\n", name, resp)
-				//	continue
-				//}
-				//log.Printf("%s: %q\n", name, resp)
+				// check if we already have the key, otherwise try to retrieve it
+				err = p.checkAndRetrieveKey(uid, conf)
+				if err != nil {
+					log.Printf("%s: unable to find key: %v", name, err)
+					sendResponse(ERR_KEY_NOT_FOUND)
+					continue
+				}
+
+				verified, err := p.Verify(name, upp, ubirch.Chained)
+				if err != nil {
+					log.Printf("%s: unable to verify UPP signature: %v\n", name, err)
+					sendResponse(ERR_SIG_FAILED)
+					continue
+				}
+				if !verified {
+					log.Printf("%s: failed to verify UPP signature", name)
+					sendResponse(ERR_SIG_INVALID)
+					continue
+				}
+
+				o, err := ubirch.Decode(upp)
+				if err != nil {
+					log.Printf("decoding UPP failed, can't check validity: %v", err)
+					sendResponse(ERR_UPP_DECODE_FAILED)
+					continue
+				}
+				// do a final consistency check and compare the msg hash with the one in the UPP
+				if bytes.Compare(hash[:], o.(*ubirch.ChainedUPP).Payload) != 0 {
+					log.Printf("hash and UPP content don't match: invalid request")
+					sendResponse(ERR_HASH_MISMATCH)
+					continue
+				}
+
+				// the request has been checked and is okay
+				log.Printf("verified and valid request received: %s", hex.EncodeToString(msg.data))
+				sendResponse(OK_VERIFIED)
 
 				// save state for every message
 				err = p.save(ContextFile)

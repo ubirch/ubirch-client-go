@@ -24,15 +24,20 @@ import (
 
 // configuration of the device
 type Config struct {
-	Auth       string `json:"auth"`
-	Password   string `json:"password"`
-	KeyService string `json:"keyService"`
-	Niomon     string `json:"niomon"`
-	Data       string `json:"data"`
-	Mqtt       struct {
+	Auth          string `json:"auth"`
+	Password      string `json:"password"`
+	KeyService    string `json:"keyService"`
+	VerifyService string `json:"verifyService"`
+	Niomon        string `json:"niomon"`
+	Data          string `json:"data"`
+	Mqtt          struct {
 		Address  string `json:"address"`
 		User     string `json:"user"`
 		Password string `json:"password"`
+	}
+	Interface struct {
+		Tx string `json:"tx"`
+		Rx string `json:"tx"`
 	}
 }
 

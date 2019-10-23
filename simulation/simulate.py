@@ -21,4 +21,5 @@ with open(input) as f:
         if m is not None:
             print(f"sending {m.group(1)}")
             sock.sendto(binascii.unhexlify(m.group(1)), ("localhost", 15001))
+            sock.sendto(binascii.unhexlify(m.group(1)), ("localhost", 15002))
             time.sleep(interval)

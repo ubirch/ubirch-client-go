@@ -30,10 +30,8 @@ import (
 )
 
 const (
-	ConfigFile   = "config.json"
-	ContextFile  = "protocol.json"
-	PortSigner   = 15001
-	PortVerifier = 15002
+	ConfigFile  = "config.json"
+	ContextFile = "protocol.json"
 )
 
 var (
@@ -91,6 +89,9 @@ func main() {
 	p.Signatures = map[uuid.UUID][]byte{}
 	p.Certificates = map[uuid.UUID]SignedKeyRegistration{}
 
+	// initialize protocol
+	p.Init()
+
 	// try to read an existing p context (keystore)
 	err = p.load(ContextFile)
 	if err != nil {
@@ -113,7 +114,7 @@ func main() {
 
 	// connect a udp server to listen to messages
 	udpSrvSign := UDPServer{handler: msgsToSign}
-	err = udpSrvSign.Listen("", PortSigner, ctx, &wg)
+	err = udpSrvSign.Listen(conf.Interface.Rx, ctx, &wg)
 	if err != nil {
 		log.Fatalf("error starting signing service: %v", err)
 	}
@@ -125,7 +126,7 @@ func main() {
 	wg.Add(1)
 
 	udpSrvVrfy := UDPServer{handler: msgsToVrfy}
-	err = udpSrvVrfy.Listen("", PortVerifier, ctx, &wg)
+	err = udpSrvVrfy.Listen(conf.Interface.Rx, ctx, &wg)
 	if err != nil {
 		log.Fatalf("error starting verification service: %v", err)
 	}

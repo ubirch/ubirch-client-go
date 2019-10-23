@@ -58,7 +58,7 @@ func getSignedCertificate(p *ExtendedProtocol, name string, uid uuid.UUID) ([]by
 	cert, found := p.Certificates[uid]
 	if !found { // there is no certificate stored yet
 		// get the key
-		pubKey, err := p.GetKey(name)
+		pubKey, err := p.GetPublicKey(name)
 		if err != nil {
 			return nil, err
 		}

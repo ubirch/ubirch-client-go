@@ -9,3 +9,5 @@ require (
 	github.com/ubirch/ubirch-protocol-go/ubirch v1.0.1
 	golang.org/x/net v0.0.0-20191009170851-d66e71096ffb // indirect
 )
+
+replace github.com/ubirch/ubirch-protocol-go/ubirch v1.0.1 => ../../ubirch-protocol-go/ubirch
