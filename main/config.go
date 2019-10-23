@@ -36,8 +36,9 @@ type Config struct {
 		Password string `json:"password"`
 	}
 	Interface struct {
-		Tx string `json:"tx"`
-		Rx string `json:"tx"`
+		RxCert   string `json:"rxCert"`
+		RxVerify string `json:"rxVerify"`
+		TxVerify string `json:"txVerify"`
 	}
 }
 

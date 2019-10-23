@@ -107,33 +107,37 @@ func loadUPP(hash [32]byte, conf Config) ([]byte, error) {
 }
 
 const (
-	OK_VERIFIED           = 0x00
-	ERR_UUID_INVALID      = 0xE0
-	ERR_UPP_NOT_FOUND     = 0xE1
-	ERR_KEY_NOT_FOUND     = 0xE2
-	ERR_SIG_FAILED        = 0xF0
-	ERR_SIG_INVALID       = 0xF1
-	ERR_UPP_DECODE_FAILED = 0xF2
-	ERR_HASH_MISMATCH     = 0xF3
+	OkVerified         = 0x00
+	ErrUuidInvalid     = 0xE0
+	ErrUppNotFound     = 0xE1
+	ErrKeyNotFound     = 0xE2
+	ErrSigFailed       = 0xF0
+	ErrSigInvalid      = 0xF1
+	ErrUppDecodeFailed = 0xF2
+	ErrHashMismatch    = 0xF3
 )
 
 // hash a message and retrieve corresponding UPP to verify it
 func verifier(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	addr, _ := net.ResolveUDPAddr("udp", conf.Interface.Tx)
+	addr, _ := net.ResolveUDPAddr("udp", conf.Interface.TxVerify)
 	connection, err := net.DialUDP("udp", nil, addr)
 	if err != nil {
 		panic(fmt.Sprintf("network error setting up response sender: %v", err))
 	}
 	//noinspection ALL
 	defer connection.Close()
+	log.Printf("sending verification results to: %s", addr.String())
 
 	sendResponse := func(code byte) {
 		_, err := connection.Write([]byte{code})
 		if err != nil {
-			log.Printf("%s: can't send response: %02x", code)
+			log.Printf("can't send response: %02x", code)
+		} else {
+			log.Printf("sent UDP response: %02x", code)
 		}
+
 	}
 
 	for {
@@ -145,7 +149,7 @@ func verifier(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx con
 				uid, err := uuid.FromBytes(msg.data[:16])
 				if err != nil {
 					log.Printf("warning: UUID not parsable: (%s) %v\n", hex.EncodeToString(msg.data[:16]), err)
-					sendResponse(ERR_UUID_INVALID)
+					sendResponse(ErrUuidInvalid)
 					continue
 				}
 				name := uid.String()
@@ -154,7 +158,7 @@ func verifier(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx con
 				upp, err := loadUPP(hash, conf)
 				if err != nil {
 					log.Printf("%s: unable to load corresponding UPP: %v", name, err)
-					sendResponse(ERR_UPP_NOT_FOUND)
+					sendResponse(ErrUppNotFound)
 					continue
 				}
 
@@ -162,38 +166,38 @@ func verifier(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx con
 				err = p.checkAndRetrieveKey(uid, conf)
 				if err != nil {
 					log.Printf("%s: unable to find key: %v", name, err)
-					sendResponse(ERR_KEY_NOT_FOUND)
+					sendResponse(ErrKeyNotFound)
 					continue
 				}
 
 				verified, err := p.Verify(name, upp, ubirch.Chained)
 				if err != nil {
 					log.Printf("%s: unable to verify UPP signature: %v\n", name, err)
-					sendResponse(ERR_SIG_FAILED)
+					sendResponse(ErrSigFailed)
 					continue
 				}
 				if !verified {
 					log.Printf("%s: failed to verify UPP signature", name)
-					sendResponse(ERR_SIG_INVALID)
+					sendResponse(ErrSigInvalid)
 					continue
 				}
 
 				o, err := ubirch.Decode(upp)
 				if err != nil {
 					log.Printf("decoding UPP failed, can't check validity: %v", err)
-					sendResponse(ERR_UPP_DECODE_FAILED)
+					sendResponse(ErrUppDecodeFailed)
 					continue
 				}
 				// do a final consistency check and compare the msg hash with the one in the UPP
 				if bytes.Compare(hash[:], o.(*ubirch.ChainedUPP).Payload) != 0 {
 					log.Printf("hash and UPP content don't match: invalid request")
-					sendResponse(ERR_HASH_MISMATCH)
+					sendResponse(ErrHashMismatch)
 					continue
 				}
 
 				// the request has been checked and is okay
 				log.Printf("verified and valid request received: %s", hex.EncodeToString(msg.data))
-				sendResponse(OK_VERIFIED)
+				sendResponse(OkVerified)
 
 				// save state for every message
 				err = p.save(ContextFile)

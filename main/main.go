@@ -114,7 +114,7 @@ func main() {
 
 	// connect a udp server to listen to messages
 	udpSrvSign := UDPServer{handler: msgsToSign}
-	err = udpSrvSign.Listen(conf.Interface.Rx, ctx, &wg)
+	err = udpSrvSign.Listen(conf.Interface.RxCert, ctx, &wg)
 	if err != nil {
 		log.Fatalf("error starting signing service: %v", err)
 	}
@@ -126,7 +126,7 @@ func main() {
 	wg.Add(1)
 
 	udpSrvVrfy := UDPServer{handler: msgsToVrfy}
-	err = udpSrvVrfy.Listen(conf.Interface.Rx, ctx, &wg)
+	err = udpSrvVrfy.Listen(conf.Interface.RxVerify, ctx, &wg)
 	if err != nil {
 		log.Fatalf("error starting verification service: %v", err)
 	}
