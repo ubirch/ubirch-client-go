@@ -40,6 +40,10 @@ type Config struct {
 		RxVerify string `json:"rxVerify"`
 		TxVerify string `json:"txVerify"`
 	}
+	Cumulocity struct {
+		Password string `json:"bootstrap"`
+		Tenant   string `json:"tenant"`
+	}
 }
 
 // read the configuration
