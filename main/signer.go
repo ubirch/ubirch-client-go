@@ -20,14 +20,15 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/hex"
+	"github.com/eclipse/paho.mqtt.golang"
+	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-go-c8y-client/c8y"
+	"github.com/ubirch/ubirch-protocol-go/ubirch"
 	"log"
 	"sync"
 	"time"
-	"github.com/eclipse/paho.mqtt.golang"
-	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-protocol-go/ubirch"
-	"github.com/ubirch/ubirch-go-c8y-client/c8y"
 )
 
 // handle incoming udp messages, create and send a ubirch protocol message (UPP)
@@ -94,7 +95,8 @@ func signer(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx conte
 					log.Printf("unable to save protocol context: %v", err)
 				}
 
-				client, _ := mqttClients[uid]
+				// send switch states to Cumulocity
+				client := mqttClients[uid]
 				if client == nil {
 					// create MQTT client for sending values to Cumulocity
 					client, err = c8y.GetClient(name, "ubirch", "")
@@ -103,17 +105,18 @@ func signer(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx conte
 						continue
 					}
 					defer client.Disconnect(0)
-					mqttClients[uid] = client					
+					mqttClients[uid] = client
 				}
-
-				timestamp := time.Now().UTC()
-				err = c8y.Send(client, name+"-A", msg.data[len(msg.data)-2], timestamp)
+				timestamp := time.Unix(0, int64(binary.LittleEndian.Uint64(msg.data[16:24])))
+				err = c8y.Send(client, name+"-A", msg.data[24], timestamp)
 				if err != nil {
 					log.Printf("%s: unable to send value for %s to Cumulocity: %v\n", name, name+"A", err)
+					continue
 				}
-				err = c8y.Send(client, name+"-B", msg.data[len(msg.data)-1], timestamp)
+				err = c8y.Send(client, name+"-B", msg.data[25], timestamp)
 				if err != nil {
 					log.Printf("%s: unable to send value for %s to Cumulocity: %v\n", name, name+"B", err)
+					continue
 				}
 
 				// post UPP to ubirch backend
