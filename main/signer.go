@@ -107,7 +107,7 @@ func signer(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx conte
 					defer client.Disconnect(0)
 					mqttClients[uid] = client
 				}
-				timestamp := time.Unix(0, int64(binary.LittleEndian.Uint64(msg.data[16:24])))
+				timestamp := time.Unix(0, int64(binary.LittleEndian.Uint64(msg.data[16:24]))).UTC()
 				err = c8y.Send(client, name+"-A", msg.data[24], timestamp)
 				if err != nil {
 					log.Printf("%s: unable to send value for %s to Cumulocity: %v\n", name, name+"A", err)
