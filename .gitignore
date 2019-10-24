@@ -21,7 +21,9 @@
 # vendor/
 
 main/main
+main/ubirch-go-client
 config.json
 protocol.json
 *_certificate.json
 *.bck
+*.json

@@ -19,14 +19,15 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/google/uuid"
-	"github.com/paypal/go.crypto/keystore"
-	"github.com/ubirch/ubirch-protocol-go/ubirch"
 	"log"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
+
+	"github.com/google/uuid"
+	"github.com/paypal/go.crypto/keystore"
+	"github.com/ubirch/ubirch-protocol-go/ubirch"
 )
 
 const (

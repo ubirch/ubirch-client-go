@@ -21,12 +21,13 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-go-c8y-client/c8y"
-	"github.com/ubirch/ubirch-protocol-go/ubirch"
 	"log"
 	"sync"
 	"time"
+	"github.com/eclipse/paho.mqtt.golang"
+	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-protocol-go/ubirch"
+	"github.com/ubirch/ubirch-go-c8y-client/c8y"
 )
 
 // handle incoming udp messages, create and send a ubirch protocol message (UPP)
@@ -34,6 +35,7 @@ func signer(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx conte
 	defer wg.Done()
 
 	registeredUUIDs := make(map[uuid.UUID]bool)
+	mqttClients := make(map[uuid.UUID]mqtt.Client)
 	for {
 		select {
 		case msg := <-handler:
@@ -92,6 +94,29 @@ func signer(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx conte
 					log.Printf("unable to save protocol context: %v", err)
 				}
 
+				client, _ := mqttClients[uid]
+				if client == nil {
+					// create MQTT client for sending values to Cumulocity
+					client, err = c8y.GetClient(name, "ubirch", "")
+					if err != nil {
+						log.Printf("%s: unable to create Cumulocity client: %v\n", name, err)
+						continue
+					}
+					defer client.Disconnect(0)
+					mqttClients[uid] = client					
+				}
+
+				timestamp := time.Now().UTC()
+				err = c8y.Send(client, name+"-A", msg.data[len(msg.data)-2], timestamp)
+				if err != nil {
+					log.Printf("%s: unable to send value for %s to Cumulocity: %v\n", name, name+"A", err)
+				}
+				err = c8y.Send(client, name+"-B", msg.data[len(msg.data)-1], timestamp)
+				if err != nil {
+					log.Printf("%s: unable to send value for %s to Cumulocity: %v\n", name, name+"B", err)
+				}
+
+				// post UPP to ubirch backend
 				resp, err := post(upp, conf.Niomon, map[string]string{
 					"x-ubirch-hardware-id": name,
 					"x-ubirch-auth-type":   conf.Auth,
@@ -103,25 +128,6 @@ func signer(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx conte
 				}
 				log.Printf("%s: %q\n", name, resp)
 
-				// create MQTT client for sending values to Cumulocity
-				c8yClient, err := c8y.GetClient(name, conf.Cumulocity.Tenant, conf.Cumulocity.Password)
-				if err != nil {
-					log.Printf("%s: unable to create Cumulocity client: %v\n", name, err)
-				}
-
-				// send values to Cumulocity
-				switchName1 := "switch1" // FIXME give better names and declare outside loop
-				switchName2 := "switch2"
-				timestamp := time.Now().UTC()
-				err = c8y.Send(c8yClient, switchName1, msg.data[len(msg.data)-2], timestamp)
-				if err != nil {
-					log.Printf("%s: unable to send value for %s to Cumulocity: %v\n", name, switchName1, err)
-				}
-				err = c8y.Send(c8yClient, switchName2, msg.data[len(msg.data)-1], timestamp)
-				if err != nil {
-					log.Printf("%s: unable to send value for %s to Cumulocity: %v\n", name, switchName2, err)
-				}
-				c8yClient.Disconnect(0)
 			}
 		case <-ctx.Done():
 			log.Println("finishing signer")
