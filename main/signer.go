@@ -25,7 +25,7 @@ import (
 	"github.com/eclipse/paho.mqtt.golang"
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-go-c8y-client/c8y"
-	"github.com/ubirch/ubirch-protocol-go/ubirch"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"log"
 	"sync"
 	"time"

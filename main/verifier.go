@@ -26,7 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-protocol-go/ubirch"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"log"
 	"net"
 	"net/http"

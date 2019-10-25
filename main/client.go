@@ -26,7 +26,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-protocol-go/ubirch"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"io/ioutil"
 	"log"
 	"net/http"

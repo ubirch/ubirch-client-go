@@ -6,6 +6,8 @@ github.com/paypal/go.crypto v0.1.0 h1:AZpk8Bh205QEIFYVkOjxTsi44ondifCryDhq3Ah7gH
 github.com/paypal/go.crypto v0.1.0/go.mod h1:SkWGgUAivahcWkhrh1+u2TdpofifG/A2vNpmnhT4oHY=
 github.com/ubirch/ubirch-go-c8y-client/c8y v0.1.0 h1:pzRR+3sw1XXFsqg0jh/47IiNGRR3NErzpMONefWP8fU=
 github.com/ubirch/ubirch-go-c8y-client/c8y v0.1.0/go.mod h1:aXM3iRQbDp41tJSBlZrphNN+v1UE1qbZPb1Gz47CV7s=
+github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.0.2 h1:VX4dZHc/iJG2oCiPq+Ke4Y1i6UqzfbX5YnfIU7kTuLY=
+github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.0.2/go.mod h1:T5ydah5MSdI0lB2kPLnzKmE6Gi6CR+k+uLBtCWhKWBk=
 github.com/ugorji/go v1.1.7 h1:/68gy2h+1mWMrwZFeD1kQialdSzAb432dtpeJ42ovdo=
 github.com/ugorji/go v1.1.7/go.mod h1:kZn38zHttfInRq0xu/PH0az30d+z6vm202qpg1oXVMw=
 github.com/ugorji/go/codec v1.1.7 h1:2SvQaVZ1ouYrrKKwoSk2pzd4A9evlKJb9oTL+OaLUSs=
