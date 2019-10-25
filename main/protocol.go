@@ -19,7 +19,7 @@ package main
 import (
 	"encoding/json"
 	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-protocol-go/ubirch"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"io/ioutil"
 	"log"
 	"os"

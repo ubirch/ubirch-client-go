@@ -27,7 +27,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/paypal/go.crypto/keystore"
-	"github.com/ubirch/ubirch-protocol-go/ubirch"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
 const (
