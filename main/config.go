@@ -31,12 +31,7 @@ type Config struct {
 	Niomon        string `json:"niomon"`
 	Data          string `json:"data"`
 	C8yTenant     string `json:"c8yTenant"`
-	Mqtt          struct {
-		Address  string `json:"address"`
-		User     string `json:"user"`
-		Password string `json:"password"`
-	}
-	Interface struct {
+	Interface     struct {
 		RxCert   string `json:"rxCert"`
 		RxVerify string `json:"rxVerify"`
 		TxVerify string `json:"txVerify"`
