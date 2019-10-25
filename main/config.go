@@ -30,6 +30,7 @@ type Config struct {
 	VerifyService string `json:"verifyService"`
 	Niomon        string `json:"niomon"`
 	Data          string `json:"data"`
+	C8yTenant     string `json:"c8yTenant"`
 	Mqtt          struct {
 		Address  string `json:"address"`
 		User     string `json:"user"`
