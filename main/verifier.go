@@ -32,6 +32,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 )
 
 type verification struct {
@@ -79,16 +80,23 @@ func (p *ExtendedProtocol) checkAndRetrieveKey(id uuid.UUID, conf Config) error 
 func loadUPP(hash [32]byte, conf Config) ([]byte, error) {
 	hashString := base64.StdEncoding.EncodeToString(hash[:])
 	log.Printf("checking hash %s", hashString)
-
-	resp, err := http.Post(conf.VerifyService, "text/plain", strings.NewReader(hashString))
-	if err != nil {
-		log.Printf("network error: unable to retrieve data certificate: %v", err)
-		return nil, err
+	var resp *http.Response
+	var err error
+	for retry := 0; retry < 3; retry++ {
+		resp, err = http.Post(conf.VerifyService, "text/plain", strings.NewReader(hashString))
+		if err != nil {
+			log.Printf("network error: unable to retrieve data certificate: %v", err)
+			return nil, err
+		}
+		if resp.StatusCode == http.StatusOK {
+			break
+		}
+		_ = resp.Body.Close()
+		log.Println("Couldn't verify hash yet. Retry...")
+		time.Sleep(1 * time.Second)
 	}
-	//noinspection ALL
-	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		log.Printf("unable to retrieve data certificate: response code %s", resp.Status)
 		return nil, errors.New(resp.Status)
 	}
