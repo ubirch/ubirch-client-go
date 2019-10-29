@@ -99,7 +99,7 @@ func signer(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx conte
 				client := mqttClients[uid]
 				if client == nil {
 					// create MQTT client for sending values to Cumulocity
-					client, err = c8y.GetClient(name, conf.C8yTenant, "")
+					client, err = c8y.GetClient(name, conf.C8yTenant, conf.C8yPassword)
 					if err != nil {
 						log.Printf("%s: unable to create Cumulocity client: %v\n", name, err)
 						continue

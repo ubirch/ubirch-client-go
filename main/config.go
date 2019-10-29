@@ -31,6 +31,7 @@ type Config struct {
 	Niomon        string `json:"niomon"`
 	Data          string `json:"data"`
 	C8yTenant     string `json:"c8yTenant"`
+	C8yPassword   string `json:"c8yPassword"`
 	Interface     struct {
 		RxCert   string `json:"rxCert"`
 		RxVerify string `json:"rxVerify"`
