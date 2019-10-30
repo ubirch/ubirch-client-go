@@ -140,9 +140,10 @@ func sendToCloud(handler chan cloudMessage, conf Config, ctx context.Context, wg
 
 			// send switch states to Cumulocity
 			client := mqttClients[uid]
+			var err error
 			if client == nil {
 				// create MQTT client for sending values to Cumulocity
-				client, err := c8y.GetClient(name, conf.C8yTenant, conf.C8yPassword)
+				client, err = c8y.GetClient(name, conf.C8yTenant, conf.C8yPassword)
 				if err != nil {
 					log.Printf("%s: unable to create Cumulocity client: %v\n", name, err)
 					continue
@@ -151,7 +152,7 @@ func sendToCloud(handler chan cloudMessage, conf Config, ctx context.Context, wg
 				mqttClients[uid] = client
 			}
 			timestamp := time.Unix(0, int64(binary.LittleEndian.Uint64(msg.data[16:24]))).UTC()
-			err := c8y.Send(client, name+"-A", msg.data[24], timestamp)
+			err = c8y.Send(client, name+"-A", msg.data[24], timestamp)
 			if err != nil {
 				log.Printf("%s: unable to send value for %s to Cumulocity: %v\n", name, name+"A", err)
 				continue
