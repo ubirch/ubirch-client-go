@@ -31,12 +31,21 @@ import (
 	"time"
 )
 
+type cloudMessage struct {
+	uid  uuid.UUID
+	name string
+	msg  UDPMessage
+}
+
 // handle incoming udp messages, create and send a ubirch protocol message (UPP)
 func signer(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
+	cloudChannel := make(chan cloudMessage, 100)
+	go sendToCloud(cloudChannel, conf, ctx, wg)
+	wg.Add(1)
+
 	registeredUUIDs := make(map[uuid.UUID]bool)
-	mqttClients := make(map[uuid.UUID]mqtt.Client)
 	for {
 		select {
 		case msg := <-handler:
@@ -95,29 +104,8 @@ func signer(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx conte
 					log.Printf("unable to save protocol context: %v", err)
 				}
 
-				// send switch states to Cumulocity
-				client := mqttClients[uid]
-				if client == nil {
-					// create MQTT client for sending values to Cumulocity
-					client, err = c8y.GetClient(name, conf.C8yTenant, conf.C8yPassword)
-					if err != nil {
-						log.Printf("%s: unable to create Cumulocity client: %v\n", name, err)
-						continue
-					}
-					defer client.Disconnect(0)
-					mqttClients[uid] = client
-				}
-				timestamp := time.Unix(0, int64(binary.LittleEndian.Uint64(msg.data[16:24]))).UTC()
-				err = c8y.Send(client, name+"-A", msg.data[24], timestamp)
-				if err != nil {
-					log.Printf("%s: unable to send value for %s to Cumulocity: %v\n", name, name+"A", err)
-					continue
-				}
-				err = c8y.Send(client, name+"-B", msg.data[25], timestamp)
-				if err != nil {
-					log.Printf("%s: unable to send value for %s to Cumulocity: %v\n", name, name+"B", err)
-					continue
-				}
+				// send message to Cumulocity
+				cloudChannel <- cloudMessage{uid, name, msg}
 
 				// post UPP to ubirch backend
 				resp, err := post(upp, conf.Niomon, map[string]string{
@@ -134,6 +122,47 @@ func signer(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx conte
 			}
 		case <-ctx.Done():
 			log.Println("finishing signer")
+			return
+		}
+	}
+}
+
+func sendToCloud(handler chan cloudMessage, conf Config, ctx context.Context, wg *sync.WaitGroup) {
+	defer wg.Done()
+	mqttClients := make(map[uuid.UUID]mqtt.Client)
+
+	for {
+		select {
+		case cloudMessage := <-handler:
+			uid := cloudMessage.uid
+			name := cloudMessage.name
+			msg := cloudMessage.msg
+
+			// send switch states to Cumulocity
+			client := mqttClients[uid]
+			if client == nil {
+				// create MQTT client for sending values to Cumulocity
+				client, err := c8y.GetClient(name, conf.C8yTenant, conf.C8yPassword)
+				if err != nil {
+					log.Printf("%s: unable to create Cumulocity client: %v\n", name, err)
+					continue
+				}
+				defer client.Disconnect(0)
+				mqttClients[uid] = client
+			}
+			timestamp := time.Unix(0, int64(binary.LittleEndian.Uint64(msg.data[16:24]))).UTC()
+			err := c8y.Send(client, name+"-A", msg.data[24], timestamp)
+			if err != nil {
+				log.Printf("%s: unable to send value for %s to Cumulocity: %v\n", name, name+"A", err)
+				continue
+			}
+			err = c8y.Send(client, name+"-B", msg.data[25], timestamp)
+			if err != nil {
+				log.Printf("%s: unable to send value for %s to Cumulocity: %v\n", name, name+"B", err)
+				continue
+			}
+		case <-ctx.Done():
+			log.Println("finishing send to cloud handler")
 			return
 		}
 	}
