@@ -36,8 +36,9 @@ import (
 )
 
 type verification struct {
-	Chain []byte `json:"chain"`
-	Seal  []byte `json:"seal"`
+	UPP     []byte `json:"upp"`
+	Prev    []byte `json:"prev"`
+	Anchors []byte `json:"anchors"`
 }
 
 func (p *ExtendedProtocol) checkAndRetrieveKey(id uuid.UUID, conf Config) error {
@@ -93,7 +94,7 @@ func loadUPP(hash [32]byte, conf Config) ([]byte, error) {
 		}
 		_ = resp.Body.Close()
 		log.Println("Couldn't verify hash yet. Retry...")
-		time.Sleep(1 * time.Second)
+		time.Sleep(500 * time.Millisecond)
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -109,7 +110,7 @@ func loadUPP(hash [32]byte, conf Config) ([]byte, error) {
 		return nil, err
 	}
 	_ = resp.Body.Close()
-	upp := vf.Seal
+	upp := vf.UPP
 	log.Printf("UPP: %s", hex.EncodeToString(upp))
 	return upp, nil
 }
