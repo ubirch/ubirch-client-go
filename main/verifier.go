@@ -79,6 +79,7 @@ func (p *ExtendedProtocol) checkAndRetrieveKey(id uuid.UUID, conf Config) error 
 }
 
 func loadUPP(hash [32]byte, conf Config) ([]byte, error) {
+	time.Sleep(300 * time.Millisecond)
 	hashString := base64.StdEncoding.EncodeToString(hash[:])
 	log.Printf("checking hash %s", hashString)
 	var resp *http.Response
@@ -94,7 +95,7 @@ func loadUPP(hash [32]byte, conf Config) ([]byte, error) {
 		}
 		_ = resp.Body.Close()
 		log.Println("Couldn't verify hash yet. Retry...")
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	if resp.StatusCode != http.StatusOK {
