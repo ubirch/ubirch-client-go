@@ -79,23 +79,32 @@ func (p *ExtendedProtocol) checkAndRetrieveKey(id uuid.UUID, conf Config) error 
 }
 
 func loadUPP(hash [32]byte, conf Config) ([]byte, error) {
-	time.Sleep(300 * time.Millisecond)
 	hashString := base64.StdEncoding.EncodeToString(hash[:])
 	log.Printf("checking hash %s", hashString)
+	// a slight initial delay
+	time.Sleep(50 * time.Millisecond)
+
 	var resp *http.Response
 	var err error
-	for retry := 0; retry < 3; retry++ {
-		resp, err = http.Post(conf.VerifyService, "text/plain", strings.NewReader(hashString))
-		if err != nil {
-			log.Printf("network error: unable to retrieve data certificate: %v", err)
-			return nil, err
+
+	n := 1
+	for stay, timeout := true, time.After(5*time.Second); stay; {
+		n++
+		select {
+		case <-timeout:
+			stay = false
+		default:
+			resp, err = http.Post(conf.VerifyService, "text/plain", strings.NewReader(hashString))
+			if err != nil {
+				log.Printf("network error: unable to retrieve data certificate: %v", err)
+				break
+			}
+			stay = resp.StatusCode != http.StatusOK
+			if stay {
+				_ = resp.Body.Close()
+				log.Printf("Couldn't verify hash yet (%d). Retry... %d\n", resp.StatusCode, n)
+			}
 		}
-		if resp.StatusCode == http.StatusOK {
-			break
-		}
-		_ = resp.Body.Close()
-		log.Println("Couldn't verify hash yet. Retry...")
-		time.Sleep(100 * time.Millisecond)
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -140,8 +149,9 @@ func verifier(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx con
 	defer connection.Close()
 	log.Printf("sending verification results to: %s", addr.String())
 
-	sendResponse := func(code byte) {
+	sendResponse := func(data []byte, code byte) {
 		_, err := connection.Write([]byte{code})
+		//_, err := connection.Write(append(data, code))
 		if err != nil {
 			log.Printf("can't send response: %02x", code)
 		} else {
@@ -159,7 +169,7 @@ func verifier(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx con
 				uid, err := uuid.FromBytes(msg.data[:16])
 				if err != nil {
 					log.Printf("warning: UUID not parsable: (%s) %v\n", hex.EncodeToString(msg.data[:16]), err)
-					sendResponse(ErrUuidInvalid)
+					sendResponse(msg.data, ErrUuidInvalid)
 					continue
 				}
 				name := uid.String()
@@ -168,7 +178,7 @@ func verifier(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx con
 				upp, err := loadUPP(hash, conf)
 				if err != nil {
 					log.Printf("%s: unable to load corresponding UPP: %v", name, err)
-					sendResponse(ErrUppNotFound)
+					sendResponse(msg.data, ErrUppNotFound)
 					continue
 				}
 
@@ -176,38 +186,38 @@ func verifier(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx con
 				err = p.checkAndRetrieveKey(uid, conf)
 				if err != nil {
 					log.Printf("%s: unable to find key: %v", name, err)
-					sendResponse(ErrKeyNotFound)
+					sendResponse(msg.data, ErrKeyNotFound)
 					continue
 				}
 
 				verified, err := p.Verify(name, upp, ubirch.Chained)
 				if err != nil {
 					log.Printf("%s: unable to verify UPP signature: %v\n", name, err)
-					sendResponse(ErrSigFailed)
+					sendResponse(msg.data, ErrSigFailed)
 					continue
 				}
 				if !verified {
 					log.Printf("%s: failed to verify UPP signature", name)
-					sendResponse(ErrSigInvalid)
+					sendResponse(msg.data, ErrSigInvalid)
 					continue
 				}
 
 				o, err := ubirch.Decode(upp)
 				if err != nil {
 					log.Printf("decoding UPP failed, can't check validity: %v", err)
-					sendResponse(ErrUppDecodeFailed)
+					sendResponse(msg.data, ErrUppDecodeFailed)
 					continue
 				}
 				// do a final consistency check and compare the msg hash with the one in the UPP
 				if bytes.Compare(hash[:], o.(*ubirch.ChainedUPP).Payload) != 0 {
 					log.Printf("hash and UPP content don't match: invalid request")
-					sendResponse(ErrHashMismatch)
+					sendResponse(msg.data, ErrHashMismatch)
 					continue
 				}
 
 				// the request has been checked and is okay
 				log.Printf("verified and valid request received: %s", hex.EncodeToString(msg.data))
-				sendResponse(OkVerified)
+				sendResponse(msg.data, OkVerified)
 
 				// save state for every message
 				err = p.save(ContextFile)
