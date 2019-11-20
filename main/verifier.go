@@ -150,8 +150,7 @@ func verifier(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx con
 	log.Printf("sending verification results to: %s", addr.String())
 
 	sendResponse := func(data []byte, code byte) {
-		_, err := connection.Write([]byte{code})
-		//_, err := connection.Write(append(data, code))
+		_, err := connection.Write(append(data, code))
 		if err != nil {
 			log.Printf("can't send response: %02x", code)
 		} else {
