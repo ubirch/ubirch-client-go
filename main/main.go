@@ -27,6 +27,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/paypal/go.crypto/keystore"
+	"github.com/ubirch/ubirch-go-http-server/api"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
@@ -109,7 +110,7 @@ func main() {
 	go shutdown(signals, &p, &wg, cancel)
 
 	// create a messages channel that parses the UDP message and creates UPPs
-	msgsToSign := make(chan UDPMessage, 100)
+	msgsToSign := make(chan []byte, 100)
 	go signer(msgsToSign, &p, conf, ctx, &wg)
 	wg.Add(1)
 
@@ -122,7 +123,7 @@ func main() {
 	wg.Add(1)
 
 	// create a messages channel that hashes messages and fetches the UPP to verify
-	msgsToVrfy := make(chan UDPMessage, 100)
+	msgsToVrfy := make(chan []byte, 100)
 	go verifier(msgsToVrfy, &p, conf, ctx, &wg)
 	wg.Add(1)
 
@@ -134,6 +135,9 @@ func main() {
 	}
 	wg.Add(1)
 
-	// wait forever, exit is handled via shutdown
-	select {}
+	// listen to messages
+	server := api.HTTPServer{SignHandler: msgsToSign, VerifyHandler: msgsToVrfy}
+	go server.Listen(ctx, &wg)
+	wg.Add(1)
+
 }

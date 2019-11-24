@@ -49,7 +49,6 @@ func signer(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx conte
 	for {
 		select {
 		case msg := <-handler:
-			log.Printf("signer received %v: %s\n", msg.addr, hex.EncodeToString(msg.data))
 			if len(msg.data) > 16 {
 				uid, err := uuid.FromBytes(msg.data[:16])
 				if err != nil {

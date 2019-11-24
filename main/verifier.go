@@ -162,7 +162,6 @@ func verifier(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx con
 	for {
 		select {
 		case msg := <-handler:
-			log.Printf("verifier received %v: %s\n", msg.addr, hex.EncodeToString(msg.data))
 
 			if len(msg.data) > 16 {
 				uid, err := uuid.FromBytes(msg.data[:16])
