@@ -82,12 +82,12 @@ func loadUPP(hash [32]byte, conf Config) ([]byte, error) {
 	hashString := base64.StdEncoding.EncodeToString(hash[:])
 	log.Printf("checking hash %s", hashString)
 	// a slight initial delay
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(300 * time.Millisecond)
 
 	var resp *http.Response
 	var err error
 
-	n := 1
+	n := 0
 	for stay, timeout := true, time.After(5*time.Second); stay; {
 		n++
 		select {
