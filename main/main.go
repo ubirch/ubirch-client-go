@@ -135,9 +135,11 @@ func main() {
 	}
 	wg.Add(1)
 
-	// listen to messages
+	// also listen to messages to sign or verify via http
 	server := api.HTTPServer{SignHandler: msgsToSign, VerifyHandler: msgsToVrfy}
 	go server.Listen(ctx, &wg)
 	wg.Add(1)
 
+	// wait forever, exit is handled via shutdown
+	select {}
 }

@@ -34,11 +34,11 @@ import (
 type cloudMessage struct {
 	uid  uuid.UUID
 	name string
-	msg  UDPMessage
+	msg  []byte
 }
 
 // handle incoming udp messages, create and send a ubirch protocol message (UPP)
-func signer(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx context.Context, wg *sync.WaitGroup) {
+func signer(handler chan []byte, p *ExtendedProtocol, conf Config, ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	cloudChannel := make(chan cloudMessage, 100)
@@ -49,10 +49,10 @@ func signer(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx conte
 	for {
 		select {
 		case msg := <-handler:
-			if len(msg.data) > 16 {
-				uid, err := uuid.FromBytes(msg.data[:16])
+			if len(msg) > 16 {
+				uid, err := uuid.FromBytes(msg[:16])
 				if err != nil {
-					log.Printf("warning: UUID not parsable: (%s) %v\n", hex.EncodeToString(msg.data[:16]), err)
+					log.Printf("warning: UUID not parsable: (%s) %v\n", hex.EncodeToString(msg[:16]), err)
 					continue
 				}
 				name := uid.String()
@@ -85,7 +85,7 @@ func signer(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx conte
 				}
 
 				// send UPP (hash
-				hash := sha256.Sum256(msg.data)
+				hash := sha256.Sum256(msg)
 				log.Printf("%s: hash %s (%s)\n", name,
 					base64.StdEncoding.EncodeToString(hash[:]),
 					hex.EncodeToString(hash[:]))
@@ -150,13 +150,13 @@ func sendToCloud(handler chan cloudMessage, conf Config, ctx context.Context, wg
 				defer client.Disconnect(0)
 				mqttClients[uid] = client
 			}
-			timestamp := time.Unix(0, int64(binary.LittleEndian.Uint64(msg.data[16:24]))).UTC()
-			err = c8y.Send(client, name+"-A", msg.data[24], timestamp)
+			timestamp := time.Unix(0, int64(binary.LittleEndian.Uint64(msg[16:24]))).UTC()
+			err = c8y.Send(client, name+"-A", msg[24], timestamp)
 			if err != nil {
 				log.Printf("%s: unable to send value for %s to Cumulocity: %v\n", name, name+"A", err)
 				continue
 			}
-			err = c8y.Send(client, name+"-B", msg.data[25], timestamp)
+			err = c8y.Send(client, name+"-B", msg[25], timestamp)
 			if err != nil {
 				log.Printf("%s: unable to send value for %s to Cumulocity: %v\n", name, name+"B", err)
 				continue

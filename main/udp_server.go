@@ -58,7 +58,7 @@ func (srv *UDPServer) Listen(addr string, ctx context.Context, wg *sync.WaitGrou
 				log.Printf("error reading udp: %v, stopping UDP server", err)
 				return
 			}
-			log.Printf("signer received %v: %s\n", addr, hex.EncodeToString(buffer[:n]))
+			log.Printf("UDP client received message from %v: %s\n", addr, hex.EncodeToString(buffer[:n]))
 
 			// handle message asynchronously, just warn if handling failed
 			srv.handler <- buffer[:n]
