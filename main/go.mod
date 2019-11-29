@@ -11,3 +11,5 @@ require (
 	github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.0.2
 	golang.org/x/net v0.0.0-20191021144547-ec77196f6094 // indirect
 )
+
+replace github.com/ubirch/ubirch-go-http-server/api v0.1.0 => ../../ubirch-go-http-server/api
