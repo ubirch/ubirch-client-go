@@ -64,10 +64,15 @@ func shutdown(signals chan os.Signal, p *ExtendedProtocol, wg *sync.WaitGroup, c
 }
 
 func main() {
+	path := ""
+	if len(os.Args) > 1 {
+		path = os.Args[1]
+	}
 	log.Printf("ubirch Golang client (%s, build=%s)", Version, Build)
 	// read configuration
+	log.Println("loading config file:  " + path + ConfigFile)
 	conf := Config{}
-	err := conf.Load(ConfigFile)
+	err := conf.Load(path + ConfigFile)
 	if err != nil {
 		fmt.Println("ERROR: unable to read configuration: ", err)
 		fmt.Println("ERROR: a configuration file is required to run the client")
