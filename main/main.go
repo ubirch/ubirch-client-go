@@ -32,8 +32,8 @@ import (
 )
 
 const (
-	ConfigFile  = "config.json"
-	ContextFile = "protocol.json"
+	ConfigFileName  = "config.json"
+	ContextFileName = "protocol.json"
 )
 
 var (
@@ -42,19 +42,19 @@ var (
 )
 
 // handle graceful shutdown
-func shutdown(signals chan os.Signal, p *ExtendedProtocol, wg *sync.WaitGroup, cancel context.CancelFunc) {
+func shutdown(signals chan os.Signal, p *ExtendedProtocol, contextFile string, wg *sync.WaitGroup, cancel context.CancelFunc) {
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
 	// block until we receive a SIGINT or SIGTERM
 	sig := <-signals
 	log.Printf("shutting down after receiving: %v", sig)
 
-	// wait for all go routings to end, cancels the go routines contexts
+	// wait for all go routines to end, cancels the go routines contexts
 	// and waits for the wait group
 	cancel()
 	wg.Wait()
 
-	err := p.save(ContextFile)
+	err := p.save(contextFile)
 	if err != nil {
 		log.Printf("unable to save p context: %v", err)
 		os.Exit(1)
@@ -68,18 +68,20 @@ func main() {
 	if len(os.Args) > 1 {
 		path = os.Args[1]
 	}
+	configFile := path + ConfigFileName
+	contextFile := path + ContextFileName
+
 	log.Printf("ubirch Golang client (%s, build=%s)", Version, Build)
 	// read configuration
-	log.Println("loading config file:  " + path + ConfigFile)
 	conf := Config{}
-	err := conf.Load(path + ConfigFile)
+	err := conf.Load(configFile)
 	if err != nil {
 		fmt.Println("ERROR: unable to read configuration: ", err)
 		fmt.Println("ERROR: a configuration file is required to run the client")
 		fmt.Println()
 		fmt.Println("Follow these steps to configure this client:")
 		fmt.Println("  1. visit https://console.demo.ubirch.com and register a user")
-		fmt.Println("  2. register a new device and save the device configuration in " + ConfigFile)
+		fmt.Println("  2. register a new device and save the device configuration in " + configFile)
 		fmt.Println("  3. restart the client")
 		os.Exit(1)
 	}
@@ -100,7 +102,7 @@ func main() {
 	p.Init()
 
 	// try to read an existing p context (keystore)
-	err = p.load(ContextFile)
+	err = p.load(contextFile)
 	if err != nil {
 		log.Printf("empty keystore: %v", err)
 	}
@@ -112,11 +114,11 @@ func main() {
 
 	// set up graceful shutdown handling
 	signals := make(chan os.Signal, 1)
-	go shutdown(signals, &p, &wg, cancel)
+	go shutdown(signals, &p, contextFile, &wg, cancel)
 
 	// create a messages channel that parses the UDP message and creates UPPs
 	msgsToSign := make(chan []byte, 100)
-	go signer(msgsToSign, &p, conf, ctx, &wg)
+	go signer(msgsToSign, &p, contextFile, conf, ctx, &wg)
 	wg.Add(1)
 
 	// connect a udp server to listen to messages to ubirch (sign)
@@ -129,7 +131,7 @@ func main() {
 
 	// create a messages channel that hashes messages and fetches the UPP to verify
 	msgsToVrfy := make(chan []byte, 100)
-	go verifier(msgsToVrfy, &p, conf, ctx, &wg)
+	go verifier(msgsToVrfy, &p, contextFile, conf, ctx, &wg)
 	wg.Add(1)
 
 	// connect a udp server to listen to messages to verify

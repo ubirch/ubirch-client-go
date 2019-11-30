@@ -38,7 +38,7 @@ type cloudMessage struct {
 }
 
 // handle incoming udp messages, create and send a ubirch protocol message (UPP)
-func signer(handler chan []byte, p *ExtendedProtocol, conf Config, ctx context.Context, wg *sync.WaitGroup) {
+func signer(handler chan []byte, p *ExtendedProtocol, contextFile string, conf Config, ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	cloudChannel := make(chan cloudMessage, 100)
@@ -98,7 +98,7 @@ func signer(handler chan []byte, p *ExtendedProtocol, conf Config, ctx context.C
 				log.Printf("%s: UPP %s\n", name, hex.EncodeToString(upp))
 
 				// save state for every message
-				err = p.save(ContextFile)
+				err = p.save(contextFile)
 				if err != nil {
 					log.Printf("unable to save protocol context: %v", err)
 				}

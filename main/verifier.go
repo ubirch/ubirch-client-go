@@ -137,7 +137,7 @@ const (
 )
 
 // hash a message and retrieve corresponding UPP to verify it
-func verifier(handler chan []byte, p *ExtendedProtocol, conf Config, ctx context.Context, wg *sync.WaitGroup) {
+func verifier(handler chan []byte, p *ExtendedProtocol, contextFile string, conf Config, ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	addr, _ := net.ResolveUDPAddr("udp", conf.Interface.TxVerify)
@@ -218,7 +218,7 @@ func verifier(handler chan []byte, p *ExtendedProtocol, conf Config, ctx context
 				sendResponse(msg, OkVerified)
 
 				// save state for every message
-				err = p.save(ContextFile)
+				err = p.save(contextFile)
 				if err != nil {
 					log.Printf("unable to save protocol context: %v", err)
 				}
