@@ -42,8 +42,10 @@ func signer(handler chan []byte, p *ExtendedProtocol, contextFile string, conf C
 	defer wg.Done()
 
 	cloudChannel := make(chan cloudMessage, 100)
-	go sendToCloud(cloudChannel, conf, ctx, wg)
-	wg.Add(1)
+	if conf.C8yTenant != "" {
+		go sendToCloud(cloudChannel, conf, ctx, wg)
+		wg.Add(1)
+	}
 
 	registeredUUIDs := make(map[uuid.UUID]bool)
 	for {

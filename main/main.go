@@ -64,12 +64,12 @@ func shutdown(signals chan os.Signal, p *ExtendedProtocol, contextFile string, w
 }
 
 func main() {
-	path := ""
+	pathToConfig := ""
 	if len(os.Args) > 1 {
-		path = os.Args[1]
+		pathToConfig = os.Args[1]
 	}
-	configFile := path + ConfigFileName
-	contextFile := path + ContextFileName
+	configFile := pathToConfig + ConfigFileName
+	contextFile := pathToConfig + ContextFileName
 
 	log.Printf("ubirch Golang client (%s, build=%s)", Version, Build)
 	// read configuration
