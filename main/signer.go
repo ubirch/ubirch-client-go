@@ -38,12 +38,12 @@ type cloudMessage struct {
 }
 
 // handle incoming udp messages, create and send a ubirch protocol message (UPP)
-func signer(handler chan []byte, p *ExtendedProtocol, contextFile string, conf Config, ctx context.Context, wg *sync.WaitGroup) {
+func signer(handler chan []byte, p *ExtendedProtocol, path string, conf Config, ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	cloudChannel := make(chan cloudMessage, 100)
 	if conf.C8yTenant != "" {
-		go sendToCloud(cloudChannel, conf, ctx, wg)
+		go sendToCloud(cloudChannel, conf, path, ctx, wg)
 		wg.Add(1)
 	}
 
@@ -100,7 +100,7 @@ func signer(handler chan []byte, p *ExtendedProtocol, contextFile string, conf C
 				log.Printf("%s: UPP %s\n", name, hex.EncodeToString(upp))
 
 				// save state for every message
-				err = p.save(contextFile)
+				err = p.save(path + ContextFile)
 				if err != nil {
 					log.Printf("unable to save protocol context: %v", err)
 				}
@@ -128,7 +128,7 @@ func signer(handler chan []byte, p *ExtendedProtocol, contextFile string, conf C
 	}
 }
 
-func sendToCloud(handler chan cloudMessage, conf Config, ctx context.Context, wg *sync.WaitGroup) {
+func sendToCloud(handler chan cloudMessage, conf Config, path string, ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 	mqttClients := make(map[uuid.UUID]mqtt.Client)
 
@@ -144,7 +144,7 @@ func sendToCloud(handler chan cloudMessage, conf Config, ctx context.Context, wg
 			var err error
 			if client == nil {
 				// create MQTT client for sending values to Cumulocity
-				client, err = c8y.GetClient(name, conf.C8yTenant, conf.C8yPassword)
+				client, err = c8y.GetClient(name, conf.C8yTenant, conf.C8yPassword, path)
 				if err != nil {
 					log.Printf("%s: unable to create Cumulocity client: %v\n", name, err)
 					continue

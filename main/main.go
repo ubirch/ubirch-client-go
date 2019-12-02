@@ -32,8 +32,8 @@ import (
 )
 
 const (
-	ConfigFileName  = "config.json"
-	ContextFileName = "protocol.json"
+	ConfigFile  = "config.json"
+	ContextFile = "protocol.json"
 )
 
 var (
@@ -42,7 +42,7 @@ var (
 )
 
 // handle graceful shutdown
-func shutdown(signals chan os.Signal, p *ExtendedProtocol, contextFile string, wg *sync.WaitGroup, cancel context.CancelFunc) {
+func shutdown(signals chan os.Signal, p *ExtendedProtocol, path string, wg *sync.WaitGroup, cancel context.CancelFunc) {
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
 	// block until we receive a SIGINT or SIGTERM
@@ -54,7 +54,7 @@ func shutdown(signals chan os.Signal, p *ExtendedProtocol, contextFile string, w
 	cancel()
 	wg.Wait()
 
-	err := p.save(contextFile)
+	err := p.save(path + ContextFile)
 	if err != nil {
 		log.Printf("unable to save p context: %v", err)
 		os.Exit(1)
@@ -68,20 +68,18 @@ func main() {
 	if len(os.Args) > 1 {
 		pathToConfig = os.Args[1]
 	}
-	configFile := pathToConfig + ConfigFileName
-	contextFile := pathToConfig + ContextFileName
 
 	log.Printf("ubirch Golang client (%s, build=%s)", Version, Build)
 	// read configuration
 	conf := Config{}
-	err := conf.Load(configFile)
+	err := conf.Load(pathToConfig + ConfigFile)
 	if err != nil {
 		fmt.Println("ERROR: unable to read configuration: ", err)
 		fmt.Println("ERROR: a configuration file is required to run the client")
 		fmt.Println()
 		fmt.Println("Follow these steps to configure this client:")
 		fmt.Println("  1. visit https://console.demo.ubirch.com and register a user")
-		fmt.Println("  2. register a new device and save the device configuration in " + configFile)
+		fmt.Println("  2. register a new device and save the device configuration in " + pathToConfig + ConfigFile)
 		fmt.Println("  3. restart the client")
 		os.Exit(1)
 	}
@@ -102,7 +100,7 @@ func main() {
 	p.Init()
 
 	// try to read an existing p context (keystore)
-	err = p.load(contextFile)
+	err = p.load(pathToConfig + ContextFile)
 	if err != nil {
 		log.Printf("empty keystore: %v", err)
 	}
@@ -114,11 +112,11 @@ func main() {
 
 	// set up graceful shutdown handling
 	signals := make(chan os.Signal, 1)
-	go shutdown(signals, &p, contextFile, &wg, cancel)
+	go shutdown(signals, &p, pathToConfig, &wg, cancel)
 
 	// create a messages channel that parses the UDP message and creates UPPs
 	msgsToSign := make(chan []byte, 100)
-	go signer(msgsToSign, &p, contextFile, conf, ctx, &wg)
+	go signer(msgsToSign, &p, pathToConfig, conf, ctx, &wg)
 	wg.Add(1)
 
 	// connect a udp server to listen to messages to ubirch (sign)
@@ -131,7 +129,7 @@ func main() {
 
 	// create a messages channel that hashes messages and fetches the UPP to verify
 	msgsToVrfy := make(chan []byte, 100)
-	go verifier(msgsToVrfy, &p, contextFile, conf, ctx, &wg)
+	go verifier(msgsToVrfy, &p, pathToConfig, conf, ctx, &wg)
 	wg.Add(1)
 
 	// connect a udp server to listen to messages to verify
