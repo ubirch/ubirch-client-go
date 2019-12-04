@@ -35,6 +35,14 @@ The output looks somewhat like this *started and stopped after first packet):
 2019/10/04 10:29:09 saved protocol context
 ```
 
+### Run in Docker container
+We provided a multi-arch Docker image that runs on amd64 as well as arm64 architecture. To start it, run:
+```
+docker pull ubirch/ubirch-go-udp-client:latest
+docker run -v $(pwd)/:/data/ --network=host ubirch/ubirch-go-udp-client:latest .
+```
+from the directory where your `config.json`-file is located or replace `$(pwd)` with the absolute path to that file.
+
 ### Issues
 
 - The configuration from console.demo.ubirch.com sets the msgpack endpoint for 
