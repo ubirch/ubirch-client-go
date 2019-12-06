@@ -34,26 +34,27 @@ import (
 type cloudMessage struct {
 	uid  uuid.UUID
 	name string
-	msg  UDPMessage
+	msg  []byte
 }
 
 // handle incoming udp messages, create and send a ubirch protocol message (UPP)
-func signer(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx context.Context, wg *sync.WaitGroup) {
+func signer(handler chan []byte, p *ExtendedProtocol, path string, conf Config, ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	cloudChannel := make(chan cloudMessage, 100)
-	go sendToCloud(cloudChannel, conf, ctx, wg)
-	wg.Add(1)
+	if conf.C8yTenant != "" {
+		go sendToCloud(cloudChannel, conf, path, ctx, wg)
+		wg.Add(1)
+	}
 
 	registeredUUIDs := make(map[uuid.UUID]bool)
 	for {
 		select {
 		case msg := <-handler:
-			log.Printf("signer received %v: %s\n", msg.addr, hex.EncodeToString(msg.data))
-			if len(msg.data) > 16 {
-				uid, err := uuid.FromBytes(msg.data[:16])
+			if len(msg) > 16 {
+				uid, err := uuid.FromBytes(msg[:16])
 				if err != nil {
-					log.Printf("warning: UUID not parsable: (%s) %v\n", hex.EncodeToString(msg.data[:16]), err)
+					log.Printf("warning: UUID not parsable: (%s) %v\n", hex.EncodeToString(msg[:16]), err)
 					continue
 				}
 				name := uid.String()
@@ -86,7 +87,7 @@ func signer(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx conte
 				}
 
 				// send UPP (hash
-				hash := sha256.Sum256(msg.data)
+				hash := sha256.Sum256(msg)
 				log.Printf("%s: hash %s (%s)\n", name,
 					base64.StdEncoding.EncodeToString(hash[:]),
 					hex.EncodeToString(hash[:]))
@@ -99,7 +100,7 @@ func signer(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx conte
 				log.Printf("%s: UPP %s\n", name, hex.EncodeToString(upp))
 
 				// save state for every message
-				err = p.save(ContextFile)
+				err = p.save(path + ContextFile)
 				if err != nil {
 					log.Printf("unable to save protocol context: %v", err)
 				}
@@ -127,7 +128,7 @@ func signer(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx conte
 	}
 }
 
-func sendToCloud(handler chan cloudMessage, conf Config, ctx context.Context, wg *sync.WaitGroup) {
+func sendToCloud(handler chan cloudMessage, conf Config, path string, ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 	mqttClients := make(map[uuid.UUID]mqtt.Client)
 
@@ -143,7 +144,7 @@ func sendToCloud(handler chan cloudMessage, conf Config, ctx context.Context, wg
 			var err error
 			if client == nil {
 				// create MQTT client for sending values to Cumulocity
-				client, err = c8y.GetClient(name, conf.C8yTenant, conf.C8yPassword)
+				client, err = c8y.GetClient(name, conf.C8yTenant, conf.C8yPassword, path)
 				if err != nil {
 					log.Printf("%s: unable to create Cumulocity client: %v\n", name, err)
 					continue
@@ -151,13 +152,13 @@ func sendToCloud(handler chan cloudMessage, conf Config, ctx context.Context, wg
 				defer client.Disconnect(0)
 				mqttClients[uid] = client
 			}
-			timestamp := time.Unix(0, int64(binary.LittleEndian.Uint64(msg.data[16:24]))).UTC()
-			err = c8y.Send(client, name+"-A", msg.data[24], timestamp)
+			timestamp := time.Unix(0, int64(binary.LittleEndian.Uint64(msg[16:24]))).UTC()
+			err = c8y.Send(client, name+"-A", msg[24], timestamp)
 			if err != nil {
 				log.Printf("%s: unable to send value for %s to Cumulocity: %v\n", name, name+"A", err)
 				continue
 			}
-			err = c8y.Send(client, name+"-B", msg.data[25], timestamp)
+			err = c8y.Send(client, name+"-B", msg[25], timestamp)
 			if err != nil {
 				log.Printf("%s: unable to send value for %s to Cumulocity: %v\n", name, name+"B", err)
 				continue

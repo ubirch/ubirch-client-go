@@ -137,7 +137,7 @@ const (
 )
 
 // hash a message and retrieve corresponding UPP to verify it
-func verifier(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx context.Context, wg *sync.WaitGroup) {
+func verifier(handler chan []byte, p *ExtendedProtocol, path string, conf Config, ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	addr, _ := net.ResolveUDPAddr("udp", conf.Interface.TxVerify)
@@ -162,22 +162,21 @@ func verifier(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx con
 	for {
 		select {
 		case msg := <-handler:
-			log.Printf("verifier received %v: %s\n", msg.addr, hex.EncodeToString(msg.data))
 
-			if len(msg.data) > 16 {
-				uid, err := uuid.FromBytes(msg.data[:16])
+			if len(msg) > 16 {
+				uid, err := uuid.FromBytes(msg[:16])
 				if err != nil {
-					log.Printf("warning: UUID not parsable: (%s) %v\n", hex.EncodeToString(msg.data[:16]), err)
-					sendResponse(msg.data, ErrUuidInvalid)
+					log.Printf("warning: UUID not parsable: (%s) %v\n", hex.EncodeToString(msg[:16]), err)
+					sendResponse(msg, ErrUuidInvalid)
 					continue
 				}
 				name := uid.String()
 
-				hash := sha256.Sum256(msg.data)
+				hash := sha256.Sum256(msg)
 				upp, err := loadUPP(hash, conf)
 				if err != nil {
 					log.Printf("%s: unable to load corresponding UPP: %v", name, err)
-					sendResponse(msg.data, ErrUppNotFound)
+					sendResponse(msg, ErrUppNotFound)
 					continue
 				}
 
@@ -185,41 +184,41 @@ func verifier(handler chan UDPMessage, p *ExtendedProtocol, conf Config, ctx con
 				err = p.checkAndRetrieveKey(uid, conf)
 				if err != nil {
 					log.Printf("%s: unable to find key: %v", name, err)
-					sendResponse(msg.data, ErrKeyNotFound)
+					sendResponse(msg, ErrKeyNotFound)
 					continue
 				}
 
 				verified, err := p.Verify(name, upp, ubirch.Chained)
 				if err != nil {
 					log.Printf("%s: unable to verify UPP signature: %v\n", name, err)
-					sendResponse(msg.data, ErrSigFailed)
+					sendResponse(msg, ErrSigFailed)
 					continue
 				}
 				if !verified {
 					log.Printf("%s: failed to verify UPP signature", name)
-					sendResponse(msg.data, ErrSigInvalid)
+					sendResponse(msg, ErrSigInvalid)
 					continue
 				}
 
 				o, err := ubirch.Decode(upp)
 				if err != nil {
 					log.Printf("decoding UPP failed, can't check validity: %v", err)
-					sendResponse(msg.data, ErrUppDecodeFailed)
+					sendResponse(msg, ErrUppDecodeFailed)
 					continue
 				}
 				// do a final consistency check and compare the msg hash with the one in the UPP
 				if bytes.Compare(hash[:], o.(*ubirch.ChainedUPP).Payload) != 0 {
 					log.Printf("hash and UPP content don't match: invalid request")
-					sendResponse(msg.data, ErrHashMismatch)
+					sendResponse(msg, ErrHashMismatch)
 					continue
 				}
 
 				// the request has been checked and is okay
-				log.Printf("verified and valid request received: %s", hex.EncodeToString(msg.data))
-				sendResponse(msg.data, OkVerified)
+				log.Printf("verified and valid request received: %s", hex.EncodeToString(msg))
+				sendResponse(msg, OkVerified)
 
 				// save state for every message
-				err = p.save(ContextFile)
+				err = p.save(path + ContextFile)
 				if err != nil {
 					log.Printf("unable to save protocol context: %v", err)
 				}

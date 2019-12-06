@@ -22,8 +22,11 @@
 
 main/main
 main/ubirch-go-client
+main/ubirch-go-client-arm
+main/ubirch-go-client-x86
 config.json
 protocol.json
 *_certificate.json
 *.bck
 *.json
+/venv/
