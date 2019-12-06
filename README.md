@@ -43,6 +43,36 @@ docker run -v $(pwd)/:/data/ --network=host ubirch/ubirch-go-udp-client:latest .
 ```
 from the directory where your `config.json`-file is located or replace `$(pwd)` with the absolute path to that file.
 
+### Message format
+The expected payload of the UDP packets or HTTP post requests that are sent to the client starts with the device UUID (16 byte)
+followed by any data in binary format.
+For example (in hex for readability):
+```
+# UUID                          # timestamp     # some value
+4f6b64a7a5c9483786c00d32bc8e03c080d1a6763192d01500003fc93178a59b
+```
+The signer receives a message, seals its hash value in a UPP (Ubirch Protocol Package) which is sent to the Ubirch backend.
+
+The verifier also calculates the hash over the message and checks for it in the Ubirch backend. If the hash exists in the backend,
+the verifier appends a byte to the original message to indicate the verification success or failure and sends it to the UDP port.
+
+The possible values are:
+
+	OkVerified         = 0x00
+	ErrUuidInvalid     = 0xE0
+	ErrUppNotFound     = 0xE1
+	ErrKeyNotFound     = 0xE2
+	ErrSigFailed       = 0xF0
+	ErrSigInvalid      = 0xF1
+	ErrUppDecodeFailed = 0xF2
+	ErrHashMismatch    = 0xF3
+	
+The successfully verified message of the example would then look like this:
+```
+# UUID                          # timestamp     # some value
+4f6b64a7a5c9483786c00d32bc8e03c080d1a6763192d01500003fc93178a59b00
+```
+
 ### Issues
 
 - The configuration from console.demo.ubirch.com sets the msgpack endpoint for 
