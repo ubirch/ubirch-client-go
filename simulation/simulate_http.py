@@ -22,6 +22,4 @@ with open(input) as f:
             print(f"sending {m.group(1)}")
             r = requests.post(url="http://localhost:8080/sign", data=binascii.unhexlify(m.group(1)))
             print("{}: {}".format(r.status_code, r.content))
-            r = requests.post(url="http://localhost:8080/verify", data=binascii.unhexlify(m.group(1)))
-            print("{}: {}".format(r.status_code, r.content))
             time.sleep(interval)
