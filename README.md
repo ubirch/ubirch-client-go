@@ -73,6 +73,18 @@ The successfully verified message of the example would then look like this:
 4f6b64a7a5c9483786c00d32bc8e03c080d1a6763192d01500003fc93178a59b00
 ```
 
+### Testing
+There is a python script `simulation/simulate_http.py` that reads data line for line from a text file and sends each line as
+http post requests to the `http://localhost:8080/sign` endpoint. 
+
+If the script is run without any command line arguments, it will read the input data from `simulation/plc-a-data.txt`. 
+Alternatively, an input file can be passed as command line argument. For example:
+
+    $ python ./simulation/simulate_http.py "simulation/my-test-input-file.txt"
+    
+The input file should contain the data for http requests to the client in hex format. Each line starts with the UUID 
+of the sender followed by any other data (see [Message format](#message-format)).
+
 ### Issues
 
 - The configuration from console.demo.ubirch.com sets the msgpack endpoint for 
