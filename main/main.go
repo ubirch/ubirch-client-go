@@ -120,7 +120,7 @@ func main() {
 	wg.Add(1)
 
 	// connect a udp server to listen to messages to ubirch (sign)
-	udpSrvSign := UDPServer{handler: msgsToSign}
+	udpSrvSign := UDPServer{receiveHandler: msgsToSign}
 	err = udpSrvSign.Listen(conf.Interface.RxCert, ctx, &wg)
 	if err != nil {
 		log.Fatalf("error starting signing service: %v", err)
@@ -129,14 +129,21 @@ func main() {
 
 	// create a messages channel that hashes messages and fetches the UPP to verify
 	msgsToVrfy := make(chan []byte, 100)
-	go verifier(msgsToVrfy, &p, pathToConfig, conf, ctx, &wg)
+	responses := make(chan []byte, 100)
+	go verifier(msgsToVrfy, responses, &p, pathToConfig, conf, ctx, &wg)
 	wg.Add(1)
 
 	// connect a udp server to listen to messages to verify
-	udpSrvVrfy := UDPServer{handler: msgsToVrfy}
+	udpSrvVrfy := UDPServer{receiveHandler: msgsToVrfy, responseHandler: responses}
 	err = udpSrvVrfy.Listen(conf.Interface.RxVerify, ctx, &wg)
 	if err != nil {
 		log.Fatalf("error starting verification service: %v", err)
+	}
+	wg.Add(1)
+	// set up udp server to send message responses
+	err = udpSrvVrfy.serve(conf.Interface.TxVerify, ctx, &wg)
+	if err != nil {
+		log.Fatalf(fmt.Sprintf("error setting up response sender: %v", err))
 	}
 	wg.Add(1)
 

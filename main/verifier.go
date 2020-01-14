@@ -24,11 +24,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"log"
-	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -137,26 +135,11 @@ const (
 )
 
 // hash a message and retrieve corresponding UPP to verify it
-func verifier(handler chan []byte, p *ExtendedProtocol, path string, conf Config, ctx context.Context, wg *sync.WaitGroup) {
+func verifier(handler chan []byte, responseHandler chan []byte, p *ExtendedProtocol, path string, conf Config, ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	addr, _ := net.ResolveUDPAddr("udp", conf.Interface.TxVerify)
-	connection, err := net.DialUDP("udp", nil, addr)
-	if err != nil {
-		panic(fmt.Sprintf("network error setting up response sender: %v", err))
-	}
-	//noinspection ALL
-	defer connection.Close()
-	log.Printf("sending verification results to: %s", addr.String())
-
 	sendResponse := func(data []byte, code byte) {
-		_, err := connection.Write(append(data, code))
-		if err != nil {
-			log.Printf("can't send response: %02x", code)
-		} else {
-			log.Printf("sent UDP response: %02x", code)
-		}
-
+		responseHandler <- append(data, code)
 	}
 
 	for {

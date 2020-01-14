@@ -19,13 +19,15 @@ package main
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"log"
 	"net"
 	"sync"
 )
 
 type UDPServer struct {
-	handler chan []byte
+	receiveHandler  chan []byte
+	responseHandler chan []byte
 }
 
 //noinspection GoUnhandledErrorResult
@@ -61,11 +63,45 @@ func (srv *UDPServer) Listen(addr string, ctx context.Context, wg *sync.WaitGrou
 			log.Printf("UDP client received message from %v: %s\n", addr, hex.EncodeToString(buffer[:n]))
 
 			// handle message asynchronously, just warn if handling failed
-			srv.handler <- buffer[:n]
+			srv.receiveHandler <- buffer[:n]
 		}
 	}()
 
 	log.Printf("UDP server up and listening on %v", udpAddr)
+
+	return nil
+}
+
+//noinspection GoUnhandledErrorResult
+func (srv *UDPServer) serve(addr string, ctx context.Context, wg *sync.WaitGroup) error {
+	udpAddr, err := net.ResolveUDPAddr("udp", addr)
+	if err != nil {
+		return err
+	}
+	connection, err := net.DialUDP("udp", nil, udpAddr)
+	if err != nil {
+		panic(fmt.Sprintf("network error setting up response sender: %v", err))
+	}
+
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case msg := <-srv.responseHandler:
+				_, err := connection.Write(msg)
+				if err != nil {
+					log.Printf("can't send response: %02x", msg[len(msg)-1])
+				} else {
+					log.Printf("sent UDP response: %02x", msg[len(msg)-1])
+				}
+			case <-ctx.Done():
+				connection.Close()
+				return
+			}
+		}
+	}()
+
+	log.Printf("sending verification results to: %s", udpAddr.String())
 
 	return nil
 }
