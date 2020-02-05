@@ -140,8 +140,9 @@ func main() {
 		log.Fatalf("error starting verification service: %v", err)
 	}
 	wg.Add(1)
+
 	// set up udp server to send message responses
-	err = udpSrvVrfy.serve(conf.Interface.TxVerify, ctx, &wg)
+	err = udpSrvVrfy.Serve(conf.Interface.TxVerify, ctx, &wg)
 	if err != nil {
 		log.Fatalf(fmt.Sprintf("error setting up response sender: %v", err))
 	}

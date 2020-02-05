@@ -30,7 +30,6 @@ type UDPServer struct {
 	responseHandler chan []byte
 }
 
-//noinspection GoUnhandledErrorResult
 func (srv *UDPServer) Listen(addr string, ctx context.Context, wg *sync.WaitGroup) error {
 	udpAddr, err := net.ResolveUDPAddr("udp4", addr)
 	if err != nil {
@@ -72,8 +71,7 @@ func (srv *UDPServer) Listen(addr string, ctx context.Context, wg *sync.WaitGrou
 	return nil
 }
 
-//noinspection GoUnhandledErrorResult
-func (srv *UDPServer) serve(addr string, ctx context.Context, wg *sync.WaitGroup) error {
+func (srv *UDPServer) Serve(addr string, ctx context.Context, wg *sync.WaitGroup) error {
 	udpAddr, err := net.ResolveUDPAddr("udp", addr)
 	if err != nil {
 		return err
