@@ -25,6 +25,7 @@ import (
 	"github.com/eclipse/paho.mqtt.golang"
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-go-c8y-client/c8y"
+	"github.com/ubirch/ubirch-go-http-server/api"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"log"
 	"sync"
@@ -38,7 +39,7 @@ type cloudMessage struct {
 }
 
 // handle incoming udp messages, create and send a ubirch protocol message (UPP)
-func signer(handler chan []byte, p *ExtendedProtocol, path string, conf Config, ctx context.Context, wg *sync.WaitGroup) {
+func signer(handler chan []byte, respHandler chan api.Response, p *ExtendedProtocol, path string, conf Config, ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	cloudChannel := make(chan cloudMessage, 100)
@@ -77,7 +78,7 @@ func signer(handler chan []byte, p *ExtendedProtocol, path string, conf Config, 
 					}
 					log.Printf("CERT [%s]\n", cert)
 
-					resp, err := post(cert, conf.KeyService, map[string]string{"Content-Type": "application/json"})
+					_, resp, err := post(cert, conf.KeyService, map[string]string{"Content-Type": "application/json"}) // todo handle response code
 					if err != nil {
 						log.Printf("%s: unable to register public key: %v\n", name, err)
 						continue
@@ -86,7 +87,7 @@ func signer(handler chan []byte, p *ExtendedProtocol, path string, conf Config, 
 					registeredUUIDs[uid] = true
 				}
 
-				// send UPP (hash
+				// send UPP (hash)
 				hash := sha256.Sum256(msg)
 				log.Printf("%s: hash %s (%s)\n", name,
 					base64.StdEncoding.EncodeToString(hash[:]),
@@ -109,7 +110,7 @@ func signer(handler chan []byte, p *ExtendedProtocol, path string, conf Config, 
 				cloudChannel <- cloudMessage{uid, name, msg}
 
 				// post UPP to ubirch backend
-				resp, err := post(upp, conf.Niomon, map[string]string{
+				code, resp, err := post(upp, conf.Niomon, map[string]string{
 					"x-ubirch-hardware-id": name,
 					"x-ubirch-auth-type":   conf.Auth,
 					"x-ubirch-credential":  base64.StdEncoding.EncodeToString([]byte(conf.Password)),
@@ -120,6 +121,7 @@ func signer(handler chan []byte, p *ExtendedProtocol, path string, conf Config, 
 				}
 				log.Printf("%s: %q\n", name, resp)
 
+				respHandler <- api.Response{Code: code, Content: resp}
 			}
 		case <-ctx.Done():
 			log.Println("finishing signer")
