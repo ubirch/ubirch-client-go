@@ -78,7 +78,7 @@ func signer(handler chan []byte, respHandler chan api.Response, p *ExtendedProto
 					}
 					log.Printf("CERT [%s]\n", cert)
 
-					_, resp, err := post(cert, conf.KeyService, map[string]string{"Content-Type": "application/json"}) // todo handle response code
+					_, _, resp, err := post(cert, conf.KeyService, map[string]string{"Content-Type": "application/json"}) // todo handle response code
 					if err != nil {
 						log.Printf("%s: unable to register public key: %v\n", name, err)
 						continue
@@ -110,7 +110,7 @@ func signer(handler chan []byte, respHandler chan api.Response, p *ExtendedProto
 				cloudChannel <- cloudMessage{uid, name, msg}
 
 				// post UPP to ubirch backend
-				code, resp, err := post(upp, conf.Niomon, map[string]string{
+				code, header, resp, err := post(upp, conf.Niomon, map[string]string{
 					"x-ubirch-hardware-id": name,
 					"x-ubirch-auth-type":   conf.Auth,
 					"x-ubirch-credential":  base64.StdEncoding.EncodeToString([]byte(conf.Password)),
@@ -121,7 +121,7 @@ func signer(handler chan []byte, respHandler chan api.Response, p *ExtendedProto
 				}
 				log.Printf("%s: %q\n", name, resp)
 
-				respHandler <- api.Response{Code: code, Content: resp}
+				respHandler <- api.Response{Code: code, Header: header, Content: resp}
 			}
 		case <-ctx.Done():
 			log.Println("finishing signer")

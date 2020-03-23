@@ -127,7 +127,7 @@ func getSignedCertificate(p *ExtendedProtocol, name string, uid uuid.UUID) ([]by
 //}
 
 // post A http request to the backend service and
-func post(upp []byte, url string, headers map[string]string) (int, []byte, error) {
+func post(upp []byte, url string, headers map[string]string) (int, map[string][]string, []byte, error) {
 	// force HTTP/1.1 as HTTP/2 will break the headers on the server
 	client := &http.Client{
 		Transport: &http.Transport{
@@ -138,7 +138,7 @@ func post(upp []byte, url string, headers map[string]string) (int, []byte, error
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(upp))
 	if err != nil {
 		log.Printf("can't make new post request: %v", err)
-		return 0, nil, err
+		return 0, nil, nil, err
 	}
 
 	for k, v := range headers {
@@ -147,12 +147,12 @@ func post(upp []byte, url string, headers map[string]string) (int, []byte, error
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return 0, nil, err
+		return 0, nil, nil, err
 	}
 
 	//noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()
 
 	respContent, err := ioutil.ReadAll(resp.Body)
-	return resp.StatusCode, respContent, err
+	return resp.StatusCode, resp.Header, respContent, err
 }
