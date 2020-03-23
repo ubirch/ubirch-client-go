@@ -88,7 +88,7 @@ func signer(handler chan []byte, respHandler chan api.Response, p *ExtendedProto
 				}
 
 				// send UPP (hash)
-				hash := sha256.Sum256(msg)
+				hash := sha256.Sum256(msg[16:])
 				log.Printf("%s: hash %s (%s)\n", name,
 					base64.StdEncoding.EncodeToString(hash[:]),
 					hex.EncodeToString(hash[:]))
