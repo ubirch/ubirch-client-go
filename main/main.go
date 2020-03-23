@@ -149,7 +149,7 @@ func main() {
 	wg.Add(1)
 
 	// also listen to messages to sign or verify via http
-	server := api.HTTPServer{SignHandler: msgsToSign, VerifyHandler: msgsToVrfy}
+	server := api.HTTPServer{SigningRequestChan: msgsToSign, VerificationRequestChan: msgsToVrfy}
 	go server.Listen(ctx, &wg)
 	wg.Add(1)
 
