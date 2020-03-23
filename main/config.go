@@ -58,3 +58,41 @@ func (c *Config) Load(filename string) error {
 	}
 	return nil
 }
+
+func LoadAuth(filename string) (map[string]string, error) {
+	fileBytes, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	buffer := make(map[string][]string)
+	err = json.Unmarshal(fileBytes, &buffer)
+	if err != nil {
+		return nil, err
+	}
+
+	authMap := make(map[string]string)
+	for k, v := range buffer {
+		authMap[k] = v[1]
+	}
+	return authMap, nil
+}
+
+func LoadKeys(filename string) (map[string]string, error) {
+	fileBytes, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	buffer := make(map[string][]string)
+	err = json.Unmarshal(fileBytes, &buffer)
+	if err != nil {
+		return nil, err
+	}
+
+	keysMap := make(map[string]string)
+	for k, v := range buffer {
+		keysMap[k] = v[0]
+	}
+	return keysMap, nil
+}

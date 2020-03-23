@@ -32,6 +32,7 @@ import (
 )
 
 const (
+	AuthFile    = "auth.json"
 	ConfigFile  = "config.json"
 	ContextFile = "protocol.json"
 )
@@ -84,6 +85,16 @@ func main() {
 		os.Exit(1)
 	}
 
+	authMap, err := LoadAuth(pathToConfig + AuthFile)
+	if err != nil { // todo is this really critical?
+		log.Fatalf("ERROR: unable to read authorizations from file (%s): %v", AuthFile, err)
+	}
+
+	//keysMap, err := LoadKeys(pathToConfig + AuthFile)
+	//if err != nil {	// todo is this really critical?
+	//	log.Fatalf("ERROR: unable to read keys from file (%s): %v", AuthFile, err)
+	//}
+
 	// create a Crypto context
 	cryptoContext := &ubirch.CryptoContext{
 		Keystore: &keystore.Keystore{},
@@ -128,6 +139,11 @@ func main() {
 	}
 	wg.Add(1)
 
+	// listen to messages to sign via http
+	httpSrvSign := api.HTTPServer{ReceiveHandler: msgsToSign, ResponseHandler: signResp, Auth: authMap}
+	go httpSrvSign.Listen("/sign", ctx, &wg)
+	wg.Add(1)
+
 	// create a messages channel that hashes messages and fetches the UPP to verify
 	msgsToVrfy := make(chan []byte, 100)
 	responses := make(chan []byte, 100)
@@ -147,11 +163,6 @@ func main() {
 	if err != nil {
 		log.Fatalf(fmt.Sprintf("error setting up response sender: %v", err))
 	}
-	wg.Add(1)
-
-	// also listen to messages to sign or verify via http
-	httpSrvSign := api.HTTPServer{RequestChan: msgsToSign, ResponseChan: signResp}
-	go httpSrvSign.Listen("/sign", ctx, &wg)
 	wg.Add(1)
 
 	// wait forever, exit is handled via shutdown
