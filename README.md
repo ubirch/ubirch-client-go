@@ -35,13 +35,31 @@ The output looks somewhat like this *started and stopped after first packet):
 2019/10/04 10:29:09 saved protocol context
 ```
 
+### Configuration
+The service can be configured via environment variables.
+
+###### `UBIRCH_AUTH`
+will contain the auth type (eg. ubirch) 
+###### `UBIRCH_PASSWORD`
+(eg. "") contains the password of the instance
+###### `UBIRCH_KEYSERVICE`
+contains the URL to the keyservice (eg. "https://key.demo.ubirch.com/api/keyService/v1/pubkey") 
+###### `UBIRCH_VERIFYSERVICE`
+contains the URL to the verification service (eg. "https://verify.demo.ubirch.com/api/upp") 
+###### `UBIRCH_NIOMON`
+contains the URL to the niomon service (eg. "https://niomon.demo.ubirch.com") 
+###### `UBIRCH_INTERFACE_RXCERT`
+(eg. "localhost:15001")
+###### `UBIRCH_INTERFACE_RXVERIFY`
+(eg. "localhost:15002")
+###### `UBIRCH_INTERFACE_TXVERIFY`
+(eg. "localhost:15000")
+
 ### Run in Docker container
 We provided a multi-arch Docker image that runs on amd64 as well as arm64 architecture. To start it, run:
 ```
 docker pull ubirch/ubirch-go-udp-client:latest
 docker run -v $(pwd)/:/data/ --network=host ubirch/ubirch-go-udp-client:latest .
-```
-from the directory where your `config.json`-file is located or replace `$(pwd)` with the absolute path to that file.
 
 ### Message format
 The expected payload of the UDP packets or HTTP post requests that are sent to the client starts with the device UUID (16 byte)
