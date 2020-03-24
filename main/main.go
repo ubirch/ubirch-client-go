@@ -73,7 +73,7 @@ func main() {
 	log.Printf("ubirch Golang client (%s, build=%s)", Version, Build)
 	// read configuration
 	conf := Config{}
-	err := conf.Load(pathToConfig + ConfigFile)
+	err := conf.LoadEnv()
 	if err != nil {
 		fmt.Println("ERROR: unable to read configuration: ", err)
 		fmt.Println("ERROR: a configuration file is required to run the client")

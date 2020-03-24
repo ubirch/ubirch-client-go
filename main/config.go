@@ -20,6 +20,8 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"log"
+
+	"github.com/kelseyhightower/envconfig"
 )
 
 // configuration of the device
@@ -37,8 +39,14 @@ type Config struct {
 	}
 }
 
-// read the configuration
-func (c *Config) Load(filename string) error {
+// LoadEnv reads the configuration from environment variables
+func (c *Config) LoadEnv() error {
+	err := envconfig.Process("ubirch", c)
+	return err
+}
+
+// LoadFile reads the configuration from a json file
+func (c *Config) LoadFile(filename string) error {
 	contextBytes, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return err
