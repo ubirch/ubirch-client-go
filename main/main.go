@@ -140,8 +140,8 @@ func main() {
 	wg.Add(1)
 
 	// listen to messages to sign via http
-	httpSrvSign := api.HTTPServer{ReceiveHandler: msgsToSign, ResponseHandler: signResp, Auth: authMap}
-	go httpSrvSign.Listen("/sign", ctx, &wg)
+	httpSrvSign := api.HTTPServer{ReceiveHandler: msgsToSign, ResponseHandler: signResp, Endpoint: "/sign/", Auth: authMap}
+	go httpSrvSign.Listen(ctx, &wg)
 	wg.Add(1)
 
 	// create a messages channel that hashes messages and fetches the UPP to verify
