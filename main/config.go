@@ -18,8 +18,10 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 
 	"github.com/kelseyhightower/envconfig"
 )
@@ -37,6 +39,25 @@ type Config struct {
 		RxVerify string `json:"rxVerify"`
 		TxVerify string `json:"txVerify"`
 	}
+}
+
+func (c *Config) Load(filename string) error {
+	if err := c.LoadEnv(); err == nil && os.Getenv("UBIRCH_PASSWORD") != "" {
+		return nil
+	}
+
+	err := c.LoadFile(filename)
+	if err != nil {
+		fmt.Println("ERROR: unable to read configuration: ", err)
+		fmt.Println("ERROR: a configuration file is required to run the client")
+		fmt.Println()
+		fmt.Println("Follow these steps to configure this client:")
+		fmt.Println("  1. visit https://console.demo.ubirch.com and register a user")
+		fmt.Println("  2. register a new device and save the device configuration in " + filename)
+		fmt.Println("  3. restart the client")
+	}
+
+	return err
 }
 
 // LoadEnv reads the configuration from environment variables

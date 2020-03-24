@@ -73,16 +73,10 @@ func main() {
 	log.Printf("ubirch Golang client (%s, build=%s)", Version, Build)
 	// read configuration
 	conf := Config{}
-	err := conf.LoadEnv()
+
+	err := conf.Load(pathToConfig + ConfigFile)
 	if err != nil {
-		fmt.Println("ERROR: unable to read configuration: ", err)
-		fmt.Println("ERROR: a configuration file is required to run the client")
-		fmt.Println()
-		fmt.Println("Follow these steps to configure this client:")
-		fmt.Println("  1. visit https://console.demo.ubirch.com and register a user")
-		fmt.Println("  2. register a new device and save the device configuration in " + pathToConfig + ConfigFile)
-		fmt.Println("  3. restart the client")
-		os.Exit(1)
+		log.Fatalf("Error loading config: %s", err)
 	}
 
 	authMap, err := LoadAuth(pathToConfig + AuthFile)
