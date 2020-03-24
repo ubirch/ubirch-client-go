@@ -39,7 +39,7 @@ type cloudMessage struct {
 }
 
 // handle incoming udp messages, create and send a ubirch protocol message (UPP)
-func signer(handler chan []byte, respHandler chan api.Response, p *ExtendedProtocol, path string, conf Config, ctx context.Context, wg *sync.WaitGroup) {
+func signer(msgHandler chan []byte, respHandler chan api.Response, p *ExtendedProtocol, path string, conf Config, keys map[string]string, ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	cloudChannel := make(chan cloudMessage, 100)
@@ -51,7 +51,7 @@ func signer(handler chan []byte, respHandler chan api.Response, p *ExtendedProto
 	registeredUUIDs := make(map[uuid.UUID]bool)
 	for {
 		select {
-		case msg := <-handler:
+		case msg := <-msgHandler:
 			if len(msg) > 16 {
 				uid, err := uuid.FromBytes(msg[:16])
 				if err != nil {
@@ -60,15 +60,33 @@ func signer(handler chan []byte, respHandler chan api.Response, p *ExtendedProto
 				}
 				name := uid.String()
 
-				// check if certificate exists and generate key pair + registration
+				// check if protocol instance has a signing key for UUID
 				_, err = p.Crypto.GetPublicKey(name)
 				if err != nil {
-					err = p.Crypto.GenerateKey(name, uid)
-					if err != nil {
-						log.Printf("%s: unable to generate key pair: %v\n", name, err)
-						continue
+					// check for inserted keys
+					if keys[name] != "" {
+						// set private key (public key will automatically be calculated and set)
+						keyBytes, err := base64.StdEncoding.DecodeString(keys[name])
+						if err != nil {
+							log.Printf("Error decoding private key string for %s: %v, string was: %s", name, err, keyBytes)
+							continue
+						}
+						err = p.Crypto.SetKey(name, uid, keyBytes)
+						if err != nil {
+							log.Printf("Error inserting private key: %v,", err)
+							continue
+						}
+					} else {
+						// generate new keypair
+						err = p.Crypto.GenerateKey(name, uid)
+						if err != nil {
+							log.Printf("%s: unable to generate key pair: %v\n", name, err)
+							continue
+						}
 					}
 				}
+
+				// check if public key is registered at the key service
 				_, registered := registeredUUIDs[uid]
 				if !registered {
 					cert, err := getSignedCertificate(p, name, uid)

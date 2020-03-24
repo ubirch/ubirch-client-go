@@ -90,10 +90,10 @@ func main() {
 		log.Fatalf("ERROR: unable to read authorizations from file (%s): %v", AuthFile, err)
 	}
 
-	//keysMap, err := LoadKeys(pathToConfig + AuthFile)
-	//if err != nil {	// todo is this really critical?
-	//	log.Fatalf("ERROR: unable to read keys from file (%s): %v", AuthFile, err)
-	//}
+	keysMap, err := LoadKeys(pathToConfig + AuthFile)
+	if err != nil { // todo is this really critical?
+		log.Fatalf("ERROR: unable to read keys from file (%s): %v", AuthFile, err)
+	}
 
 	// create a Crypto context
 	cryptoContext := &ubirch.CryptoContext{
@@ -128,7 +128,7 @@ func main() {
 	// create a messages channel that parses the UDP message and creates UPPs
 	msgsToSign := make(chan []byte, 100)
 	signResp := make(chan api.Response, 100)
-	go signer(msgsToSign, signResp, &p, pathToConfig, conf, ctx, &wg)
+	go signer(msgsToSign, signResp, &p, pathToConfig, conf, keysMap, ctx, &wg)
 	wg.Add(1)
 
 	// connect a udp server to listen to messages to ubirch (sign)
