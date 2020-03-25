@@ -40,10 +40,18 @@ type Config struct {
 		TxVerify string `json:"txVerify"`
 	}
 	DSN string `json:"dsn"`
+
+	// Secret is used to encrypt the key store
+	Secret []byte
 }
 
 func (c *Config) Load(filename string) error {
 	if err := c.LoadEnv(); err == nil && os.Getenv("UBIRCH_PASSWORD") != "" {
+		// check for validity
+		if len(c.Secret) != 16 {
+			log.Fatalf("Secret length must be 16 bytes (is %d)", len(c.Secret))
+		}
+
 		return nil
 	}
 
@@ -87,14 +95,12 @@ func (c *Config) LoadFile(filename string) error {
 	return nil
 }
 
-func LoadAuth(filename string) (map[string]string, error) {
-	fileBytes, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
+// LoadAuth loads the auth map from the environment.
+func LoadAuth() (map[string]string, error) {
+	authTokens := os.Getenv("UBIRCH_AUTH_MAP")
 
 	buffer := make(map[string][]string)
-	err = json.Unmarshal(fileBytes, &buffer)
+	err := json.Unmarshal([]byte(authTokens), &buffer)
 	if err != nil {
 		return nil, err
 	}
@@ -106,14 +112,12 @@ func LoadAuth(filename string) (map[string]string, error) {
 	return authMap, nil
 }
 
-func LoadKeys(filename string) (map[string]string, error) {
-	fileBytes, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
+// LoadKeys loads the keys map from the environment.
+func LoadKeys() (map[string]string, error) {
+	authTokens := os.Getenv("UBIRCH_AUTH_MAP")
 
 	buffer := make(map[string][]string)
-	err = json.Unmarshal(fileBytes, &buffer)
+	err := json.Unmarshal([]byte(authTokens), &buffer)
 	if err != nil {
 		return nil, err
 	}

@@ -24,9 +24,9 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"encoding/json"
 
 	"github.com/google/uuid"
-	"github.com/paypal/go.crypto/keystore"
 	"github.com/ubirch/ubirch-go-http-server/api"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
@@ -91,7 +91,7 @@ func main() {
 	// create a ubirch Protocol
 	p := ExtendedProtocol{}
 	p.Crypto = &ubirch.CryptoContext{
-		Keystore: &keystore.Keystore{},
+		Keystore: ubirch.NewEncryptedKeystore(conf.Secret),
 		Names:    map[string]uuid.UUID{},
 	}
 	p.Signatures = map[uuid.UUID][]byte{}
@@ -100,9 +100,16 @@ func main() {
 	// initialize protocol
 	p.Init()
 
+	// authMap contains a map from client uuid to password
 	var authMap map[string]string
+
+	// authMap contains a map from client uuid to private key
 	var keysMap map[string]string
 	var db Database
+
+	if authList := os.Getenv("UBIRCH_AUTH_LIST"); authList != "" {
+		json.Unmarshal([]byte(authList), authMap)
+	}
 
 	if conf.DSN != "" {
 		// use the database
@@ -110,11 +117,6 @@ func main() {
 		db, err = NewPostgres(conf.DSN)
 		if err != nil {
 			log.Fatalf("Could not connect to database: %s", err)
-		}
-
-		authMap, keysMap, err = db.GetAuthKeysMaps()
-		if err != nil {
-			log.Fatalf("ERROR: unable to read authorizations from database: %v", err)
 		}
 
 		err = db.GetProtocolContext(&p)
@@ -125,23 +127,23 @@ func main() {
 
 	} else {
 		// read configurations from file
-
-		authMap, err = LoadAuth(pathToConfig + AuthFile)
-		if err != nil { // todo is this really critical?
-			log.Fatalf("ERROR: unable to read authorizations from file (%s): %v", AuthFile, err)
-		}
-
-		keysMap, err = LoadKeys(pathToConfig + AuthFile)
-		if err != nil { // todo is this really critical?
-			log.Fatalf("ERROR: unable to read keys from file (%s): %v", AuthFile, err)
-		}
-
 		// try to read an existing p context (keystore)
 		err = p.load(pathToConfig + ContextFile)
 		if err != nil {
 			log.Printf("empty keystore: %v", err)
 		}
 	}
+
+	authMap, err = LoadAuth()
+	if err != nil { // todo is this really critical?
+		log.Fatalf("ERROR: unable to read authorizations from env: %v", err)
+	}
+
+	keysMap, err = LoadKeys()
+	if err != nil { // todo is this really critical?
+		log.Fatalf("ERROR: unable to read keys from env: %v", err)
+	}
+
 
 
 	// create a waitgroup that contains all asynchronous operations

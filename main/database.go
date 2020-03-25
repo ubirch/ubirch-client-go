@@ -15,8 +15,6 @@ type Database interface {
 	SetProtocolContext(proto driver.Valuer) error
 	GetProtocolContext(proto sql.Scanner) error
 
-	GetAuthKeysMaps() (authmap, keysmap map[string]string, err error)
-
 	Close() error
 }
 
@@ -64,39 +62,6 @@ func (db *Postgres) GetProtocolContext(proto sql.Scanner) error {
 	err := db.conn.QueryRow(query).Scan(proto)
 
 	return err
-}
-
-// GetAuthKeysMaps retrieves the auth map and keys map from the auth list.
-// If the operation failed, a Database error will be returned.
-func (db *Postgres) GetAuthKeysMaps() (map[string]string, map[string]string, error) {
-	const query = `
-		SELECT "uuid", "key", "auth_token"
-		FROM "auth"`
-
-	var authmap = make(map[string]string)
-	var keysmap = make(map[string]string)
-
-	rows, err := db.conn.Query(query)
-	if err != nil {
-		log.Print("Database error: %s", err)
-		return authmap, keysmap, err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var uuid string
-		var key string
-		var authToken string
-
-		err = rows.Scan(&uuid, &key, &authToken)
-		if err != nil {
-			return authmap, keysmap, err
-		}
-
-		authmap[uuid] = authToken
-		keysmap[uuid] = key
-	}
-
-	return authmap, keysmap, rows.Err()
 }
 
 // Close prevents new queries to open, and blocks until the running queries are finished.
