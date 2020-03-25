@@ -52,6 +52,18 @@ func (p *ExtendedProtocol) save(file string) error {
 	}
 }
 
+// saves current ubirch-protocol context, storing keys and signatures
+func (p *ExtendedProtocol) saveDB(db Database) error {
+	err := db.SetProtocolContext(p)
+	if err != nil {
+		log.Printf("unable to store protocol context: %v", err)
+		return err
+	}
+
+	log.Printf("saved protocol context")
+	return nil
+}
+
 func (p *ExtendedProtocol) read(contextBytes []byte) error {
 	err := json.Unmarshal(contextBytes, p)
 	if err != nil {

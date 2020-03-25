@@ -43,7 +43,7 @@ var (
 )
 
 // handle graceful shutdown
-func shutdown(signals chan os.Signal, p *ExtendedProtocol, path string, wg *sync.WaitGroup, cancel context.CancelFunc) {
+func shutdown(signals chan os.Signal, p *ExtendedProtocol, path string, wg *sync.WaitGroup, cancel context.CancelFunc, db Database) {
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
 	// block until we receive a SIGINT or SIGTERM
@@ -55,10 +55,18 @@ func shutdown(signals chan os.Signal, p *ExtendedProtocol, path string, wg *sync
 	cancel()
 	wg.Wait()
 
-	err := p.save(path + ContextFile)
-	if err != nil {
-		log.Printf("unable to save p context: %v", err)
-		os.Exit(1)
+	if db != nil {
+		err := p.saveDB(db)
+		if err != nil {
+			log.Printf("unable to save p context: %v", err)
+			os.Exit(1)
+		}
+	} else {
+		err := p.save(path + ContextFile)
+		if err != nil {
+			log.Printf("unable to save p context: %v", err)
+			os.Exit(1)
+		}
 	}
 
 	os.Exit(0)
@@ -143,12 +151,12 @@ func main() {
 
 	// set up graceful shutdown handling
 	signals := make(chan os.Signal, 1)
-	go shutdown(signals, &p, pathToConfig, &wg, cancel)
+	go shutdown(signals, &p, pathToConfig, &wg, cancel, db)
 
 	// create a messages channel that parses the UDP message and creates UPPs
 	msgsToSign := make(chan []byte, 100)
 	signResp := make(chan api.Response, 100)
-	go signer(msgsToSign, signResp, &p, pathToConfig, conf, keysMap, ctx, &wg)
+	go signer(msgsToSign, signResp, &p, pathToConfig, conf, keysMap, ctx, &wg, db)
 	wg.Add(1)
 
 	// connect a udp server to listen to messages to ubirch (sign)
@@ -167,7 +175,7 @@ func main() {
 	// create a messages channel that hashes messages and fetches the UPP to verify
 	msgsToVrfy := make(chan []byte, 100)
 	responses := make(chan []byte, 100)
-	go verifier(msgsToVrfy, responses, &p, pathToConfig, conf, ctx, &wg)
+	go verifier(msgsToVrfy, responses, &p, pathToConfig, conf, ctx, &wg, db)
 	wg.Add(1)
 
 	// connect a udp server to listen to messages to verify
