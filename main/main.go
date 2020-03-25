@@ -79,36 +79,62 @@ func main() {
 		log.Fatalf("Error loading config: %s", err)
 	}
 
-	authMap, err := LoadAuth(pathToConfig + AuthFile)
-	if err != nil { // todo is this really critical?
-		log.Fatalf("ERROR: unable to read authorizations from file (%s): %v", AuthFile, err)
-	}
-
-	keysMap, err := LoadKeys(pathToConfig + AuthFile)
-	if err != nil { // todo is this really critical?
-		log.Fatalf("ERROR: unable to read keys from file (%s): %v", AuthFile, err)
-	}
-
-	// create a Crypto context
-	cryptoContext := &ubirch.CryptoContext{
-		Keystore: &keystore.Keystore{},
-		Names:    map[string]uuid.UUID{},
-	}
 
 	// create a ubirch Protocol
 	p := ExtendedProtocol{}
-	p.Crypto = cryptoContext
+	p.Crypto = &ubirch.CryptoContext{
+		Keystore: &keystore.Keystore{},
+		Names:    map[string]uuid.UUID{},
+	}
 	p.Signatures = map[uuid.UUID][]byte{}
 	p.Certificates = map[uuid.UUID]SignedKeyRegistration{}
-
+	
 	// initialize protocol
 	p.Init()
 
-	// try to read an existing p context (keystore)
-	err = p.load(pathToConfig + ContextFile)
-	if err != nil {
-		log.Printf("empty keystore: %v", err)
+	var authMap map[string]string
+	var keysMap map[string]string
+	var db Database
+
+	if conf.DSN != "" {
+		// use the database
+
+		db, err = NewPostgres(conf.DSN)
+		if err != nil {
+			log.Fatalf("Could not connect to database: %s", err)
+		}
+
+		authMap, keysMap, err = db.GetAuthKeysMaps()
+		if err != nil {
+			log.Fatalf("ERROR: unable to read authorizations from database: %v", err)
+		}
+
+		err = db.GetProtocolContext(&p)
+		if err != nil {
+			log.Printf("empty keystore: %v", err)
+		}
+
+
+	} else {
+		// read configurations from file
+
+		authMap, err = LoadAuth(pathToConfig + AuthFile)
+		if err != nil { // todo is this really critical?
+			log.Fatalf("ERROR: unable to read authorizations from file (%s): %v", AuthFile, err)
+		}
+
+		keysMap, err = LoadKeys(pathToConfig + AuthFile)
+		if err != nil { // todo is this really critical?
+			log.Fatalf("ERROR: unable to read keys from file (%s): %v", AuthFile, err)
+		}
+
+		// try to read an existing p context (keystore)
+		err = p.load(pathToConfig + ContextFile)
+		if err != nil {
+			log.Printf("empty keystore: %v", err)
+		}
 	}
+
 
 	// create a waitgroup that contains all asynchronous operations
 	// a cancellable context is used to stop the operations gracefully

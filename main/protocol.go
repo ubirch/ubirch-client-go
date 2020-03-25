@@ -17,13 +17,16 @@
 package main
 
 import (
+	"database/sql/driver"
 	"encoding/json"
-	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
+	"errors"
 	"io/ioutil"
 	"log"
 	"os"
 	"strings"
+
+	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
 type ExtendedProtocol struct {
@@ -83,4 +86,21 @@ func (p *ExtendedProtocol) load(file string) error {
 		}
 	}
 	return nil
+}
+
+// Value lets the struct implement the driver.Valuer interface. This method
+// simply returns the JSON-encoded representation of the struct.
+func (p ExtendedProtocol) Value() (driver.Value, error) {
+	return json.Marshal(p)
+}
+
+// Scan lets the struct implement the sql.Scanner interface. This method
+// simply decodes a JSON-encoded value into the struct fields.
+func (p *ExtendedProtocol) Scan(value interface{}) error {
+	b, ok := value.([]byte)
+	if !ok {
+		return errors.New("type assertion to []byte failed")
+	}
+
+	return json.Unmarshal(b, &p)
 }

@@ -39,6 +39,7 @@ type Config struct {
 		RxVerify string `json:"rxVerify"`
 		TxVerify string `json:"txVerify"`
 	}
+	DSN string `json:"dsn"`
 }
 
 func (c *Config) Load(filename string) error {
