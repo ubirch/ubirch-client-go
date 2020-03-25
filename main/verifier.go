@@ -24,13 +24,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"log"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
 type verification struct {
@@ -135,7 +136,7 @@ const (
 )
 
 // hash a message and retrieve corresponding UPP to verify it
-func verifier(handler chan []byte, responseHandler chan []byte, p *ExtendedProtocol, path string, conf Config, ctx context.Context, wg *sync.WaitGroup) {
+func verifier(handler chan []byte, responseHandler chan []byte, p *ExtendedProtocol, path string, conf Config, ctx context.Context, wg *sync.WaitGroup, db Database) {
 	defer wg.Done()
 
 	sendResponse := func(data []byte, code byte) {
@@ -201,9 +202,16 @@ func verifier(handler chan []byte, responseHandler chan []byte, p *ExtendedProto
 				sendResponse(msg, OkVerified)
 
 				// save state for every message
-				err = p.save(path + ContextFile)
-				if err != nil {
-					log.Printf("unable to save protocol context: %v", err)
+				if db != nil {
+					err := p.saveDB(db)
+					if err != nil {
+						log.Printf("unable to save p context in database: %v", err)
+					}
+				} else {
+					err = p.save(path + ContextFile)
+					if err != nil {
+						log.Printf("unable to save protocol context: %v", err)
+					}
 				}
 			}
 		case <-ctx.Done():

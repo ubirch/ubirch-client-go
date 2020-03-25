@@ -43,7 +43,7 @@ var (
 )
 
 // handle graceful shutdown
-func shutdown(signals chan os.Signal, p *ExtendedProtocol, path string, wg *sync.WaitGroup, cancel context.CancelFunc) {
+func shutdown(signals chan os.Signal, p *ExtendedProtocol, path string, wg *sync.WaitGroup, cancel context.CancelFunc, db Database) {
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
 	// block until we receive a SIGINT or SIGTERM
@@ -55,10 +55,18 @@ func shutdown(signals chan os.Signal, p *ExtendedProtocol, path string, wg *sync
 	cancel()
 	wg.Wait()
 
-	err := p.save(path + ContextFile)
-	if err != nil {
-		log.Printf("unable to save p context: %v", err)
-		os.Exit(1)
+	if db != nil {
+		err := p.saveDB(db)
+		if err != nil {
+			log.Printf("unable to save p context: %v", err)
+			os.Exit(1)
+		}
+	} else {
+		err := p.save(path + ContextFile)
+		if err != nil {
+			log.Printf("unable to save p context: %v", err)
+			os.Exit(1)
+		}
 	}
 
 	os.Exit(0)
@@ -79,36 +87,62 @@ func main() {
 		log.Fatalf("Error loading config: %s", err)
 	}
 
-	authMap, err := LoadAuth(pathToConfig + AuthFile)
-	if err != nil { // todo is this really critical?
-		log.Fatalf("ERROR: unable to read authorizations from file (%s): %v", AuthFile, err)
-	}
-
-	keysMap, err := LoadKeys(pathToConfig + AuthFile)
-	if err != nil { // todo is this really critical?
-		log.Fatalf("ERROR: unable to read keys from file (%s): %v", AuthFile, err)
-	}
-
-	// create a Crypto context
-	cryptoContext := &ubirch.CryptoContext{
-		Keystore: &keystore.Keystore{},
-		Names:    map[string]uuid.UUID{},
-	}
 
 	// create a ubirch Protocol
 	p := ExtendedProtocol{}
-	p.Crypto = cryptoContext
+	p.Crypto = &ubirch.CryptoContext{
+		Keystore: &keystore.Keystore{},
+		Names:    map[string]uuid.UUID{},
+	}
 	p.Signatures = map[uuid.UUID][]byte{}
 	p.Certificates = map[uuid.UUID]SignedKeyRegistration{}
-
+	
 	// initialize protocol
 	p.Init()
 
-	// try to read an existing p context (keystore)
-	err = p.load(pathToConfig + ContextFile)
-	if err != nil {
-		log.Printf("empty keystore: %v", err)
+	var authMap map[string]string
+	var keysMap map[string]string
+	var db Database
+
+	if conf.DSN != "" {
+		// use the database
+
+		db, err = NewPostgres(conf.DSN)
+		if err != nil {
+			log.Fatalf("Could not connect to database: %s", err)
+		}
+
+		authMap, keysMap, err = db.GetAuthKeysMaps()
+		if err != nil {
+			log.Fatalf("ERROR: unable to read authorizations from database: %v", err)
+		}
+
+		err = db.GetProtocolContext(&p)
+		if err != nil {
+			log.Printf("empty keystore: %v", err)
+		}
+
+
+	} else {
+		// read configurations from file
+
+		authMap, err = LoadAuth(pathToConfig + AuthFile)
+		if err != nil { // todo is this really critical?
+			log.Fatalf("ERROR: unable to read authorizations from file (%s): %v", AuthFile, err)
+		}
+
+		keysMap, err = LoadKeys(pathToConfig + AuthFile)
+		if err != nil { // todo is this really critical?
+			log.Fatalf("ERROR: unable to read keys from file (%s): %v", AuthFile, err)
+		}
+
+		// try to read an existing p context (keystore)
+		err = p.load(pathToConfig + ContextFile)
+		if err != nil {
+			log.Printf("empty keystore: %v", err)
+		}
 	}
+
 
 	// create a waitgroup that contains all asynchronous operations
 	// a cancellable context is used to stop the operations gracefully
@@ -117,12 +151,12 @@ func main() {
 
 	// set up graceful shutdown handling
 	signals := make(chan os.Signal, 1)
-	go shutdown(signals, &p, pathToConfig, &wg, cancel)
+	go shutdown(signals, &p, pathToConfig, &wg, cancel, db)
 
 	// create a messages channel that parses the UDP message and creates UPPs
 	msgsToSign := make(chan []byte, 100)
 	signResp := make(chan api.Response, 100)
-	go signer(msgsToSign, signResp, &p, pathToConfig, conf, keysMap, ctx, &wg)
+	go signer(msgsToSign, signResp, &p, pathToConfig, conf, keysMap, ctx, &wg, db)
 	wg.Add(1)
 
 	// connect a udp server to listen to messages to ubirch (sign)
@@ -141,7 +175,7 @@ func main() {
 	// create a messages channel that hashes messages and fetches the UPP to verify
 	msgsToVrfy := make(chan []byte, 100)
 	responses := make(chan []byte, 100)
-	go verifier(msgsToVrfy, responses, &p, pathToConfig, conf, ctx, &wg)
+	go verifier(msgsToVrfy, responses, &p, pathToConfig, conf, ctx, &wg, db)
 	wg.Add(1)
 
 	// connect a udp server to listen to messages to verify

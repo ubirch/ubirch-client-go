@@ -21,11 +21,12 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"log"
+	"sync"
+
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-go-http-server/api"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
-	"log"
-	"sync"
 )
 
 type cloudMessage struct {
@@ -35,7 +36,7 @@ type cloudMessage struct {
 }
 
 // handle incoming udp messages, create and send a ubirch protocol message (UPP)
-func signer(msgHandler chan []byte, respHandler chan api.Response, p *ExtendedProtocol, path string, conf Config, keys map[string]string, ctx context.Context, wg *sync.WaitGroup) {
+func signer(msgHandler chan []byte, respHandler chan api.Response, p *ExtendedProtocol, path string, conf Config, keys map[string]string, ctx context.Context, wg *sync.WaitGroup, db Database) {
 	defer wg.Done()
 
 	registeredUUIDs := make(map[uuid.UUID]bool)
@@ -109,9 +110,16 @@ func signer(msgHandler chan []byte, respHandler chan api.Response, p *ExtendedPr
 				log.Printf("%s: UPP %s\n", name, hex.EncodeToString(upp))
 
 				// save state for every message
-				err = p.save(path + ContextFile)
-				if err != nil {
-					log.Printf("unable to save protocol context: %v", err)
+				if db != nil {
+					err := p.saveDB(db)
+					if err != nil {
+						log.Printf("unable to save p context in database: %v", err)
+					}
+				} else {
+					err = p.save(path + ContextFile)
+					if err != nil {
+						log.Printf("unable to save protocol context: %v", err)
+					}
 				}
 
 				// post UPP to ubirch backend
