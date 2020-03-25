@@ -18,13 +18,13 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
-	"encoding/json"
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-go-http-server/api"
@@ -32,7 +32,6 @@ import (
 )
 
 const (
-	AuthFile    = "auth.json"
 	ConfigFile  = "config.json"
 	ContextFile = "protocol.json"
 )
@@ -87,7 +86,6 @@ func main() {
 		log.Fatalf("Error loading config: %s", err)
 	}
 
-
 	// create a ubirch Protocol
 	p := ExtendedProtocol{}
 	p.Crypto = &ubirch.CryptoContext{
@@ -96,7 +94,7 @@ func main() {
 	}
 	p.Signatures = map[uuid.UUID][]byte{}
 	p.Certificates = map[uuid.UUID]SignedKeyRegistration{}
-	
+
 	// initialize protocol
 	p.Init()
 
@@ -124,7 +122,6 @@ func main() {
 			log.Printf("empty keystore: %v", err)
 		}
 
-
 	} else {
 		// read configurations from file
 		// try to read an existing p context (keystore)
@@ -144,8 +141,6 @@ func main() {
 		log.Fatalf("ERROR: unable to read keys from env: %v", err)
 	}
 
-
-
 	// create a waitgroup that contains all asynchronous operations
 	// a cancellable context is used to stop the operations gracefully
 	wg := sync.WaitGroup{}
@@ -158,7 +153,7 @@ func main() {
 	// create a messages channel that parses the UDP message and creates UPPs
 	msgsToSign := make(chan []byte, 100)
 	signResp := make(chan api.Response, 100)
-	go signer(msgsToSign, signResp, &p, pathToConfig, conf, keysMap, ctx, &wg, db)
+	go signer(msgsToSign, signResp, &p, pathToConfig, conf, keysMap, authMap, ctx, &wg, db)
 	wg.Add(1)
 
 	// connect a udp server to listen to messages to ubirch (sign)

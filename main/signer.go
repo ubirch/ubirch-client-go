@@ -36,7 +36,7 @@ type cloudMessage struct {
 }
 
 // handle incoming udp messages, create and send a ubirch protocol message (UPP)
-func signer(msgHandler chan []byte, respHandler chan api.Response, p *ExtendedProtocol, path string, conf Config, keys map[string]string, ctx context.Context, wg *sync.WaitGroup, db Database) {
+func signer(msgHandler chan []byte, respHandler chan api.Response, p *ExtendedProtocol, path string, conf Config, keys map[string]string, ubirchAuth map[string]string, ctx context.Context, wg *sync.WaitGroup, db Database) {
 	defer wg.Done()
 
 	registeredUUIDs := make(map[uuid.UUID]bool)
@@ -126,7 +126,7 @@ func signer(msgHandler chan []byte, respHandler chan api.Response, p *ExtendedPr
 				code, header, resp, err := post(upp, conf.Niomon, map[string]string{
 					"x-ubirch-hardware-id": name,
 					"x-ubirch-auth-type":   conf.Auth,
-					"x-ubirch-credential":  base64.StdEncoding.EncodeToString([]byte(conf.Password)),
+					"x-ubirch-credential":  base64.StdEncoding.EncodeToString([]byte(ubirchAuth[name])),
 				})
 				if err != nil {
 					log.Printf("%s: send failed: %q\n", name, resp)

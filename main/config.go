@@ -29,7 +29,6 @@ import (
 // configuration of the device
 type Config struct {
 	Auth          string `json:"auth"`
-	Password      string `json:"password"`
 	KeyService    string `json:"keyService"`
 	VerifyService string `json:"verifyService"`
 	Niomon        string `json:"niomon"`
