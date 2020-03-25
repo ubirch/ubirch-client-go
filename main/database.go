@@ -45,8 +45,8 @@ func (db *Postgres) SetProtocolContext(proto driver.Valuer) error {
 	const query = `
 		INSERT INTO "protocol_context" ("id", "json")
 		VALUES (1, $1)
-		ON CONFLICT
-			DO UPDATE SET "json" = $1 WHERE "id" = 1;`
+		ON CONFLICT ("id")
+			DO UPDATE SET "json" = $1;`
 
 	_, err := db.conn.Exec(query, proto)
 
@@ -68,25 +68,32 @@ func (db *Postgres) GetProtocolContext(proto sql.Scanner) error {
 
 // GetAuthKeysMaps retrieves the auth map and keys map from the auth list.
 // If the operation failed, a Database error will be returned.
-func (db *Postgres) GetAuthKeysMaps() (authmap, keysmap map[string]string, err error) {
-	const query = `id
-		SELECT "id", "key", "auth_token"
+func (db *Postgres) GetAuthKeysMaps() (map[string]string, map[string]string, error) {
+	const query = `
+		SELECT "uuid", "key", "auth_token"
 		FROM "auth"`
 
+	var authmap = make(map[string]string)
+	var keysmap = make(map[string]string)
+
 	rows, err := db.conn.Query(query)
+	if err != nil {
+		log.Print("Database error: %s", err)
+		return authmap, keysmap, err
+	}
 	defer rows.Close()
 	for rows.Next() {
-		var id string
+		var uuid string
 		var key string
 		var authToken string
 
-		err = rows.Scan(&id, &key, &authToken)
+		err = rows.Scan(&uuid, &key, &authToken)
 		if err != nil {
 			return authmap, keysmap, err
 		}
 
-		authmap[id] = authToken
-		keysmap[id] = key
+		authmap[uuid] = authToken
+		keysmap[uuid] = key
 	}
 
 	return authmap, keysmap, rows.Err()

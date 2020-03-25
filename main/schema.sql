@@ -1,7 +1,7 @@
-CREATE TABLE IF NOT EXISTS "protocol_state" (
+CREATE TABLE IF NOT EXISTS "protocol_context" (
     "id"   bigint NOT NULL,
     "json" jsonb  NOT NULL,
-    PRIMARY KEY ("uuid")
+    PRIMARY KEY ("id")
 );
 
 CREATE TABLE IF NOT EXISTS "auth" (
