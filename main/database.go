@@ -94,5 +94,9 @@ func (db *Postgres) GetAuthKeysMaps() (authmap, keysmap map[string]string, err e
 
 // Close prevents new queries to open, and blocks until the running queries are finished.
 func (db *Postgres) Close() error {
+	if db == nil {
+		return nil
+	}
+
 	return db.conn.Close()
 }
