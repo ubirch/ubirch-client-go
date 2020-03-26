@@ -1,18 +1,16 @@
-/*
- * Copyright (c) 2019 ubirch GmbH
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright (c) 2019-2020 ubirch GmbH
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package main
 
@@ -36,6 +34,17 @@ type cloudMessage struct {
 }
 
 // handle incoming udp messages, create and send a ubirch protocol message (UPP)
+// the signer handles messages that arrive on the msgHandler channel, and
+// writes responses on the respHandler channel.
+//
+// it is meant to be started as a seperate go routine.
+//
+// it also takes the current protocol context to operate on, a file path
+// for saving it on changes, the application configuration, a map from
+// device UUIDs to device private keys, a map from device UUIDs to
+// auth tokens for authenticating the user, a context for graceful shutdown,
+// a waitGroup which synchronizes the shutdown with other go-routines,
+// and a database for persisting the protocol context.
 func signer(msgHandler chan []byte, respHandler chan api.Response, p *ExtendedProtocol, path string, conf Config, keys map[string]string, ubirchAuth map[string]string, ctx context.Context, wg *sync.WaitGroup, db Database) {
 	defer wg.Done()
 

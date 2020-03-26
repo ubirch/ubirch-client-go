@@ -1,18 +1,16 @@
-/*
- * Copyright (c) 2019 ubirch GmbH
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright (c) 2019-2020 ubirch GmbH
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package main
 
@@ -40,6 +38,8 @@ type verification struct {
 	Anchors []byte `json:"anchors"`
 }
 
+// checkAndRetrieveKey will query the key-service for public keys that are
+// not present in the local keystore yet.
 func (p *ExtendedProtocol) checkAndRetrieveKey(id uuid.UUID, conf Config) error {
 	_, err := p.Crypto.GetPublicKey(id.String())
 	if err == nil {
@@ -77,6 +77,8 @@ func (p *ExtendedProtocol) checkAndRetrieveKey(id uuid.UUID, conf Config) error 
 	return nil
 }
 
+// loadUPP will query the verification service to retrieve a complete UPP
+// by its hash.
 func loadUPP(hash [32]byte, conf Config) ([]byte, error) {
 	hashString := base64.StdEncoding.EncodeToString(hash[:])
 	log.Printf("checking hash %s", hashString)

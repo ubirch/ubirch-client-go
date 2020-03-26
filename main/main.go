@@ -1,24 +1,21 @@
-/*
- * Copyright (c) 2019 ubirch GmbH
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright (c) 2019-2020 ubirch GmbH
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -32,10 +29,18 @@ import (
 )
 
 const (
-	ConfigFile  = "config.json"
+	// ConfigFile is the name of the file where the configuration will be
+	// loaded from, if no ENV configuration is present.
+	ConfigFile = "config.json"
+	// ContextFile is the name of the file where the protocol state will
+	// be stored and retrieved from.
 	ContextFile = "protocol.json"
 )
 
+// Variables that denote the version of this build. They may be overwritten
+// at run time.
+//  export GIT_COMMIT=$(git rev-list -1 HEAD) && \
+//    go build -ldflags "-X main.GitCommit=$GIT_COMMIT"
 var (
 	Version = "v1.0.0"
 	Build   = "local"
@@ -104,10 +109,6 @@ func main() {
 	// authMap contains a map from client uuid to private key
 	var keysMap map[string]string
 	var db Database
-
-	if authList := os.Getenv("UBIRCH_AUTH_LIST"); authList != "" {
-		json.Unmarshal([]byte(authList), authMap)
-	}
 
 	if conf.DSN != "" {
 		// use the database

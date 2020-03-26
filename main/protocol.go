@@ -1,18 +1,16 @@
-/*
- * Copyright (c) 2019 ubirch GmbH
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright (c) 2019-2020 ubirch GmbH
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package main
 
@@ -29,12 +27,15 @@ import (
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
+// ExtendedProtocol is the `ubirch.Protocol` context, extended with a
+// Certificate store for keys registered with the key-service.
 type ExtendedProtocol struct {
 	ubirch.Protocol
 	Certificates map[uuid.UUID]SignedKeyRegistration
 }
 
-// saves current ubirch-protocol context, storing keys and signatures
+// save persists the protocol context on the filesystem,
+// so the registered keys and signatures can be retrieved later.
 func (p *ExtendedProtocol) save(file string) error {
 	err := os.Rename(file, file+".bck")
 	if err != nil {
@@ -52,7 +53,8 @@ func (p *ExtendedProtocol) save(file string) error {
 	}
 }
 
-// saves current ubirch-protocol context, storing keys and signatures
+// saveDB persists the protocol context in the database,
+// so the registered keys and signatures can be retrieved later.
 func (p *ExtendedProtocol) saveDB(db Database) error {
 	err := db.SetProtocolContext(p)
 	if err != nil {
@@ -64,6 +66,7 @@ func (p *ExtendedProtocol) saveDB(db Database) error {
 	return nil
 }
 
+// read tries to load the Protocol context from the supplied byte string.
 func (p *ExtendedProtocol) read(contextBytes []byte) error {
 	err := json.Unmarshal(contextBytes, p)
 	if err != nil {
@@ -76,7 +79,8 @@ func (p *ExtendedProtocol) read(contextBytes []byte) error {
 	}
 }
 
-// loads current ubirch-protocol context, loading keys and signatures
+// loads current ubirch-protocol context, including keys and signatures
+// from the filesystem.
 func (p *ExtendedProtocol) load(file string) error {
 	contextBytes, err := ioutil.ReadFile(file)
 	if err != nil {
