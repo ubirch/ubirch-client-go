@@ -45,7 +45,9 @@ type Config struct {
 }
 
 func (c *Config) Load(filename string) error {
-	if err := c.LoadEnv(); err == nil && os.Getenv("UBIRCH_PASSWORD") != "" {
+	// assume that we want to load from env instead of config files, if
+	// we have the UBIRCH_AUTH env variable set.
+	if err := c.LoadEnv(); err == nil && os.Getenv("UBIRCH_AUTH") != "" {
 		// check for validity
 		if len(c.Secret) != 16 {
 			log.Fatalf("Secret length must be 16 bytes (is %d)", len(c.Secret))
