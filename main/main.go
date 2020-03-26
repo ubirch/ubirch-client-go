@@ -116,7 +116,8 @@ func main() {
 
 	// create a messages channel that parses the UDP message and creates UPPs
 	msgsToSign := make(chan []byte, 100)
-	go signer(msgsToSign, &p, pathToConfig, conf, ctx, &wg)
+	signResp := make(chan api.Response, 100)
+	go signer(msgsToSign, signResp, &p, pathToConfig, conf, ctx, &wg)
 	wg.Add(1)
 
 	// connect a udp server to listen to messages to ubirch (sign)
@@ -125,6 +126,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("error starting signing service: %v", err)
 	}
+	wg.Add(1)
+
+	// listen to messages to sign via http
+	httpSrvSign := api.HTTPServer{ReceiveHandler: msgsToSign, ResponseHandler: signResp, Endpoint: "/sign"}
+	go httpSrvSign.Listen(ctx, &wg)
 	wg.Add(1)
 
 	// create a messages channel that hashes messages and fetches the UPP to verify
@@ -146,11 +152,6 @@ func main() {
 	if err != nil {
 		log.Fatalf(fmt.Sprintf("error setting up response sender: %v", err))
 	}
-	wg.Add(1)
-
-	// also listen to messages to sign or verify via http
-	server := api.HTTPServer{SignHandler: msgsToSign, VerifyHandler: msgsToVrfy}
-	go server.Listen(ctx, &wg)
 	wg.Add(1)
 
 	// wait forever, exit is handled via shutdown

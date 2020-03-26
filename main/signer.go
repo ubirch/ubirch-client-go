@@ -20,15 +20,12 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/binary"
 	"encoding/hex"
-	"github.com/eclipse/paho.mqtt.golang"
 	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-go-c8y-client/c8y"
+	"github.com/ubirch/ubirch-go-http-server/api"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"log"
 	"sync"
-	"time"
 )
 
 type cloudMessage struct {
@@ -38,19 +35,13 @@ type cloudMessage struct {
 }
 
 // handle incoming udp messages, create and send a ubirch protocol message (UPP)
-func signer(handler chan []byte, p *ExtendedProtocol, path string, conf Config, ctx context.Context, wg *sync.WaitGroup) {
+func signer(msgHandler chan []byte, respHandler chan api.Response, p *ExtendedProtocol, path string, conf Config, ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
-
-	cloudChannel := make(chan cloudMessage, 100)
-	if conf.C8yTenant != "" {
-		go sendToCloud(cloudChannel, conf, path, ctx, wg)
-		wg.Add(1)
-	}
 
 	registeredUUIDs := make(map[uuid.UUID]bool)
 	for {
 		select {
-		case msg := <-handler:
+		case msg := <-msgHandler:
 			if len(msg) > 16 {
 				uid, err := uuid.FromBytes(msg[:16])
 				if err != nil {
@@ -68,6 +59,8 @@ func signer(handler chan []byte, p *ExtendedProtocol, path string, conf Config, 
 						continue
 					}
 				}
+
+				// check if public key is registered at the key service
 				_, registered := registeredUUIDs[uid]
 				if !registered {
 					cert, err := getSignedCertificate(p, name, uid)
@@ -77,7 +70,7 @@ func signer(handler chan []byte, p *ExtendedProtocol, path string, conf Config, 
 					}
 					log.Printf("CERT [%s]\n", cert)
 
-					resp, err := post(cert, conf.KeyService, map[string]string{"Content-Type": "application/json"})
+					_, _, resp, err := post(cert, conf.KeyService, map[string]string{"Content-Type": "application/json"}) // todo handle response code
 					if err != nil {
 						log.Printf("%s: unable to register public key: %v\n", name, err)
 						continue
@@ -105,11 +98,8 @@ func signer(handler chan []byte, p *ExtendedProtocol, path string, conf Config, 
 					log.Printf("unable to save protocol context: %v", err)
 				}
 
-				// send message to Cumulocity
-				cloudChannel <- cloudMessage{uid, name, msg}
-
 				// post UPP to ubirch backend
-				resp, err := post(upp, conf.Niomon, map[string]string{
+				code, header, resp, err := post(upp, conf.Niomon, map[string]string{
 					"x-ubirch-hardware-id": name,
 					"x-ubirch-auth-type":   conf.Auth,
 					"x-ubirch-credential":  base64.StdEncoding.EncodeToString([]byte(conf.Password)),
@@ -120,51 +110,10 @@ func signer(handler chan []byte, p *ExtendedProtocol, path string, conf Config, 
 				}
 				log.Printf("%s: %q\n", name, resp)
 
+				respHandler <- api.Response{Code: code, Header: header, Content: resp}
 			}
 		case <-ctx.Done():
 			log.Println("finishing signer")
-			return
-		}
-	}
-}
-
-func sendToCloud(handler chan cloudMessage, conf Config, path string, ctx context.Context, wg *sync.WaitGroup) {
-	defer wg.Done()
-	mqttClients := make(map[uuid.UUID]mqtt.Client)
-
-	for {
-		select {
-		case cloudMessage := <-handler:
-			uid := cloudMessage.uid
-			name := cloudMessage.name
-			msg := cloudMessage.msg
-
-			// send switch states to Cumulocity
-			client := mqttClients[uid]
-			var err error
-			if client == nil {
-				// create MQTT client for sending values to Cumulocity
-				client, err = c8y.GetClient(name, conf.C8yTenant, conf.C8yPassword, path)
-				if err != nil {
-					log.Printf("%s: unable to create Cumulocity client: %v\n", name, err)
-					continue
-				}
-				defer client.Disconnect(0)
-				mqttClients[uid] = client
-			}
-			timestamp := time.Unix(0, int64(binary.LittleEndian.Uint64(msg[16:24]))).UTC()
-			err = c8y.Send(client, name+"-A", msg[24], timestamp)
-			if err != nil {
-				log.Printf("%s: unable to send value for %s to Cumulocity: %v\n", name, name+"A", err)
-				continue
-			}
-			err = c8y.Send(client, name+"-B", msg[25], timestamp)
-			if err != nil {
-				log.Printf("%s: unable to send value for %s to Cumulocity: %v\n", name, name+"B", err)
-				continue
-			}
-		case <-ctx.Done():
-			log.Println("finishing send to cloud handler")
 			return
 		}
 	}
