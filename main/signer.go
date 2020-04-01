@@ -29,7 +29,7 @@ import (
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
-var genericError = Response{
+var genericError = HTTPResponse{
 	Code:    http.StatusInternalServerError,
 	Header:  make(map[string][]string),
 	Content: []byte(http.StatusText(http.StatusInternalServerError)),
@@ -53,7 +53,7 @@ type Signer struct {
 	authMap         map[string]string
 }
 
-func (s *Signer) Sign(msg SignerMessage) Response {
+func (s *Signer) Sign(msg SignerMessage) HTTPResponse {
 	s.Lock()
 	defer s.Unlock()
 
@@ -138,5 +138,5 @@ func (s *Signer) Sign(msg SignerMessage) Response {
 	}
 	log.Printf("%s: %q\n", name, resp)
 
-	return Response{Code: code, Header: header, Content: resp}
+	return HTTPResponse{Code: code, Header: header, Content: resp}
 }

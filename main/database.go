@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -30,6 +31,9 @@ type Postgres struct {
 // NewPostgres takes a database connection string, returns a new initialized
 // database.
 func NewPostgres(dsn string) (*Postgres, error) {
+	if dsn == "" {
+		return nil, fmt.Errorf("database connection string not set")
+	}
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
 		return nil, err

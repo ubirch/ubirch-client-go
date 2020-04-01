@@ -29,18 +29,13 @@ import (
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
-const (
-	ConfigFile  = "config.json"
-	ContextFile = "protocol.json"
-)
-
 var (
 	Version = "v1.0.0"
 	Build   = "local"
 )
 
 // handle graceful shutdown
-func shutdown(signals chan os.Signal, p *ExtendedProtocol, path string, wg *sync.WaitGroup, cancel context.CancelFunc, db Database) {
+func shutdown(signals chan os.Signal, p *ExtendedProtocol, wg *sync.WaitGroup, cancel context.CancelFunc, db Database) {
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
 	// block until we receive a SIGINT or SIGTERM
@@ -52,34 +47,20 @@ func shutdown(signals chan os.Signal, p *ExtendedProtocol, path string, wg *sync
 	cancel()
 	wg.Wait()
 
-	if db != nil {
-		err := p.saveDB(db)
-		if err != nil {
-			log.Printf("unable to save p context: %v", err)
-			os.Exit(1)
-		}
-	} else {
-		err := p.save(path + ContextFile)
-		if err != nil {
-			log.Printf("unable to save p context: %v", err)
-			os.Exit(1)
-		}
+	err := p.saveDB(db)
+	if err != nil {
+		log.Printf("unable to save p context: %v", err)
+		os.Exit(1)
 	}
-
 	os.Exit(0)
 }
 
 func main() {
-	pathToConfig := ""
-	if len(os.Args) > 1 {
-		pathToConfig = os.Args[1]
-	}
-
 	log.Printf("ubirch Golang client (%s, build=%s)", Version, Build)
+
 	// read configuration
 	conf := Config{}
-
-	err := conf.Load(pathToConfig + ConfigFile)
+	err := conf.Load()
 	if err != nil {
 		log.Fatalf("Error loading config: %s", err)
 	}
@@ -93,40 +74,11 @@ func main() {
 	p.Signatures = map[uuid.UUID][]byte{}
 	p.Certificates = map[uuid.UUID]SignedKeyRegistration{}
 
-	// initialize protocol
-	p.Init()
-
-	// authMap contains a map from client uuid to password
-	var authMap map[string]string
-
-	// authMap contains a map from client uuid to private key
-	var keysMap map[string]string
-	var db Database
+	var authMap map[string]string // authMap contains a map from client uuid to password
+	var keysMap map[string]string // authMap contains a map from client uuid to private key
 
 	if authList := os.Getenv("UBIRCH_AUTH_LIST"); authList != "" {
-		json.Unmarshal([]byte(authList), authMap)
-	}
-
-	if conf.DSN != "" {
-		// use the database
-
-		db, err = NewPostgres(conf.DSN)
-		if err != nil {
-			log.Fatalf("Could not connect to database: %s", err)
-		}
-
-		err = db.GetProtocolContext(&p)
-		if err != nil {
-			log.Printf("empty keystore: %v", err)
-		}
-
-	} else {
-		// read configurations from file
-		// try to read an existing p context (keystore)
-		err = p.load(pathToConfig + ContextFile)
-		if err != nil {
-			log.Printf("empty keystore: %v", err)
-		}
+		json.Unmarshal([]byte(authList), authMap) // todo whats happening here?
 	}
 
 	authMap, err = LoadAuth()
@@ -139,6 +91,16 @@ func main() {
 		log.Fatalf("ERROR: unable to read keys from env: %v", err)
 	}
 
+	db, err := NewPostgres(conf.DSN)
+	if err != nil {
+		log.Fatalf("Could not connect to database: %s", err)
+	}
+
+	err = db.GetProtocolContext(&p)
+	if err != nil {
+		log.Printf("empty keystore: %v", err)
+	}
+
 	// create a waitgroup that contains all asynchronous operations
 	// a cancellable context is used to stop the operations gracefully
 	wg := sync.WaitGroup{}
@@ -146,17 +108,16 @@ func main() {
 
 	// set up graceful shutdown handling
 	signals := make(chan os.Signal, 1)
-	go shutdown(signals, &p, pathToConfig, &wg, cancel, db)
+	go shutdown(signals, &p, &wg, cancel, db)
 
 	// create a messages channel that parses the UDP message and creates UPPs
 	msgsToSign := make(chan []byte, 100)
-	signResp := make(chan api.Response, 100)
-	go signer(msgsToSign, signResp, &p, pathToConfig, conf, keysMap, authMap, ctx, &wg, db)
-	wg.Add(1)
+	signResp := make(chan HTTPResponse, 100)
+	s := Signer{globalContext: ctx, conf: conf, protocol: &p, DB: db, keyMap: keysMap, authMap: authMap}
 
 	// listen to messages to sign via http
-	httpSrvSign := api.HTTPServer{ReceiveHandler: msgsToSign, ResponseHandler: signResp, Endpoint: "/sign/", Auth: authMap}
-	go httpSrvSign.Listen(ctx, &wg)
+	httpSrvSign := HTTPServer{ReceiveHandler: msgsToSign, ResponseHandler: signResp, Endpoint: "/sign", Auth: authMap}
+	httpSrvSign.Listen(ctx, &wg)
 	wg.Add(1)
 
 	// wait forever, exit is handled via shutdown

@@ -18,8 +18,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 
@@ -44,56 +42,15 @@ type Config struct {
 	Secret []byte
 }
 
-func (c *Config) Load(filename string) error {
-	// assume that we want to load from env instead of config files, if
-	// we have the UBIRCH_AUTH env variable set.
-	if err := c.LoadEnv(); err == nil && os.Getenv("UBIRCH_AUTH") != "" {
+func (c *Config) Load() error {
+	err := envconfig.Process("ubirch", c)
+	if err == nil {
 		// check for validity
 		if len(c.Secret) != 16 {
 			log.Fatalf("Secret length must be 16 bytes (is %d)", len(c.Secret))
 		}
-
-		return nil
 	}
-
-	err := c.LoadFile(filename)
-	if err != nil {
-		fmt.Println("ERROR: unable to read configuration: ", err)
-		fmt.Println("ERROR: a configuration file is required to run the client")
-		fmt.Println()
-		fmt.Println("Follow these steps to configure this client:")
-		fmt.Println("  1. visit https://console.demo.ubirch.com and register a user")
-		fmt.Println("  2. register a new device and save the device configuration in " + filename)
-		fmt.Println("  3. restart the client")
-	}
-
 	return err
-}
-
-// LoadEnv reads the configuration from environment variables
-func (c *Config) LoadEnv() error {
-	err := envconfig.Process("ubirch", c)
-	return err
-}
-
-// LoadFile reads the configuration from a json file
-func (c *Config) LoadFile(filename string) error {
-	contextBytes, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return err
-	}
-
-	err = json.Unmarshal(contextBytes, c)
-	if err != nil {
-		log.Fatalf("unable to read configuration %v", err)
-		return err
-	}
-
-	log.Printf("configuration found")
-	if c.Auth == "" {
-		c.Auth = "ubirch"
-	}
-	return nil
 }
 
 // LoadAuth loads the auth map from the environment.

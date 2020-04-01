@@ -20,6 +20,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -54,6 +55,9 @@ func (p *ExtendedProtocol) save(file string) error {
 
 // saves current ubirch-protocol context, storing keys and signatures
 func (p *ExtendedProtocol) saveDB(db Database) error {
+	if db == nil {
+		return fmt.Errorf("Database not set")
+	}
 	err := db.SetProtocolContext(p)
 	if err != nil {
 		log.Printf("unable to store protocol context: %v", err)
