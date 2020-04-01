@@ -22,123 +22,121 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"log"
+	"net/http"
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-go-http-server/api"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
-type cloudMessage struct {
-	uid  uuid.UUID
-	name string
-	msg  []byte
+var genericError = Response{
+	Code:    http.StatusInternalServerError,
+	Header:  make(map[string][]string),
+	Content: []byte(http.StatusText(http.StatusInternalServerError)),
 }
 
-// handle incoming udp messages, create and send a ubirch protocol message (UPP)
-func signer(msgHandler chan []byte, respHandler chan api.Response, p *ExtendedProtocol, path string, conf Config, keys map[string]string, ubirchAuth map[string]string, ctx context.Context, wg *sync.WaitGroup, db Database) {
-	defer wg.Done()
+type SignerMessage interface {
+	GetUUID() uuid.UUID
+	GetMessage() []byte
+}
 
-	registeredUUIDs := make(map[uuid.UUID]bool)
-	for {
-		select {
-		case msg := <-msgHandler:
-			if len(msg) > 16 {
-				uid, err := uuid.FromBytes(msg[:16])
-				if err != nil {
-					log.Printf("warning: UUID not parsable: (%s) %v\n", hex.EncodeToString(msg[:16]), err)
-					continue
-				}
-				name := uid.String()
+type Signer struct {
+	*sync.Mutex
+	globalContext context.Context // for shutdown
 
-				// check if protocol instance has a signing key for UUID
-				_, err = p.Crypto.GetPublicKey(name)
-				if err != nil {
-					// check for inserted keys
-					if keys[name] != "" {
-						// set private key (public key will automatically be calculated and set)
-						keyBytes, err := base64.StdEncoding.DecodeString(keys[name])
-						if err != nil {
-							log.Printf("Error decoding private key string for %s: %v, string was: %s", name, err, keyBytes)
-							continue
-						}
-						err = p.Crypto.SetKey(name, uid, keyBytes)
-						if err != nil {
-							log.Printf("Error inserting private key: %v,", err)
-							continue
-						}
-					} else {
-						// generate new keypair
-						err = p.Crypto.GenerateKey(name, uid)
-						if err != nil {
-							log.Printf("%s: unable to generate key pair: %v\n", name, err)
-							continue
-						}
-					}
-				}
+	conf     Config
+	protocol *ExtendedProtocol
+	DB       Database
 
-				// check if public key is registered at the key service
-				_, registered := registeredUUIDs[uid]
-				if !registered {
-					cert, err := getSignedCertificate(p, name, uid)
-					if err != nil {
-						log.Printf("%s: unable to generate signed certificate: %v\n", name, err)
-						continue
-					}
-					log.Printf("CERT [%s]\n", cert)
+	registeredUUIDs map[uuid.UUID]bool
+	keyMap          map[string]string
+	authMap         map[string]string
+}
 
-					_, _, resp, err := post(cert, conf.KeyService, map[string]string{"Content-Type": "application/json"}) // todo handle response code
-					if err != nil {
-						log.Printf("%s: unable to register public key: %v\n", name, err)
-						continue
-					}
-					log.Printf("%s: registered key: (%d) %v", name, len(resp), string(resp))
-					registeredUUIDs[uid] = true
-				}
+func (s *Signer) Sign(msg SignerMessage) Response {
+	s.Lock()
+	defer s.Unlock()
 
-				// send UPP (hash)
-				hash := sha256.Sum256(msg[16:])
-				log.Printf("%s: hash %s (%s)\n", name,
-					base64.StdEncoding.EncodeToString(hash[:]),
-					hex.EncodeToString(hash[:]))
+	uid := msg.GetUUID()
+	if uid == uuid.Nil {
+		log.Printf("warning: UUID not parsable")
+	}
 
-				upp, err := p.Sign(name, hash[:], ubirch.Chained)
-				if err != nil {
-					log.Printf("%s: unable to create UPP: %v\n", name, err)
-					continue
-				}
-				log.Printf("%s: UPP %s\n", name, hex.EncodeToString(upp))
+	name := uid.String()
+	_, err := s.protocol.Crypto.GetPublicKey(name)
+	if err != nil {
+		// retrieve a signing key from keys map, since it doesnt exist in protocol instance yet
+		// if there is no signing key for this uuid in the key map return error
+		if s.keyMap[name] == "" {
+			return genericError
+		}
 
-				// save state for every message
-				if db != nil {
-					err := p.saveDB(db)
-					if err != nil {
-						log.Printf("unable to save p context in database: %v", err)
-					}
-				} else {
-					err = p.save(path + ContextFile)
-					if err != nil {
-						log.Printf("unable to save protocol context: %v", err)
-					}
-				}
-
-				// post UPP to ubirch backend
-				code, header, resp, err := post(upp, conf.Niomon, map[string]string{
-					"x-ubirch-hardware-id": name,
-					"x-ubirch-auth-type":   conf.Auth,
-					"x-ubirch-credential":  base64.StdEncoding.EncodeToString([]byte(ubirchAuth[name])),
-				})
-				if err != nil {
-					log.Printf("%s: send failed: %q\n", name, resp)
-					continue
-				}
-				log.Printf("%s: %q\n", name, resp)
-
-				respHandler <- api.Response{Code: code, Header: header, Content: resp}
-			}
-		case <-ctx.Done():
-			log.Println("finishing signer")
-			return
+		// set private key (public key will automatically be calculated and set)
+		keyBytes, err := base64.StdEncoding.DecodeString(s.keyMap[name])
+		if err != nil {
+			log.Printf("Error decoding private key string for %s: %v, string was: %s", name, err, keyBytes)
+			return genericError
+		}
+		err = s.protocol.Crypto.SetKey(name, uid, keyBytes)
+		if err != nil {
+			log.Printf("Error inserting private key: %v,", err)
+			return genericError
 		}
 	}
+
+	// check if public key is registered at the key service
+	_, registered := s.registeredUUIDs[uid]
+	if !registered {
+		cert, err := getSignedCertificate(s.protocol, name, uid)
+		if err != nil {
+			log.Printf("%s: unable to generate signed certificate: %v\n", name, err)
+			return genericError
+		}
+		log.Printf("CERT [%s]\n", cert)
+
+		_, _, resp, err := post(cert, s.conf.KeyService, map[string]string{"Content-Type": "application/json"}) // todo handle response code
+		if err != nil {
+			log.Printf("%s: unable to register public key: %v\n", name, err)
+			return genericError
+		}
+		log.Printf("%s: registered key: (%d) %v", name, len(resp), string(resp))
+		s.registeredUUIDs[uid] = true
+	}
+
+	// send UPP (hash)
+	hash := sha256.Sum256(msg.GetMessage())
+	log.Printf("%s: hash %s (%s)\n", name,
+		base64.StdEncoding.EncodeToString(hash[:]),
+		hex.EncodeToString(hash[:]))
+
+	upp, err := s.protocol.Sign(name, hash[:], ubirch.Chained)
+	if err != nil {
+		log.Printf("%s: unable to create UPP: %v\n", name, err)
+		return genericError
+	}
+	log.Printf("%s: UPP %s\n", name, hex.EncodeToString(upp))
+
+	// save state for every message
+	if s.DB == nil {
+		log.Fatalf("Database not specified and File not supported")
+	}
+
+	err = s.protocol.saveDB(s.DB)
+	if err != nil {
+		log.Printf("unable to save p context in database: %v", err)
+	}
+
+	// post UPP to ubirch backend
+	code, header, resp, err := post(upp, s.conf.Niomon, map[string]string{
+		"x-ubirch-hardware-id": name,
+		"x-ubirch-auth-type":   "ubirch",
+		"x-ubirch-credential":  base64.StdEncoding.EncodeToString([]byte(s.authMap[name])),
+	})
+	if err != nil {
+		log.Printf("%s: send failed: %q\n", name, resp)
+		return genericError
+	}
+	log.Printf("%s: %q\n", name, resp)
+
+	return Response{Code: code, Header: header, Content: resp}
 }

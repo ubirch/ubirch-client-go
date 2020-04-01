@@ -19,7 +19,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -27,7 +26,6 @@ import (
 	"syscall"
 
 	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-go-http-server/api"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
@@ -156,38 +154,9 @@ func main() {
 	go signer(msgsToSign, signResp, &p, pathToConfig, conf, keysMap, authMap, ctx, &wg, db)
 	wg.Add(1)
 
-	// connect a udp server to listen to messages to ubirch (sign)
-	udpSrvSign := UDPServer{receiveHandler: msgsToSign}
-	err = udpSrvSign.Listen(conf.Interface.RxCert, ctx, &wg)
-	if err != nil {
-		log.Fatalf("error starting signing service: %v", err)
-	}
-	wg.Add(1)
-
 	// listen to messages to sign via http
 	httpSrvSign := api.HTTPServer{ReceiveHandler: msgsToSign, ResponseHandler: signResp, Endpoint: "/sign/", Auth: authMap}
 	go httpSrvSign.Listen(ctx, &wg)
-	wg.Add(1)
-
-	// create a messages channel that hashes messages and fetches the UPP to verify
-	msgsToVrfy := make(chan []byte, 100)
-	responses := make(chan []byte, 100)
-	go verifier(msgsToVrfy, responses, &p, pathToConfig, conf, ctx, &wg, db)
-	wg.Add(1)
-
-	// connect a udp server to listen to messages to verify
-	udpSrvVrfy := UDPServer{receiveHandler: msgsToVrfy, responseHandler: responses}
-	err = udpSrvVrfy.Listen(conf.Interface.RxVerify, ctx, &wg)
-	if err != nil {
-		log.Fatalf("error starting verification service: %v", err)
-	}
-	wg.Add(1)
-
-	// set up udp server to send message responses
-	err = udpSrvVrfy.Serve(conf.Interface.TxVerify, ctx, &wg)
-	if err != nil {
-		log.Fatalf(fmt.Sprintf("error setting up response sender: %v", err))
-	}
 	wg.Add(1)
 
 	// wait forever, exit is handled via shutdown
