@@ -26,20 +26,11 @@ import (
 
 // configuration of the device
 type Config struct {
-	Auth          string `json:"auth"`
 	KeyService    string `json:"keyService"`
 	VerifyService string `json:"verifyService"`
 	Niomon        string `json:"niomon"`
-	Data          string `json:"data"`
-	Interface     struct {
-		RxCert   string `json:"rxCert"`
-		RxVerify string `json:"rxVerify"`
-		TxVerify string `json:"txVerify"`
-	}
-	DSN string `json:"dsn"`
-
-	// Secret is used to encrypt the key store
-	Secret []byte
+	DSN           string
+	Secret        []byte // Secret is used to encrypt the key store
 }
 
 func (c *Config) Load() error {
