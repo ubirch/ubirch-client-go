@@ -9,5 +9,3 @@ require (
 	github.com/lib/pq v1.3.0
 	github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.0.5-0.20200325133254-da0590bcd15d
 )
-
-replace github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.0.5-0.20200325133254-da0590bcd15d => ../../ubirch-protocol-go/ubirch
