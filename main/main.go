@@ -108,7 +108,7 @@ func main() {
 	go shutdown(signals, &p, &wg, cancel, db)
 
 	// initialize signer
-	s := Signer{conf: conf, protocol: &p, DB: db, keyMap: keysMap}
+	s := Signer{conf: conf, protocol: &p, DB: db, keyMap: keysMap, registeredUUIDs: map[uuid.UUID]bool{}}
 
 	// listen to messages to sign via http
 	router := chi.NewMux()
@@ -117,7 +117,7 @@ func main() {
 		AuthMap: authMap,
 	}
 	router.Post("/sign/{uuid}", handlers.SignerHandler)
-	err = http.ListenAndServe(":8000", router)
+	err = http.ListenAndServe(":8080", router)
 	if err != nil && err != http.ErrServerClosed {
 		log.Fatalf("error starting http service: %v", err)
 	}
