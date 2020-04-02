@@ -18,7 +18,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -34,6 +33,7 @@ import (
 const (
 	ConfigFile  = "config.json"
 	ContextFile = "protocol.json"
+	AuthFile    = "auth.json"
 )
 
 var (
@@ -83,6 +83,14 @@ func main() {
 
 	err := conf.Load(pathToConfig + ConfigFile)
 	if err != nil {
+		fmt.Printf("ERROR: unable to read configuration: %v", err)
+		fmt.Println("A configuration file is required to run the client")
+		fmt.Println()
+		fmt.Println("Follow these steps to configure this client:")
+		fmt.Println("  1. visit https://console.demo.ubirch.com and register a user")
+		fmt.Println("  2. register a new device and save the device configuration in " + pathToConfig + ConfigFile)
+		fmt.Println("  3. restart the client")
+
 		log.Fatalf("Error loading config: %s", err)
 	}
 
@@ -95,19 +103,7 @@ func main() {
 	p.Signatures = map[uuid.UUID][]byte{}
 	p.Certificates = map[uuid.UUID]SignedKeyRegistration{}
 
-	// initialize protocol
-	p.Init()
-
-	// authMap contains a map from client uuid to password
-	var authMap map[string]string
-
-	// authMap contains a map from client uuid to private key
-	var keysMap map[string]string
 	var db Database
-
-	if authList := os.Getenv("UBIRCH_AUTH_LIST"); authList != "" {
-		json.Unmarshal([]byte(authList), authMap)
-	}
 
 	if conf.DSN != "" {
 		// use the database
@@ -131,12 +127,13 @@ func main() {
 		}
 	}
 
-	authMap, err = LoadAuth()
+	// authMap contains a map from client uuid to password
+	authMap, err := LoadAuth(pathToConfig + AuthFile)
 	if err != nil { // todo is this really critical?
 		log.Fatalf("ERROR: unable to read authorizations from env: %v", err)
 	}
-
-	keysMap, err = LoadKeys()
+	// keysMap contains a map from client uuid to private key
+	keysMap, err := LoadKeys(pathToConfig + AuthFile)
 	if err != nil { // todo is this really critical?
 		log.Fatalf("ERROR: unable to read keys from env: %v", err)
 	}
@@ -151,43 +148,13 @@ func main() {
 	go shutdown(signals, &p, pathToConfig, &wg, cancel, db)
 
 	// create a messages channel that parses the UDP message and creates UPPs
-	msgsToSign := make(chan []byte, 100)
-	signResp := make(chan api.Response, 100)
-	go signer(msgsToSign, signResp, &p, pathToConfig, conf, keysMap, authMap, ctx, &wg, db)
-	wg.Add(1)
-
-	// connect a udp server to listen to messages to ubirch (sign)
-	udpSrvSign := UDPServer{receiveHandler: msgsToSign}
-	err = udpSrvSign.Listen(conf.Interface.RxCert, ctx, &wg)
-	if err != nil {
-		log.Fatalf("error starting signing service: %v", err)
-	}
+	msgsToSign := make(chan api.HTTPMessage, 100)
+	go signer(msgsToSign, &p, pathToConfig, conf, keysMap, ctx, &wg, db)
 	wg.Add(1)
 
 	// listen to messages to sign via http
-	httpSrvSign := api.HTTPServer{ReceiveHandler: msgsToSign, ResponseHandler: signResp, Endpoint: "/sign/", Auth: authMap}
-	go httpSrvSign.Listen(ctx, &wg)
-	wg.Add(1)
-
-	// create a messages channel that hashes messages and fetches the UPP to verify
-	msgsToVrfy := make(chan []byte, 100)
-	responses := make(chan []byte, 100)
-	go verifier(msgsToVrfy, responses, &p, pathToConfig, conf, ctx, &wg, db)
-	wg.Add(1)
-
-	// connect a udp server to listen to messages to verify
-	udpSrvVrfy := UDPServer{receiveHandler: msgsToVrfy, responseHandler: responses}
-	err = udpSrvVrfy.Listen(conf.Interface.RxVerify, ctx, &wg)
-	if err != nil {
-		log.Fatalf("error starting verification service: %v", err)
-	}
-	wg.Add(1)
-
-	// set up udp server to send message responses
-	err = udpSrvVrfy.Serve(conf.Interface.TxVerify, ctx, &wg)
-	if err != nil {
-		log.Fatalf(fmt.Sprintf("error setting up response sender: %v", err))
-	}
+	httpSrvSign := api.HTTPServer{MessageHandler: msgsToSign, Endpoint: "/sign", Auth: authMap}
+	httpSrvSign.Listen(ctx, &wg)
 	wg.Add(1)
 
 	// wait forever, exit is handled via shutdown

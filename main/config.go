@@ -19,61 +19,43 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/kelseyhightower/envconfig"
 	"io/ioutil"
 	"log"
 	"os"
-
-	"github.com/kelseyhightower/envconfig"
 )
 
 // configuration of the device
 type Config struct {
-	Auth          string `json:"auth"`
 	KeyService    string `json:"keyService"`
 	VerifyService string `json:"verifyService"`
 	Niomon        string `json:"niomon"`
-	Data          string `json:"data"`
-	Interface     struct {
-		RxCert   string `json:"rxCert"`
-		RxVerify string `json:"rxVerify"`
-		TxVerify string `json:"txVerify"`
-	}
-	DSN string `json:"dsn"`
-
-	// Secret is used to encrypt the key store
-	Secret []byte
+	DSN           string `json:"dsn"`
+	Secret        []byte // Secret is used to encrypt the key store
 }
 
 func (c *Config) Load(filename string) error {
 	// assume that we want to load from env instead of config files, if
-	// we have the UBIRCH_AUTH env variable set.
-	if err := c.LoadEnv(); err == nil && os.Getenv("UBIRCH_AUTH") != "" {
+	// we have the UBIRCH_DSN env variable set.
+	if os.Getenv("UBIRCH_DSN") != "" {
+		err := c.LoadEnv()
+		if err != nil {
+			return err
+		}
 		// check for validity
 		if len(c.Secret) != 16 {
-			log.Fatalf("Secret length must be 16 bytes (is %d)", len(c.Secret))
+			return fmt.Errorf("Secret length must be 16 bytes (is %d)", len(c.Secret))
 		}
-
 		return nil
 	}
 
-	err := c.LoadFile(filename)
-	if err != nil {
-		fmt.Println("ERROR: unable to read configuration: ", err)
-		fmt.Println("ERROR: a configuration file is required to run the client")
-		fmt.Println()
-		fmt.Println("Follow these steps to configure this client:")
-		fmt.Println("  1. visit https://console.demo.ubirch.com and register a user")
-		fmt.Println("  2. register a new device and save the device configuration in " + filename)
-		fmt.Println("  3. restart the client")
-	}
-
-	return err
+	log.Println("loading config from file " + filename)
+	return c.LoadFile(filename)
 }
 
 // LoadEnv reads the configuration from environment variables
 func (c *Config) LoadEnv() error {
-	err := envconfig.Process("ubirch", c)
-	return err
+	return envconfig.Process("ubirch", c)
 }
 
 // LoadFile reads the configuration from a json file
@@ -82,26 +64,24 @@ func (c *Config) LoadFile(filename string) error {
 	if err != nil {
 		return err
 	}
-
-	err = json.Unmarshal(contextBytes, c)
-	if err != nil {
-		log.Fatalf("unable to read configuration %v", err)
-		return err
-	}
-
-	log.Printf("configuration found")
-	if c.Auth == "" {
-		c.Auth = "ubirch"
-	}
-	return nil
+	return json.Unmarshal(contextBytes, c)
 }
 
-// LoadAuth loads the auth map from the environment.
-func LoadAuth() (map[string]string, error) {
+// LoadAuth loads the auth map from the environment or file
+func LoadAuth(filename string) (map[string]string, error) {
+	var err error
 	authTokens := os.Getenv("UBIRCH_AUTH_MAP")
+	authTokensBytes := []byte(authTokens)
+	if authTokens == "" {
+		log.Println("loading auth from file " + filename)
+		authTokensBytes, err = ioutil.ReadFile(filename)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	buffer := make(map[string][]string)
-	err := json.Unmarshal([]byte(authTokens), &buffer)
+	err = json.Unmarshal(authTokensBytes, &buffer)
 	if err != nil {
 		return nil, err
 	}
@@ -113,12 +93,21 @@ func LoadAuth() (map[string]string, error) {
 	return authMap, nil
 }
 
-// LoadKeys loads the keys map from the environment.
-func LoadKeys() (map[string]string, error) {
+// LoadKeys loads the keys map from the environment or file
+func LoadKeys(filename string) (map[string]string, error) {
+	var err error
 	authTokens := os.Getenv("UBIRCH_AUTH_MAP")
+	authTokensBytes := []byte(authTokens)
+	if authTokens == "" {
+		log.Println("loading keys from file " + filename)
+		authTokensBytes, err = ioutil.ReadFile(filename)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	buffer := make(map[string][]string)
-	err := json.Unmarshal([]byte(authTokens), &buffer)
+	err = json.Unmarshal(authTokensBytes, &buffer)
 	if err != nil {
 		return nil, err
 	}
