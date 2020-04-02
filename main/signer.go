@@ -17,7 +17,6 @@
 package main
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -38,19 +37,16 @@ var genericError = HTTPResponse{
 type SignerMessage interface {
 	GetUUID() uuid.UUID
 	GetMessage() []byte
+	GetAuthToken() string
 }
 
 type Signer struct {
 	*sync.Mutex
-	globalContext context.Context // for shutdown
-
-	conf     Config
-	protocol *ExtendedProtocol
-	DB       Database
-
+	conf            Config
+	protocol        *ExtendedProtocol
+	DB              Database
+	keyMap          map[string]string // todo i think we can get rid of the key map and just generate keys here
 	registeredUUIDs map[uuid.UUID]bool
-	keyMap          map[string]string
-	authMap         map[string]string
 }
 
 func (s *Signer) Sign(msg SignerMessage) HTTPResponse {
@@ -130,7 +126,7 @@ func (s *Signer) Sign(msg SignerMessage) HTTPResponse {
 	code, header, resp, err := post(upp, s.conf.Niomon, map[string]string{
 		"x-ubirch-hardware-id": name,
 		"x-ubirch-auth-type":   "ubirch",
-		"x-ubirch-credential":  base64.StdEncoding.EncodeToString([]byte(s.authMap[name])),
+		"x-ubirch-credential":  base64.StdEncoding.EncodeToString([]byte(msg.GetAuthToken())),
 	})
 	if err != nil {
 		log.Printf("%s: send failed: %q\n", name, resp)
