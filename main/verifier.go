@@ -1,3 +1,5 @@
+//+build never
+
 /*
  * Copyright (c) 2019 ubirch GmbH
  *

@@ -41,7 +41,7 @@ type SignerMessage interface {
 }
 
 type Signer struct {
-	*sync.Mutex
+	sync.Mutex
 	conf            Config
 	protocol        *ExtendedProtocol
 	DB              Database
