@@ -27,9 +27,10 @@ import (
 
 // configuration of the device
 type Config struct {
+	Password      string `json:"password"`
 	KeyService    string `json:"keyService"`
-	VerifyService string `json:"verifyService"`
 	Niomon        string `json:"niomon"`
+	VerifyService string `json:"verifyService"`
 	DSN           string `json:"dsn"`
 	Secret        []byte // Secret is used to encrypt the key store
 }
@@ -67,8 +68,8 @@ func (c *Config) LoadFile(filename string) error {
 	return json.Unmarshal(contextBytes, c)
 }
 
-// LoadAuth loads the auth map from the environment or file
-func LoadAuth(filename string) (map[string]string, error) {
+// LoadTokens loads the keys and backend authorization tokens map from the environment or file
+func LoadTokens(filename string) (map[string]string, map[string]string, error) {
 	var err error
 	authTokens := os.Getenv("UBIRCH_AUTH_MAP")
 	authTokensBytes := []byte(authTokens)
@@ -76,45 +77,20 @@ func LoadAuth(filename string) (map[string]string, error) {
 		log.Println("loading auth from file " + filename)
 		authTokensBytes, err = ioutil.ReadFile(filename)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
 	buffer := make(map[string][]string)
 	err = json.Unmarshal(authTokensBytes, &buffer)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-
+	keysMap := make(map[string]string)
 	authMap := make(map[string]string)
 	for k, v := range buffer {
+		keysMap[k] = v[0]
 		authMap[k] = v[1]
 	}
-	return authMap, nil
-}
-
-// LoadKeys loads the keys map from the environment or file
-func LoadKeys(filename string) (map[string]string, error) {
-	var err error
-	authTokens := os.Getenv("UBIRCH_AUTH_MAP")
-	authTokensBytes := []byte(authTokens)
-	if authTokens == "" {
-		log.Println("loading keys from file " + filename)
-		authTokensBytes, err = ioutil.ReadFile(filename)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	buffer := make(map[string][]string)
-	err = json.Unmarshal(authTokensBytes, &buffer)
-	if err != nil {
-		return nil, err
-	}
-
-	keysMap := make(map[string]string)
-	for k, v := range buffer {
-		keysMap[k] = v[0]
-	}
-	return keysMap, nil
+	return keysMap, authMap, nil
 }

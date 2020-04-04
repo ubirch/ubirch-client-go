@@ -37,7 +37,7 @@ var genericError = api.HTTPResponse{
 }
 
 // handle incoming udp messages, create and send a ubirch protocol message (UPP)
-func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, path string, conf Config, keys map[string]string, ctx context.Context, wg *sync.WaitGroup, db Database) {
+func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, path string, conf Config, ctx context.Context, wg *sync.WaitGroup, db Database) {
 	defer wg.Done()
 
 	registeredUUIDs := make(map[uuid.UUID]bool)
@@ -47,34 +47,14 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, path string, c
 			uid := msg.ID
 			name := uid.String()
 
-			// check if protocol instance has a signing key for UUID
+			// create new key for device if it does not already exist in crypto keystore
 			_, err := p.Crypto.GetPublicKey(name)
 			if err != nil {
-				// check for inserted keys
-				if keys[name] != "" {
-					// set private key (public key will automatically be calculated and set)
-					keyBytes, err := base64.StdEncoding.DecodeString(keys[name])
-					if err != nil {
-						log.Printf("Error decoding private key string for %s: %v, string was: %s", name, err, keyBytes)
-						msg.Response <- genericError
-						continue
-					}
-					err = p.Crypto.SetKey(name, uid, keyBytes)
-					if err != nil {
-						log.Printf("Error inserting private key: %v,", err)
-						msg.Response <- genericError
-						continue
-					}
-				} else {
-					log.Printf("no signing key for UUID %s", name)
-					msg.Response <- genericError // fixme
+				err = p.Crypto.GenerateKey(name, uid)
+				if err != nil {
+					log.Printf("%s: unable to generate new key pair: %v\n", name, err)
+					msg.Response <- genericError
 					continue
-					//// generate new keypair
-					//err = p.Crypto.GenerateKey(name, uid)
-					//if err != nil {
-					//	log.Printf("%s: unable to generate key pair: %v\n", name, err)
-					//	continue
-					//}
 				}
 			}
 
@@ -100,12 +80,16 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, path string, c
 			}
 
 			// send UPP (hash)
-			hash := sha256.Sum256(msg.Msg)
+			data := msg.Msg
+			if !msg.IsAlreadyHashed {
+				hash := sha256.Sum256(msg.Msg)
+				data = hash[:]
+			}
 			log.Printf("%s: hash %s (%s)\n", name,
-				base64.StdEncoding.EncodeToString(hash[:]),
-				hex.EncodeToString(hash[:]))
+				base64.StdEncoding.EncodeToString(data),
+				hex.EncodeToString(data))
 
-			upp, err := p.Sign(name, hash[:], ubirch.Chained)
+			upp, err := p.Sign(name, data, ubirch.Chained)
 			if err != nil {
 				log.Printf("%s: unable to create UPP: %v\n", name, err)
 				msg.Response <- genericError

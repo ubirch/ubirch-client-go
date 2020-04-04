@@ -18,7 +18,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -33,7 +32,6 @@ import (
 const (
 	ConfigFile  = "config.json"
 	ContextFile = "protocol.json"
-	AuthFile    = "auth.json"
 )
 
 var (
@@ -78,19 +76,11 @@ func main() {
 	}
 
 	log.Printf("ubirch Golang client (%s, build=%s)", Version, Build)
+
 	// read configuration
 	conf := Config{}
-
 	err := conf.Load(pathToConfig + ConfigFile)
 	if err != nil {
-		fmt.Printf("ERROR: unable to read configuration: %v", err)
-		fmt.Println("A configuration file is required to run the client")
-		fmt.Println()
-		fmt.Println("Follow these steps to configure this client:")
-		fmt.Println("  1. visit https://console.demo.ubirch.com and register a user")
-		fmt.Println("  2. register a new device and save the device configuration in " + pathToConfig + ConfigFile)
-		fmt.Println("  3. restart the client")
-
 		log.Fatalf("Error loading config: %s", err)
 	}
 
@@ -127,17 +117,6 @@ func main() {
 		}
 	}
 
-	// authMap contains a map from client uuid to password
-	authMap, err := LoadAuth(pathToConfig + AuthFile)
-	if err != nil { // todo is this really critical?
-		log.Fatalf("ERROR: unable to read authorizations from env: %v", err)
-	}
-	// keysMap contains a map from client uuid to private key
-	keysMap, err := LoadKeys(pathToConfig + AuthFile)
-	if err != nil { // todo is this really critical?
-		log.Fatalf("ERROR: unable to read keys from env: %v", err)
-	}
-
 	// create a waitgroup that contains all asynchronous operations
 	// a cancellable context is used to stop the operations gracefully
 	wg := sync.WaitGroup{}
@@ -147,14 +126,14 @@ func main() {
 	signals := make(chan os.Signal, 1)
 	go shutdown(signals, &p, pathToConfig, &wg, cancel, db)
 
-	// create a messages channel that parses the UDP message and creates UPPs
+	// create a messages channel that parses the HTTP message and creates UPPs
 	msgsToSign := make(chan api.HTTPMessage, 100)
-	go signer(msgsToSign, &p, pathToConfig, conf, keysMap, ctx, &wg, db)
+	go signer(msgsToSign, &p, pathToConfig, conf, ctx, &wg, db)
 	wg.Add(1)
 
 	// listen to messages to sign via http
-	httpSrvSign := api.HTTPServer{MessageHandler: msgsToSign, Endpoint: "/sign", Auth: authMap}
-	httpSrvSign.Listen(ctx, &wg)
+	httpSrvSign := api.HTTPServer{MessageHandler: msgsToSign, Endpoint: "/sign"}
+	httpSrvSign.Serve(ctx, &wg)
 	wg.Add(1)
 
 	// wait forever, exit is handled via shutdown
