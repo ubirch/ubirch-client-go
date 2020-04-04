@@ -25,6 +25,7 @@ import (
 	"syscall"
 
 	"github.com/google/uuid"
+	"github.com/paypal/go.crypto/keystore"
 	"github.com/ubirch/ubirch-go-http-server/api"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
@@ -40,7 +41,7 @@ var (
 )
 
 // handle graceful shutdown
-func shutdown(signals chan os.Signal, p *ExtendedProtocol, path string, wg *sync.WaitGroup, cancel context.CancelFunc, db Database) {
+func shutdown(signals chan os.Signal, p *ExtendedProtocol, wg *sync.WaitGroup, cancel context.CancelFunc) {
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
 	// block until we receive a SIGINT or SIGTERM
@@ -52,18 +53,10 @@ func shutdown(signals chan os.Signal, p *ExtendedProtocol, path string, wg *sync
 	cancel()
 	wg.Wait()
 
-	if db != nil {
-		err := p.saveDB(db)
-		if err != nil {
-			log.Printf("unable to save p context: %v", err)
-			os.Exit(1)
-		}
-	} else {
-		err := p.save(path + ContextFile)
-		if err != nil {
-			log.Printf("unable to save p context: %v", err)
-			os.Exit(1)
-		}
+	err := p.SaveContext()
+	if err != nil {
+		log.Printf("unable to save p context: %v", err)
+		os.Exit(1)
 	}
 
 	os.Exit(0)
@@ -87,34 +80,18 @@ func main() {
 	// create a ubirch Protocol
 	p := ExtendedProtocol{}
 	p.Crypto = &ubirch.CryptoContext{
-		Keystore: ubirch.NewEncryptedKeystore(conf.Secret),
+		Keystore: &keystore.Keystore{},
 		Names:    map[string]uuid.UUID{},
 	}
 	p.Signatures = map[uuid.UUID][]byte{}
 	p.Certificates = map[uuid.UUID]SignedKeyRegistration{}
+	p.ContextFile = pathToConfig + ContextFile
 
-	var db Database
-
-	if conf.DSN != "" {
-		// use the database
-
-		db, err = NewPostgres(conf.DSN)
-		if err != nil {
-			log.Fatalf("Could not connect to database: %s", err)
-		}
-
-		err = db.GetProtocolContext(&p)
-		if err != nil {
-			log.Printf("empty keystore: %v", err)
-		}
-
-	} else {
-		// read configurations from file
-		// try to read an existing p context (keystore)
-		err = p.load(pathToConfig + ContextFile)
-		if err != nil {
-			log.Printf("empty keystore: %v", err)
-		}
+	// read configurations from file
+	// try to read an existing p context (keystore)
+	err = p.LoadContext()
+	if err != nil {
+		log.Printf("empty keystore: %v", err)
 	}
 
 	// create a waitgroup that contains all asynchronous operations
@@ -124,11 +101,11 @@ func main() {
 
 	// set up graceful shutdown handling
 	signals := make(chan os.Signal, 1)
-	go shutdown(signals, &p, pathToConfig, &wg, cancel, db)
+	go shutdown(signals, &p, &wg, cancel)
 
 	// create a messages channel that parses the HTTP message and creates UPPs
 	msgsToSign := make(chan api.HTTPMessage, 100)
-	go signer(msgsToSign, &p, pathToConfig, conf, ctx, &wg, db)
+	go signer(msgsToSign, &p, conf, ctx, &wg)
 	wg.Add(1)
 
 	// listen to messages to sign via http

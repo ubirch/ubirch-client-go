@@ -202,16 +202,9 @@ func verifier(handler chan []byte, responseHandler chan []byte, p *ExtendedProto
 				sendResponse(msg, OkVerified)
 
 				// save state for every message
-				if db != nil {
-					err := p.saveDB(db)
-					if err != nil {
-						log.Printf("unable to save p context in database: %v", err)
-					}
-				} else {
-					err = p.save(path + ContextFile)
-					if err != nil {
-						log.Printf("unable to save protocol context: %v", err)
-					}
+				err = p.SaveContext()
+				if err != nil {
+					log.Printf("unable to save protocol context: %v", err)
 				}
 			}
 		case <-ctx.Done():

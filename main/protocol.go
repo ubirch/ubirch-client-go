@@ -17,25 +17,24 @@
 package main
 
 import (
-	"database/sql/driver"
 	"encoding/json"
-	"errors"
+	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"io/ioutil"
 	"log"
 	"os"
 	"strings"
-
-	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
 type ExtendedProtocol struct {
 	ubirch.Protocol
 	Certificates map[uuid.UUID]SignedKeyRegistration
+	ContextFile  string
 }
 
 // saves current ubirch-protocol context, storing keys and signatures
-func (p *ExtendedProtocol) save(file string) error {
+func (p *ExtendedProtocol) SaveContext() error {
+	file := p.ContextFile
 	err := os.Rename(file, file+".bck")
 	if err != nil {
 		log.Printf("unable to create protocol context backup: %v", err)
@@ -48,36 +47,17 @@ func (p *ExtendedProtocol) save(file string) error {
 		return err
 	} else {
 		log.Printf("saved protocol context")
-		return nil
-	}
-}
-
-// saves current ubirch-protocol context, storing keys and signatures
-func (p *ExtendedProtocol) saveDB(db Database) error {
-	err := db.SetProtocolContext(p)
-	if err != nil {
-		log.Printf("unable to store protocol context: %v", err)
-		return err
-	}
-
-	log.Printf("saved protocol context")
-	return nil
-}
-
-func (p *ExtendedProtocol) read(contextBytes []byte) error {
-	err := json.Unmarshal(contextBytes, p)
-	if err != nil {
-		log.Printf("unable to deserialize context: %v", err)
-		return err
-	} else {
-		log.Printf("loaded protocol context")
-		log.Printf("%d certificates, %d signatures\n", len(p.Certificates), len(p.Signatures))
-		return nil
+		return nil // fixme just return error
 	}
 }
 
 // loads current ubirch-protocol context, loading keys and signatures
-func (p *ExtendedProtocol) load(file string) error {
+func (p *ExtendedProtocol) LoadContext() error {
+	file := p.ContextFile
+	return p.recursiveLoad(file)
+}
+
+func (p *ExtendedProtocol) recursiveLoad(file string) error {
 	contextBytes, err := ioutil.ReadFile(file)
 	if err != nil {
 		file = file + ".bck"
@@ -91,28 +71,20 @@ func (p *ExtendedProtocol) load(file string) error {
 		if strings.HasSuffix(file, ".bck") {
 			return err
 		} else {
-			err = p.load(file + ".bck")
-			if err != nil {
-				return err
-			}
+			return p.recursiveLoad(file + ".bck")
 		}
 	}
 	return nil
 }
 
-// Value lets the struct implement the driver.Valuer interface. This method
-// simply returns the JSON-encoded representation of the struct.
-func (p ExtendedProtocol) Value() (driver.Value, error) {
-	return json.Marshal(p)
-}
-
-// Scan lets the struct implement the sql.Scanner interface. This method
-// simply decodes a JSON-encoded value into the struct fields.
-func (p *ExtendedProtocol) Scan(value interface{}) error {
-	b, ok := value.([]byte)
-	if !ok {
-		return errors.New("type assertion to []byte failed")
+func (p *ExtendedProtocol) read(contextBytes []byte) error {
+	err := json.Unmarshal(contextBytes, p)
+	if err != nil {
+		log.Printf("unable to deserialize context: %v", err)
+		return err
+	} else {
+		log.Printf("loaded protocol context")
+		log.Printf("%d certificates, %d signatures\n", len(p.Certificates), len(p.Signatures))
+		return nil // fixme just return error
 	}
-
-	return json.Unmarshal(b, &p)
 }

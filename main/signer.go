@@ -37,7 +37,7 @@ var genericError = api.HTTPResponse{
 }
 
 // handle incoming udp messages, create and send a ubirch protocol message (UPP)
-func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, path string, conf Config, ctx context.Context, wg *sync.WaitGroup, db Database) {
+func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	registeredUUIDs := make(map[uuid.UUID]bool)
@@ -98,23 +98,16 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, path string, c
 			log.Printf("%s: UPP %s\n", name, hex.EncodeToString(upp))
 
 			// save state for every message
-			if db != nil {
-				err := p.saveDB(db)
-				if err != nil {
-					log.Printf("unable to save p context in database: %v", err)
-				}
-			} else {
-				err = p.save(path + ContextFile)
-				if err != nil {
-					log.Printf("unable to save protocol context: %v", err)
-				}
+			err = p.SaveContext()
+			if err != nil {
+				log.Printf("unable to save protocol context: %v", err)
 			}
 
 			// post UPP to ubirch backend
 			code, header, resp, err := post(upp, conf.Niomon, map[string]string{
 				"x-ubirch-hardware-id": name,
 				"x-ubirch-auth-type":   "ubirch",
-				"x-ubirch-credential":  base64.StdEncoding.EncodeToString([]byte(msg.Auth)),
+				"x-ubirch-credential":  base64.StdEncoding.EncodeToString([]byte(conf.Password)),
 			})
 			if err != nil {
 				log.Printf("%s: send failed: %q\n", name, resp)
