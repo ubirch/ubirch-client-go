@@ -18,7 +18,15 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
+	"strings"
+)
+
+const (
+	KEY_URL    = "https://key.%s.ubirch.com/api/keyService/v1/pubkey"
+	NIOMON_URL = "https://niomon.%s.ubirch.com/"
+	VERIFY_URL = "https://verify.%s.ubirch.com/api/upp"
 )
 
 // configuration of the device
@@ -33,9 +41,47 @@ type Config struct {
 }
 
 func (c *Config) Load(filename string) error {
+	err := c.loadFromFile(filename)
+	if err != nil {
+		return err
+	}
+
+	if c.Password == "" {
+		return fmt.Errorf("no password set in config")
+	}
+
+	c.setDefaultURLs()
+	return nil
+}
+
+func (c *Config) loadFromFile(filename string) error {
 	contextBytes, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return err
 	}
 	return json.Unmarshal(contextBytes, c)
+}
+
+func (c *Config) setDefaultURLs() {
+
+	if c.Env == "" {
+		c.Env = "prod"
+	}
+
+	if c.KeyService == "" {
+		c.KeyService = fmt.Sprintf(KEY_URL, c.Env)
+	} else {
+		c.KeyService = strings.TrimSuffix(c.KeyService, "/mpack")
+	}
+
+	// now make sure the Env variable has the actual environment value that is used in the URL
+	c.Env = strings.Split(c.KeyService, ".")[1]
+
+	if c.Niomon == "" {
+		c.Niomon = fmt.Sprintf(NIOMON_URL, c.Env)
+	}
+
+	if c.VerifyService == "" {
+		c.VerifyService = fmt.Sprintf(VERIFY_URL, c.Env)
+	}
 }
