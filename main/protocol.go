@@ -34,27 +34,17 @@ type ExtendedProtocol struct {
 
 // saves current ubirch-protocol context, storing keys and signatures
 func (p *ExtendedProtocol) SaveContext() error {
-	file := p.ContextFile
-	err := os.Rename(file, file+".bck")
+	err := os.Rename(p.ContextFile, p.ContextFile+".bck")
 	if err != nil {
 		log.Printf("unable to create protocol context backup: %v", err)
 	}
-
 	contextBytes, _ := json.MarshalIndent(p, "", "  ")
-	err = ioutil.WriteFile(file, contextBytes, 444)
-	if err != nil {
-		log.Printf("unable to store protocol context: %v", err)
-		return err
-	} else {
-		log.Printf("saved protocol context")
-		return nil // fixme just return error
-	}
+	return ioutil.WriteFile(p.ContextFile, contextBytes, 444)
 }
 
 // loads current ubirch-protocol context, loading keys and signatures
 func (p *ExtendedProtocol) LoadContext() error {
-	file := p.ContextFile
-	return p.recursiveLoad(file)
+	return p.recursiveLoad(p.ContextFile)
 }
 
 func (p *ExtendedProtocol) recursiveLoad(file string) error {
@@ -66,7 +56,7 @@ func (p *ExtendedProtocol) recursiveLoad(file string) error {
 			return err
 		}
 	}
-	err = p.read(contextBytes)
+	err = json.Unmarshal(contextBytes, p)
 	if err != nil {
 		if strings.HasSuffix(file, ".bck") {
 			return err
@@ -75,16 +65,4 @@ func (p *ExtendedProtocol) recursiveLoad(file string) error {
 		}
 	}
 	return nil
-}
-
-func (p *ExtendedProtocol) read(contextBytes []byte) error {
-	err := json.Unmarshal(contextBytes, p)
-	if err != nil {
-		log.Printf("unable to deserialize context: %v", err)
-		return err
-	} else {
-		log.Printf("loaded protocol context")
-		log.Printf("%d certificates, %d signatures\n", len(p.Certificates), len(p.Signatures))
-		return nil // fixme just return error
-	}
 }
