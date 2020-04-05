@@ -25,7 +25,6 @@ import (
 	"syscall"
 
 	"github.com/google/uuid"
-	"github.com/paypal/go.crypto/keystore"
 	"github.com/ubirch/ubirch-go-http-server/api"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
@@ -55,7 +54,7 @@ func shutdown(signals chan os.Signal, p *ExtendedProtocol, wg *sync.WaitGroup, c
 
 	err := p.SaveContext()
 	if err != nil {
-		log.Printf("unable to save p context: %v", err)
+		log.Printf("unable to save protocol context: %v", err)
 		os.Exit(1)
 	}
 
@@ -77,21 +76,24 @@ func main() {
 		log.Fatalf("Error loading config: %s", err)
 	}
 
-	// create a ubirch Protocol
+	// create an ubirch protocol instance
 	p := ExtendedProtocol{}
 	p.Crypto = &ubirch.CryptoContext{
-		Keystore: &keystore.Keystore{},
+		Keystore: ubirch.NewEncryptedKeystore(conf.Secret),
 		Names:    map[string]uuid.UUID{},
 	}
 	p.Signatures = map[uuid.UUID][]byte{}
 	p.Certificates = map[uuid.UUID]SignedKeyRegistration{}
+	p.DNS = conf.DSN
 	p.ContextFile = pathToConfig + ContextFile
 
-	// read configurations from file
-	// try to read an existing p context (keystore)
+	// try to read an existing protocol context (keystore)
 	err = p.LoadContext()
 	if err != nil {
-		log.Printf("empty keystore: %v", err)
+		log.Printf("empty keystore: %v", err) // fixme
+	} else {
+		log.Printf("loaded protocol context")
+		log.Printf("%d certificates, %d signatures\n", len(p.Certificates), len(p.Signatures))
 	}
 
 	// create a waitgroup that contains all asynchronous operations
@@ -109,7 +111,7 @@ func main() {
 	wg.Add(1)
 
 	// listen to messages to sign via http
-	httpSrvSign := api.HTTPServer{MessageHandler: msgsToSign, Endpoint: "/sign"}
+	httpSrvSign := api.HTTPServer{MessageHandler: msgsToSign, Endpoint: "/sign", Auth: conf.Password}
 	httpSrvSign.Serve(ctx, &wg)
 	wg.Add(1)
 

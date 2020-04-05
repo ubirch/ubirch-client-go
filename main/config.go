@@ -24,9 +24,12 @@ import (
 // configuration of the device
 type Config struct {
 	Password      string `json:"password"`
+	Env           string `json:"env"`
 	KeyService    string `json:"keyService"`
 	Niomon        string `json:"niomon"`
 	VerifyService string `json:"verifyService"`
+	DSN           string `json:"dsn"`
+	Secret        []byte // Secret is used to encrypt the key store
 }
 
 func (c *Config) Load(filename string) error {

@@ -29,25 +29,30 @@ import (
 type ExtendedProtocol struct {
 	ubirch.Protocol
 	Certificates map[uuid.UUID]SignedKeyRegistration
+	DNS          string
 	ContextFile  string
 }
 
 // saves current ubirch-protocol context, storing keys and signatures
 func (p *ExtendedProtocol) SaveContext() error {
-	err := os.Rename(p.ContextFile, p.ContextFile+".bck")
-	if err != nil {
-		log.Printf("unable to create protocol context backup: %v", err)
-	}
-	contextBytes, _ := json.MarshalIndent(p, "", "  ")
-	return ioutil.WriteFile(p.ContextFile, contextBytes, 444)
+	return p.saveToFile(p.ContextFile)
 }
 
 // loads current ubirch-protocol context, loading keys and signatures
 func (p *ExtendedProtocol) LoadContext() error {
-	return p.recursiveLoad(p.ContextFile)
+	return p.loadFromFile(p.ContextFile)
 }
 
-func (p *ExtendedProtocol) recursiveLoad(file string) error {
+func (p *ExtendedProtocol) saveToFile(file string) error {
+	err := os.Rename(file, file+".bck")
+	if err != nil {
+		log.Printf("unable to create protocol context backup: %v", err)
+	}
+	contextBytes, _ := json.MarshalIndent(p, "", "  ")
+	return ioutil.WriteFile(file, contextBytes, 444)
+}
+
+func (p *ExtendedProtocol) loadFromFile(file string) error {
 	contextBytes, err := ioutil.ReadFile(file)
 	if err != nil {
 		file = file + ".bck"
@@ -61,7 +66,7 @@ func (p *ExtendedProtocol) recursiveLoad(file string) error {
 		if strings.HasSuffix(file, ".bck") {
 			return err
 		} else {
-			return p.recursiveLoad(file + ".bck")
+			return p.loadFromFile(file + ".bck")
 		}
 	}
 	return nil
