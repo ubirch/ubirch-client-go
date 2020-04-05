@@ -47,15 +47,19 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 			uid := msg.ID
 			name := uid.String()
 
-			// create new key for device if it does not already exist in crypto keystore
+			// check if UUID and signing key is known
 			_, err := p.Crypto.GetPublicKey(name)
 			if err != nil {
-				err = p.Crypto.GenerateKey(name, uid)
-				if err != nil {
-					log.Printf("%s: unable to generate new key pair: %v\n", name, err)
-					msg.Response <- genericError
-					continue
-				}
+				log.Printf("no known signing key for UUID %s", name)
+				msg.Response <- genericError // todo better user feedback
+				continue
+				//// todo generate new keypair if dynamic UUIDs are enabled
+				//err = p.Crypto.GenerateKey(name, uid)
+				//if err != nil {
+				//	log.Printf("%s: unable to generate new key pair: %v\n", name, err)
+				//	msg.Response <- genericError
+				//	continue
+				//}
 			}
 
 			// check if public key is registered at the key service
@@ -98,7 +102,7 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 			log.Printf("%s: UPP %s\n", name, hex.EncodeToString(upp))
 
 			// save state for every message
-			err = p.SaveContext()
+			err = p.SaveContext() // fixme only save last signature here
 			if err != nil {
 				log.Printf("unable to save protocol context: %v", err)
 			}
