@@ -37,7 +37,7 @@ type Config struct {
 	Niomon        string `json:"niomon"`
 	VerifyService string `json:"verifyService"`
 	DSN           string `json:"dsn"`
-	Secret        []byte // Secret is used to encrypt the key store
+	Secret        []byte `json:"secret"` // Secret is used to encrypt the key store
 }
 
 func (c *Config) Load(filename string) error {
@@ -46,8 +46,9 @@ func (c *Config) Load(filename string) error {
 		return err
 	}
 
-	if c.Password == "" {
-		return fmt.Errorf("no password set in config")
+	err = c.checkMandatory()
+	if err != nil {
+		return err
 	}
 
 	c.setDefaultURLs()
@@ -62,8 +63,17 @@ func (c *Config) loadFromFile(filename string) error {
 	return json.Unmarshal(contextBytes, c)
 }
 
-func (c *Config) setDefaultURLs() {
+func (c *Config) checkMandatory() error {
+	if c.Password == "" {
+		return fmt.Errorf("no password set in config")
+	}
+	if len(c.Secret) != 16 {
+		return fmt.Errorf("secret length must be 16 bytes (is %d)", len(c.Secret))
+	}
+	return nil
+}
 
+func (c *Config) setDefaultURLs() {
 	if c.Env == "" {
 		c.Env = "prod"
 	}

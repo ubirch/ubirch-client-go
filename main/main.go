@@ -96,6 +96,8 @@ func main() {
 		log.Printf("%d certificates, %d signatures\n", len(p.Certificates), len(p.Signatures))
 	}
 
+	// todo load keys from key file / env variable into keystore
+
 	// create a waitgroup that contains all asynchronous operations
 	// a cancellable context is used to stop the operations gracefully
 	wg := sync.WaitGroup{}
