@@ -20,6 +20,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -32,15 +33,29 @@ import (
 type ExtendedProtocol struct {
 	ubirch.Protocol
 	Certificates map[uuid.UUID]SignedKeyRegistration
-	DNS          string
 	DB           Database // todo make this an interface
 	ContextFile  string
+}
+
+func (p *ExtendedProtocol) Init(dsn string) error {
+	if dsn != "" {
+		// use the database
+		db, err := NewPostgres(dsn)
+		if err != nil {
+			return fmt.Errorf("unable to connect to database: %v", err)
+		}
+		p.DB = db
+		return nil
+	} else {
+		p.DB = nil
+		return nil
+	}
 }
 
 // Save saves current ubirch-protocol context, storing keys and signatures
 func (p *ExtendedProtocol) SaveContext() error {
 	if p.DB != nil {
-		return p.saveDB()
+		return p.DB.SetProtocolContext(p)
 	} else {
 		return p.saveFile(p.ContextFile)
 	}
@@ -48,7 +63,11 @@ func (p *ExtendedProtocol) SaveContext() error {
 
 // loads current ubirch-protocol context, loading keys and signatures
 func (p *ExtendedProtocol) LoadContext() error {
-	return p.loadFile(p.ContextFile)
+	if p.DB != nil {
+		return p.DB.GetProtocolContext(p)
+	} else {
+		return p.loadFile(p.ContextFile)
+	}
 }
 
 func (p *ExtendedProtocol) saveFile(file string) error {
@@ -78,11 +97,6 @@ func (p *ExtendedProtocol) loadFile(file string) error {
 		}
 	}
 	return nil
-}
-
-// saves current ubirch-protocol context, storing keys and signatures into a database
-func (p *ExtendedProtocol) saveDB() error {
-	return p.DB.SetProtocolContext(p)
 }
 
 // Value lets the struct implement the driver.Valuer interface. This method
