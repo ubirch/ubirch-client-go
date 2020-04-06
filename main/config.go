@@ -44,16 +44,13 @@ type Config struct {
 }
 
 func (c *Config) Load(filename string) error {
-	var err error
-
 	// assume that we want to load from env instead of config files, if
 	// we have the UBIRCH_PASSWORD env variable set.
+	var err error
 	if os.Getenv("UBIRCH_PASSWORD") != "" {
-		fmt.Println("loading configuration from environment variables")
-		err = c.LoadEnv()
+		err = c.loadEnv()
 	} else {
-		fmt.Println("loading configuration from file")
-		err = c.loadFromFile(filename)
+		err = c.loadFile(filename)
 	}
 	if err != nil {
 		return err
@@ -68,14 +65,15 @@ func (c *Config) Load(filename string) error {
 	return nil
 }
 
-// LoadEnv reads the configuration from environment variables
-func (c *Config) LoadEnv() error {
-	err := envconfig.Process("ubirch", c)
-	return err
+// loadEnv reads the configuration from environment variables
+func (c *Config) loadEnv() error {
+	fmt.Println("loading configuration from environment variables")
+	return envconfig.Process("ubirch", c)
 }
 
 // LoadFile reads the configuration from a json file
-func (c *Config) loadFromFile(filename string) error {
+func (c *Config) loadFile(filename string) error {
+	fmt.Println("loading configuration from file")
 	contextBytes, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return err
@@ -116,19 +114,22 @@ func (c *Config) setDefaultURLs() {
 	}
 }
 
-// LoadKeys loads the keys map from the environment.
-func LoadKeys() (map[string]string, error) {
-	authTokens := os.Getenv("UBIRCH_AUTH_MAP") // todo  or load from file
+// LoadKeys loads the keys map from environment or file
+func LoadKeys(filename string) (map[string]string, error) {
+	var err error
+	var keyBytes []byte
 
-	buffer := make(map[string][]string)
-	err := json.Unmarshal([]byte(authTokens), &buffer)
-	if err != nil {
-		return nil, err
+	keys := os.Getenv("UBIRCH_KEY_MAP")
+	if keys != "" {
+		keyBytes = []byte(keys)
+	} else {
+		keyBytes, err = ioutil.ReadFile(filename)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	keysMap := make(map[string]string)
-	for k, v := range buffer {
-		keysMap[k] = v[0]
-	}
-	return keysMap, nil
+	keyMap := make(map[string]string)
+	err = json.Unmarshal(keyBytes, &keyMap)
+	return keyMap, err
 }
