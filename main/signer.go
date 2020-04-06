@@ -63,8 +63,7 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 			}
 
 			// check if public key is registered at the key service
-			_, registered := registeredUUIDs[uid]
-			if !registered {
+			if _, registered := registeredUUIDs[uid]; !registered {
 				cert, err := getSignedCertificate(p, name, uid)
 				if err != nil {
 					log.Printf("%s: unable to generate signed certificate: %v\n", name, err)

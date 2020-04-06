@@ -17,33 +17,41 @@
 package main
 
 import (
+	"database/sql/driver"
 	"encoding/json"
-	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
+	"errors"
 	"io/ioutil"
 	"log"
 	"os"
 	"strings"
+
+	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
 type ExtendedProtocol struct {
 	ubirch.Protocol
 	Certificates map[uuid.UUID]SignedKeyRegistration
 	DNS          string
+	DB           Database // todo make this an interface
 	ContextFile  string
 }
 
-// saves current ubirch-protocol context, storing keys and signatures
+// Save saves current ubirch-protocol context, storing keys and signatures
 func (p *ExtendedProtocol) SaveContext() error {
-	return p.saveToFile(p.ContextFile)
+	if p.DB != nil {
+		return p.saveDB()
+	} else {
+		return p.saveFile(p.ContextFile)
+	}
 }
 
 // loads current ubirch-protocol context, loading keys and signatures
 func (p *ExtendedProtocol) LoadContext() error {
-	return p.loadFromFile(p.ContextFile)
+	return p.loadFile(p.ContextFile)
 }
 
-func (p *ExtendedProtocol) saveToFile(file string) error {
+func (p *ExtendedProtocol) saveFile(file string) error {
 	err := os.Rename(file, file+".bck")
 	if err != nil {
 		log.Printf("unable to create protocol context backup: %v", err)
@@ -52,7 +60,7 @@ func (p *ExtendedProtocol) saveToFile(file string) error {
 	return ioutil.WriteFile(file, contextBytes, 444)
 }
 
-func (p *ExtendedProtocol) loadFromFile(file string) error {
+func (p *ExtendedProtocol) loadFile(file string) error {
 	contextBytes, err := ioutil.ReadFile(file)
 	if err != nil {
 		file = file + ".bck"
@@ -66,8 +74,30 @@ func (p *ExtendedProtocol) loadFromFile(file string) error {
 		if strings.HasSuffix(file, ".bck") {
 			return err
 		} else {
-			return p.loadFromFile(file + ".bck")
+			return p.loadFile(file + ".bck")
 		}
 	}
 	return nil
+}
+
+// saves current ubirch-protocol context, storing keys and signatures into a database
+func (p *ExtendedProtocol) saveDB() error {
+	return p.DB.SetProtocolContext(p)
+}
+
+// Value lets the struct implement the driver.Valuer interface. This method
+// simply returns the JSON-encoded representation of the struct.
+func (p ExtendedProtocol) Value() (driver.Value, error) {
+	return json.Marshal(p)
+}
+
+// Scan lets the struct implement the sql.Scanner interface. This method
+// simply decodes a JSON-encoded value into the struct fields.
+func (p *ExtendedProtocol) Scan(value interface{}) error {
+	b, ok := value.([]byte)
+	if !ok {
+		return errors.New("type assertion to []byte failed")
+	}
+
+	return json.Unmarshal(b, &p)
 }

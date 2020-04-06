@@ -20,7 +20,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"strings"
+
+	"github.com/kelseyhightower/envconfig"
 )
 
 const (
@@ -41,7 +44,17 @@ type Config struct {
 }
 
 func (c *Config) Load(filename string) error {
-	err := c.loadFromFile(filename)
+	var err error
+
+	// assume that we want to load from env instead of config files, if
+	// we have the UBIRCH_PASSWORD env variable set.
+	if os.Getenv("UBIRCH_PASSWORD") != "" {
+		fmt.Println("loading configuration from environment variables")
+		err = c.LoadEnv()
+	} else {
+		fmt.Println("loading configuration from file")
+		err = c.loadFromFile(filename)
+	}
 	if err != nil {
 		return err
 	}
@@ -55,6 +68,13 @@ func (c *Config) Load(filename string) error {
 	return nil
 }
 
+// LoadEnv reads the configuration from environment variables
+func (c *Config) LoadEnv() error {
+	err := envconfig.Process("ubirch", c)
+	return err
+}
+
+// LoadFile reads the configuration from a json file
 func (c *Config) loadFromFile(filename string) error {
 	contextBytes, err := ioutil.ReadFile(filename)
 	if err != nil {
@@ -94,4 +114,21 @@ func (c *Config) setDefaultURLs() {
 	if c.VerifyService == "" {
 		c.VerifyService = fmt.Sprintf(VERIFY_URL, c.Env)
 	}
+}
+
+// LoadKeys loads the keys map from the environment.
+func LoadKeys() (map[string]string, error) {
+	authTokens := os.Getenv("UBIRCH_AUTH_MAP") // todo  or load from file
+
+	buffer := make(map[string][]string)
+	err := json.Unmarshal([]byte(authTokens), &buffer)
+	if err != nil {
+		return nil, err
+	}
+
+	keysMap := make(map[string]string)
+	for k, v := range buffer {
+		keysMap[k] = v[0]
+	}
+	return keysMap, nil
 }

@@ -3,7 +3,10 @@ package main
 import (
 	"database/sql"
 	"database/sql/driver"
+	"errors"
+	"io/ioutil"
 	"log"
+	"os"
 
 	// postgres driver is imported for side effects
 	_ "github.com/lib/pq"
@@ -71,4 +74,44 @@ func (db *Postgres) Close() error {
 	}
 
 	return db.conn.Close()
+}
+
+type FileStore struct {
+	FilePath string
+}
+
+func (fs *FileStore) SetProtocolContext(proto driver.Valuer) error {
+	err := os.Rename(fs.FilePath, fs.FilePath+".bck")
+	if err != nil {
+		log.Printf("unable to create protocol context backup: %v", err)
+	}
+
+	// XXX
+	value, err := proto.Value()
+	if err != nil {
+		return errors.New("Unable to serialize ProtocolContext")
+	}
+
+	if contextBytes, ok := value.([]byte); ok {
+		return ioutil.WriteFile(fs.FilePath, contextBytes, 444)
+	}
+
+	return errors.New("Unable to serialize ProtocolContext")
+}
+
+func (fs *FileStore) GetProtocolContext(proto sql.Scanner) error {
+	contextBytes, err := ioutil.ReadFile(fs.FilePath)
+	if err != nil {
+		file := fs.FilePath + ".bck"
+		contextBytes, err = ioutil.ReadFile(file)
+		if err != nil {
+			return err
+		}
+	}
+
+	return proto.Scan(contextBytes)
+}
+
+func (fs *FileStore) Close() error {
+	return nil
 }
