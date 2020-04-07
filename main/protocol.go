@@ -38,24 +38,42 @@ type ExtendedProtocol struct {
 }
 
 func (p *ExtendedProtocol) Init(dsn string) error {
-	if dsn != "" {
-		// use the database
-		db, err := NewPostgres(dsn)
-		if err != nil {
-			return fmt.Errorf("unable to connect to database: %v", err)
-		}
-		p.DB = db
-		return nil
-	} else {
-		p.DB = nil
+	if dsn == "" {
 		return nil
 	}
+
+	// use the database
+	db, err := NewPostgres(dsn)
+	if err != nil {
+		return fmt.Errorf("unable to connect to database: %v", err)
+	}
+	p.DB = db
+	return nil
+
 }
 
 // Save saves current ubirch-protocol context, storing keys and signatures
 func (p *ExtendedProtocol) SaveContext() error {
 	if p.DB != nil {
 		return p.DB.SetProtocolContext(p)
+	} else {
+		return p.saveFile(p.ContextFile)
+	}
+}
+
+// PersistLastSignature stores last signatures persistantly
+func (p *ExtendedProtocol) PersistLastSignature(clientUUID string, lastSign []byte) error {
+	if p.DB != nil {
+		return p.DB.PersistLastSignature(clientUUID, lastSign)
+	} else {
+		return p.saveFile(p.ContextFile)
+	}
+}
+
+// PersistKey stores keys persistantly
+func (p *ExtendedProtocol) PersistKeystore() error {
+	if p.DB != nil {
+		return p.DB.PersistKeystore(p.GetKeystorer())
 	} else {
 		return p.saveFile(p.ContextFile)
 	}

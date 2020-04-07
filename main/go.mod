@@ -11,3 +11,5 @@ require (
 )
 
 replace github.com/ubirch/ubirch-go-http-server/api v0.2.1-0.20200402131756-2c1616d3f557 => ../../ubirch-go-http-server/api
+
+replace github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.0.5 => ../../ubirch-protocol-go/ubirch

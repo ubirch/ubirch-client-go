@@ -35,12 +35,13 @@ const (
 // configuration of the device
 type Config struct {
 	Password      string `json:"password"`
-	Env           string `json:"env"`
+	Secret        []byte `json:"secret"`     // Secret is used to encrypt the key store
+	DSN           string `json:"dsn"`        // "Data source name" for database connection
+	StaticUUID    bool   `json:"staticUUID"` // do not automatically create keys for unknown UUIDs. default: false -> enabled dynamic key gen
+	Env           string `json:"env"`        // [pev, pemo, prod]
 	KeyService    string `json:"keyService"`
 	Niomon        string `json:"niomon"`
 	VerifyService string `json:"verifyService"`
-	DSN           string `json:"dsn"`
-	Secret        []byte `json:"secret"` // Secret is used to encrypt the key store
 }
 
 func (c *Config) Load(filename string) error {

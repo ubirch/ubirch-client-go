@@ -21,6 +21,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"fmt"
 	"log"
 	"net/http"
 	"sync"
@@ -32,7 +33,7 @@ import (
 
 var genericError = api.HTTPResponse{
 	Code:    http.StatusInternalServerError,
-	Header:  make(map[string][]string),
+	Header:  map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}},
 	Content: []byte(http.StatusText(http.StatusInternalServerError)),
 }
 
@@ -50,16 +51,25 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 			// check if UUID and signing key is known
 			_, err := p.Crypto.GetPublicKey(name)
 			if err != nil {
-				log.Printf("no known signing key for UUID %s", name)
-				msg.Response <- genericError // todo better user feedback
-				continue
-				//// todo generate new keypair if dynamic UUIDs are enabled
-				//err = p.Crypto.GenerateKey(name, uid)
-				//if err != nil {
-				//	log.Printf("%s: unable to generate new key pair: %v\n", name, err)
-				//	msg.Response <- genericError
-				//	continue
-				//}
+				if conf.StaticUUID {
+					log.Printf("dynamic key generation is disabled and there is no known signing key for UUID %s", name)
+					msg.Response <- api.HTTPResponse{
+						Code:    http.StatusInternalServerError,
+						Header:  map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}},
+						Content: []byte(fmt.Sprintf("dynamic key generation is disabled and there is no known signing key for UUID %s", name)),
+					}
+					continue
+				} else {
+					// generate new key pair if dynamic key generation is enabled
+					err = p.Crypto.GenerateKey(name, uid)
+					if err != nil {
+						log.Printf("%s: unable to generate new key pair: %v\n", name, err)
+						msg.Response <- genericError
+						continue
+					}
+					// persist key
+					p.PersistKeystore
+				}
 			}
 
 			// check if public key is registered at the key service
@@ -100,6 +110,7 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 			}
 			log.Printf("%s: UPP %s\n", name, hex.EncodeToString(upp))
 
+			// FIXME: Save state only after successfully sending the request.
 			// save state for every message
 			err = p.SaveContext() // fixme only save last signature here
 			if err != nil {
