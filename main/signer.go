@@ -31,9 +31,9 @@ import (
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
-var genericError = api.HTTPResponse{
+var InternalServerError = api.HTTPResponse{
 	Code:    http.StatusInternalServerError,
-	Header:  map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}},
+	Header:  map[string][]string{"Content-Type": {"text/plain"}},
 	Content: []byte(http.StatusText(http.StatusInternalServerError)),
 }
 
@@ -48,23 +48,24 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 			uid := msg.ID
 			name := uid.String()
 
-			// check if UUID and signing key is known
+			// check if there is a known signing key for UUID
 			_, err := p.Crypto.GetPublicKey(name)
 			if err != nil {
 				if conf.StaticUUID {
-					log.Printf("dynamic key generation is disabled and there is no known signing key for UUID %s", name)
+					log.Printf("%s: dynamic key generation is disabled and there is no known signing key for UUID\n", name)
 					msg.Response <- api.HTTPResponse{
-						Code:    http.StatusInternalServerError,
+						Code:    http.StatusUnauthorized,
 						Header:  map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}},
-						Content: []byte(fmt.Sprintf("dynamic key generation is disabled and there is no known signing key for UUID %s", name)),
+						Content: []byte(fmt.Sprintf("dynamic key generation is disabled and there is no known signing key for UUID %s", name)), // todo TMI?
 					}
 					continue
 				}
-				// generate new key pair if dynamic key generation is enabled
+
+				// if dynamic key generation is enabled generate new key pair
 				err = p.Crypto.GenerateKey(name, uid)
 				if err != nil {
 					log.Printf("%s: unable to generate new key pair: %v\n", name, err)
-					msg.Response <- genericError
+					msg.Response <- InternalServerError
 					continue
 				}
 				// persist key
@@ -79,15 +80,24 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 				cert, err := getSignedCertificate(p, name, uid)
 				if err != nil {
 					log.Printf("%s: unable to generate signed certificate: %v\n", name, err)
-					msg.Response <- genericError
+					msg.Response <- InternalServerError
 					continue
 				}
-				log.Printf("CERT [%s]\n", cert)
+				log.Printf("%s: CERT [%s]\n", name, cert)
 
-				_, _, resp, err := post(cert, conf.KeyService, map[string]string{"Content-Type": "application/json"}) // todo handle response code
+				code, _, resp, err := post(cert, conf.KeyService, map[string]string{"Content-Type": "application/json"})
 				if err != nil {
 					log.Printf("%s: unable to register public key: %v\n", name, err)
-					msg.Response <- genericError
+					msg.Response <- InternalServerError
+					continue
+				}
+				if code != 200 {
+					log.Printf("%s: key registration failed with %d: %q\n", name, code, resp)
+					msg.Response <- api.HTTPResponse{
+						Code:    code,
+						Header:  map[string][]string{"Content-Type": {"text/plain"}},
+						Content: []byte(fmt.Sprintf("key registration for %s failed:\n %q\n  %s", name, resp, cert)),
+					}
 					continue
 				}
 				log.Printf("%s: registered key: (%d) %v", name, len(resp), string(resp))
@@ -107,17 +117,10 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 			upp, err := p.Sign(name, data, ubirch.Chained)
 			if err != nil {
 				log.Printf("%s: unable to create UPP: %v\n", name, err)
-				msg.Response <- genericError
+				msg.Response <- InternalServerError
 				continue
 			}
 			log.Printf("%s: UPP %s\n", name, hex.EncodeToString(upp))
-
-			// FIXME: Save state only after successfully sending the request.
-			// save state for every message
-			err = p.SaveContext() // fixme only save last signature here
-			if err != nil {
-				log.Printf("unable to save protocol context: %v", err)
-			}
 
 			// post UPP to ubirch backend
 			code, header, resp, err := post(upp, conf.Niomon, map[string]string{
@@ -126,11 +129,19 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 				"x-ubirch-credential":  base64.StdEncoding.EncodeToString([]byte(conf.Password)),
 			})
 			if err != nil {
-				log.Printf("%s: send failed: %q\n", name, resp)
-				msg.Response <- genericError
+				log.Printf("%s: sending UPP to ubirch backend failed: %v\n", name, err)
+				msg.Response <- InternalServerError
 				continue
 			}
 			log.Printf("%s: %q\n", name, resp)
+
+			// save last signature after UPP was successfully received in ubirch backend
+			if code == 200 {
+				err = p.PersistLastSignature(uid)
+				if err != nil {
+					log.Printf("unable to save protocol context: %v", err)
+				}
+			} // todo: else reset p.Signatures[id] to prev. signature
 
 			msg.Response <- api.HTTPResponse{Code: code, Header: header, Content: resp}
 		case <-ctx.Done():
