@@ -3,13 +3,14 @@ package main
 import (
 	"database/sql"
 	"database/sql/driver"
+	"encoding/json"
 	"errors"
-	"io/ioutil"
+
 	"log"
-	"os"
 
 	// postgres driver is imported for side effects
 	_ "github.com/lib/pq"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
 // Database is the interface that defines what methods a database has to
@@ -17,6 +18,9 @@ import (
 type Database interface {
 	SetProtocolContext(proto driver.Valuer) error
 	GetProtocolContext(proto sql.Scanner) error
+
+	PersistLastSignature(clientUUID string, signature []byte) error
+	PersistKeystore(ubirch.Keystorer) error
 
 	Close() error
 }
@@ -63,7 +67,26 @@ func (db *Postgres) GetProtocolContext(proto sql.Scanner) error {
 		WHERE "id" = 1;`
 
 	err := db.conn.QueryRow(query).Scan(proto)
+	return err
+}
 
+func (db *Postgres) persistKeystore(keystore driver.Valuer) error {
+	const query = `
+		INSERT INTO "keystore" ("id", "json")
+		VALUES (1, $1)
+		ON CONFLICT ("id")
+			DO UPDATE SET "json" = $1;`
+	_, err := db.conn.Exec(query, keystore)
+	return err
+}
+
+func (db *Postgres) persistLastSignature(clientUUID string, bytes []byte) error {
+	const query = `
+		INSERT INTO "last_signature" ("client_uuid", "signature")
+		VALUES ($1, $2)
+		ON CONFLICT ("client_uuid")
+		DO UPDATE SET "signature" = $2;`
+	_, err := db.conn.Exec(query, clientUUID, bytes)
 	return err
 }
 
@@ -76,42 +99,25 @@ func (db *Postgres) Close() error {
 	return db.conn.Close()
 }
 
-type FileStore struct {
-	FilePath string
+// databaseJSONWrapper is a small helper which lets all json-serializable objects
+// also implement the sql.Scanner and driver.Valuer interfaces, for easy
+// (de)serialization in SQL databases.
+type databaseJSONWrapper struct {
+	Object json.Marshaler
 }
 
-func (fs *FileStore) SetProtocolContext(proto driver.Valuer) error {
-	err := os.Rename(fs.FilePath, fs.FilePath+".bck")
-	if err != nil {
-		log.Printf("unable to create protocol context backup: %v", err)
-	}
-
-	// XXX
-	value, err := proto.Value()
-	if err != nil {
-		return errors.New("Unable to serialize ProtocolContext")
-	}
-
-	if contextBytes, ok := value.([]byte); ok {
-		return ioutil.WriteFile(fs.FilePath, contextBytes, 444)
-	}
-
-	return errors.New("Unable to serialize ProtocolContext")
+// Value lets the struct implement the driver.Valuer interface. This method
+// simply returns the JSON-encoded representation of the struct.
+func (j databaseJSONWrapper) Value() (driver.Value, error) {
+	return json.Marshal(j.Object)
 }
 
-func (fs *FileStore) GetProtocolContext(proto sql.Scanner) error {
-	contextBytes, err := ioutil.ReadFile(fs.FilePath)
-	if err != nil {
-		file := fs.FilePath + ".bck"
-		contextBytes, err = ioutil.ReadFile(file)
-		if err != nil {
-			return err
-		}
+// Scan lets the struct implement the sql.Scanner interface. This method
+// simply decodes a JSON-encoded value into the struct fields.
+func (j *databaseJSONWrapper) Scan(value interface{}) error {
+	b, ok := value.([]byte)
+	if !ok {
+		return errors.New("type assertion to []byte failed")
 	}
-
-	return proto.Scan(contextBytes)
-}
-
-func (fs *FileStore) Close() error {
-	return nil
+	return json.Unmarshal(b, j.Object)
 }
