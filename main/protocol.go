@@ -61,16 +61,16 @@ func (p *ExtendedProtocol) SaveContext() error {
 	}
 }
 
-// PersistLastSignature stores last signatures persistantly
-func (p *ExtendedProtocol) PersistLastSignature(clientUUID string, lastSign []byte) error {
+// PersistLastSignature stores last signatures persistently
+func (p *ExtendedProtocol) PersistLastSignature(id uuid.UUID) error {
 	if p.DB != nil {
-		return p.DB.PersistLastSignature(clientUUID, lastSign)
+		return p.DB.PersistLastSignature(id.String(), p.Signatures[id])
 	} else {
 		return p.saveFile(p.ContextFile)
 	}
 }
 
-// PersistKey stores keys persistantly
+// PersistKey stores keys persistently
 func (p *ExtendedProtocol) PersistKeystore() error {
 	if p.DB != nil {
 		return p.DB.PersistKeystore(p.GetKeystorer())
