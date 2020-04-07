@@ -59,16 +59,18 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 						Content: []byte(fmt.Sprintf("dynamic key generation is disabled and there is no known signing key for UUID %s", name)),
 					}
 					continue
-				} else {
-					// generate new key pair if dynamic key generation is enabled
-					err = p.Crypto.GenerateKey(name, uid)
-					if err != nil {
-						log.Printf("%s: unable to generate new key pair: %v\n", name, err)
-						msg.Response <- genericError
-						continue
-					}
-					// persist key
-					p.PersistKeystore
+				}
+				// generate new key pair if dynamic key generation is enabled
+				err = p.Crypto.GenerateKey(name, uid)
+				if err != nil {
+					log.Printf("%s: unable to generate new key pair: %v\n", name, err)
+					msg.Response <- genericError
+					continue
+				}
+				// persist key
+				err = p.PersistKeystore()
+				if err != nil {
+					log.Printf("%s: unable to store new key pair: %v\n", name, err) // todo is this critical?
 				}
 			}
 

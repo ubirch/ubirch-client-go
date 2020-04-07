@@ -112,24 +112,24 @@ func main() {
 	//
 	// todo p.SaveKeys(keyMap) (this method should set keys in crypto context and automatically update keystore in database)
 	// todo set keys in crypto context (is this necessary or can we unmarshal here as well?)
-	if key, exists := keys[name]; exists {
-		keyBytes, err := base64.StdEncoding.DecodeString(key)
-		if err != nil {
-			log.Printf("Error decoding private key string for %s: %v, string was: %s", name, err, keyBytes)
-		}
-		err = p.Crypto.SetKey(name, uid, keyBytes)
-		if err != nil {
-			log.Printf("Error inserting private key: %v,", err)
-		}
+	//if key, exists := keys[name]; exists {
+	//	keyBytes, err := base64.StdEncoding.DecodeString(key)
+	//	if err != nil {
+	//		log.Printf("Error decoding private key string for %s: %v, string was: %s", name, err, keyBytes)
+	//	}
+	//	err = p.Crypto.SetKey(name, uid, keyBytes)
+	//	if err != nil {
+	//		log.Printf("Error inserting private key: %v,", err)
+	//	}
 
-		// create a waitgroup that contains all asynchronous operations
-		// a cancellable context is used to stop the operations gracefully
-		wg := sync.WaitGroup{}
-		ctx, cancel := context.WithCancel(context.Background())
+	// create a waitgroup that contains all asynchronous operations
+	// a cancellable context is used to stop the operations gracefully
+	wg := sync.WaitGroup{}
+	ctx, cancel := context.WithCancel(context.Background())
 
-		// set up graceful shutdown handling
-		signals := make(chan os.Signal, 1)
-		go shutdown(signals, &p, &wg, cancel)
+	// set up graceful shutdown handling
+	signals := make(chan os.Signal, 1)
+	go shutdown(signals, &p, &wg, cancel)
 
 	// create a messages channel that parses the HTTP message and creates UPPs
 	msgsToSign := make(chan api.HTTPMessage, 100)
