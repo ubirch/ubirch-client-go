@@ -18,6 +18,7 @@ package main
 
 import (
 	"database/sql/driver"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -33,23 +34,54 @@ import (
 type ExtendedProtocol struct {
 	ubirch.Protocol
 	Certificates map[uuid.UUID]SignedKeyRegistration
-	DB           Database // todo make this an interface
-	ContextFile  string
+	DB           Database
+	Path         string
 }
 
-func (p *ExtendedProtocol) Init(dsn string) error {
-	if dsn == "" {
-		return nil
+// INIT sets keys in crypto context and automatically updates keystore in persistent storage
+func (p *ExtendedProtocol) Init(dsn string, keys map[string]string) error {
+	// check if we want to use a database as persistent storage // todo move this up!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	if dsn != "" {
+		// use the database
+		db, err := NewPostgres(dsn)
+		if err != nil {
+			return fmt.Errorf("unable to connect to database: %v", err)
+		}
+		p.DB = db
 	}
 
-	// use the database
-	db, err := NewPostgres(dsn)
+	// try to read an existing protocol context from persistent storage (keystore, last signatures, key certificates)
+	err := p.LoadContext()
 	if err != nil {
-		return fmt.Errorf("unable to connect to database: %v", err)
+		log.Printf("unable to load protocol context: %v", err)
+	} else {
+		log.Printf("loaded protocol context")
+		log.Printf("%d certificates, %d signatures\n", len(p.Certificates), len(p.Signatures))
 	}
-	p.DB = db
-	return nil
 
+	// set whitelist keys in crypto context
+	for name, key := range keys {
+		uid, err := uuid.Parse(name)
+		if err != nil {
+			return fmt.Errorf("unable to parse key name %s from key map to UUID: %v", name, err)
+		}
+		keyBytes, err := base64.StdEncoding.DecodeString(key)
+		if err != nil {
+			return fmt.Errorf("unable to decode private key string for %s: %v, string was: %s", name, err, key)
+		}
+		err = p.Crypto.SetKey(name, uid, keyBytes)
+		if err != nil {
+			return fmt.Errorf("unable to insert private key to protocol context: %v", err)
+		}
+	}
+
+	// update keystore in persistent storage // todo is this even necessary?
+	err = p.PersistKeystore()
+	if err != nil {
+		log.Printf("unable to store key pairs: %v\n", err)
+	}
+
+	return nil
 }
 
 // Save saves current ubirch-protocol context, storing keys and signatures
@@ -57,7 +89,7 @@ func (p *ExtendedProtocol) SaveContext() error {
 	if p.DB != nil {
 		return p.DB.SetProtocolContext(p)
 	} else {
-		return p.saveFile(p.ContextFile)
+		return p.saveFile(p.Path + ContextFile)
 	}
 }
 
@@ -66,16 +98,16 @@ func (p *ExtendedProtocol) PersistLastSignature(id uuid.UUID) error {
 	if p.DB != nil {
 		return p.DB.PersistLastSignature(id.String(), p.Signatures[id])
 	} else {
-		return p.saveFile(p.ContextFile)
+		return p.saveFile(p.Path + ContextFile)
 	}
 }
 
-// PersistKey stores keys persistently
+// PersistKeystore stores keys persistently
 func (p *ExtendedProtocol) PersistKeystore() error {
 	if p.DB != nil {
 		return p.DB.PersistKeystore(p.GetKeystorer())
 	} else {
-		return p.saveFile(p.ContextFile)
+		return p.saveFile(p.Path + ContextFile)
 	}
 }
 
@@ -84,7 +116,7 @@ func (p *ExtendedProtocol) LoadContext() error {
 	if p.DB != nil {
 		return p.DB.GetProtocolContext(p)
 	} else {
-		return p.loadFile(p.ContextFile)
+		return p.loadFile(p.Path + ContextFile)
 	}
 }
 

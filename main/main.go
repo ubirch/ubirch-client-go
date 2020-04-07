@@ -72,9 +72,17 @@ func main() {
 
 	// read configuration
 	conf := Config{}
-	err := conf.Load(pathToConfig + ConfigFile)
+	err := conf.Load(pathToConfig)
 	if err != nil {
 		log.Fatalf("Error loading config: %s", err)
+	}
+
+	// read keys from key file / env variable
+	keyMap, err := LoadKeys(pathToConfig)
+	if err != nil && conf.StaticUUID {
+		log.Printf("unable to load keys: %v", err)
+	} else {
+		log.Printf("loaded %d keys from file", len(keyMap))
 	}
 
 	// create an ubirch protocol instance
@@ -85,42 +93,12 @@ func main() {
 	}
 	p.Signatures = map[uuid.UUID][]byte{}
 	p.Certificates = map[uuid.UUID]SignedKeyRegistration{}
-	p.ContextFile = pathToConfig + ContextFile
+	p.Path = pathToConfig
 
-	err = p.Init(conf.DSN)
+	err = p.Init(conf.DSN, keyMap)
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	// try to read an existing protocol context (keystore, last signatures, key certificates)
-	err = p.LoadContext()
-	if err != nil {
-		log.Printf("empty keystore: %v", err)
-	} else {
-		log.Printf("loaded protocol context")
-		log.Printf("%d certificates, %d signatures\n", len(p.Certificates), len(p.Signatures))
-	}
-
-	// todo  load keys from key file / env variable into keystore
-	keyMap, err := LoadKeys(pathToConfig + KeyFile)
-	if err != nil { // todo when is this critical? (&& conf.StaticUUID)
-		log.Printf("unable to load keys: %v", err)
-	} else {
-		log.Printf("loaded %d keys", len(keyMap))
-	}
-
-	//
-	// todo p.SaveKeys(keyMap) (this method should set keys in crypto context and automatically update keystore in database)
-	// todo set keys in crypto context (is this necessary or can we unmarshal here as well?)
-	//if key, exists := keys[name]; exists {
-	//	keyBytes, err := base64.StdEncoding.DecodeString(key)
-	//	if err != nil {
-	//		log.Printf("Error decoding private key string for %s: %v, string was: %s", name, err, keyBytes)
-	//	}
-	//	err = p.Crypto.SetKey(name, uid, keyBytes)
-	//	if err != nil {
-	//		log.Printf("Error inserting private key: %v,", err)
-	//	}
 
 	// create a waitgroup that contains all asynchronous operations
 	// a cancellable context is used to stop the operations gracefully
