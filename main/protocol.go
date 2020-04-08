@@ -33,14 +33,14 @@ import (
 
 type ExtendedProtocol struct {
 	ubirch.Protocol
-	Certificates map[uuid.UUID]SignedKeyRegistration
+	Certificates map[string]SignedKeyRegistration
 	DB           Database
 	Path         string
 }
 
 // INIT sets keys in crypto context and automatically updates keystore in persistent storage
 func (p *ExtendedProtocol) Init(dsn string, keys map[string]string) error {
-	// check if we want to use a database as persistent storage // todo move this up!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	// check if we want to use a database as persistent storage
 	if dsn != "" {
 		// use the database
 		db, err := NewPostgres(dsn)
@@ -84,19 +84,43 @@ func (p *ExtendedProtocol) Init(dsn string, keys map[string]string) error {
 	return nil
 }
 
-// Save saves current ubirch-protocol context, storing keys and signatures
-func (p *ExtendedProtocol) SaveContext() error {
+// LoadContext loads current ubirch-protocol context, loading keys and signatures
+func (p *ExtendedProtocol) LoadContext() error {
 	if p.DB != nil {
-		return p.DB.SetProtocolContext(p)
+		return p.DB.GetProtocolContext(p)
 	} else {
-		return p.saveFile(p.Path + ContextFile)
+		return p.loadFile(p.Path + ContextFile)
 	}
 }
 
-// PersistLastSignature stores last signatures persistently
-func (p *ExtendedProtocol) PersistLastSignature(id uuid.UUID) error {
+func (p *ExtendedProtocol) LoadKeystore() error {
 	if p.DB != nil {
-		return p.DB.PersistLastSignature(id.String(), p.Signatures[id])
+		return p.DB.GetProtocolContext(p)
+	} else {
+		return p.loadFile(p.Path+ContextKeystoreFile, p.Crypto.Keystore) // fixme this is why we currently can not load keys from persistent memory into protocol instance
+	}
+}
+
+func (p *ExtendedProtocol) LoadCertificates(id uuid.UUID) error {
+	if p.DB != nil {
+		return p.DB.GetProtocolContext(p)
+	} else {
+		return p.loadFile(p.Path+ContextCertificatesFile, p.Certificates)
+	}
+}
+
+func (p *ExtendedProtocol) LoadLastSignature(id uuid.UUID) error {
+	if p.DB != nil {
+		return p.DB.GetProtocolContext(p)
+	} else {
+		return p.loadFile(p.Path+ContextSignaturesFile, p.Signatures)
+	}
+}
+
+// PersistContext saves current ubirch-protocol context, storing keystore, key certificates and signatures
+func (p *ExtendedProtocol) PersistContext() error {
+	if p.DB != nil {
+		return p.DB.SetProtocolContext(p)
 	} else {
 		return p.saveFile(p.Path + ContextFile)
 	}
@@ -107,29 +131,30 @@ func (p *ExtendedProtocol) PersistKeystore() error {
 	if p.DB != nil {
 		return p.DB.PersistKeystore(p.GetKeystorer())
 	} else {
-		return p.saveFile(p.Path + ContextFile)
+		return p.saveFile(p.GetKeystorer(), p.Path+ContextKeystoreFile)
 	}
 }
 
-// loads current ubirch-protocol context, loading keys and signatures
-func (p *ExtendedProtocol) LoadContext() error {
+// PersistCertificates stores key certificates persistently
+func (p *ExtendedProtocol) PersistCertificates(id uuid.UUID) error {
 	if p.DB != nil {
-		return p.DB.GetProtocolContext(p)
+		// todo
+		return p.DB.SetProtocolContext(p)
 	} else {
-		return p.loadFile(p.Path + ContextFile)
+		return p.saveFile(p.Certificates, p.Path+ContextCertificatesFile)
 	}
 }
 
-func (p *ExtendedProtocol) saveFile(file string) error {
-	err := os.Rename(file, file+".bck")
-	if err != nil {
-		log.Printf("unable to create protocol context backup: %v", err)
+// PersistLastSignature stores last signatures persistently
+func (p *ExtendedProtocol) PersistLastSignature(id uuid.UUID) error {
+	if p.DB != nil {
+		return p.DB.PersistLastSignature(id.String(), p.Signatures[id])
+	} else {
+		return p.saveFile(p.Signatures, p.Path+ContextSignaturesFile)
 	}
-	contextBytes, _ := json.MarshalIndent(p, "", "  ")
-	return ioutil.WriteFile(file, contextBytes, 444)
 }
 
-func (p *ExtendedProtocol) loadFile(file string) error {
+func (p *ExtendedProtocol) loadFile(file string, v interface{}) error { // todo v map[string]interface{}
 	contextBytes, err := ioutil.ReadFile(file)
 	if err != nil {
 		file = file + ".bck"
@@ -138,15 +163,24 @@ func (p *ExtendedProtocol) loadFile(file string) error {
 			return err
 		}
 	}
-	err = json.Unmarshal(contextBytes, p)
+	err = json.Unmarshal(contextBytes, v)
 	if err != nil {
 		if strings.HasSuffix(file, ".bck") {
 			return err
 		} else {
-			return p.loadFile(file + ".bck")
+			return p.loadFile(file+".bck", v)
 		}
 	}
 	return nil
+}
+
+func (p *ExtendedProtocol) saveFile(v interface{}, file string) error { // todo v map[string]interface{}
+	err := os.Rename(file, file+".bck")
+	if err != nil {
+		log.Printf("unable to create protocol context backup: %v", err)
+	}
+	contextBytes, _ := json.MarshalIndent(v, "", "  ")
+	return ioutil.WriteFile(file, contextBytes, 444)
 }
 
 // Value lets the struct implement the driver.Valuer interface. This method

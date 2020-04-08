@@ -49,6 +49,7 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 			name := uid.String()
 
 			// check if there is a known signing key for UUID
+			// todo insert keys from persistent storage to protocol instance (lock resource)
 			_, err := p.Crypto.GetPublicKey(name)
 			if err != nil {
 				if conf.StaticUUID {
@@ -73,11 +74,11 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 				if err != nil {
 					log.Printf("%s: unable to store new key pair: %v\n", name, err) // todo is this critical?
 				}
-			}
+			} // todo free resource
 
 			// check if public key is registered at the key service
 			if _, registered := registeredUUIDs[uid]; !registered {
-				cert, err := getSignedCertificate(p, name, uid)
+				cert, err := getSignedCertificate(p, name)
 				if err != nil {
 					log.Printf("%s: unable to generate signed certificate: %v\n", name, err)
 					msg.Response <- InternalServerError
@@ -114,6 +115,8 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 				base64.StdEncoding.EncodeToString(data),
 				hex.EncodeToString(data))
 
+			// todo insert last signature from persistent storage to protocol instance (lock resource)
+
 			upp, err := p.Sign(name, data, ubirch.Chained)
 			if err != nil {
 				log.Printf("%s: unable to create UPP: %v\n", name, err)
@@ -141,7 +144,7 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 				if err != nil {
 					log.Printf("unable to save protocol context: %v", err)
 				}
-			} // todo: else reset p.Signatures[id] to prev. signature
+			} // todo free resource
 
 			msg.Response <- api.HTTPResponse{Code: code, Header: header, Content: resp}
 		case <-ctx.Done():

@@ -202,7 +202,7 @@ func verifier(handler chan []byte, responseHandler chan []byte, p *ExtendedProto
 				sendResponse(msg, OkVerified)
 
 				// save state for every message
-				err = p.SaveContext()
+				err = p.PersistContext()
 				if err != nil {
 					log.Printf("unable to save protocol context: %v", err)
 				}

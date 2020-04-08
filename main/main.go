@@ -30,9 +30,11 @@ import (
 )
 
 const (
-	ConfigFile  = "config.json"
-	ContextFile = "protocol.json"
-	KeyFile     = "keys.json"
+	ConfigFile              = "config.json"
+	KeyFile                 = "keys.json"
+	ContextKeystoreFile     = "protocol_ctx_keys.json"
+	ContextSignaturesFile   = "protocol_ctx_signs.json"
+	ContextCertificatesFile = "protocol_ctx_certs.json"
 )
 
 var (
@@ -53,7 +55,7 @@ func shutdown(signals chan os.Signal, p *ExtendedProtocol, wg *sync.WaitGroup, c
 	cancel()
 	wg.Wait()
 
-	err := p.SaveContext()
+	err := p.PersistContext()
 	if err != nil {
 		log.Printf("unable to save protocol context: %v", err)
 		os.Exit(1)
@@ -92,7 +94,7 @@ func main() {
 		Names:    map[string]uuid.UUID{},
 	}
 	p.Signatures = map[uuid.UUID][]byte{}
-	p.Certificates = map[uuid.UUID]SignedKeyRegistration{}
+	p.Certificates = map[string]SignedKeyRegistration{}
 	p.Path = pathToConfig
 
 	err = p.Init(conf.DSN, keyMap)
