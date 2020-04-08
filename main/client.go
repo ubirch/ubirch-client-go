@@ -25,8 +25,6 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
-	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -52,11 +50,18 @@ type SignedKeyRegistration struct {
 //
 // This function will get the public key from the card and create a json registration package
 // to be sent to the ubirch key service. The json structure is signed and sent to ubirch.
-func getSignedCertificate(p *ExtendedProtocol, name string, uid uuid.UUID) ([]byte, error) {
+func getSignedCertificate(p *ExtendedProtocol, name string) ([]byte, error) {
 	const timeFormat = "2006-01-02T15:04:05.000Z"
 
-	cert, found := p.Certificates[uid]
+	// todo load certificates from persistent storage to protocol instance (lock resource)
+	cert, found := p.Certificates[name]
 	if !found { // there is no certificate stored yet
+		// get the UUID
+		uid, err := p.Crypto.GetUUID(name)
+		if err != nil {
+			return nil, err
+		}
+
 		// get the key
 		pubKey, err := p.GetPublicKey(name)
 		if err != nil {
@@ -103,7 +108,7 @@ func getSignedCertificate(p *ExtendedProtocol, name string, uid uuid.UUID) ([]by
 			return nil, err
 		}
 
-		signature, err := p.Sign(name, jsonKeyReg, ubirch.Plain)
+		signature, err := p.Crypto.Sign(uid, jsonKeyReg)
 		if err != nil {
 			return nil, err
 		}
@@ -111,7 +116,8 @@ func getSignedCertificate(p *ExtendedProtocol, name string, uid uuid.UUID) ([]by
 		// fill the certificate
 		cert.PubKeyInfo = keyRegistration
 		cert.Signature = base64.StdEncoding.EncodeToString(signature)
-		p.Certificates[uid] = cert
+		p.Certificates[name] = cert
+		// todo save certificates to persistent storage (free resource)
 	}
 
 	return json.Marshal(cert)
