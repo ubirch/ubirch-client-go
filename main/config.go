@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"strings"
 
@@ -34,14 +35,14 @@ const (
 
 // configuration of the device
 type Config struct {
-	Password      string `json:"password"`
-	Secret        []byte `json:"secret"`     // Secret is used to encrypt the key store
-	DSN           string `json:"dsn"`        // "Data source name" for database connection
-	StaticUUID    bool   `json:"staticUUID"` // do not automatically create keys for unknown UUIDs. default: false -> enabled dynamic key gen
-	Env           string `json:"env"`        // [pev, pemo, prod]
-	KeyService    string `json:"keyService"`
-	Niomon        string `json:"niomon"`
-	VerifyService string `json:"verifyService"`
+	Devices       map[string]string `json:"devices"`
+	Secret        []byte            `json:"secret"`     // Secret is used to encrypt the key store
+	DSN           string            `json:"dsn"`        // "Data source name" for database connection
+	StaticUUID    bool              `json:"staticUUID"` // do not automatically create keys for unknown UUIDs. default: false -> enabled dynamic key gen
+	Env           string            `json:"env"`        // [dev, demo, prod]
+	KeyService    string            `json:"keyService"`
+	Niomon        string            `json:"niomon"`
+	VerifyService string            `json:"verifyService"`
 }
 
 func (c *Config) Load(path string) error {
@@ -68,13 +69,13 @@ func (c *Config) Load(path string) error {
 
 // loadEnv reads the configuration from environment variables
 func (c *Config) loadEnv() error {
-	fmt.Println("loading configuration from environment variables")
+	log.Println("loading configuration from environment variables")
 	return envconfig.Process("ubirch", c)
 }
 
 // LoadFile reads the configuration from a json file
 func (c *Config) loadFile(filename string) error {
-	fmt.Println("loading configuration from file")
+	log.Println("loading configuration from file")
 	contextBytes, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return err
@@ -83,8 +84,8 @@ func (c *Config) loadFile(filename string) error {
 }
 
 func (c *Config) checkMandatory() error {
-	if c.Password == "" {
-		return fmt.Errorf("no password set in config")
+	if c.Devices == nil {
+		return fmt.Errorf("no passwords set in config")
 	}
 	if len(c.Secret) != 16 {
 		return fmt.Errorf("secret length must be 16 bytes (is %d)", len(c.Secret))
