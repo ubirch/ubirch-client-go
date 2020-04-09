@@ -10,7 +10,6 @@ import (
 
 	// postgres driver is imported for side effects
 	_ "github.com/lib/pq"
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
 // Database is the interface that defines what methods a database has to
@@ -19,8 +18,8 @@ type Database interface {
 	SetProtocolContext(proto driver.Valuer) error
 	GetProtocolContext(proto sql.Scanner) error
 
-	PersistLastSignature(clientUUID string, signature []byte) error
-	PersistKeystore(ubirch.Keystorer) error
+	//PersistLastSignature(clientUUID string, signature []byte) error
+	//PersistKeystore(ubirch.Keystorer) error
 
 	Close() error
 }

@@ -53,71 +53,67 @@ type SignedKeyRegistration struct {
 func getSignedCertificate(p *ExtendedProtocol, name string) ([]byte, error) {
 	const timeFormat = "2006-01-02T15:04:05.000Z"
 
-	// todo load certificates from persistent storage to protocol instance (lock resource)
-	cert, found := p.Certificates[name]
-	if !found { // there is no certificate stored yet
-		// get the UUID
-		uid, err := p.Crypto.GetUUID(name)
-		if err != nil {
-			return nil, err
-		}
+	// get the UUID
+	uid, err := p.Crypto.GetUUID(name)
+	if err != nil {
+		return nil, err
+	}
 
-		// get the key
-		pubKey, err := p.GetPublicKey(name)
-		if err != nil {
-			return nil, err
-		}
+	// get the key
+	pubKey, err := p.GetPublicKey(name)
+	if err != nil {
+		return nil, err
+	}
 
-		// decode the key
-		block, _ := pem.Decode(pubKey)
-		if block == nil {
-			return nil, errors.New("failed to parse PEM block containing the public key")
-		}
+	// decode the key
+	block, _ := pem.Decode(pubKey)
+	if block == nil {
+		return nil, errors.New("failed to parse PEM block containing the public key")
+	}
 
-		// extract X and Y from the key
-		pub, err := x509.ParsePKIXPublicKey(block.Bytes)
-		if err != nil {
-			return nil, err
-		}
+	// extract X and Y from the key
+	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
 
-		pubKeyBytes := make([]byte, 0, 0)
-		switch pub := pub.(type) {
-		case *ecdsa.PublicKey:
-			pubKeyBytes = append(pubKeyBytes, pub.X.Bytes()...)
-			pubKeyBytes = append(pubKeyBytes, pub.Y.Bytes()...)
-		default:
-			return nil, errors.New("unknown type of public key")
-		}
-		pub64 := base64.StdEncoding.EncodeToString(pubKeyBytes)
+	pubKeyBytes := make([]byte, 0, 0)
+	switch pub := pub.(type) {
+	case *ecdsa.PublicKey:
+		pubKeyBytes = append(pubKeyBytes, pub.X.Bytes()...)
+		pubKeyBytes = append(pubKeyBytes, pub.Y.Bytes()...)
+	default:
+		return nil, errors.New("unknown type of public key")
+	}
+	pub64 := base64.StdEncoding.EncodeToString(pubKeyBytes)
 
-		// put it all together
-		now := time.Now().UTC()
-		keyRegistration := KeyRegistration{
-			"ecdsa-p256v1",
-			now.Format(timeFormat),
-			uid.String(),
-			pub64,
-			pub64,
-			now.Add(24 * 365 * time.Hour).Format(timeFormat),
-			now.Format(timeFormat),
-		}
+	// put it all together
+	now := time.Now().UTC()
+	keyRegistration := KeyRegistration{
+		"ecdsa-p256v1",
+		now.Format(timeFormat),
+		uid.String(),
+		pub64,
+		pub64,
+		now.Add(24 * 365 * time.Hour).Format(timeFormat),
+		now.Format(timeFormat),
+	}
 
-		// create string representation and sign it
-		jsonKeyReg, err := json.Marshal(keyRegistration)
-		if err != nil {
-			return nil, err
-		}
+	// create string representation and sign it
+	jsonKeyReg, err := json.Marshal(keyRegistration)
+	if err != nil {
+		return nil, err
+	}
 
-		signature, err := p.Crypto.Sign(uid, jsonKeyReg)
-		if err != nil {
-			return nil, err
-		}
+	signature, err := p.Crypto.Sign(uid, jsonKeyReg)
+	if err != nil {
+		return nil, err
+	}
 
-		// fill the certificate
-		cert.PubKeyInfo = keyRegistration
-		cert.Signature = base64.StdEncoding.EncodeToString(signature)
-		p.Certificates[name] = cert
-		// todo save certificates to persistent storage (free resource)
+	// fill the certificate
+	cert := SignedKeyRegistration{
+		PubKeyInfo: keyRegistration,
+		Signature:  base64.StdEncoding.EncodeToString(signature),
 	}
 
 	return json.Marshal(cert)

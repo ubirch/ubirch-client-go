@@ -30,11 +30,9 @@ import (
 )
 
 const (
-	ConfigFile              = "config.json"
-	KeyFile                 = "keys.json"
-	ContextKeystoreFile     = "protocol_ctx_keys.json"
-	ContextSignaturesFile   = "protocol_ctx_signs.json"
-	ContextCertificatesFile = "protocol_ctx_certs.json"
+	ConfigFile  = "config.json"
+	ContextFile = "protocol.json"
+	KeyFile     = "keys.json"
 )
 
 var (
@@ -94,7 +92,7 @@ func main() {
 		Names:    map[string]uuid.UUID{},
 	}
 	p.Signatures = map[uuid.UUID][]byte{}
-	p.Certificates = map[string]SignedKeyRegistration{}
+	p.Certificates = map[string][]byte{}
 	p.Path = pathToConfig
 
 	err = p.Init(conf.DSN, keyMap)

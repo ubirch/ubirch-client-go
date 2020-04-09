@@ -26,7 +26,6 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-go-http-server/api"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
@@ -41,7 +40,6 @@ var InternalServerError = api.HTTPResponse{
 func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	registeredUUIDs := make(map[uuid.UUID]bool)
 	for {
 		select {
 		case msg := <-msgHandler:
@@ -49,7 +47,6 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 			name := uid.String()
 
 			// check if there is a known signing key for UUID
-			// todo insert keys from persistent storage to protocol instance (lock resource)
 			_, err := p.Crypto.GetPublicKey(name)
 			if err != nil {
 				if conf.StaticUUID {
@@ -69,15 +66,16 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 					msg.Response <- InternalServerError
 					continue
 				}
-				// persist key
-				err = p.PersistKeystore()
+				// store newly generated key in persistent storage
+				err = p.PersistContext()
 				if err != nil {
 					log.Printf("%s: unable to store new key pair: %v\n", name, err) // todo is this critical?
 				}
-			} // todo free resource
+			}
 
 			// check if public key is registered at the key service
-			if _, registered := registeredUUIDs[uid]; !registered {
+			if _, found := p.Certificates[name]; !found { // if there is no certificate stored yet, the key has not been registered
+				// create a signed certificate for public key registration
 				cert, err := getSignedCertificate(p, name)
 				if err != nil {
 					log.Printf("%s: unable to generate signed certificate: %v\n", name, err)
@@ -102,7 +100,13 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 					continue
 				}
 				log.Printf("%s: registered key: (%d) %v", name, len(resp), string(resp))
-				registeredUUIDs[uid] = true
+				p.Certificates[name] = cert
+
+				// store newly generated certificate in persistent storage
+				err = p.PersistContext()
+				if err != nil {
+					log.Printf("unable to save protocol context: %v", err)
+				}
 			}
 
 			// send UPP (hash)
@@ -116,7 +120,6 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 				hex.EncodeToString(data))
 
 			// todo insert last signature from persistent storage to protocol instance (lock resource)
-
 			upp, err := p.Sign(name, data, ubirch.Chained)
 			if err != nil {
 				log.Printf("%s: unable to create UPP: %v\n", name, err)
@@ -140,11 +143,12 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 
 			// save last signature after UPP was successfully received in ubirch backend
 			if code == 200 {
-				err = p.PersistLastSignature(uid)
+				err = p.PersistContext() // todo err = p.PersistLastSignature(uid)
 				if err != nil {
-					log.Printf("unable to save protocol context: %v", err)
+					log.Printf("unable to save last signature: %v", err)
 				}
-			} // todo free resource
+			}
+			// todo free resource when done or if sthg went wrong
 
 			msg.Response <- api.HTTPResponse{Code: code, Header: header, Content: resp}
 		case <-ctx.Done():
