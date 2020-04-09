@@ -53,12 +53,6 @@ func shutdown(signals chan os.Signal, p *ExtendedProtocol, wg *sync.WaitGroup, c
 	cancel()
 	wg.Wait()
 
-	err := p.PersistContext()
-	if err != nil {
-		log.Printf("unable to save protocol context: %v", err)
-		os.Exit(1)
-	}
-
 	os.Exit(0)
 }
 
@@ -113,7 +107,7 @@ func main() {
 	wg.Add(1)
 
 	// listen to messages to sign via http
-	httpSrvSign := api.HTTPServer{MessageHandler: msgsToSign, Auth: conf.Password}
+	httpSrvSign := api.HTTPServer{MessageHandler: msgsToSign, AuthTokens: conf.Devices}
 	httpSrvSign.Serve(ctx, &wg)
 	wg.Add(1)
 

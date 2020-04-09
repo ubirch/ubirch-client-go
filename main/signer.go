@@ -136,7 +136,7 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 			code, header, resp, err := post(upp, conf.Niomon, map[string]string{
 				"x-ubirch-hardware-id": name,
 				"x-ubirch-auth-type":   "ubirch",
-				"x-ubirch-credential":  base64.StdEncoding.EncodeToString([]byte(conf.Password)),
+				"x-ubirch-credential":  base64.StdEncoding.EncodeToString([]byte(conf.Devices[name])),
 			})
 			if err != nil {
 				log.Printf("%s: sending UPP to ubirch backend failed: %v\n", name, err)

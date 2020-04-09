@@ -55,31 +55,33 @@ func (p *ExtendedProtocol) Init(dsn string, keys map[string]string) error {
 	if err != nil {
 		log.Printf("unable to load protocol context: %v", err)
 	} else {
-		log.Printf("loaded protocol context: %d certificates, %d signatures\n", len(p.Certificates), len(p.Signatures))
+		log.Printf("loading protocol context: %d certificates, %d signatures\n", len(p.Certificates), len(p.Signatures))
 	}
 
-	// set whitelist keys in crypto context
-	for name, key := range keys {
-		uid, err := uuid.Parse(name)
-		if err != nil {
-			return fmt.Errorf("unable to parse key name %s from key map to UUID: %v", name, err)
+	if keys != nil {
+		// set whitelist keys in crypto context
+		for name, key := range keys {
+			uid, err := uuid.Parse(name)
+			if err != nil {
+				return fmt.Errorf("unable to parse key name %s from key map to UUID: %v", name, err)
+			}
+			keyBytes, err := base64.StdEncoding.DecodeString(key)
+			if err != nil {
+				return fmt.Errorf("unable to decode private key string for %s: %v, string was: %s", name, err, key)
+			}
+			err = p.Crypto.SetKey(name, uid, keyBytes)
+			if err != nil {
+				return fmt.Errorf("unable to insert private key to protocol context: %v", err)
+			}
 		}
-		keyBytes, err := base64.StdEncoding.DecodeString(key)
-		if err != nil {
-			return fmt.Errorf("unable to decode private key string for %s: %v, string was: %s", name, err, key)
-		}
-		err = p.Crypto.SetKey(name, uid, keyBytes)
-		if err != nil {
-			return fmt.Errorf("unable to insert private key to protocol context: %v", err)
-		}
-	}
 
-	log.Printf("loaded %d keys from whitelist\n", len(keys))
+		log.Printf("loaded %d keys from whitelist\n", len(keys))
 
-	// update keystore in persistent storage // todo is this even necessary? test if it will overwrite existing keys!
-	err = p.PersistContext()
-	if err != nil {
-		log.Printf("unable to store key pairs: %v\n", err)
+		// update keystore in persistent storage
+		err = p.PersistContext()
+		if err != nil {
+			log.Printf("unable to store key pairs: %v\n", err)
+		}
 	}
 
 	return nil
