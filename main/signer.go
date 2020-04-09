@@ -123,7 +123,11 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 				base64.StdEncoding.EncodeToString(data),
 				hex.EncodeToString(data))
 
-			// todo insert last signature from persistent storage to protocol instance (lock resource)
+			err = p.LoadContext() // todo err = p.LoadLastSignature(uid)
+			if err != nil {
+				log.Printf("unable to load last signature: %v", err)
+			}
+
 			upp, err := p.SignHash(name, data, ubirch.Chained)
 			if err != nil {
 				log.Printf("%s: unable to create UPP: %v\n", name, err)
