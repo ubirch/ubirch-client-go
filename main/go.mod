@@ -1,4 +1,4 @@
-module github.com/ubirch/ubirch-go-udp-client/main
+module github.com/ubirch/ubirch-client-go/main
 
 go 1.13
 
