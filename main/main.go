@@ -80,9 +80,7 @@ func main() {
 	// read keys from key file / env variable
 	keyMap, err := LoadKeys(pathToConfig)
 	if err != nil && conf.StaticUUID {
-		log.Printf("unable to load keys: %v", err)
-	} else {
-		log.Printf("loaded %d keys from file", len(keyMap))
+		log.Printf("unable to load keys from file: %v", err)
 	}
 
 	// create an ubirch protocol instance

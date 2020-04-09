@@ -45,6 +45,7 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 		case msg := <-msgHandler:
 			uid := msg.ID
 			name := uid.String()
+			log.Printf("%s: signer received request\n", name)
 
 			// check if there is a known signing key for UUID
 			_, err := p.Crypto.GetPublicKey(name)
@@ -60,12 +61,14 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 				}
 
 				// if dynamic key generation is enabled generate new key pair
+				log.Printf("%s: generating new key pair\n", name)
 				err = p.Crypto.GenerateKey(name, uid)
 				if err != nil {
 					log.Printf("%s: unable to generate new key pair: %v\n", name, err)
 					msg.Response <- InternalServerError
 					continue
 				}
+
 				// store newly generated key in persistent storage
 				err = p.PersistContext()
 				if err != nil {
@@ -75,6 +78,7 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 
 			// check if public key is registered at the key service
 			if _, found := p.Certificates[name]; !found { // if there is no certificate stored yet, the key has not been registered
+				log.Printf("%s: registering public key at key service\n", name)
 				// create a signed certificate for public key registration
 				cert, err := getSignedCertificate(p, name)
 				if err != nil {
@@ -82,7 +86,7 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 					msg.Response <- InternalServerError
 					continue
 				}
-				log.Printf("%s: CERT [%s]\n", name, cert)
+				log.Printf("%s: CERT: %s\n", name, cert)
 
 				code, _, resp, err := post(cert, conf.KeyService, map[string]string{"Content-Type": "application/json"})
 				if err != nil {
@@ -91,15 +95,15 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 					continue
 				}
 				if code != 200 {
-					log.Printf("%s: key registration failed with %d: %q\n", name, code, resp)
+					log.Printf("%s: key registration failed with %d: %s\n", name, code, string(resp))
 					msg.Response <- api.HTTPResponse{
 						Code:    code,
 						Header:  map[string][]string{"Content-Type": {"text/plain"}},
-						Content: []byte(fmt.Sprintf("key registration for %s failed:\n %q\n  %s", name, resp, cert)),
+						Content: []byte(fmt.Sprintf("key registration for UUID %s failed.\n key registration message: %s\n key service response: %s", name, cert, string(resp))),
 					}
 					continue
 				}
-				log.Printf("%s: registered key: (%d) %v", name, len(resp), string(resp))
+				log.Printf("%s: key registration successful: %v", name, string(resp))
 				p.Certificates[name] = cert
 
 				// store newly generated certificate in persistent storage
@@ -115,18 +119,18 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 				hash := sha256.Sum256(msg.Msg)
 				data = hash[:]
 			}
-			log.Printf("%s: hash %s (%s)\n", name,
+			log.Printf("%s: hash: %s (%s)\n", name,
 				base64.StdEncoding.EncodeToString(data),
 				hex.EncodeToString(data))
 
 			// todo insert last signature from persistent storage to protocol instance (lock resource)
-			upp, err := p.Sign(name, data, ubirch.Chained)
+			upp, err := p.SignHash(name, data, ubirch.Chained)
 			if err != nil {
 				log.Printf("%s: unable to create UPP: %v\n", name, err)
 				msg.Response <- InternalServerError
 				continue
 			}
-			log.Printf("%s: UPP %s\n", name, hex.EncodeToString(upp))
+			log.Printf("%s: UPP: %s\n", name, hex.EncodeToString(upp))
 
 			// post UPP to ubirch backend
 			code, header, resp, err := post(upp, conf.Niomon, map[string]string{
@@ -139,7 +143,7 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 				msg.Response <- InternalServerError
 				continue
 			}
-			log.Printf("%s: %q\n", name, resp)
+			log.Printf("%s: response: (%d) %s\n", name, code, string(resp))
 
 			// save last signature after UPP was successfully received in ubirch backend
 			if code == 200 {

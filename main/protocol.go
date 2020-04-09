@@ -55,8 +55,7 @@ func (p *ExtendedProtocol) Init(dsn string, keys map[string]string) error {
 	if err != nil {
 		log.Printf("unable to load protocol context: %v", err)
 	} else {
-		log.Printf("loaded protocol context")
-		log.Printf("%d certificates, %d signatures\n", len(p.Certificates), len(p.Signatures))
+		log.Printf("loaded protocol context: %d certificates, %d signatures\n", len(p.Certificates), len(p.Signatures))
 	}
 
 	// set whitelist keys in crypto context
