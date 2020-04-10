@@ -35,7 +35,7 @@ var DB Database
 
 type ExtendedProtocol struct {
 	ubirch.Protocol
-	Certificates map[string]SignedKeyRegistration
+	Certificates map[string][]byte
 }
 
 // INIT sets keys in crypto context and automatically updates keystore in persistent storage

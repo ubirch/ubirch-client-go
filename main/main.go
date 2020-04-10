@@ -85,7 +85,7 @@ func main() {
 		Names:    map[string]uuid.UUID{},
 	}
 	p.Signatures = map[uuid.UUID][]byte{}
-	p.Certificates = map[string]SignedKeyRegistration{}
+	p.Certificates = map[string][]byte{}
 
 	err = p.Init(conf.DSN, keyMap)
 	if err != nil {
