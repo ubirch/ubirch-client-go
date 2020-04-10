@@ -15,5 +15,5 @@ EXPOSE 8080/tcp
 EXPOSE 15001/udp
 EXPOSE 15002/udp
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
-COPY --from=builder app/main/main ubirch-go-client
-ENTRYPOINT ["/ubirch-go-client", "/data/"]
+COPY --from=builder app/main/main ubirch-client-go
+ENTRYPOINT ["/ubirch-client-go", "/data/"]

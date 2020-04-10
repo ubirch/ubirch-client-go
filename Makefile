@@ -1,4 +1,4 @@
-EXECUTABLE=ubirch-go-client
+EXECUTABLE=ubirch-client-go
 
 # we are building for ARM Linux
 GOOS=linux
