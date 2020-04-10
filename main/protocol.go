@@ -55,11 +55,11 @@ func (p *ExtendedProtocol) Init(dsn string, keys map[string]string) error {
 	if err != nil {
 		log.Printf("unable to load protocol context: %v", err)
 	} else {
-		log.Printf("loading protocol context: %d certificates, %d signatures\n", len(p.Certificates), len(p.Signatures))
+		log.Printf("loaded protocol context: %d certificates, %d signatures\n", len(p.Certificates), len(p.Signatures))
 	}
 
 	if keys != nil {
-		// set whitelist keys in crypto context
+		// inject keys from configuration to keystore
 		for name, key := range keys {
 			uid, err := uuid.Parse(name)
 			if err != nil {
@@ -75,7 +75,7 @@ func (p *ExtendedProtocol) Init(dsn string, keys map[string]string) error {
 			}
 		}
 
-		log.Printf("loaded %d keys from whitelist\n", len(keys))
+		log.Printf("injected %d keys from configuration to keystore\n", len(keys))
 
 		// update keystore in persistent storage
 		err = p.PersistContext()

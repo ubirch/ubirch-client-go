@@ -36,14 +36,14 @@ const (
 
 // configuration of the device
 type Config struct {
-	Devices       map[string]string `json:"devices"`
-	Secret        base64string      `json:"secret"`     // Secret is used to encrypt the key store
-	DSN           string            `json:"dsn"`        // "Data source name" for database connection
-	StaticUUID    bool              `json:"staticUUID"` // do not automatically create keys for unknown UUIDs. default: false -> enabled dynamic key gen
-	Env           string            `json:"env"`        // [dev, demo, prod]
-	KeyService    string            `json:"keyService"`
-	Niomon        string            `json:"niomon"`
-	VerifyService string            `json:"verifyService"`
+	Devices       map[string]string `json:"devices"`       // maps UUIDs to backend auth tokens
+	Secret        base64string      `json:"secret"`        // secret used to encrypt the key store
+	DSN           string            `json:"dsn"`           // "data source name" for database connection
+	StaticUUID    bool              `json:"staticUUID"`    // only accept requests from UUIDs with injected signing key. default: false -> dynamic key generation
+	Env           string            `json:"env"`           // the ubirch backend environment [dev, demo, prod]
+	KeyService    string            `json:"keyService"`    // key service URL (set automatically)
+	Niomon        string            `json:"niomon"`        // authentication service URL (set automatically)
+	VerifyService string            `json:"verifyService"` // verification service URL (set automatically)
 }
 
 type base64string []byte
@@ -61,9 +61,9 @@ func (b base64string) Set(value string) error {
 
 func (c *Config) Load(path string) error {
 	// assume that we want to load from env instead of config files, if
-	// we have the UBIRCH_PASSWORD env variable set.
+	// we have the UBIRCH_DEVICES env variable set.
 	var err error
-	if os.Getenv("UBIRCH_PASSWORD") != "" {
+	if os.Getenv("UBIRCH_DEVICES") != "" {
 		err = c.loadEnv()
 	} else {
 		err = c.loadFile(path + ConfigFile)
