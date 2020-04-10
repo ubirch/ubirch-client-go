@@ -29,6 +29,8 @@ import (
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
+var Path string
+
 const (
 	ConfigFile  = "config.json"
 	ContextFile = "protocol.json"
@@ -57,22 +59,21 @@ func shutdown(signals chan os.Signal, p *ExtendedProtocol, wg *sync.WaitGroup, c
 }
 
 func main() {
-	pathToConfig := ""
 	if len(os.Args) > 1 {
-		pathToConfig = os.Args[1]
+		Path = os.Args[1]
 	}
 
 	log.Printf("ubirch Golang client (%s, build=%s)", Version, Build)
 
 	// read configuration
 	conf := Config{}
-	err := conf.Load(pathToConfig)
+	err := conf.Load()
 	if err != nil {
 		log.Fatalf("Error loading config: %s", err)
 	}
 
 	// read keys from key file / env variable
-	keyMap, err := LoadKeys(pathToConfig)
+	keyMap, err := LoadKeys()
 	if err != nil && conf.StaticUUID {
 		log.Printf("unable to load keys from file: %v", err)
 	}
@@ -84,8 +85,7 @@ func main() {
 		Names:    map[string]uuid.UUID{},
 	}
 	p.Signatures = map[uuid.UUID][]byte{}
-	p.Certificates = map[string][]byte{}
-	p.Path = pathToConfig
+	p.Certificates = map[string]SignedKeyRegistration{}
 
 	err = p.Init(conf.DSN, keyMap)
 	if err != nil {

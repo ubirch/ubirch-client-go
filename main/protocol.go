@@ -31,11 +31,11 @@ import (
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
+var DB Database
+
 type ExtendedProtocol struct {
 	ubirch.Protocol
-	Certificates map[string][]byte
-	DB           Database
-	Path         string
+	Certificates map[string]SignedKeyRegistration
 }
 
 // INIT sets keys in crypto context and automatically updates keystore in persistent storage
@@ -47,7 +47,7 @@ func (p *ExtendedProtocol) Init(dsn string, keys map[string]string) error {
 		if err != nil {
 			return fmt.Errorf("unable to connect to database: %v", err)
 		}
-		p.DB = db
+		DB = db
 	}
 
 	// try to read an existing protocol context from persistent storage (keystore, last signatures, key certificates)
@@ -83,43 +83,42 @@ func (p *ExtendedProtocol) Init(dsn string, keys map[string]string) error {
 			log.Printf("unable to store key pairs: %v\n", err)
 		}
 	}
-
 	return nil
 }
 
 // PersistContext saves current ubirch-protocol context, storing keystore, key certificates and signatures
 func (p *ExtendedProtocol) PersistContext() error {
-	if p.DB != nil {
-		return p.DB.SetProtocolContext(p)
+	if DB != nil {
+		return DB.SetProtocolContext(p)
 	} else {
-		return p.saveFile(p.Path + ContextFile)
+		return p.saveFile(Path + ContextFile)
 	}
 }
 
 // LoadContext loads current ubirch-protocol context, loading keys and signatures
 func (p *ExtendedProtocol) LoadContext() error {
-	if p.DB != nil {
-		return p.DB.GetProtocolContext(p)
+	if DB != nil {
+		return DB.GetProtocolContext(p)
 	} else {
-		return p.loadFile(p.Path + ContextFile)
+		return p.loadFile(Path + ContextFile)
 	}
 }
 
 //// PersistLastSignature stores a devices last signature persistently
 //func (p *ExtendedProtocol) PersistLastSignature(id uuid.UUID) error {
-//	if p.DB != nil {
-//		// todo return p.DB.PersistLastSignature(id.String(), p.Signatures[id])
+//	if DB != nil {
+//		// todo return DB.PersistLastSignature(id.String(), p.Signatures[id])
 //	} else {
-//		return p.saveFile(p.Path + ContextFile)
+//		return p.saveFile(Path + ContextFile)
 //	}
 //}
 //
 //// LoadLastSignature loads a devices last signatures from the persistent storage
 //func (p *ExtendedProtocol) LoadLastSignature(id uuid.UUID) error {
-//	if p.DB != nil {
-//		// todo return p.DB.LoadLastSignature(id.String())
+//	if DB != nil {
+//		// todo return DB.LoadLastSignature(id.String())
 //	} else {
-//		return p.loadFile(p.Path + ContextFile)
+//		return p.loadFile(Path + ContextFile)
 //	}
 //}
 

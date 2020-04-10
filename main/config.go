@@ -59,14 +59,14 @@ func (b base64string) Set(value string) error {
 	return nil
 }
 
-func (c *Config) Load(path string) error {
+func (c *Config) Load() error {
 	// assume that we want to load from env instead of config files, if
 	// we have the UBIRCH_DEVICES env variable set.
 	var err error
 	if os.Getenv("UBIRCH_DEVICES") != "" {
 		err = c.loadEnv()
 	} else {
-		err = c.loadFile(path + ConfigFile)
+		err = c.loadFile(Path + ConfigFile)
 	}
 	if err != nil {
 		return err
@@ -131,7 +131,7 @@ func (c *Config) setDefaultURLs() {
 }
 
 // LoadKeys loads the keys map from environment or file
-func LoadKeys(path string) (map[string]string, error) {
+func LoadKeys() (map[string]string, error) {
 	var err error
 	var keyBytes []byte
 
@@ -139,7 +139,7 @@ func LoadKeys(path string) (map[string]string, error) {
 	if keys != "" {
 		keyBytes = []byte(keys)
 	} else {
-		keyBytes, err = ioutil.ReadFile(path + KeyFile)
+		keyBytes, err = ioutil.ReadFile(Path + KeyFile)
 		if err != nil {
 			return nil, err
 		}
