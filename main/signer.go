@@ -36,7 +36,7 @@ var InternalServerError = api.HTTPResponse{
 	Content: []byte(http.StatusText(http.StatusInternalServerError)),
 }
 
-// handle incoming udp messages, create and send a ubirch protocol message (UPP)
+// handle incoming messages, create, sign and send a ubirch protocol packet (UPP) to the ubirch backend
 func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
