@@ -42,6 +42,9 @@ The service can be configured via environment variables.
 (eg. "") contains the password of the instance
 ###### `UBIRCH_ENV
 contains the ubirch backend stage
+###### `UBIRCH_SECRET`
+contains a base64 encoded secret (16 byte) used for encrypting the
+keys in the keystore.
 
 ### Run in Docker container
 We provided a multi-arch Docker image that runs on amd64 as well as arm64 architecture. To start it, run:

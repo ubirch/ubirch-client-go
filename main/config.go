@@ -17,6 +17,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -36,13 +37,26 @@ const (
 // configuration of the device
 type Config struct {
 	Devices       map[string]string `json:"devices"`
-	Secret        []byte            `json:"secret"`     // Secret is used to encrypt the key store
+	Secret        base64string      `json:"secret"`     // Secret is used to encrypt the key store
 	DSN           string            `json:"dsn"`        // "Data source name" for database connection
 	StaticUUID    bool              `json:"staticUUID"` // do not automatically create keys for unknown UUIDs. default: false -> enabled dynamic key gen
 	Env           string            `json:"env"`        // [dev, demo, prod]
 	KeyService    string            `json:"keyService"`
 	Niomon        string            `json:"niomon"`
 	VerifyService string            `json:"verifyService"`
+}
+
+type base64string []byte
+
+// Set implements the envconf.Setter by translating the base64 encrypted env
+// variable into a byte slice.
+func (b base64string) Set(value string) error {
+	var err error
+	b, err = base64.StdEncoding.DecodeString(value)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c *Config) Load(path string) error {
