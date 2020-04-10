@@ -36,7 +36,7 @@ const (
 )
 
 var (
-	Version = "v1.0.0"
+	Version = "v2.0.0"
 	Build   = "local"
 )
 
