@@ -80,8 +80,12 @@ func getSignedCertificate(p *ExtendedProtocol, name string) ([]byte, error) {
 	pubKeyBytes := make([]byte, 0, 0)
 	switch pub := pub.(type) {
 	case *ecdsa.PublicKey:
-		pubKeyBytes = append(pubKeyBytes, pub.X.Bytes()...)
-		pubKeyBytes = append(pubKeyBytes, pub.Y.Bytes()...)
+		paddedX := make([]byte, 32)
+		paddedY := make([]byte, 32)
+		copy(paddedX[32-len(pub.X.Bytes()):], pub.X.Bytes())
+		copy(paddedY[32-len(pub.Y.Bytes()):], pub.Y.Bytes())
+		pubKeyBytes = append(pubKeyBytes, paddedX...)
+		pubKeyBytes = append(pubKeyBytes, paddedY...)
 	default:
 		return nil, errors.New("unknown type of public key")
 	}
