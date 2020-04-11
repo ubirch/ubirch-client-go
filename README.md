@@ -108,7 +108,7 @@ working directory.
 To start the multi-arch Docker image on any system, run:
 ```
 docker pull ubirch/ubirch-client:stable
-docker run -v $(pwd)/:/data/ ubirch/ubirch-client:stable .
+docker run -p 8080:8080 -v $(pwd)/:/data/ ubirch/ubirch-client:stable .
 ```
 The docker image mounts the current directory (`$(pwd)`) into the */data/* path to load the configuration
  and store keys and last signatures (if no DSN is set). You can also pass an absolute path instead of `$(pwd)`.
