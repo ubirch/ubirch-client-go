@@ -91,7 +91,8 @@ working directory.
     ```{"<UUID>": "<ecdsa-prime256v1 private key (base64 encoded)>"}```
     
     ...either as env variable `UBIRCH_KEY_MAP` or in a file `keys.json`.
-    Either way (dynamically generated or injected) the client will store the keys persistently in the encrypted keystore.
+    Either way (dynamically generated or injected) the client will register the public key at the UBIRCH key service and
+    store the keys persistently in the encrypted keystore.
 
 - The `env` configuration refers to the UBIRCH backend environment. The default value is `prod`, which is the
  production environment. For development, the reference to “prod” may be replaced by “demo”, which is a test system
