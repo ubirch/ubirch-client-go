@@ -103,13 +103,13 @@ func main() {
 
 	// create a messages channel that parses the HTTP message and creates UPPs
 	msgsToSign := make(chan api.HTTPMessage, 100)
-	go signer(msgsToSign, &p, conf, ctx, &wg)
 	wg.Add(1)
+	go signer(msgsToSign, &p, conf, ctx, &wg)
 
 	// listen to messages to sign via http
 	httpSrvSign := api.HTTPServer{MessageHandler: msgsToSign, AuthTokens: conf.Devices}
-	httpSrvSign.Serve(ctx, &wg)
 	wg.Add(1)
+	httpSrvSign.Serve(ctx, &wg)
 
 	// wait forever, exit is handled via shutdown
 	select {}
