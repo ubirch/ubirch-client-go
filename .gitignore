@@ -21,9 +21,9 @@
 # vendor/
 
 main/main
-main/ubirch-client-go
-main/ubirch-client-go-arm
-main/ubirch-client-go-x86
+main/ubirch-client
+main/ubirch-client-arm
+main/ubirch-client-x86
 *.bck
 *.json
 /venv/
