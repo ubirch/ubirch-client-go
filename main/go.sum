@@ -8,8 +8,6 @@ github.com/kelseyhightower/envconfig v1.4.0 h1:Im6hONhd3pLkfDFsbRgu68RDNkGF1r3dv
 github.com/kelseyhightower/envconfig v1.4.0/go.mod h1:cccZRl6mQpaq41TPp5QxidR+Sa3axMbJDNb//FQX6Gg=
 github.com/lib/pq v1.3.0 h1:/qkRGz8zljWiDcFvgpwUpwIAPu3r07TDvs3Rws+o/pU=
 github.com/lib/pq v1.3.0/go.mod h1:5WUZQaWbwv1U+lTReE5YruASi9Al49XbQIvNi/34Woo=
-github.com/paypal/go.crypto v0.1.0 h1:AZpk8Bh205QEIFYVkOjxTsi44ondifCryDhq3Ah7gHY=
-github.com/paypal/go.crypto v0.1.0/go.mod h1:SkWGgUAivahcWkhrh1+u2TdpofifG/A2vNpmnhT4oHY=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
@@ -19,8 +17,8 @@ github.com/ubirch/go.crypto v0.1.2 h1:IYMOx19UgWt4+k7PydcOVtEWFiU10O8dHoof00j8IK
 github.com/ubirch/go.crypto v0.1.2/go.mod h1:aiZQ37CxSBS7cBLsFbTnDxGeg5RkH7Z5LKBYeNasIrw=
 github.com/ubirch/ubirch-go-http-server/api v1.0.0 h1:awisotmmLVuigYAcn91IKTrPTM6RUGpDNc3gWJcBulU=
 github.com/ubirch/ubirch-go-http-server/api v1.0.0/go.mod h1:Dig+IKgDns/7F4v+fsvwGtjJw1AWwRID8DWHOgVQQYQ=
-github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.1.0 h1:0cVXrYGx1M98euq3kX1B/2l6QATwVtToe9Q8WI8+ZKA=
-github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.1.0/go.mod h1:WQNNLDRSGY0y8h7+280vScLK0JR9bU8mprnyJac6GQU=
+github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.1.1 h1:mbM6Nzb0oehuNRU9eXbntSw/Xv2/aKHLINOzI5cTumk=
+github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.1.1/go.mod h1:nTqN+niHQNN5XLxMgd5MOD+yW9vBi9trYIj4vBuVi2Y=
 github.com/ugorji/go v1.1.7 h1:/68gy2h+1mWMrwZFeD1kQialdSzAb432dtpeJ42ovdo=
 github.com/ugorji/go v1.1.7/go.mod h1:kZn38zHttfInRq0xu/PH0az30d+z6vm202qpg1oXVMw=
 github.com/ugorji/go/codec v1.1.7 h1:2SvQaVZ1ouYrrKKwoSk2pzd4A9evlKJb9oTL+OaLUSs=

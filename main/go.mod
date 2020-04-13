@@ -7,5 +7,5 @@ require (
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/lib/pq v1.3.0
 	github.com/ubirch/ubirch-go-http-server/api v1.0.0
-	github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.1.0
+	github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.1.1
 )
