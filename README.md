@@ -168,7 +168,6 @@ Response codes indicate the successful delivery of the UPP to the UBIRCH backend
     2020/04/14 13:40:54 UBIRCH client (v2.0.0, build=local)
     2020/04/14 13:40:54 loading configuration from file (config.json)
     2020/04/14 13:40:54 loaded protocol context: 0 certificates, 0 signatures
-    
     ```
     That means the client is running and ready!
     
@@ -188,17 +187,22 @@ Response codes indicate the successful delivery of the UPP to the UBIRCH backend
    
    The client output should look somewhat like this:
    ```
-   2020/04/14 22:46:34 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: signer received request
-   2020/04/14 22:46:34 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: generating new key pair
+   2020/04/14 13:46:34 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: signer received request
+   2020/04/14 13:46:34 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: generating new key pair
    2020/04/14 13:46:35 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: registering public key at key service
    2020/04/14 13:46:35 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: CERT: {"pubKeyInfo":{"algorithm":"ecdsa-p256v1","created":"2020-04-14T22:46:35.008Z","hwDeviceId":"8a70ad8b-a564-4e58-9a3b-224ac0f0153f","pubKey":"mSmvMcuI9FeRWiSRC4NO7Xuz8YpK2QT+GWf91m4braTNtwHC3pNLJg+HjsipxcF0gX94bNycPmaEf5DFIkeslA==","pubKeyId":"mSmvMcuI9FeRWiSRC4NO7Xuz8YpK2QT+GWf91m4braTNtwHC3pNLJg+HjsipxcF0gX94bNycPmaEf5DFIkeslA==","validNotAfter":"2021-04-14T22:46:35.008Z","validNotBefore":"2020-04-14T22:46:35.008Z"},"signature":"WeJoAVJTgQD5XhO8MfFk0H9kG42taowMVAK7Jtx/H5ebU6eGmT4BixGOUroHPUoEDGlteMp39lVdeLd53YmIGw=="}
-   2020/04/14 13:46:35 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: key registration successful: {"pubKeyInfo":{"algorithm":"ecdsa-p256v1","created":"2020-04-14T22:46:35.008Z","hwDeviceId":"8a70ad8b-a564-4e58-9a3b-224ac0f0153f","pubKey":"mSmvMcuI9FeRWiSRC4NO7Xuz8YpK2QT+GWf91m4braTNtwHC3pNLJg+HjsipxcF0gX94bNycPmaEf5DFIkeslA==","pubKeyId":"mSmvMcuI9FeRWiSRC4NO7Xuz8YpK2QT+GWf91m4braTNtwHC3pNLJg+HjsipxcF0gX94bNycPmaEf5DFIkeslA==","validNotAfter":"2021-04-14T22:46:35.008Z","validNotBefore":"2020-04-14T22:46:35.008Z"},"signature":"WeJoAVJTgQD5XhO8MfFk0H9kG42taowMVAK7Jtx/H5ebU6eGmT4BixGOUroHPUoEDGlteMp39lVdeLd53YmIGw=="}
-   2020/04/14 13:46:35 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: hash: Y0I9f0GrIj4V6RGh6FW4IzCLj/bQa8uMpLjYtr7OFQk= (63423d7f41ab223e15e911a1e855b823308b8ff6d06bcb8ca4b8d8b6bece1509)
+   2020/04/14 13:46:35 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: key registration successful
+   2020/04/14 13:46:35 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: hash: Y0I9f0GrIj4V6RGh6FW4IzCLj/bQa8uMpLjYtr7OFQk=
    2020/04/14 13:46:35 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: UPP: 9623c41064ea87f4cfc445678bd10b4c15eaf55ec4400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c42063423d7f41ab223e15e911a1e855b823308b8ff6d06bcb8ca4b8d8b6bece1509c440719302929764228c4e891b60f413b88b6581c004257eb8c668bb84d42ff3dd345eea2ec3d338875188db1d15a9ed55ac8a7dde39904eb2874b4b3a2290466aa5
    2020/04/14 13:46:37 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: response: (200) �#��<x�"�DA�х�6Ԇ��@��message�your request has been submitted�@�_���O	���f�`aT��s��ly<|��u�`\�9�l�s4��Fu�����| E�ؾq��
    ```
+   > Take note of the hash!
    
-1. To stop the client, press `ctrl` + `c`. To restart ir, run `docker run -v $(pwd)/:/data/ --network=host ubirch/ubirch-client:stable .`
+1. To stop the client, press `ctrl` + `c`.
+   
+1. You can verify that your data hash was received and chained in the UBIRCH backend
+   - with CURL: `curl -d '<YOUR_HASH>' https://verify.demo.ubirch.com/api/upp/verify`, or
+   - in the [UBIRCH web UI](https://console.demo.ubirch.com/verification/graph)
 
 ## Copyright
 
