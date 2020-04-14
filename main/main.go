@@ -63,7 +63,7 @@ func main() {
 		Path = os.Args[1]
 	}
 
-	log.Printf("ubirch Golang client (%s, build=%s)", Version, Build)
+	log.Printf("UBIRCH client (%s, build=%s)", Version, Build)
 
 	// read configuration
 	conf := Config{}
