@@ -103,7 +103,7 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 					}
 					continue
 				}
-				log.Printf("%s: key registration successful: %v", name, string(resp))
+				log.Printf("%s: key registration successful", name)
 				p.Certificates[name] = cert
 
 				// store newly generated certificate in persistent storage
@@ -119,9 +119,7 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 				hash := sha256.Sum256(msg.Msg)
 				data = hash[:]
 			}
-			log.Printf("%s: hash: %s (%s)\n", name,
-				base64.StdEncoding.EncodeToString(data),
-				hex.EncodeToString(data))
+			log.Printf("%s: hash: %s\n", name, base64.StdEncoding.EncodeToString(data))
 
 			err = p.LoadContext() // todo err = p.LoadLastSignature(uid)
 			if err != nil {
