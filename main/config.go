@@ -89,7 +89,7 @@ func (c *Config) loadEnv() error {
 
 // LoadFile reads the configuration from a json file
 func (c *Config) loadFile(filename string) error {
-	log.Println("loading configuration from file")
+	log.Printf("loading configuration from file (%s)", filename)
 	contextBytes, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return err
