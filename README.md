@@ -19,6 +19,8 @@ The UBIRCH client is provided as a docker image that can be configured and run o
  
 Docker Hub Address: [ubirch/ubirch-client](https://docker.hub/ubirch/ubirch-client:stable) (multi-architecture image)
 
+[Jump to Quick Start](#quick-start)
+
 ### Requirements
 - System based on Intel/AMD64 or ARM
 - Docker installation
@@ -108,7 +110,7 @@ working directory.
 To start the multi-arch Docker image on any system, run:
 ```
 docker pull ubirch/ubirch-client:stable
-docker run -p 8080:8080 -v $(pwd)/:/data/ ubirch/ubirch-client:stable .
+docker run -v $(pwd)/:/data/ --network=host ubirch/ubirch-client:stable .
 ```
 The docker image mounts the current directory (`$(pwd)`) into the */data/* path to load the configuration
  and store keys and last signatures (if no DSN is set). You can also pass an absolute path instead of `$(pwd)`.
@@ -130,43 +132,73 @@ To access either endpoint an authorization token, which corresponds to the `UUID
 
 Response codes indicate the successful delivery of the UPP to the UBIRCH backend.
  Any code other than `200` should be considered a failure. The client does not retry itself.
- A good approach to handle errors is to add a flag to the original data storage that indicates whether or not the
+ A good approach to handle errors is to add a flag to the original data storage that indicates whether the
  UBIRCH blockchain anchoring was successful and retry at a later point if necessary.
 
+## Quick Start
+1. First, you will need a device UUID, an authorization token, and a 16 byte secret:
+    1. Generate a UUID. On Linux simply enter `uuidgen` in your terminal. Alternatively, you can use an online tool.
+    2. Register your UUID at the [UBIRCH web UI](https://console.demo.ubirch.com/) and get your 
+    authorization token. See [here](#how-to-acquire-the-ubirch-backend-token) how to acquire the token.
+    3. We need the 16 byte secret in base64 format. In the Linux terminal, enter `head -c 16 /dev/urandom | base64`.
+    Alternatively, you can encode 16 ASCII characters in an online base64 converter.
 
-### Local build / installation
-Instead of using the client as a Docker image, it can also be built and installed locally.
-[TODO: requirements (go, etc.)]
+1. Create a file `config.json` in your desired working directory.
+    ```
+    {
+      "devices": {
+        "<UUID>": "<ubirch backend auth token>"
+      },
+      "secret": "<16 byte secret used to encrypt the key store (base64 encoded)>",
+      "env": "demo"
+    }
+    ```
+    - Replace `<UUID>` with your UUID from step 1.i.
+    - Replace `<ubirch backend auth token>` with your authorization token from step 1.ii.
+    - Replace `<16 byte secret used to encrypt the key store (base64 encoded)>` with your 16 byte secret from step 1.iii.
+    > Make sure you leave the quotes! [Here](main/example_config.json) is an example of how it should look like.
 
-A `Makefile` is provided to aid compiling and creating an executable for
-the target architecture, it supports building x86 and ARM binaries, as well
-as amd64 and ARM docker images.
+1. Get and run the dockerized UBIRCH client in your working directory.
+    ```
+    docker pull ubirch/ubirch-client:stable
+    docker run -v $(pwd)/:/data/ --network=host ubirch/ubirch-client:stable .
+    ```
+    You should see a console output like this:
+    ```
+    2020/04/14 13:40:54 UBIRCH client (v2.0.0, build=local)
+    2020/04/14 13:40:54 loading configuration from file (config.json)
+    2020/04/14 13:40:54 loaded protocol context: 0 certificates, 0 signatures
+    
+    ```
+    That means the client is running and ready!
+    
+1. The client is now listening for HTTP POST requests on port `8080`. You can either...
+   - send JSON data to the `/<UUID>`-endpoint with `Content-Type: application/json`-header, or 
+   - send hashes to the `/<UUID>/hash`-endpoint with `Content-Type: application/octet-stream`-header. 
+   
+   Also, set the `X-Auth-Token`-header with your ubirch backend auth token.
 
-* build for ARM: run `make arm` / build for x86: run `make x86` 
-* copy `start.sh`, `main/ubirch-client`, and the `config.json` to the target machine
-* run `screen ./start.sh` (if it fails, use root or fix screen)
-  - to exit screen, press `Ctrl` +`a` `d`
-  - to reattach to the session, run `screen -R`
-
-The output looks somewhat like this (started and stopped after first packet):
-<details>
-  <summary>Click to expand!</summary>
-
-  ```
-    2020/04/10 17:20:39 ubirch Golang client (v2.0.0, build=local)
-    2020/04/10 17:20:39 loading configuration from file
-    2020/04/10 17:20:39 loaded protocol context: 1 certificates, 0 signatures
-    2020/04/10 17:20:43 64ea87f4-cfc4-4567-8bd1-0b4c15eaf55e: signer received request
-    2020/04/10 17:20:43 64ea87f4-cfc4-4567-8bd1-0b4c15eaf55e: hash: eM6mQxRodjmGv4WGl++OpBGDNUP+jjL6by6xyW/wnRI= (78cea6431468763986bf858697ef8ea411833543fe8e32fa6f2eb1c96ff09d12)
-    2020/04/10 17:20:43 64ea87f4-cfc4-4567-8bd1-0b4c15eaf55e: UPP: 9623c41064ea87f4cfc445678bd10b4c15eaf55ec4400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c42078cea6431468763986bf858697ef8ea411833543fe8e32fa6f2eb1c96ff09d12c4400cb1cd9f54aefac2dd2fc593f8114735fadc4ef10abd93af7735f00a58f60f6fd8619421c3d0cde66585bc7c784611b0b0343551f9e957205b250c35ff0fd197
-    2020/04/10 17:20:45 64ea87f4-cfc4-4567-8bd1-0b4c15eaf55e: response: (200) �#��<x�"�DA�х�6Ԇ��@��message�your request has been submitted�@�_� ��O ���f�`aT��s��ly<|��u�`\�9�l�s4��Fu�����| E�ؾq��
-    2020/04/10 17:21:24 shutting down after receiving: interrupt
-    2020/04/10 17:21:24 shutting down http server
-    2020/04/10 17:21:24 finishing signer
-  ```
-
-</details>
-
+   Here is an example of how a request to the client would look like using `CURL`:
+   ```
+   curl -H "X-Auth-Token: <YOUR_AUTH_TOKEN>" -H "Content-Type: application/json" -d '{"id": "605b91b4-49be-4f17-93e7-f1b14384968f", "ts": 1585838578, "data": 1234567890}' localhost:8080/<YOUR_UUID> -i -s
+   ```
+   > Insert `<YOUR_AUTH_TOKEN>` and `<YOUR_UUID>` and your own data to ensure a unique hash!
+   
+   If your request was successful, you'll get a `HTTP/1.1 200 OK` response.
+   
+   The client output should look somewhat like this:
+   ```
+   2020/04/14 22:46:34 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: signer received request
+   2020/04/14 22:46:34 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: generating new key pair
+   2020/04/14 13:46:35 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: registering public key at key service
+   2020/04/14 13:46:35 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: CERT: {"pubKeyInfo":{"algorithm":"ecdsa-p256v1","created":"2020-04-14T22:46:35.008Z","hwDeviceId":"8a70ad8b-a564-4e58-9a3b-224ac0f0153f","pubKey":"mSmvMcuI9FeRWiSRC4NO7Xuz8YpK2QT+GWf91m4braTNtwHC3pNLJg+HjsipxcF0gX94bNycPmaEf5DFIkeslA==","pubKeyId":"mSmvMcuI9FeRWiSRC4NO7Xuz8YpK2QT+GWf91m4braTNtwHC3pNLJg+HjsipxcF0gX94bNycPmaEf5DFIkeslA==","validNotAfter":"2021-04-14T22:46:35.008Z","validNotBefore":"2020-04-14T22:46:35.008Z"},"signature":"WeJoAVJTgQD5XhO8MfFk0H9kG42taowMVAK7Jtx/H5ebU6eGmT4BixGOUroHPUoEDGlteMp39lVdeLd53YmIGw=="}
+   2020/04/14 13:46:35 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: key registration successful: {"pubKeyInfo":{"algorithm":"ecdsa-p256v1","created":"2020-04-14T22:46:35.008Z","hwDeviceId":"8a70ad8b-a564-4e58-9a3b-224ac0f0153f","pubKey":"mSmvMcuI9FeRWiSRC4NO7Xuz8YpK2QT+GWf91m4braTNtwHC3pNLJg+HjsipxcF0gX94bNycPmaEf5DFIkeslA==","pubKeyId":"mSmvMcuI9FeRWiSRC4NO7Xuz8YpK2QT+GWf91m4braTNtwHC3pNLJg+HjsipxcF0gX94bNycPmaEf5DFIkeslA==","validNotAfter":"2021-04-14T22:46:35.008Z","validNotBefore":"2020-04-14T22:46:35.008Z"},"signature":"WeJoAVJTgQD5XhO8MfFk0H9kG42taowMVAK7Jtx/H5ebU6eGmT4BixGOUroHPUoEDGlteMp39lVdeLd53YmIGw=="}
+   2020/04/14 13:46:35 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: hash: Y0I9f0GrIj4V6RGh6FW4IzCLj/bQa8uMpLjYtr7OFQk= (63423d7f41ab223e15e911a1e855b823308b8ff6d06bcb8ca4b8d8b6bece1509)
+   2020/04/14 13:46:35 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: UPP: 9623c41064ea87f4cfc445678bd10b4c15eaf55ec4400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c42063423d7f41ab223e15e911a1e855b823308b8ff6d06bcb8ca4b8d8b6bece1509c440719302929764228c4e891b60f413b88b6581c004257eb8c668bb84d42ff3dd345eea2ec3d338875188db1d15a9ed55ac8a7dde39904eb2874b4b3a2290466aa5
+   2020/04/14 13:46:37 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: response: (200) �#��<x�"�DA�х�6Ԇ��@��message�your request has been submitted�@�_���O	���f�`aT��s��ly<|��u�`\�9�l�s4��Fu�����| E�ؾq��
+   ```
+   
+1. To stop the client, press `ctrl` + `c`. To restart ir, run `docker run -v $(pwd)/:/data/ --network=host ubirch/ubirch-client:stable .`
 
 ## Copyright
 
