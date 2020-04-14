@@ -104,34 +104,21 @@ func (p *ExtendedProtocol) LoadContext() error {
 	}
 }
 
-//// PersistLastSignature stores a devices last signature persistently
-//func (p *ExtendedProtocol) PersistLastSignature(id uuid.UUID) error {
-//	if DB != nil {
-//		// todo return DB.PersistLastSignature(id.String(), p.Signatures[id])
-//	} else {
-//		return p.saveFile(Path + ContextFile)
-//	}
-//}
-//
-//// LoadLastSignature loads a devices last signatures from the persistent storage
-//func (p *ExtendedProtocol) LoadLastSignature(id uuid.UUID) error {
-//	if DB != nil {
-//		// todo return DB.LoadLastSignature(id.String())
-//	} else {
-//		return p.loadFile(Path + ContextFile)
-//	}
-//}
-
 func (p *ExtendedProtocol) saveFile(file string) error {
-	err := os.Rename(file, file+".bck")
-	if err != nil {
-		log.Printf("unable to create protocol context backup: %v", err)
+	if _, err := os.Stat(file); !os.IsNotExist(err) { // if file already exists, create a backup
+		err = os.Rename(file, file+".bck")
+		if err != nil {
+			log.Printf("WARNING: unable to create backup file for %s: %v", file, err)
+		}
 	}
 	contextBytes, _ := json.MarshalIndent(p, "", "  ")
 	return ioutil.WriteFile(file, contextBytes, 444)
 }
 
 func (p *ExtendedProtocol) loadFile(file string) error {
+	if _, err := os.Stat(file); os.IsNotExist(err) { // if file does not exist yet, return right away
+		return nil
+	}
 	contextBytes, err := ioutil.ReadFile(file)
 	if err != nil {
 		file = file + ".bck"
