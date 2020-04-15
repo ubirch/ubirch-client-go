@@ -53,8 +53,7 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 			log.Printf("%s: signer received request\n", name)
 
 			// check if there is a known signing key for UUID
-			_, err := p.Crypto.GetPublicKey(name)
-			if err != nil {
+			if !p.Crypto.PrivateKeyExists(name) {
 				if conf.StaticUUID {
 					log.Printf("%s: dynamic key generation is disabled and there is no known signing key for UUID\n", name)
 					msg.Response <- api.HTTPResponse{
@@ -67,7 +66,7 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 
 				// if dynamic key generation is enabled generate new key pair
 				log.Printf("%s: generating new key pair\n", name)
-				err = p.Crypto.GenerateKey(name, uid)
+				err := p.Crypto.GenerateKey(name, uid)
 				if err != nil {
 					log.Printf("%s: error generating new key pair: %v\n", name, err)
 					msg.Response <- internalServerError(fmt.Sprintf("error generating new key pair: %v", err))
@@ -128,7 +127,7 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 			}
 			log.Printf("%s: hash: %s\n", name, base64.StdEncoding.EncodeToString(data))
 
-			err = p.LoadContext()
+			err := p.LoadContext()
 			if err != nil {
 				msg.Response <- internalServerError("")
 				log.Fatalf("unable to load last signature: %v", err)

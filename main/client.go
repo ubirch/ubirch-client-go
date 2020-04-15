@@ -16,13 +16,9 @@ package main
 
 import (
 	"bytes"
-	"crypto/ecdsa"
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
-	"encoding/pem"
-	"errors"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -63,31 +59,7 @@ func getSignedCertificate(p *ExtendedProtocol, name string) ([]byte, error) {
 		return nil, err
 	}
 
-	// decode the key
-	block, _ := pem.Decode(pubKey)
-	if block == nil {
-		return nil, errors.New("failed to parse PEM block containing the public key")
-	}
-
-	// extract X and Y from the key
-	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
-	if err != nil {
-		return nil, err
-	}
-
-	pubKeyBytes := make([]byte, 0, 0)
-	switch pub := pub.(type) {
-	case *ecdsa.PublicKey:
-		paddedX := make([]byte, 32)
-		paddedY := make([]byte, 32)
-		copy(paddedX[32-len(pub.X.Bytes()):], pub.X.Bytes())
-		copy(paddedY[32-len(pub.Y.Bytes()):], pub.Y.Bytes())
-		pubKeyBytes = append(pubKeyBytes, paddedX...)
-		pubKeyBytes = append(pubKeyBytes, paddedY...)
-	default:
-		return nil, errors.New("unknown type of public key")
-	}
-	pub64 := base64.StdEncoding.EncodeToString(pubKeyBytes)
+	pub64 := base64.StdEncoding.EncodeToString(pubKey)
 
 	// put it all together
 	now := time.Now().UTC()
