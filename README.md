@@ -136,22 +136,22 @@ Response codes indicate the successful delivery of the UPP to the UBIRCH backend
  UBIRCH blockchain anchoring was successful and retry at a later point if necessary.
 
 ## Quick Start
-1. First, you will need a device UUID, an authorization token, and a 16 byte secret:
+1. First, you will need a unique id (UUID) identifying your GoClient, an authorization token, and a 16 byte secret:
     1. Generate a UUID. On Linux simply enter `uuidgen` in your terminal. Alternatively, you can use an online tool.
-    2. Get your auth token from the [UBIRCH web UI](https://console.demo.ubirch.com/):
+    2. Get your auth token from the [UBIRCH Thing API](https://console.demo.ubirch.com/):
         - Go to **Things** (in the menu on the left) and click on `+ ADD NEW DEVICE`
         - Enter your UUID to the **ID** field, add a description for your device and click on `register`. 
-        - In the **Your Things**-overview, click on your device and copy the "password". That's your token.
-    3. We need the 16 byte secret in base64 format. In the Linux terminal, enter `head -c 16 /dev/urandom | base64`.
-    Alternatively, you can encode 16 ASCII characters in an online base64 converter.
+        - In the **Your Things**-overview, click on your device and copy from the apiConfig the password value. That's your token.
+    3. To generate a 16 byte secret in base64 format enter in a Linux terminal `head -c 16 /dev/urandom | base64`.
+    Alternatively, you can encode 16 ASCII characters in an online base64 converter. This secret is used to encrypt the key  store.
 
-1. Create a file `config.json` in your desired working directory.
+2. Create a file `config.json` in your desired working directory with the following content:
     ```
     {
       "devices": {
-        "<UUID>": "<ubirch backend auth token>"
+        "<YOUR_UUID>": "<YOUR_AUTH_TOKEN>"
       },
-      "secret": "<16 byte secret used to encrypt the key store (base64 encoded)>",
+      "secret": "<16 byte secret (base64 encoded)>",
       "env": "demo"
     }
     ```
@@ -160,7 +160,7 @@ Response codes indicate the successful delivery of the UPP to the UBIRCH backend
     - Replace `<16 byte secret used to encrypt the key store (base64 encoded)>` with your 16 byte secret from step 1.iii.
     > Make sure you leave the quotes! [Here](main/example_config.json) is an example of how it should look like.
 
-1. Get and run the dockerized UBIRCH client in your working directory.
+3. Get and run the dockerized UBIRCH client. For this step, you will have to have Docker installed on your computer. Then just enter the following two lines in your working directory:
     ```
     docker pull ubirch/ubirch-client:stable
     docker run -v $(pwd)/:/data/ --network=host ubirch/ubirch-client:stable .
@@ -173,7 +173,7 @@ Response codes indicate the successful delivery of the UPP to the UBIRCH backend
     ```
     That means the client is running and ready!
     
-1. The client is now listening for HTTP POST requests on port `8080`. You can either...
+4. The client is now listening for HTTP POST requests on port `8080`. You can either...
    - send JSON data to the `/<UUID>`-endpoint with `Content-Type: application/json`-header, or 
    - send hashes to the `/<UUID>/hash`-endpoint with `Content-Type: application/octet-stream`-header. 
    
@@ -181,9 +181,9 @@ Response codes indicate the successful delivery of the UPP to the UBIRCH backend
 
    Here is an example of how a request to the client would look like using `CURL`:
    ```
-   curl -H "X-Auth-Token: <YOUR_AUTH_TOKEN>" -H "Content-Type: application/json" -d '{"id": "605b91b4-49be-4f17-93e7-f1b14384968f", "ts": 1585838578, "data": 1234567890}' localhost:8080/<YOUR_UUID> -i -s
+   curl -H "X-Auth-Token: <YOUR_AUTH_TOKEN>" -H "Content-Type: application/json" -d '{"id": "605b91b4-49be-4f17-93e7-f1b14384968f", "ts": 1585838578, "temperature": 23.6}' localhost:8080/<YOUR_UUID> -i -s
    ```
-   > Insert `<YOUR_AUTH_TOKEN>` and `<YOUR_UUID>` and your own data to ensure a unique hash!
+   > Insert `<YOUR_AUTH_TOKEN>` and `<YOUR_UUID>` and a body to the request. Ensure that the body each time has a unique content, as the Go Client will generate a hash of it that is used as the unique identifier of your request in the ubirch backend! 
    
    If your request was successful, you'll get a `HTTP/1.1 200 OK` response.
    
@@ -200,11 +200,11 @@ Response codes indicate the successful delivery of the UPP to the UBIRCH backend
    ```
    > Take note of the hash!
    
-1. To stop the client, press `ctrl` + `c`.
+5. To stop the client, press `ctrl` + `c`.
    
-1. You can verify that your data hash was received and chained in the UBIRCH backend
+6. You can verify that the hash of your data/request was received and chained in the UBIRCH backend
    - with CURL: `curl -d '<YOUR_HASH>' https://verify.demo.ubirch.com/api/upp/verify`, or
-   - in the [UBIRCH web UI](https://console.demo.ubirch.com/verification/graph)
+   - in the [UBIRCH Things API](https://console.demo.ubirch.com/verification/graph)
 
 ## Copyright
 
