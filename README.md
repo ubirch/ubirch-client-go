@@ -101,7 +101,7 @@ working directory.
  that works like the production environment, but stores data only in a blockchain test net.
  
 #### How to acquire the ubirch backend token
-- Register at the **UBIRCH web UI**: https://console.prod.ubirch.com/ or https://console.demo.ubirch.com/
+- Register at the **UBIRCH Things API**: https://console.prod.ubirch.com/ or https://console.demo.ubirch.com/
 - Go to **Things** (in the menu on the left) and click on `+ ADD NEW DEVICE`
 - Enter your device UUID to the **ID** field. You can also add a description for your device, if you want. Then click on `register`. 
 - Your device should now show up under **Your Things**-overview. Click on it and copy the "password" (which looks like a UUID) as the ubirch backend token.
