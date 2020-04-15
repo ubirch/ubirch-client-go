@@ -205,6 +205,8 @@ Response codes indicate the successful delivery of the UPP to the UBIRCH backend
 6. You can verify that the hash of your data/request was received and chained in the UBIRCH backend
    - with CURL: `curl -d '<YOUR_HASH>' https://verify.demo.ubirch.com/api/upp/verify`, or
    - in the [UBIRCH Things API](https://console.demo.ubirch.com/verification/graph)
+   
+ More information on the services and functionalities of the ubirch backend you can find here: https://developer.ubirch.com/
 
 ## Copyright
 
