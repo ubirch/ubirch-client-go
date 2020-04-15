@@ -151,7 +151,7 @@ Response codes indicate the successful delivery of the UPP to the UBIRCH backend
       "devices": {
         "<YOUR_UUID>": "<YOUR_AUTH_TOKEN>"
       },
-      "secret": "<16 byte secret (base64 encoded)>",
+      "secret": "<YOUR_16_BYTE_SECRET(base64 encoded)>",
       "env": "demo"
     }
     ```
