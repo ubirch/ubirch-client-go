@@ -53,10 +53,9 @@ func (p *ExtendedProtocol) Init(dsn string, keys map[string]string) error {
 	// try to read an existing protocol context from persistent storage (keystore, last signatures, key certificates)
 	err := p.LoadContext()
 	if err != nil {
-		log.Printf("unable to load protocol context: %v", err)
-	} else {
-		log.Printf("loaded protocol context: %d certificates, %d signatures\n", len(p.Certificates), len(p.Signatures))
+		return fmt.Errorf("unable to load protocol context: %v", err)
 	}
+	log.Printf("loaded protocol context: %d certificates, %d signatures\n", len(p.Certificates), len(p.Signatures))
 
 	if keys != nil {
 		// inject keys from configuration to keystore
@@ -80,7 +79,7 @@ func (p *ExtendedProtocol) Init(dsn string, keys map[string]string) error {
 		// update keystore in persistent storage
 		err = p.PersistContext()
 		if err != nil {
-			log.Printf("unable to store key pairs: %v\n", err)
+			return fmt.Errorf("unable to store key pairs: %v\n", err)
 		}
 	}
 	return nil
