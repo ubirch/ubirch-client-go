@@ -141,7 +141,7 @@ Response codes indicate the successful delivery of the UPP to the UBIRCH backend
     2. Get your auth token from the [UBIRCH Thing API](https://console.demo.ubirch.com/):
         - Go to **Things** (in the menu on the left) and click on `+ ADD NEW DEVICE`
         - Enter your UUID to the **ID** field, add a description for your device and click on `register`. 
-        - In the **Your Things**-overview, click on your device and copy from the apiConfig the password value. That's your token.
+        - In the **Your Things**-overview, click on your device and copy from the apiConfig the value of the password. That's your token.
     3. To generate a 16 byte secret in base64 format enter in a Linux terminal `head -c 16 /dev/urandom | base64`.
     Alternatively, you can encode 16 ASCII characters in an online base64 converter. This secret is used to encrypt the key  store.
 
@@ -160,7 +160,7 @@ Response codes indicate the successful delivery of the UPP to the UBIRCH backend
     - Replace `<16 byte secret used to encrypt the key store (base64 encoded)>` with your 16 byte secret from step 1.iii.
     > Make sure you leave the quotes! [Here](main/example_config.json) is an example of how it should look like.
 
-3. Get and run the dockerized UBIRCH client. For this step, you will have to have Docker installed on your computer. Then just enter the following two lines in your working directory:
+3. Run the dockerized UBIRCH client. For this step, you will need to have Docker (https://www.docker.com/) installed on your computer. Then just enter the following two lines in your working directory:
     ```
     docker pull ubirch/ubirch-client:stable
     docker run -v $(pwd)/:/data/ --network=host ubirch/ubirch-client:stable .
