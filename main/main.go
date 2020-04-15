@@ -55,6 +55,12 @@ func shutdown(signals chan os.Signal, p *ExtendedProtocol, wg *sync.WaitGroup, c
 	cancel()
 	wg.Wait()
 
+	err := p.Deinit()
+	if err != nil {
+		log.Printf("unable to close database connection: %v", err)
+		os.Exit(1)
+	}
+
 	os.Exit(0)
 }
 
@@ -63,7 +69,7 @@ func main() {
 		Path = os.Args[1]
 	}
 
-	log.Printf("UBIRCH client (%s, build=%s)", Version, Build)
+	log.Printf("ubirch Golang client (%s, build=%s)", Version, Build)
 
 	// read configuration
 	conf := Config{}

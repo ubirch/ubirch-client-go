@@ -85,6 +85,13 @@ func (p *ExtendedProtocol) Init(dsn string, keys map[string]string) error {
 	return nil
 }
 
+func (p *ExtendedProtocol) Deinit() error {
+	if DB != nil {
+		return DB.Close()
+	}
+	return nil
+}
+
 // PersistContext saves current ubirch-protocol context, storing keystore, key certificates and signatures
 func (p *ExtendedProtocol) PersistContext() error {
 	if DB != nil {
@@ -150,6 +157,5 @@ func (p *ExtendedProtocol) Scan(value interface{}) error {
 	if !ok {
 		return errors.New("type assertion to []byte failed")
 	}
-
 	return json.Unmarshal(b, &p)
 }
