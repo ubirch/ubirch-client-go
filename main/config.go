@@ -34,15 +34,16 @@ const (
 
 // configuration of the device
 type Config struct {
-	Devices       map[string]string `json:"devices"` // maps UUIDs to backend auth tokens
-	Secret        string            `json:"secret"`  // secret used to encrypt the key store
-	SecretBytes   []byte
-	DSN           string `json:"dsn"`           // "data source name" for database connection
-	StaticUUID    bool   `json:"staticUUID"`    // only accept requests from UUIDs with injected signing key. default: false -> dynamic key generation
-	Env           string `json:"env"`           // the ubirch backend environment [dev, demo, prod]
-	KeyService    string `json:"keyService"`    // key service URL (set automatically)
-	Niomon        string `json:"niomon"`        // authentication service URL (set automatically)
-	VerifyService string `json:"verifyService"` // verification service URL (set automatically)
+	Devices       map[string]string `json:"devices"`    // maps UUIDs to backend auth tokens
+	Secret        string            `json:"secret"`     // secret used to encrypt the key store
+	DSN           string            `json:"dsn"`        // "data source name" for database connection
+	StaticUUID    bool              `json:"staticUUID"` // only accept requests from UUIDs with injected signing key. default: false -> dynamic key generation
+	Env           string            `json:"env"`        // the ubirch backend environment [dev, demo, prod]
+	Debug         bool              `json:"debug"`      // enable extended debug output
+	KeyService    string            // key service URL (set automatically)
+	Niomon        string            // authentication service URL (set automatically)
+	VerifyService string            // verification service URL (set automatically)
+	SecretBytes   []byte            // the decoded key store secret
 }
 
 func (c *Config) Load() error {
