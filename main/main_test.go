@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"io/ioutil"
 	"net/http"
 	"testing"
@@ -27,6 +28,14 @@ type TestDataStruct struct {
 	Created time.Time
 }
 
+//Helper function for constant test JSON definitions which panics if the test JSON can't be marshaled to bytes
+func mustMarshalJSON(v interface{}) []byte {
+	bytes, err := json.Marshal(v)
+	if err != nil {
+		panic("Test case data could not be marshaled to JSON")
+	}
+	return bytes
+}
 func createJSONRequest(address string, authToken string, uuidString string, jsonBytes []byte) (*http.Request, error) {
 	url := address + "/" + uuidString
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonBytes))
@@ -214,6 +223,143 @@ func TestHashSpecificSucceed(t *testing.T) {
 			//if we retried to often, request/hash is considered failing permanently -> ouput error
 			if tries >= nrOfTries {
 				t.Errorf("Max. tries was reached. Could not perform request with hash %v", hex.EncodeToString(hashBytes))
+			}
+		}) //End anonymous test function
+	}
+}
+
+//TestJSONSpecificFail tests cases with a specific JSON as an input which must fail
+func TestJSONSpecificFail(t *testing.T) {
+	var tests = []struct {
+		testName  string
+		JSONBytes []byte
+	}{
+		{
+			testName:  "EmptyJSON",
+			JSONBytes: []byte{},
+		},
+		{
+			testName:  "InvalidJSON",
+			JSONBytes: []byte("IamnotavalidJSON"),
+		},
+		{
+			testName:  "UnbalancedBrackets",
+			JSONBytes: []byte(`{"key":"value"`),
+		},
+		{
+			testName:  "10MB-0x00-Bytes",
+			JSONBytes: make([]byte, 10*1024*1024),
+		},
+	}
+
+	client := &http.Client{}
+
+	//Iterate over all tests
+	for _, currTest := range tests {
+		t.Run(currTest.testName, func(t *testing.T) {
+			asserter := assert.New(t)
+			requirer := require.New(t)
+
+			//Create request
+			req, err := createJSONRequest(defaultClientAddress, defaultAuthToken, defaultUUID, currTest.JSONBytes)
+			requirer.NoError(err, "Failed to create JSON request, aborting")
+
+			//Do request
+			resp, err := client.Do(req)
+			requirer.NoErrorf(err, "Failed to do request: %v. \n Is the client started and reachable?", err)
+			defer resp.Body.Close()
+
+			//Check for error response (these tests should all fail, so we should not get a 200)
+			body, err := ioutil.ReadAll(resp.Body)
+			asserter.NoError(err, "Could not read response body")
+			asserter.NotEqualf(200, resp.StatusCode, "Received '200 OK' for fail test.\nJSON was: %v\nResponse body was: %v",
+				string(currTest.JSONBytes),
+				hex.EncodeToString(body))
+		})
+
+	}
+}
+
+//TestJSONSpecificSucceed tests cases with a specific JSON as an input which must succeed
+func TestJSONSpecificSucceed(t *testing.T) {
+	const nrOfTries = 5 // How often to send a packet before giving up (if backend does not reply with 200)
+
+	var tests = []struct {
+		testName  string
+		JSONBytes []byte
+	}{
+		{
+			testName:  "SimpleKeyValue1",
+			JSONBytes: []byte(`{"key":"value"}`),
+		},
+		{
+			testName:  "SimpleKeyValue2",
+			JSONBytes: []byte(`{"key":1234}`),
+		},
+		{
+			testName:  "SimpleKeyValue3",
+			JSONBytes: []byte(`{"id":"ffffffff-ffff-ffff-ffff-ffffffffffff","store":"ubirch","value":3000}`),
+		},
+		{
+			testName:  "StringArray",
+			JSONBytes: mustMarshalJSON([]string{"apple", "peach", "pear"}),
+		},
+		{
+			testName:  "Map",
+			JSONBytes: mustMarshalJSON(map[string]int{"apple": 5, "lettuce": 7}),
+		},
+		{
+			testName: "Struct",
+			JSONBytes: mustMarshalJSON(
+				struct {
+					Key1 int
+					Key2 string
+				}{123, "value2"}),
+		},
+		{
+			testName: "10MB-JSON",
+			JSONBytes: mustMarshalJSON(
+				struct {
+					Key1 int
+					Key2 []byte
+				}{123, make([]byte, 10*1024*1024)}),
+		},
+	}
+
+	client := &http.Client{}
+
+	//Iterate over all tests
+	for _, currTest := range tests {
+		t.Run(currTest.testName, func(t *testing.T) {
+			asserter := assert.New(t)
+			requirer := require.New(t)
+
+			//Create request
+			req, err := createJSONRequest(defaultClientAddress, defaultAuthToken, defaultUUID, currTest.JSONBytes)
+			requirer.NoError(err, "Failed to create JSON request, aborting")
+
+			tries := 0
+			for tries < nrOfTries { //we will try until we reached max tries
+				//Do request
+				resp, err := client.Do(req)
+				requirer.NoErrorf(err, "Failed to do request: %v. \n Is the client started and reachable?", err)
+				defer resp.Body.Close()
+
+				//Check response
+				if resp.StatusCode == 200 { //everything was OK
+					break //were done, break from retry loop
+				} else { //unexpected response, retry, t.Logf info will only be shown if final error is asserted
+					tries++
+					body, err := ioutil.ReadAll(resp.Body)
+					asserter.NoError(err, "Could not read response body")
+					t.Logf("Try (%v/%v) for test %v failed", tries, nrOfTries, currTest.testName)
+					t.Logf("Unexpected response code (%v) received", resp.StatusCode)
+					t.Logf("Response body was (hex/string):\n%v\n%v", hex.EncodeToString(body), string(body))
+				}
+			}
+			//if we retried to often, request/hash is considered failing permanently -> ouput error
+			if tries >= nrOfTries {
+				t.Errorf("Max. tries was reached. Could not perform request with JSON:\n%v", string(currTest.JSONBytes))
 			}
 		}) //End anonymous test function
 	}
