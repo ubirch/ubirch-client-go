@@ -43,15 +43,15 @@ func createHashRequest(address string, authToken string, uuidString string, hash
 	return req, err
 }
 
-// TestHashRandom tests if hash signing request with random hashes always succeed. It retries a
+// TestHashRandom tests if hash signing request with random hashes always succeed. It tries a
 // defined number of times before flagging a certain hash as causing an error to allow for timeouts/packet
 // loss when talking to the backend.
 func TestHashRandom(t *testing.T) {
-	const nrOfTests = 50
-	const nrOfRetries = 5 // How often to resend a packet when backend does not reply with 200
+	const nrOfTests = 5 //how many random hashes to send
+	const nrOfTries = 5 // How often to send a packet (if backend does not reply with 200)
 
 	hashBytes := make([]byte, 32)
-	retries := 0
+	tries := 0
 	client := &http.Client{}
 
 	rand.Read(hashBytes) //create very first hash
@@ -72,21 +72,21 @@ func TestHashRandom(t *testing.T) {
 		if resp.StatusCode == 200 { //everything was OK
 			rand.Read(hashBytes) //generate new Hash for next request
 			currTest++           //increase test counter
-			retries = 0          //reset retries counter
+			tries = 0            //reset tries counter
 		} else { //unexpected response
 			body, _ := ioutil.ReadAll(resp.Body)
 			t.Logf("Unexpected response code (%v) received", resp.StatusCode)
 			t.Logf("Response body was: %v", hex.EncodeToString(body))
 
-			if retries < nrOfRetries {
-				retries++
-				t.Logf("Retrying request (%v/%v) for hash %v", retries, nrOfRetries, hex.EncodeToString(hashBytes))
+			if tries < nrOfTries {
+				tries++
+				t.Logf("Try (%v/%v) for hash %v failed", tries, nrOfTries, hex.EncodeToString(hashBytes))
 			} else { //we retried to often, request/hash is considered failing permanently
-				t.Errorf("Max. retries reached. Could not perform request with hash %v", hex.EncodeToString(hashBytes))
+				t.Errorf("Max. tries reached. Could not perform request with hash %v", hex.EncodeToString(hashBytes))
 				//continue with next hash
 				rand.Read(hashBytes) //generate new Hash for next request
 				currTest++           //increase test counter
-				retries = 0          //reset retries counter
+				tries = 0            //reset tries counter
 			}
 
 		}
@@ -163,5 +163,65 @@ func TestHashSpecificFail(t *testing.T) {
 
 		})
 
+	}
+}
+
+//TestHashSpecificSucceed tests cases with a specific hash as an input which must succeed
+func TestHashSpecificSucceed(t *testing.T) {
+	const nrOfTries = 3 // How often to send a packet before giving up (if backend does not reply with 200)
+
+	var tests = []struct {
+		testName string
+		hash     string
+	}{
+		{
+			testName: "HashFF",
+			hash:     "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		},
+		{
+			testName: "Hash00",
+			hash:     "0000000000000000000000000000000000000000000000000000000000000000",
+		},
+	}
+
+	client := &http.Client{}
+
+	//Iterate over all tests
+	for _, currTest := range tests {
+		t.Run(currTest.testName, func(t *testing.T) {
+			asserter := assert.New(t)
+			requirer := require.New(t)
+
+			//Create request
+			hashBytes, err := hex.DecodeString(currTest.hash)
+			requirer.NoError(err, "Failed to decode hex string for hash input.")
+			req, err := createHashRequest(defaultClientAddress, defaultAuthToken, defaultUUID, hashBytes)
+			requirer.NoError(err, "Failed to create hash request, aborting")
+
+			tries := 0
+			for tries < nrOfTries { //we will try until we reached max tries
+				//Do request
+				resp, err := client.Do(req)
+				requirer.NoErrorf(err, "Failed to do request: %v. \n Is the client started and reachable?", err)
+				defer resp.Body.Close()
+
+				//Check response
+				if resp.StatusCode == 200 { //everything was OK
+					break //were done, break from retry loop
+				} else { //unexpected response, retry, t.Logf info will only be shown if final error is asserted
+					tries++
+					body, err := ioutil.ReadAll(resp.Body)
+					asserter.NoError(err, "Could not read response body")
+					t.Logf("Try (%v/%v) for hash %v failed", tries, nrOfTries, hex.EncodeToString(hashBytes))
+					t.Logf("Unexpected response code (%v) received", resp.StatusCode)
+					t.Logf("Response body was: %v", hex.EncodeToString(body))
+
+				}
+			}
+			//if we retried to often, request/hash is considered failing permanently -> ouput error
+			if tries >= nrOfTries {
+				t.Errorf("Max. tries was reached. Could not perform request with hash %v", hex.EncodeToString(hashBytes))
+			}
+		}) //End anonymous test function
 	}
 }
