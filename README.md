@@ -139,6 +139,7 @@ Response codes indicate the successful delivery of the UPP to the UBIRCH backend
 1. First, you will need a device UUID, an authorization token, and a 16 byte secret:
     1. Generate a UUID. On Linux simply enter `uuidgen` in your terminal. Alternatively, you can use an online tool.
     2. Get your auth token from the [UBIRCH web UI](https://console.demo.ubirch.com/):
+        - Login or register if you don't have an account yet.
         - Go to **Things** and click on `+ ADD NEW DEVICE`.
         - Enter your UUID to the **ID** field, add a description for your device and click on `register`.
         - Click on your device in the overview and copy the value of the **"password"** from the `apiConfig`as your auth token.
