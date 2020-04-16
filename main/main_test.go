@@ -8,13 +8,16 @@ import (
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 //For these tests to work the client needs to be started and reachable at the following address
 const (
 	defaultClientAddress = "http://localhost:8080"
-	defaultUUID          = ""
-	defaultAuthToken     = ""
+	//defaultUUID          = ""
+	//defaultAuthToken     = ""
 )
 
 //Struct for testing JSON marshaling
@@ -40,6 +43,9 @@ func createHashRequest(address string, authToken string, uuidString string, hash
 	return req, err
 }
 
+// TestHashRandom tests if hash signing request with random hashes always succeed. It retries a
+// defined number of times before flagging a certain hash as causing an error to allow for timeouts/packet
+// loss when talking to the backend.
 func TestHashRandom(t *testing.T) {
 	const nrOfTests = 50
 	const nrOfRetries = 5 // How often to resend a packet when backend does not reply with 200
@@ -59,7 +65,7 @@ func TestHashRandom(t *testing.T) {
 		//fmt.Println("Doing request")
 		resp, err := client.Do(req)
 		if err != nil {
-			t.Fatalf("Failed to do request: %v", err)
+			t.Fatalf("Failed to do request: %v. \n Is the client started and reachable?", err)
 		}
 		defer resp.Body.Close()
 		//Check for error response
@@ -84,5 +90,78 @@ func TestHashRandom(t *testing.T) {
 			}
 
 		}
+	}
+}
+
+//TestHashSpecificFail tests cases with a specific hash as an input which must fail
+func TestHashSpecificFail(t *testing.T) {
+	var tests = []struct {
+		testName string
+		hash     string
+	}{
+		{
+			testName: "31ByteHashFF",
+			hash:     "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		},
+		{
+			testName: "31ByteHash00",
+			hash:     "00000000000000000000000000000000000000000000000000000000000000",
+		},
+		{
+			testName: "33ByteHashFF",
+			hash:     "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		},
+		{
+			testName: "33ByteHash00",
+			hash:     "000000000000000000000000000000000000000000000000000000000000000000",
+		},
+		{
+			testName: "33ByteHash...FF00",
+			hash:     "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00",
+		},
+		{
+			testName: "33ByteHash00FF...",
+			hash:     "00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		},
+		{
+			testName: "1ByteHash00",
+			hash:     "00",
+		},
+		{
+			testName: "1ByteHashFF",
+			hash:     "FF",
+		},
+		{
+			testName: "0ByteHash",
+			hash:     "",
+		},
+	}
+
+	client := &http.Client{}
+
+	//Iterate over all tests
+	for _, currTest := range tests {
+		t.Run(currTest.testName, func(t *testing.T) {
+			asserter := assert.New(t)
+			requirer := require.New(t)
+
+			//Create request
+			hashBytes, err := hex.DecodeString(currTest.hash)
+			requirer.NoError(err, "Failed to decode hex string for hash input.")
+			req, err := createHashRequest(defaultClientAddress, defaultAuthToken, defaultUUID, hashBytes)
+			requirer.NoError(err, "Failed to create hash request, aborting")
+
+			//Do request
+			resp, err := client.Do(req)
+			requirer.NoErrorf(err, "Failed to do request: %v. \n Is the client started and reachable?", err)
+			defer resp.Body.Close()
+
+			//Check for error response (these tests should all fail, so we should not get a 200)
+			body, err := ioutil.ReadAll(resp.Body)
+			asserter.NoError(err, "Could not read response body")
+			asserter.NotEqualf(200, resp.StatusCode, "Received '200 OK' for fail test.\nHash was: %v\nResponse body was: %v", hex.EncodeToString(hashBytes), hex.EncodeToString(body))
+
+		})
+
 	}
 }
