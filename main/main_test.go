@@ -3,9 +3,11 @@ package main
 import (
 	"bytes"
 	"crypto/rand"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"io/ioutil"
+	insecuremathrand "math/rand"
 	"net/http"
 	"strconv"
 	"testing"
@@ -57,8 +59,8 @@ func createHashRequest(address string, authToken string, uuidString string, hash
 // defined number of times before flagging a certain hash as causing an error to allow for timeouts/packet
 // loss when talking to the backend.
 func TestHashRandom(t *testing.T) {
-	const nrOfTests = 5 //how many random hashes to send
-	const nrOfTries = 5 // How often to send a packet (if backend does not reply with 200)
+	const nrOfTests = 1000 //how many random hashes to send
+	const nrOfTries = 5    // How often to send a packet (if backend does not reply with 200)
 
 	hashBytes := make([]byte, 32)
 	client := &http.Client{}
@@ -229,6 +231,83 @@ func TestHashTableSucceed(t *testing.T) {
 	}
 }
 
+//TestJSONDataLength tests input of random Key/Value Pairs into the JSON endpoint
+func TestJSONRandomKeyValuePairs(t *testing.T) {
+	const (
+		nrOfTests = 100
+		nrOfTries = 5 // How often to send a packet before giving up (if backend does not reply with 200)
+
+		nrOfPairs     = 30 //pairs to generate for each test
+		keySizeMin    = 1
+		keySizeMax    = 5
+		valueByteSize = 8 //8 Byte =64 bit, the number of random bytes to use to generate the integer value
+	)
+
+	//all letters that are allowed in a key
+	var keyletters = []rune(" !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~")
+
+	client := &http.Client{}
+
+	asserter := assert.New(t)
+	requirer := require.New(t)
+
+	//Iterate over all pairs
+	for currTestNr := 0; currTestNr < nrOfTests; currTestNr++ {
+		t.Logf("Testing random K/V pairs %v/%v", currTestNr+1, nrOfTests) //This will only be shown in verbose mode or in case of error
+		//generate map for KV pairs
+		randomBytes := make([]byte, valueByteSize)
+		dataMap := make(map[string]interface{})
+
+		for currPairNr := 0; currPairNr < nrOfPairs; currPairNr++ {
+			//generated random bytes and cast to int for the value
+			_, err := rand.Read(randomBytes)
+			requirer.NoError(err, "Can't get random bytes, aborting")
+			value := int64(binary.BigEndian.Uint64(randomBytes)) //create int64 from random bytes
+			//generate the key
+			keylength := insecuremathrand.Intn((keySizeMax+1)-keySizeMin) + keySizeMin
+			key := make([]rune, keylength)
+			for i := range key {
+				key[i] = keyletters[insecuremathrand.Intn(len(keyletters))]
+			}
+			//insert KV/pair
+			dataMap[string(key)] = value
+		}
+
+		//Marshal data map
+		JSONBytes, err := json.Marshal(dataMap)
+		requirer.NoError(err, "Marshaling data to JSON failed, aborting")
+		//t.Logf("JSON: %v", string(JSONBytes))
+
+		//Create request
+		req, err := createJSONRequest(defaultClientAddress, defaultAuthToken, defaultUUID, JSONBytes)
+		requirer.NoError(err, "Failed to create JSON request, aborting")
+
+		tries := 0
+		for tries < nrOfTries { //we will try until we reached max tries
+			//Do request
+			resp, err := client.Do(req)
+			requirer.NoErrorf(err, "Failed to do request: %v. \n Is the client started and reachable?", err)
+			defer resp.Body.Close()
+
+			//Check response
+			if resp.StatusCode == 200 { //everything was OK
+				break //were done, break from retry loop
+			} else { //unexpected response, retry, t.Logf info will only be shown if final error is asserted
+				tries++
+				body, err := ioutil.ReadAll(resp.Body)
+				asserter.NoError(err, "Could not read response body")
+				t.Logf("Try (%v/%v) for KV pair number %v failed", tries, nrOfTries, currTestNr+1)
+				t.Logf("Unexpected response code (%v) received", resp.StatusCode)
+				t.Logf("Response body was (hex/string):\n%v\n%v", hex.EncodeToString(body), string(body))
+			}
+		}
+		//if we retried to often, request/hash is considered failing permanently -> ouput error
+		if tries >= nrOfTries {
+			t.Errorf("Max. tries was reached. Could not perform request with JSON:\n%v", string(JSONBytes))
+		}
+	}
+}
+
 //TestJSONTableFail tests cases with a specific JSON as an input which must fail
 func TestJSONTableFail(t *testing.T) {
 	var tests = []struct {
@@ -384,8 +463,8 @@ func TestJSONDataLength(t *testing.T) {
 			requirer.NoError(err, "Could not get random bytes")
 			JSONBytes, err := json.Marshal(dataBytes)
 			requirer.NoError(err, "Marshaling data to JSON failed, aborting")
-			t.Logf("JSON: %v", string(JSONBytes))
-			t.Logf("len(JSON)=%v", len(JSONBytes))
+			// t.Logf("JSON: %v", string(JSONBytes))
+			// t.Logf("len(JSON)=%v", len(JSONBytes))
 
 			//Create request
 			req, err := createJSONRequest(defaultClientAddress, defaultAuthToken, defaultUUID, JSONBytes)
