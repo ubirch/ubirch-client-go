@@ -85,7 +85,7 @@ func main() {
 	// create an ubirch protocol instance
 	p := ExtendedProtocol{}
 	p.Crypto = &ubirch.CryptoContext{
-		Keystore: ubirch.NewEncryptedKeystore(conf.Secret),
+		Keystore: ubirch.NewEncryptedKeystore(conf.SecretBytes),
 		Names:    map[string]uuid.UUID{},
 	}
 	p.Signatures = map[uuid.UUID][]byte{}
