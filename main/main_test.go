@@ -96,8 +96,8 @@ func TestHashRandom(t *testing.T) {
 	}
 }
 
-//TestHashSpecificFail tests cases with a specific hash as an input which must fail
-func TestHashSpecificFail(t *testing.T) {
+//TestHashTableFail tests cases with a specific hash as an input which must fail
+func TestHashTableFail(t *testing.T) {
 	var tests = []struct {
 		testName string
 		hash     string
@@ -169,8 +169,8 @@ func TestHashSpecificFail(t *testing.T) {
 	}
 }
 
-//TestHashSpecificSucceed tests cases with a specific hash as an input which must succeed
-func TestHashSpecificSucceed(t *testing.T) {
+//TestHashTableSucceed tests cases with a specific hash as an input which must succeed
+func TestHashTableSucceed(t *testing.T) {
 	const nrOfTries = 5 // How often to send a packet before giving up (if backend does not reply with 200)
 
 	var tests = []struct {
@@ -228,8 +228,8 @@ func TestHashSpecificSucceed(t *testing.T) {
 	}
 }
 
-//TestJSONSpecificFail tests cases with a specific JSON as an input which must fail
-func TestJSONSpecificFail(t *testing.T) {
+//TestJSONTableFail tests cases with a specific JSON as an input which must fail
+func TestJSONTableFail(t *testing.T) {
 	var tests = []struct {
 		testName  string
 		JSONBytes []byte
@@ -280,8 +280,8 @@ func TestJSONSpecificFail(t *testing.T) {
 	}
 }
 
-//TestJSONSpecificSucceed tests cases with a specific JSON as an input which must succeed
-func TestJSONSpecificSucceed(t *testing.T) {
+//TestJSONTableSucceed tests cases with a specific JSON as an input which must succeed
+func TestJSONTableSucceed(t *testing.T) {
 	const nrOfTries = 5 // How often to send a packet before giving up (if backend does not reply with 200)
 
 	var tests = []struct {
