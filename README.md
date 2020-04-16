@@ -134,6 +134,8 @@ Response codes indicate the successful delivery of the UPP to the UBIRCH backend
  Any code other than `200` should be considered a failure. The client does not retry itself.
  A good approach to handle errors is to add a flag to the original data storage that indicates whether the
  UBIRCH blockchain anchoring was successful and retry at a later point if necessary.
+ 
+ > Note: **Floating-point numbers and integers greater than 2^53 are invalid values for the JSON data package!**
 
 ## Quick Start
 1. First, you will need a device UUID, an auth token, and a 16 byte secret:
@@ -188,9 +190,14 @@ Then just enter the following two lines in your working directory:
    ```
    > Insert `<YOUR_AUTH_TOKEN>` and `<YOUR_UUID>` and a request body with your own unique content to ensure a unique hash!
    
-   If your request was successful, you'll get a `HTTP/1.1 200 OK` response.
+   If your request was submitted, you'll get a `HTTP/1.1 200 OK` response.
    
-   The client output should look somewhat like this:
+   Since the data hash for every UPP must be unique, ensure that the body of each request has a unique content. You can 
+   do that, for example, by adding an ID and a timestamp to the JSON data package. **Floating-point numbers and integers 
+   greater than 2^53 are invalid values for the JSON data package!** If you need to sign floating-point numbers or numbers 
+   greater than 9,007,199,254,740,992, you can pass them as string.
+   
+   When the client receives the request, the output should look like this:
    ```
    2020/04/14 13:46:34 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: generating new key pair
    2020/04/14 13:46:35 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: registering public key at key service
@@ -202,9 +209,57 @@ Then just enter the following two lines in your working directory:
    
 1. To stop the client, press `ctrl` + `c`.
    
-1. You can verify that your data hash was received and chained in the UBIRCH backend
-   - with CURL: `curl -d '<YOUR_HASH>' https://verify.demo.ubirch.com/api/upp/verify`, or
+1. You can verify that your data hash was received, verified, chained and anchored by the UBIRCH backend
    - in the [UBIRCH web UI](https://console.demo.ubirch.com/verification/graph)
+   - or with CURL: 
+   
+        `curl -d '<YOUR_HASH>' https://verify.demo.ubirch.com/api/upp/verify/anchor`
+   
+        If the verification was successful, the response looks like this:
+        ```json
+        {
+          "upp": "liPEEJnqh/TPxEVni9ELTBXq9V7EQGOMAcwCV4rbHGZT+A8sd2DOpRB2mdUyZSSg7wB5hYNix5CszzbhRksmDTP/mADH1EBEPnUgfXbo6Y6dbFBL6CgAxCAy+oS7kDq+fc74gcKSX1UsG0iuOx5iwkW/MyED7Df9PcRAQ9hNm3gkM5vyeIX8zwI+7D/VbsgpLV5o4oYLFo7FilA8Urj5ELQNrC0PKYKco0LoC7xNbVoIhrvOnLNZVyme3w==",
+          "prev": "liPEEJnqh/TPxEVni9ELTBXq9V7EQFMVGwqOGvuiYahX5+1E9Le/Jse778baMOWX4kPCuvTQnwzCoFOvHY09aor7Wl0Hn7h2mPg7kdJ6N2ZRGKNtXB0AxCCPcQmVZAl1b++fj5h0r17cb1+zPJS3WnjqYt+JsmrZoMRAY4wBzAJXitscZlP4Dyx3YM6lEHaZ1TJlJKDvAHmFg2LHkKzPNuFGSyYNM/+YAMfUQEQ+dSB9dujpjp1sUEvoKA==",
+          "anchors": [
+            {
+              "label": "PUBLIC_CHAIN",
+              "properties": {
+                "timestamp": "2020-04-16T22:09:17.836Z",
+                "hash": "CAGRDRTQBNNHHQONUHBMWPHMUTMCYJ9XNKJJNTHMBUZXYKEUKTERIFMNNFBKWUAMAMXERJBQQFNQWA999",
+                "public_chain": "IOTA_TESTNET_IOTA_TESTNET_NETWORK",
+                "prev_hash": "ca6d36581d1265d38d7cb69a6a410aefb5142cbd31c3004cb7bbe6ec83457d9c683eb0a2e498083699e9e6dc233356be0df6f9fb2e1810d65e71b1bd155b3580",
+                "type": "PUBLIC_CHAIN"
+              }
+            },
+            {
+              "label": "PUBLIC_CHAIN",
+              "properties": {
+                "timestamp": "2020-04-16T22:09:25.614Z",
+                "hash": "0x229d8e167a45efe8a552fff884ca2ca540d331dbd51a427107d8ac12f184dc25",
+                "public_chain": "ETHEREUM_TESTNET_RINKEBY_TESTNET_NETWORK",
+                "prev_hash": "ca6d36581d1265d38d7cb69a6a410aefb5142cbd31c3004cb7bbe6ec83457d9c683eb0a2e498083699e9e6dc233356be0df6f9fb2e1810d65e71b1bd155b3580",
+                "type": "PUBLIC_CHAIN"
+              }
+            }
+          ]
+        }
+        ```
+     > Note that the first UPP to be anchored will not have a 'previous' package to be chained to. The `"prev"` value will therefore be `null`.
+    
+        Since this endpoint is relatively slow to respond, you can do a quick check by sending a request with your hash to 
+        ```
+        https://verify.demo.ubirch.com/api/upp
+        ```
+        to only verify that your data hash was received by the UBIRCH backend, or to 
+        ```
+        https://verify.demo.ubirch.com/api/upp/verify
+        ```
+        which additionally checks the chain. 
+        
+        If you get an empty response, that means the hash could not be verified (yet).
+        
+ 
+ More information on the services and functionalities of the UBIRCH backend you can find here: https://developer.ubirch.com/
 
 ## Copyright
 
