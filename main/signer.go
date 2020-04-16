@@ -19,6 +19,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -48,7 +49,6 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 		case msg := <-msgHandler:
 			uid := msg.ID
 			name := uid.String()
-			log.Printf("%s: signer received request\n", name)
 
 			// check if there is a known signing key for UUID
 			if !p.Crypto.PrivateKeyExists(name) {
@@ -120,6 +120,9 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 			// send UPP (hash)
 			data := msg.Msg
 			if !msg.IsAlreadyHashed {
+				if conf.Debug {
+					log.Printf("compact sorted json (go): %s", string(data))
+				}
 				hash := sha256.Sum256(msg.Msg)
 				data = hash[:]
 			}
@@ -137,7 +140,9 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 				msg.Response <- internalServerError(fmt.Sprintf("error creating UPP: %v", err))
 				continue
 			}
-			log.Printf("%s: UPP: %s\n", name, hex.EncodeToString(upp))
+			if conf.Debug {
+				log.Printf("%s:  UPP: %s\n", name, hex.EncodeToString(upp))
+			}
 
 			// post UPP to ubirch backend
 			code, header, resp, err := post(upp, conf.Niomon, map[string]string{
@@ -150,7 +155,9 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 				msg.Response <- internalServerError(fmt.Sprintf("error sending UPP to ubirch backend: %v", err))
 				continue
 			}
-			log.Printf("%s: response: (%d) %s\n", name, code, hex.EncodeToString(resp))
+			if conf.Debug {
+				log.Printf("%s: response: (%d) %s\n", name, code, hex.EncodeToString(resp))
+			}
 
 			// save last signature after UPP was successfully received in ubirch backend
 			if code == 200 {
@@ -161,7 +168,14 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 				}
 			}
 
-			msg.Response <- api.HTTPResponse{Code: code, Header: header, Content: resp}
+			extendedResponse, err := json.Marshal(map[string][]byte{"hash": data, "upp": upp, "response": resp})
+			//log.Printf(string(extendedResponse))
+			if err != nil {
+				log.Printf("error serializing extended response: %s", err)
+				extendedResponse = resp
+			}
+
+			msg.Response <- api.HTTPResponse{Code: code, Header: header, Content: extendedResponse}
 		case <-ctx.Done():
 			log.Println("finishing signer")
 			return
