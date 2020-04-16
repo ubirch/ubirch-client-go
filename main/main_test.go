@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"testing"
 	"time"
 
@@ -360,6 +361,58 @@ func TestJSONTableSucceed(t *testing.T) {
 			//if we retried to often, request/hash is considered failing permanently -> ouput error
 			if tries >= nrOfTries {
 				t.Errorf("Max. tries was reached. Could not perform request with JSON:\n%v", string(currTest.JSONBytes))
+			}
+		}) //End anonymous test function
+	}
+}
+
+//TestJSONDataLength tests various length data input into the JSON endpoint
+func TestJSONDataLength(t *testing.T) {
+	const maxDataSize = 1030 // Largest []byte size to use for the JSON generation
+	const nrOfTries = 5      // How often to send a packet before giving up (if backend does not reply with 200)
+
+	client := &http.Client{}
+
+	//Iterate over all sizes
+	for dataSize := 0; dataSize <= maxDataSize; dataSize++ {
+		t.Run("dataSize="+strconv.Itoa(dataSize), func(t *testing.T) {
+			asserter := assert.New(t)
+			requirer := require.New(t)
+
+			dataBytes := make([]byte, dataSize)
+			_, err := rand.Read(dataBytes) //fill data with random bytes
+			requirer.NoError(err, "Could not get random bytes")
+			JSONBytes, err := json.Marshal(dataBytes)
+			requirer.NoError(err, "Marshaling data to JSON failed, aborting")
+			t.Logf("JSON: %v", string(JSONBytes))
+			t.Logf("len(JSON)=%v", len(JSONBytes))
+
+			//Create request
+			req, err := createJSONRequest(defaultClientAddress, defaultAuthToken, defaultUUID, JSONBytes)
+			requirer.NoError(err, "Failed to create JSON request, aborting")
+
+			tries := 0
+			for tries < nrOfTries { //we will try until we reached max tries
+				//Do request
+				resp, err := client.Do(req)
+				requirer.NoErrorf(err, "Failed to do request: %v. \n Is the client started and reachable?", err)
+				defer resp.Body.Close()
+
+				//Check response
+				if resp.StatusCode == 200 { //everything was OK
+					break //were done, break from retry loop
+				} else { //unexpected response, retry, t.Logf info will only be shown if final error is asserted
+					tries++
+					body, err := ioutil.ReadAll(resp.Body)
+					asserter.NoError(err, "Could not read response body")
+					t.Logf("Try (%v/%v) for data size %v failed", tries, nrOfTries, dataSize)
+					t.Logf("Unexpected response code (%v) received", resp.StatusCode)
+					t.Logf("Response body was (hex/string):\n%v\n%v", hex.EncodeToString(body), string(body))
+				}
+			}
+			//if we retried to often, request/hash is considered failing permanently -> ouput error
+			if tries >= nrOfTries {
+				t.Errorf("Max. tries was reached. Could not perform request with JSON:\n%v", string(JSONBytes))
 			}
 		}) //End anonymous test function
 	}
