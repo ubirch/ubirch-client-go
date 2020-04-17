@@ -113,7 +113,7 @@ func main() {
 	// listen to messages to sign via http
 	httpSrvSign := api.HTTPServer{MessageHandler: msgsToSign, AuthTokens: conf.Devices}
 	wg.Add(1)
-	go httpSrvSign.Serve(ctx, &wg)
+	httpSrvSign.Serve(ctx, &wg)
 
 	// wait forever, exit is handled via shutdown
 	select {}
