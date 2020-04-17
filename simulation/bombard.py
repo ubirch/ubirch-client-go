@@ -9,7 +9,7 @@ import requests
 
 
 def hash_msg(msg: dict) -> (str, str):
-    serialized = json.dumps(msg, separators=(',', ':'), sort_keys=True).encode()
+    serialized = json.dumps(msg, separators=(',', ':'), sort_keys=True, ensure_ascii=False).encode()
     msg_hash = hashlib.sha256(serialized).digest()
     return serialized.decode(), base64.b64encode(msg_hash).decode().rstrip('\n')
 
@@ -30,7 +30,7 @@ headers = {
 hashes = []
 max_dur = 0
 i, failed = 0, 0
-letters = ("a", "b", "c", "d", "e", "f", "A", "B", "C", "D", "E", "F")
+letters = ("a", "b", "c", "d", "e", "f", "A", "B", "C", "D", "E", "F", "ä", "ö", "ü", "Ä", "Ö", "Ü")
 while i < 100:
     i += 1
 
