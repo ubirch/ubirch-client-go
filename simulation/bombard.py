@@ -31,6 +31,7 @@ hashes = []
 max_dur = 0
 i, failed = 0, 0
 letters = ("a", "b", "c", "d", "e", "f", "A", "B", "C", "D", "E", "F", "ä", "ö", "ü", "Ä", "Ö", "Ü")
+
 while i < 100:
     i += 1
 
@@ -81,7 +82,7 @@ while i < 100:
 
     if i % 10 == 0 and i != 0:
         print("{} of {} requests failed.".format(failed, i))
-        print("   max. duration:        {} sec".format(max_dur))
+        print("          max. duration: {} sec".format(max_dur))
         max_dur = 0
 
 # wait before verifying
@@ -92,12 +93,25 @@ headers = {
     'Accept': 'application/json',
     'Content-Type': 'text/plain'
 }
-not_verified = 0
+
+unverified_hashes = []
+print("\nverifying...")
 for hash in hashes:
     r = requests.post(url=url, headers=headers, data=hash)
     if r.status_code != 200:
         print("NOT VERIFIED: " + hash)
         print("response: {}: {}".format(r.status_code, r.text))
-        not_verified += 1
+        unverified_hashes.append(hash)
+print("\n{} of {} verifications failed.\n".format(len(unverified_hashes), len(hashes)))
 
-print("{} of {} verifications failed.".format(not_verified, len(hashes)))
+if len(unverified_hashes) > 0:
+    not_verified = 0
+    print("retry verifying...")
+    for hash in unverified_hashes:
+        r = requests.post(url=url, headers=headers, data=hash)
+        if r.status_code != 200:
+            print("NOT VERIFIED: " + hash)
+            print("response: {}: {}".format(r.status_code, r.text))
+            not_verified += 1
+
+    print("\n{} of {} verifications failed on second try.\n".format(not_verified, len(unverified_hashes)))
