@@ -183,19 +183,18 @@ Then just enter the following two lines in your working directory:
    - send hashes to the `/<UUID>/hash`-endpoint with `Content-Type: application/octet-stream`-header. 
    
    Also, set the `X-Auth-Token`-header with your ubirch backend auth token.
+   
+   Since the data hash for every UPP must be unique, ensure that the body of each request has a unique content. You can 
+   do that, for example, by adding an ID and a timestamp to the JSON data package.
+   
+   **Floating-point numbers and integers greater than 2^53 are invalid values for the JSON data package!** 
+   If you need to sign floating-point numbers or numbers greater than 9,007,199,254,740,992, you can pass them as string.
 
    Here is an example of how a request to the client would look like using `CURL`:
    ```
    curl -H "X-Auth-Token: <YOUR_AUTH_TOKEN>" -H "Content-Type: application/json" -d '{"id": "605b91b4-49be-4f17-93e7-f1b14384968f", "ts": 1585838578, "data": "1234567890"}' localhost:8080/<YOUR_UUID> -i -s
    ```
    > Insert `<YOUR_AUTH_TOKEN>` and `<YOUR_UUID>` and a request body with your own unique content to ensure a unique hash!
-   
-   If your request was submitted, you'll get a `HTTP/1.1 200 OK` response.
-   
-   Since the data hash for every UPP must be unique, ensure that the body of each request has a unique content. You can 
-   do that, for example, by adding an ID and a timestamp to the JSON data package. **Floating-point numbers and integers 
-   greater than 2^53 are invalid values for the JSON data package!** If you need to sign floating-point numbers or numbers 
-   greater than 9,007,199,254,740,992, you can pass them as string.
    
    When the client receives the request, the output should look like this:
    ```
@@ -206,6 +205,19 @@ Then just enter the following two lines in your working directory:
    2020/04/14 13:46:35 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: hash: Y0I9f0GrIj4V6RGh6FW4IzCLj/bQa8uMpLjYtr7OFQk=
    ```
    > Take note of the hash!
+   
+   If your request was submitted, you'll get a `HTTP/1.1 200 OK` response.
+   
+   The HTTP response body from the client is a map containing the data hash and the UPP, that has been sent 
+   to the UBIRCH backend, and the response from the backend, which is a UPP as well. UPPs are in *msgpack*-format.
+   
+   ```json
+    {
+      "hash": "bTawDQO7nnB+3h55/6VyQ+Tmd1RTV9R0cFcf7CRWzQQ=",
+      "response": "liPEEJ08eP8i80RBpdGFxjbUhv/EQPgwxioCe/xc+22gjjvULF32Q+zZNDosE0msmzyppKHihm2a7wb7g3VJoXg2UhpM4xS87kAapI+m+QRONig9bIkAgadtZXNzYWdlv3lvdXIgcmVxdWVzdCBoYXMgYmVlbiBzdWJtaXR0ZWTEQP/3P6UH0G8qY5t9bdSjroKVI4N5KScCHKJ9xsoHhesLLv9dCgdD0UoGvc/Mg9x0PGHKVoxKBwPs1v95+M+EQQQ=",
+      "upp": "liPEEPfutp5U60IAt/7nLuSggtLEQPgwxioCe/xc+22gjjvULF32Q+zZNDosE0msmzyppKHihm2a7wb7g3VJoXg2UhpM4xS87kAapI+m+QRONig9bIkAxCBtNrANA7uecH7eHnn/pXJD5OZ3VFNX1HRwVx/sJFbNBMRAZqKMnYa7nuyfmyV1dAUxwBvXG3fdZYUxyRE+mfeC/GWDwNXE4Tga5iauFfzOaULeNcUR2msAzwcL0FObMZaNaw=="
+    }
+   ```
    
 1. To stop the client, press `ctrl` + `c`.
    
