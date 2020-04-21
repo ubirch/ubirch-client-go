@@ -41,11 +41,14 @@ func (p *ExtendedProtocol) Init(dsn string, keys map[string]string) error {
 	// check if we want to use a database as persistent storage
 	if dsn != "" {
 		// use the database
+		log.Printf("connecting to database")
 		db, err := NewPostgres(dsn)
 		if err != nil {
 			return fmt.Errorf("unable to connect to database: %v", err)
 		}
 		DB = db
+	} else {
+		log.Printf("protocol context file: %s", Path+ContextFile)
 	}
 
 	// try to read an existing protocol context from persistent storage (keystore, last signatures, key certificates)

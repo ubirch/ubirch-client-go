@@ -90,8 +90,12 @@ func (c *Config) loadFile(filename string) error {
 }
 
 func (c *Config) checkMandatory() error {
-	if c.Devices == nil {
-		return fmt.Errorf("no passwords set in config")
+	if c.Devices == nil || len(c.Devices) == 0 {
+		return fmt.Errorf("There are no devices authorized to use this client.\n" +
+			"It is mandatory to set at least one device UUID and auth token in the configuration.\n" +
+			"For more information take a look at the README under 'Configuration'.")
+	} else {
+		log.Printf("loaded %d devices from configuration", len(c.Devices))
 	}
 	if len(c.SecretBytes) != 16 {
 		return fmt.Errorf("secret length must be 16 bytes (is %d)", len(c.SecretBytes))
@@ -112,6 +116,8 @@ func (c *Config) setDefaultURLs() {
 
 	// now make sure the Env variable has the actual environment value that is used in the URL
 	c.Env = strings.Split(c.KeyService, ".")[1]
+
+	log.Printf("using UBIRCH backend \"%s\" environment", c.Env)
 
 	if c.Niomon == "" {
 		c.Niomon = fmt.Sprintf(NIOMON_URL, c.Env)
