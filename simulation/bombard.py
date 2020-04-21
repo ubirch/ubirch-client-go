@@ -1,11 +1,12 @@
 import base64
+import binascii
 import hashlib
 import json
+import msgpack
+import requests
 import secrets
 import sys
 import time
-
-import requests
 
 
 def hash_msg(msg: dict) -> (str, str):
@@ -67,13 +68,16 @@ while i < 100:
     dur = int(time.time()) - start_time
     if dur > max_dur: max_dur = dur
 
+    r_map = json.loads(r.text)
+
     if r.status_code != 200:
-        print("request failed! {}: {}".format(r.status_code, r.text))
+        print("request failed! {}: ".format(r.status_code))
+        resp_msg = msgpack.unpackb(binascii.a2b_base64(r_map["response"]), raw=False)[-2]
+        print(resp_msg)
         failed += 1
     else:
-        r_map = json.loads(r.content)
         if r_map["hash"] != msg_hash:
-            print(" - - - FATAL: HASH MISMATCH ! - - - ")
+            print(" - - - HASH MISMATCH ! - - - ")
             print("compact sorted json (py): {}".format(serialized))
             print("hash (go): {}".format(r_map["hash"]))
             print("hash (py): {}".format(msg_hash))
