@@ -99,6 +99,12 @@ working directory.
 - The `env` configuration refers to the UBIRCH backend environment. The default value is `prod`, which is the
  production environment. For development, the reference to “prod” may be replaced by “demo”, which is a test system
  that works like the production environment, but stores data only in a blockchain test net.
+
+#### Create a self-signed TLS certificate
+Run the following command to create a self-signed certificate with openssl. It will be valid for ten years.
+```console
+$ openssl req -x509 -newkey rsa:4096 -keyout key.pem -nodes -out cert.pem -days 3650
+``` 
  
 #### How to acquire the ubirch backend token
 - Register at the **UBIRCH web UI**: https://console.prod.ubirch.com/ or https://console.demo.ubirch.com/
