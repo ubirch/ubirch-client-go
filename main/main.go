@@ -23,7 +23,7 @@ import (
 	"syscall"
 
 	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-go-http-server/api"
+	"github.com/ubirch/ubirch-client-go/main/api"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 

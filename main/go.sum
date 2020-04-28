@@ -15,8 +15,6 @@ github.com/stretchr/testify v1.5.1 h1:nOGnQDM7FYENwehXlg/kFVnos3rEvtKTjRvOWSzb6H
 github.com/stretchr/testify v1.5.1/go.mod h1:5W2xD1RspED5o8YsWQXVCued0rvSQ+mT+I5cxcmMvtA=
 github.com/ubirch/go.crypto v0.1.2 h1:IYMOx19UgWt4+k7PydcOVtEWFiU10O8dHoof00j8IKw=
 github.com/ubirch/go.crypto v0.1.2/go.mod h1:aiZQ37CxSBS7cBLsFbTnDxGeg5RkH7Z5LKBYeNasIrw=
-github.com/ubirch/ubirch-go-http-server/api v1.0.4 h1:4YxA2yJacTDLjb+23b6EaNm+1PLmEMXOw166EK4UDfI=
-github.com/ubirch/ubirch-go-http-server/api v1.0.4/go.mod h1:Dig+IKgDns/7F4v+fsvwGtjJw1AWwRID8DWHOgVQQYQ=
 github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.1.2 h1:oyvbyF4XfKa8tAwveNXxnaliFUbocELEFsXfyp4atag=
 github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.1.2/go.mod h1:nTqN+niHQNN5XLxMgd5MOD+yW9vBi9trYIj4vBuVi2Y=
 github.com/ugorji/go v1.1.7 h1:/68gy2h+1mWMrwZFeD1kQialdSzAb432dtpeJ42ovdo=
