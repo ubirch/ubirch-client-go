@@ -169,7 +169,7 @@ func (srv *HTTPServer) handleRequestData(w http.ResponseWriter, r *http.Request)
 	forwardResponse(respChan, w)
 }
 
-func (srv *HTTPServer) Serve(ctx context.Context, wg *sync.WaitGroup) {
+func (srv *HTTPServer) Serve(ctx context.Context, wg *sync.WaitGroup) { //, serveHTTPS bool, certFile, keyFile string) {
 	router := chi.NewMux()
 	router.Post("/{uuid}", srv.handleRequestData)
 	router.Post("/{uuid}/hash", srv.handleRequestHash)
@@ -193,7 +193,19 @@ func (srv *HTTPServer) Serve(ctx context.Context, wg *sync.WaitGroup) {
 
 	go func() {
 		defer wg.Done()
-		err := server.ListenAndServe()
+
+		const (
+			serveHTTPS = true
+			certFile   = "./cert.pem"
+			keyFile    = "./key.pem"
+		)
+
+		var err error
+		if serveHTTPS {
+			err = server.ListenAndServeTLS(certFile, keyFile)
+		} else {
+			err = server.ListenAndServe()
+		}
 		if err != nil && err != http.ErrServerClosed {
 			log.Fatalf("error starting http service: %v", err)
 		}
