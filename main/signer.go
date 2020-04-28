@@ -1,18 +1,16 @@
-/*
- * Copyright (c) 2019 ubirch GmbH
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright (c) 2019-2020 ubirch GmbH
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package main
 
@@ -21,12 +19,13 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"sync"
 
-	"github.com/ubirch/ubirch-go-http-server/api"
+	"github.com/ubirch/ubirch-client-go/main/api"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
@@ -36,7 +35,7 @@ func internalServerError(message string) api.HTTPResponse {
 	}
 	return api.HTTPResponse{
 		Code:    http.StatusInternalServerError,
-		Header:  map[string][]string{"Content-Type": {"text/plain"}},
+		Header:  map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}},
 		Content: []byte(message),
 	}
 }
@@ -50,7 +49,6 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 		case msg := <-msgHandler:
 			uid := msg.ID
 			name := uid.String()
-			log.Printf("%s: signer received request\n", name)
 
 			// check if there is a known signing key for UUID
 			if !p.Crypto.PrivateKeyExists(name) {
@@ -58,7 +56,7 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 					log.Printf("%s: dynamic key generation is disabled and there is no known signing key for UUID\n", name)
 					msg.Response <- api.HTTPResponse{
 						Code:    http.StatusUnauthorized,
-						Header:  map[string][]string{"Content-Type": {"text/plain"}},
+						Header:  map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}},
 						Content: []byte(fmt.Sprintf("dynamic key generation is disabled and there is no known signing key for UUID %s", name)),
 					}
 					continue
@@ -93,7 +91,7 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 				}
 				log.Printf("%s: CERT: %s\n", name, cert)
 
-				code, _, resp, err := post(cert, conf.KeyService, map[string]string{"Content-Type": "application/json"})
+				code, _, resp, err := post(cert, conf.KeyService, map[string]string{"Content-Type": "application/json; charset=utf-8"})
 				if err != nil {
 					log.Printf("%s: error sending key registration message: %v\n", name, err)
 					msg.Response <- internalServerError(fmt.Sprintf("error sending key registration message: %v", err))
@@ -103,7 +101,7 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 					log.Printf("%s: sending key registration message to %s failed: %d: %s\n", name, conf.KeyService, code, string(resp))
 					msg.Response <- api.HTTPResponse{
 						Code:    code,
-						Header:  map[string][]string{"Content-Type": {"text/plain"}},
+						Header:  map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}},
 						Content: []byte(fmt.Sprintf("sending key registration message for UUID %s to %s failed.\n key registration message: %s\n key service response: %s", name, conf.KeyService, cert, string(resp))),
 					}
 					continue
@@ -122,6 +120,9 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 			// send UPP (hash)
 			data := msg.Msg
 			if !msg.IsAlreadyHashed {
+				if conf.Debug {
+					log.Printf("compact sorted json (go): %s", string(data))
+				}
 				hash := sha256.Sum256(msg.Msg)
 				data = hash[:]
 			}
@@ -139,9 +140,11 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 				msg.Response <- internalServerError(fmt.Sprintf("error creating UPP: %v", err))
 				continue
 			}
-			log.Printf("%s: UPP: %s\n", name, hex.EncodeToString(upp))
+			if conf.Debug {
+				log.Printf("%s:  UPP: %s\n", name, hex.EncodeToString(upp))
+			}
 
-			// post UPP to ubirch backend
+			// send UPP to ubirch backend
 			code, header, resp, err := post(upp, conf.Niomon, map[string]string{
 				"x-ubirch-hardware-id": name,
 				"x-ubirch-auth-type":   "ubirch",
@@ -152,7 +155,9 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 				msg.Response <- internalServerError(fmt.Sprintf("error sending UPP to ubirch backend: %v", err))
 				continue
 			}
-			log.Printf("%s: response: (%d) %s\n", name, code, string(resp))
+			if conf.Debug {
+				log.Printf("%s: response: (%d) %s\n", name, code, hex.EncodeToString(resp))
+			}
 
 			// save last signature after UPP was successfully received in ubirch backend
 			if code == 200 {
@@ -161,9 +166,19 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 					msg.Response <- internalServerError("")
 					log.Fatalf("unable to save last signature: %v", err)
 				}
+			} else {
+				log.Printf("%s: sending UPP to %s failed: (%d) %q\n", name, conf.Niomon, code, resp)
 			}
 
-			msg.Response <- api.HTTPResponse{Code: code, Header: header, Content: resp}
+			extendedResponse, err := json.Marshal(map[string][]byte{"hash": data, "upp": upp, "response": resp})
+			//log.Printf(string(extendedResponse))
+			if err != nil {
+				log.Printf("error serializing extended response: %s", err)
+				extendedResponse = resp
+			}
+			header = map[string][]string{"Content-Type": {"application/json; charset=utf-8"}}
+
+			msg.Response <- api.HTTPResponse{Code: code, Header: header, Content: extendedResponse}
 		case <-ctx.Done():
 			log.Println("finishing signer")
 			return

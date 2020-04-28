@@ -1,18 +1,16 @@
-/*
- * Copyright (c) 2019 ubirch GmbH
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright (c) 2019-2020 ubirch GmbH
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package main
 
@@ -36,27 +34,16 @@ const (
 
 // configuration of the device
 type Config struct {
-	Devices       map[string]string `json:"devices"`       // maps UUIDs to backend auth tokens
-	Secret        base64string      `json:"secret"`        // secret used to encrypt the key store
-	DSN           string            `json:"dsn"`           // "data source name" for database connection
-	StaticUUID    bool              `json:"staticUUID"`    // only accept requests from UUIDs with injected signing key. default: false -> dynamic key generation
-	Env           string            `json:"env"`           // the ubirch backend environment [dev, demo, prod]
-	KeyService    string            `json:"keyService"`    // key service URL (set automatically)
-	Niomon        string            `json:"niomon"`        // authentication service URL (set automatically)
-	VerifyService string            `json:"verifyService"` // verification service URL (set automatically)
-}
-
-type base64string []byte
-
-// Set implements the envconf.Setter by translating the base64 encrypted env
-// variable into a byte slice.
-func (b base64string) Set(value string) error {
-	var err error
-	b, err = base64.StdEncoding.DecodeString(value)
-	if err != nil {
-		return err
-	}
-	return nil
+	Devices       map[string]string `json:"devices"`    // maps UUIDs to backend auth tokens
+	Secret        string            `json:"secret"`     // secret used to encrypt the key store
+	DSN           string            `json:"dsn"`        // "data source name" for database connection
+	StaticUUID    bool              `json:"staticUUID"` // only accept requests from UUIDs with injected signing key. default: false -> dynamic key generation
+	Env           string            `json:"env"`        // the ubirch backend environment [dev, demo, prod]
+	Debug         bool              `json:"debug"`      // enable extended debug output
+	KeyService    string            // key service URL (set automatically)
+	Niomon        string            // authentication service URL (set automatically)
+	VerifyService string            // verification service URL (set automatically)
+	SecretBytes   []byte            // the decoded key store secret
 }
 
 func (c *Config) Load() error {
@@ -70,6 +57,11 @@ func (c *Config) Load() error {
 	}
 	if err != nil {
 		return err
+	}
+
+	c.SecretBytes, err = base64.StdEncoding.DecodeString(c.Secret)
+	if err != nil {
+		return fmt.Errorf("unable to decode base64 encoded secret (%s): %v", c.Secret, err)
 	}
 
 	err = c.checkMandatory()
@@ -98,11 +90,15 @@ func (c *Config) loadFile(filename string) error {
 }
 
 func (c *Config) checkMandatory() error {
-	if c.Devices == nil {
-		return fmt.Errorf("no passwords set in config")
+	if c.Devices == nil || len(c.Devices) == 0 {
+		return fmt.Errorf("There are no devices authorized to use this client.\n" +
+			"It is mandatory to set at least one device UUID and auth token in the configuration.\n" +
+			"For more information take a look at the README under 'Configuration'.")
+	} else {
+		log.Printf("loaded %d devices from configuration", len(c.Devices))
 	}
-	if len(c.Secret) != 16 {
-		return fmt.Errorf("secret length must be 16 bytes (is %d)", len(c.Secret))
+	if len(c.SecretBytes) != 16 {
+		return fmt.Errorf("secret length must be 16 bytes (is %d)", len(c.SecretBytes))
 	}
 	return nil
 }
@@ -120,6 +116,8 @@ func (c *Config) setDefaultURLs() {
 
 	// now make sure the Env variable has the actual environment value that is used in the URL
 	c.Env = strings.Split(c.KeyService, ".")[1]
+
+	log.Printf("using UBIRCH backend \"%s\" environment", c.Env)
 
 	if c.Niomon == "" {
 		c.Niomon = fmt.Sprintf(NIOMON_URL, c.Env)

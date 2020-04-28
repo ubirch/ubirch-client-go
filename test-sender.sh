@@ -2,7 +2,7 @@
 # run as ./test-sender.sh 100 (the number is included below as value)
 [ "$1" = "" ] && echo "$0: missing a number as argument" && exit 1
 # replace owner with your UUID and token with the password
-owner=0000000-0000-0000-0000-0000000000000
+owner=00000000-0000-0000-0000-000000000000
 token=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 # we generate a random uuid for the message id
 uuid=$(uuidgen)
