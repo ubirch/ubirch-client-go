@@ -27,6 +27,9 @@ import (
 )
 
 const (
+	DEV_STAGE  = "dev"
+	DEMO_STAGE = "demo"
+	PROD_STAGE = "prod"
 	KEY_URL    = "https://key.%s.ubirch.com/api/keyService/v1/pubkey"
 	NIOMON_URL = "https://niomon.%s.ubirch.com/"
 	VERIFY_URL = "https://verify.%s.ubirch.com/api/upp"
@@ -69,8 +72,7 @@ func (c *Config) Load() error {
 		return err
 	}
 
-	c.setDefaultURLs()
-	return nil
+	return c.setDefaultURLs()
 }
 
 // loadEnv reads the configuration from environment variables
@@ -103,10 +105,24 @@ func (c *Config) checkMandatory() error {
 	return nil
 }
 
-func (c *Config) setDefaultURLs() {
+func (c *Config) setDefaultURLs() error {
 	if c.Env == "" {
-		c.Env = "prod"
+		c.Env = PROD_STAGE
 	}
+
+	if c.Niomon == "" {
+		c.Niomon = fmt.Sprintf(NIOMON_URL, c.Env)
+	}
+
+	// now make sure the Env variable has the actual environment value that is used in the URL
+	c.Env = strings.Split(c.Niomon, ".")[1]
+
+	// assert Env variable value is a valid UBIRCH backend environment
+	if !(c.Env == DEV_STAGE || c.Env == DEMO_STAGE || c.Env == PROD_STAGE) {
+		return fmt.Errorf("invalid UBIRCH backend environment: \"%s\"", c.Env)
+	}
+
+	log.Printf("using UBIRCH backend \"%s\" environment", c.Env)
 
 	if c.KeyService == "" {
 		c.KeyService = fmt.Sprintf(KEY_URL, c.Env)
@@ -114,18 +130,10 @@ func (c *Config) setDefaultURLs() {
 		c.KeyService = strings.TrimSuffix(c.KeyService, "/mpack")
 	}
 
-	// now make sure the Env variable has the actual environment value that is used in the URL
-	c.Env = strings.Split(c.KeyService, ".")[1]
-
-	log.Printf("using UBIRCH backend \"%s\" environment", c.Env)
-
-	if c.Niomon == "" {
-		c.Niomon = fmt.Sprintf(NIOMON_URL, c.Env)
-	}
-
 	if c.VerifyService == "" {
 		c.VerifyService = fmt.Sprintf(VERIFY_URL, c.Env)
 	}
+	return nil
 }
 
 // LoadKeys loads the keys map from environment or file
