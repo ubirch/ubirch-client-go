@@ -15,7 +15,7 @@ func TestConfig(t *testing.T) {
 		t.Errorf("Failed to unmarshal json config: %s", err)
 	}
 
-	if !bytes.Equal(config.Secret, []byte("1234567890567890")) {
+	if !bytes.Equal(config.SecretBytes, []byte("1234567890567890")) {
 		t.Errorf("Failed to load secret from config")
 	}
 
