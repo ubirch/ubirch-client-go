@@ -6,5 +6,9 @@
   "secret": "MTIzNDU2Nzg5MDEyMzQ1Ng==",
   "DSN": "postgres://username:password@hostname:5432/database?sslmode=disable",
   "staticUUID": false,
-  "env": "demo"
+  "env": "demo",
+  "TLS": {
+    "enableTLS": true
+  },
+  "debug": false
 }

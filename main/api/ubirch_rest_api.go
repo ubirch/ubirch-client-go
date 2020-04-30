@@ -169,7 +169,13 @@ func (srv *HTTPServer) handleRequestData(w http.ResponseWriter, r *http.Request)
 	forwardResponse(respChan, w)
 }
 
-func (srv *HTTPServer) Serve(ctx context.Context, wg *sync.WaitGroup) {
+type TLSconfig struct {
+	EnableTLS bool
+	CertFile  string
+	KeyFile   string
+}
+
+func (srv *HTTPServer) Serve(ctx context.Context, wg *sync.WaitGroup, TLSconf TLSconfig) {
 	router := chi.NewMux()
 	router.Post("/{uuid}", srv.handleRequestData)
 	router.Post("/{uuid}/hash", srv.handleRequestHash)
@@ -193,7 +199,13 @@ func (srv *HTTPServer) Serve(ctx context.Context, wg *sync.WaitGroup) {
 
 	go func() {
 		defer wg.Done()
-		err := server.ListenAndServe()
+
+		var err error
+		if TLSconf.EnableTLS {
+			err = server.ListenAndServeTLS(TLSconf.CertFile, TLSconf.KeyFile)
+		} else {
+			err = server.ListenAndServe()
+		}
 		if err != nil && err != http.ErrServerClosed {
 			log.Fatalf("error starting http service: %v", err)
 		}
