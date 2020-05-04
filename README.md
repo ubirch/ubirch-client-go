@@ -42,31 +42,6 @@ The client is able to handle multiple cryptographic identities (i.e. for multipl
  these devices must be declared in the configuration file together with their respective authentication token. Only
  requests from *known* UUIDs will be accepted by the client.
 
-#### File Based Configuration 
-`config.json`:
-```
-{
-  "devices": {
-    "<UUID>": "<ubirch backend auth token>"
-  },
-  "secret": "<16 byte secret used to encrypt the key store (base64 encoded)>",
-  "DSN": "<optional data source name for database>",
-  "staticKeys": <boolean, defaults to ‘false’>,
-  "env": "<ubirch backend environment, defaults to “prod”>"
-}
-```
-(See [example_config.json](main/example_config.json) for an example.)
-
-#### Environment Based Configuration
-```
-export UBIRCH_DEVICES="<UUID>:<ubirch backend auth token>"
-export UBIRCH_SECRET=<16 byte secret used to encrypt the key store  (base64 encoded)>
-export UBIRCH_DSN=<optional data source name for database>
-export UBIRCH_STATICKEYS=<boolean, defaults to ‘false’>
-export UBIRCH_ENV=<ubirch backend environment, defaults to 'prod'>
-```
-(See [example.env](main/example.env) for an example.)
-
 The client will first look if the `UBIRCH_DEVICES` env variable exists and load the configuration from the environment
  variables in that case. If the `UBIRCH_DEVICES` env variable is not set or empty, and the `config.json`-file exists in 
  the working directory, the configuration will be loaded from the file. If neither exist, the client will abort and exit.
@@ -75,35 +50,87 @@ The only two mandatory configurations are
 - the `devices`-map, which maps device UUIDs to their authentication token 
 (see [here](#how-to-acquire-the-ubirch-backend-token) how to acquire the authentication token),
 - and the 16 byte base64 encoded `secret`, which is used to encrypt the key store.
+
+#### File Based Configuration 
+`config.json`:
+```
+{
+  "devices": {
+    "<UUID>": "<ubirch backend auth token>"
+  },
+  "secret": "<16 byte secret used to encrypt the key store (base64 encoded)>"
+}
+```
+(See [example_config.json](main/example_config.json) for an example.)
+
+#### Environment Based Configuration
+```
+export UBIRCH_DEVICES="<UUID>:<ubirch backend auth token>"
+export UBIRCH_SECRET=<16 byte secret used to encrypt the key store  (base64 encoded)>
+```
+(See [example.env](main/example.env) for an example.)
  
- All other configuration parameters have default values:
+ All other configuration parameters have default values, but can be configured as follows.
 
-- The `DSN` (*Data Source Name*) can be used to connect the client to a SQL database for storing keys and last signatures 
-persistently. If no DSN is set, the client will create a file `protocol.json` (and `protocol.json.bck`) locally in the 
-working directory.
+#### Set a UBIRCH backend environment
+The `env` configuration refers to the UBIRCH backend environment. The default value is `prod`, which is the
+production environment. For development, the reference to “prod” may be replaced by “demo”, which is a test system
+that works like the production environment, but stores data only in a blockchain test net.
 
-    If you want to use a SQL database instead of local files to store keys and last signatures persistently, make sure
- to apply the [database schema](main/schema.sql), as the application will not create it itself on first run.
+- file (add the following key-value pair to your `config.json`):
+```
+  "env": "<ubirch backend environment, defaults to 'prod'>"
+```
+- env:
+```
+export UBIRCH_ENV=<ubirch backend environment, defaults to 'prod'>
+```
  
-- The `staticKeys`-flag may be used to disable dynamic key generation and only accept requests from UUIDs with injected
- signing key. The default value for this flag is `false`, which means the client will per default generate a new ECDSA
- (prime256v1) key pair if it receives a request from a UUID without a corresponding signing key in the keystore.
- The alternative to dynamic key generation is to inject signing keys as a map in the form...
-    
-    ```{"<UUID>": "<ecdsa-prime256v1 private key (base64 encoded)>"}```
-    
-    ...either as env variable `UBIRCH_KEYS` or in a file `keys.json`.
-    Either way (dynamically generated or injected) the client will register the public key at the UBIRCH key service and
-    store the keys persistently in the encrypted keystore.
-    
-    > ECDSA signing keys (prime256v1) can be generated on the command line using openssl:
-    ```console
-    $ openssl ecparam -genkey -name prime256v1 -noout | openssl ec -text -noout | grep priv -A 3 | tail -n +2 | tr -d ': ' | xxd -r -p | base64
-    ```
+#### Use a SQL database to store the protocol context
+The `DSN` (*Data Source Name*) can be used to connect the client to a SQL database for storing the protocol context 
+(i.e. the encrypted keystore, key certificates and last signatures) persistently. If DSN is not set or empty, the 
+client will create a file `protocol.json` (and `protocol.json.bck`) locally in the working directory.
 
-- The `env` configuration refers to the UBIRCH backend environment. The default value is `prod`, which is the
- production environment. For development, the reference to “prod” may be replaced by “demo”, which is a test system
- that works like the production environment, but stores data only in a blockchain test net.
+If you want to use a SQL database instead of a local file, make sure to apply the 
+[database schema](main/schema.sql), as the application will not create it itself on first run, and 
+set the DSN in the configuration.
+
+- file (add the following key-value pair to your `config.json`):
+```
+  "DSN": "<data source name for database>"
+```
+- env:
+```
+export UBIRCH_DSN=<data source name for database>
+```
+
+#### Inject signing keys
+The `staticKeys`-flag may be used to disable dynamic key generation and only accept requests from UUIDs with injected
+signing key. The default value for this flag is `false`, which means the client will per default generate a new ECDSA
+(prime256v1) key pair if it receives a request from a UUID without a corresponding signing key in the keystore.
+
+Instead of having the client generate keys dynamically it is possible to inject signing keys as a map in the form...
+
+    {"<UUID>": "<ecdsa-prime256v1 private key (base64 encoded)>"}
+
+...as env variable `UBIRCH_KEYS` or in a file `keys.json`.
+
+> ECDSA signing keys (prime256v1) can be generated on the command line using openssl:
+```console
+$ openssl ecparam -genkey -name prime256v1 -noout | openssl ec -text -noout | grep priv -A 3 | tail -n +2 | tr -d ': ' | xxd -r -p | base64
+```
+
+- file (add the following key-value pair to your `config.json`):
+```
+  "staticKeys": <boolean, defaults to ‘false’>
+```
+- env:
+```
+export UBIRCH_STATICKEYS=<boolean, defaults to ‘false’>
+```
+
+Either way (dynamically generated or injected) the client will register the public key at the UBIRCH key service and
+store the keys persistently in the encrypted keystore.
  
 #### Serve HTTPS
 ##### Create a self-signed TLS certificate
