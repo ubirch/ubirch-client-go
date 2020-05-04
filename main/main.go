@@ -27,7 +27,7 @@ import (
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
-var Path string
+var ConfigDir string
 
 const (
 	ConfigFile  = "config.json"
@@ -64,7 +64,7 @@ func shutdown(signals chan os.Signal, p *ExtendedProtocol, wg *sync.WaitGroup, c
 
 func main() {
 	if len(os.Args) > 1 {
-		Path = os.Args[1]
+		ConfigDir = os.Args[1]
 	}
 
 	log.Printf("UBIRCH client (%s, build=%s)", Version, Build)

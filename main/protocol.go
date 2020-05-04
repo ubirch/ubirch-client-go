@@ -49,7 +49,7 @@ func (p *ExtendedProtocol) Init(dsn string, keys map[string]string) error {
 		log.Printf("protocol context will be saved to database")
 		DB = db
 	} else {
-		log.Printf("protocol context will be saved to file (%s)", filepath.Join(Path, ContextFile))
+		log.Printf("protocol context will be saved to file (%s)", filepath.Join(ConfigDir, ContextFile))
 	}
 
 	// try to read an existing protocol context from persistent storage (keystore, last signatures, key certificates)
@@ -99,7 +99,7 @@ func (p *ExtendedProtocol) PersistContext() error {
 	if DB != nil {
 		return DB.SetProtocolContext(p)
 	} else {
-		return p.saveFile(filepath.Join(Path, ContextFile))
+		return p.saveFile(filepath.Join(ConfigDir, ContextFile))
 	}
 }
 
@@ -108,7 +108,7 @@ func (p *ExtendedProtocol) LoadContext() error {
 	if DB != nil {
 		return DB.GetProtocolContext(p)
 	} else {
-		return p.loadFile(filepath.Join(Path, ContextFile))
+		return p.loadFile(filepath.Join(ConfigDir, ContextFile))
 	}
 }
 

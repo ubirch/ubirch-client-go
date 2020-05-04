@@ -44,8 +44,8 @@ type Config struct {
 	StaticUUID    bool              `json:"staticUUID"` // only accept requests from UUIDs with injected signing key. default: false -> dynamic key generation
 	Env           string            `json:"env"`        // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
 	TLS           bool              `json:"TLS"`        // enable serving HTTPS endpoints, defaults to 'false'
-	CertFile      string            `json:"certFile"`   // filename of TLS certificate file, defaults to 'Path + "cert.pem"'
-	KeyFile       string            `json:"keyFile"`    // filename of TLS key file, defaults to 'Path + "key.pem"'
+	CertFile      string            `json:"certFile"`   // filename of TLS certificate file name, defaults to "cert.pem"
+	KeyFile       string            `json:"keyFile"`    // filename of TLS key file name, defaults to "key.pem"
 	Debug         bool              `json:"debug"`      // enable extended debug output, defaults to 'false'
 	KeyService    string            // key service URL (set automatically)
 	Niomon        string            // authentication service URL (set automatically)
@@ -60,7 +60,7 @@ func (c *Config) Load() error {
 	if os.Getenv("UBIRCH_DEVICES") != "" {
 		err = c.loadEnv()
 	} else {
-		err = c.loadFile(filepath.Join(Path, ConfigFile))
+		err = c.loadFile(filepath.Join(ConfigDir, ConfigFile))
 	}
 	if err != nil {
 		return err
@@ -113,11 +113,14 @@ func (c *Config) checkMandatory() error {
 func (c *Config) setDefaultTLS() {
 	if c.TLS {
 		if c.CertFile == "" {
-			c.CertFile = filepath.Join(Path, "cert.pem")
+			c.CertFile = "cert.pem"
 		}
+		c.CertFile = filepath.Join(ConfigDir, c.CertFile)
+
 		if c.KeyFile == "" {
-			c.KeyFile = filepath.Join(Path, "key.pem")
+			c.KeyFile = "key.pem"
 		}
+		c.KeyFile = filepath.Join(ConfigDir, c.KeyFile)
 	}
 }
 
@@ -161,7 +164,7 @@ func LoadKeys() (map[string]string, error) {
 	if keys != "" {
 		keyBytes = []byte(keys)
 	} else {
-		keyBytes, err = ioutil.ReadFile(filepath.Join(Path, KeyFile))
+		keyBytes, err = ioutil.ReadFile(filepath.Join(ConfigDir, KeyFile))
 		if err != nil {
 			return nil, err
 		}
