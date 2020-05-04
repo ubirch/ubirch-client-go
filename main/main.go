@@ -46,7 +46,7 @@ func shutdown(signals chan os.Signal, p *ExtendedProtocol, wg *sync.WaitGroup, c
 
 	// block until we receive a SIGINT or SIGTERM
 	sig := <-signals
-	log.Printf("shutting down after receiving: %v", sig)
+	log.Printf("\nshutting down after receiving: %v", sig)
 
 	// wait for all go routines to end, cancels the go routines contexts
 	// and waits for the wait group
