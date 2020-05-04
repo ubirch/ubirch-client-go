@@ -37,21 +37,19 @@ const (
 
 // configuration of the device
 type Config struct {
-	Devices    map[string]string `json:"devices"`    // maps UUIDs to backend auth tokens
-	Secret     string            `json:"secret"`     // secret used to encrypt the key store
-	DSN        string            `json:"dsn"`        // "data source name" for database connection
-	StaticUUID bool              `json:"staticUUID"` // only accept requests from UUIDs with injected signing key. default: false -> dynamic key generation
-	Env        string            `json:"env"`        // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
-	TLS        struct {
-		EnableTLS bool   `json:"enableTLS"` // enable serving HTTPS endpoints, defaults to 'false'
-		CertFile  string `json:"certFile"`  // filename of TLS certificate file, defaults to 'Path + "cert.pem"'
-		KeyFile   string `json:"keyFile"`   // filename of TLS key file, defaults to 'Path + "key.pem"'
-	}
-	Debug         bool   `json:"debug"` // enable extended debug output, defaults to 'false'
-	KeyService    string // key service URL (set automatically)
-	Niomon        string // authentication service URL (set automatically)
-	VerifyService string // verification service URL (set automatically)
-	SecretBytes   []byte // the decoded key store secret
+	Devices       map[string]string `json:"devices"`    // maps UUIDs to backend auth tokens
+	Secret        string            `json:"secret"`     // secret used to encrypt the key store
+	DSN           string            `json:"DSN"`        // "data source name" for database connection
+	StaticUUID    bool              `json:"staticUUID"` // only accept requests from UUIDs with injected signing key. default: false -> dynamic key generation
+	Env           string            `json:"env"`        // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
+	TLS           bool              `json:"TLS"`        // enable serving HTTPS endpoints, defaults to 'false'
+	CertFile      string            `json:"certFile"`   // filename of TLS certificate file, defaults to 'Path + "cert.pem"'
+	KeyFile       string            `json:"keyFile"`    // filename of TLS key file, defaults to 'Path + "key.pem"'
+	Debug         bool              `json:"debug"`      // enable extended debug output, defaults to 'false'
+	KeyService    string            // key service URL (set automatically)
+	Niomon        string            // authentication service URL (set automatically)
+	VerifyService string            // verification service URL (set automatically)
+	SecretBytes   []byte            // the decoded key store secret
 }
 
 func (c *Config) Load() error {
@@ -112,14 +110,14 @@ func (c *Config) checkMandatory() error {
 }
 
 func (c *Config) setDefaultTLS() {
-	if c.TLS.EnableTLS {
-		if c.TLS.CertFile == "" {
-			c.TLS.CertFile = Path + "cert.pem"
-		} // todo prepend path either way?
-		if c.TLS.KeyFile == "" {
-			c.TLS.KeyFile = Path + "key.pem"
+	if c.TLS {
+		if c.CertFile == "" {
+			c.CertFile = Path + "cert.pem"
 		}
-		log.Printf("TLS enabled: cert file = \"%s\", key file = \"%s\"", c.TLS.CertFile, c.TLS.KeyFile)
+		if c.KeyFile == "" {
+			c.KeyFile = Path + "key.pem"
+		}
+		log.Printf("TLS enabled: cert file = \"%s\", key file = \"%s\"", c.CertFile, c.KeyFile)
 	}
 }
 

@@ -169,13 +169,7 @@ func (srv *HTTPServer) handleRequestData(w http.ResponseWriter, r *http.Request)
 	forwardResponse(respChan, w)
 }
 
-type TLSconfig struct {
-	EnableTLS bool
-	CertFile  string
-	KeyFile   string
-}
-
-func (srv *HTTPServer) Serve(ctx context.Context, wg *sync.WaitGroup, TLSconf TLSconfig) {
+func (srv *HTTPServer) Serve(ctx context.Context, wg *sync.WaitGroup, TLS bool, certFile string, keyFile string) {
 	router := chi.NewMux()
 	router.Post("/{uuid}", srv.handleRequestData)
 	router.Post("/{uuid}/hash", srv.handleRequestHash)
@@ -201,8 +195,8 @@ func (srv *HTTPServer) Serve(ctx context.Context, wg *sync.WaitGroup, TLSconf TL
 		defer wg.Done()
 
 		var err error
-		if TLSconf.EnableTLS {
-			err = server.ListenAndServeTLS(TLSconf.CertFile, TLSconf.KeyFile)
+		if TLS {
+			err = server.ListenAndServeTLS(certFile, keyFile)
 		} else {
 			err = server.ListenAndServe()
 		}

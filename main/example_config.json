@@ -7,8 +7,6 @@
   "DSN": "postgres://username:password@hostname:5432/database?sslmode=disable",
   "staticUUID": false,
   "env": "demo",
-  "TLS": {
-    "enableTLS": true
-  },
+  "TLS": true,
   "debug": false
 }
