@@ -117,7 +117,6 @@ func (c *Config) setDefaultTLS() {
 		if c.KeyFile == "" {
 			c.KeyFile = Path + "key.pem"
 		}
-		log.Printf("TLS enabled: cert file = \"%s\", key file = \"%s\"", c.CertFile, c.KeyFile)
 	}
 }
 

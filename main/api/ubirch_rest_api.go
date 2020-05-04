@@ -194,14 +194,16 @@ func (srv *HTTPServer) Serve(ctx context.Context, wg *sync.WaitGroup, TLS bool, 
 	go func() {
 		defer wg.Done()
 
+		log.Printf("starting HTTP service")
 		var err error
 		if TLS {
+			log.Printf("TLS enabled: cert file = \"%s\", key file = \"%s\"", certFile, keyFile)
 			err = server.ListenAndServeTLS(certFile, keyFile)
 		} else {
 			err = server.ListenAndServe()
 		}
 		if err != nil && err != http.ErrServerClosed {
-			log.Fatalf("error starting http service: %v", err)
+			log.Fatalf("error starting HTTP service: %v", err)
 		}
 	}()
 }
