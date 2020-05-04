@@ -21,6 +21,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/kelseyhightower/envconfig"
@@ -59,7 +60,7 @@ func (c *Config) Load() error {
 	if os.Getenv("UBIRCH_DEVICES") != "" {
 		err = c.loadEnv()
 	} else {
-		err = c.loadFile(Path + ConfigFile)
+		err = c.loadFile(filepath.Join(Path, ConfigFile))
 	}
 	if err != nil {
 		return err
@@ -112,10 +113,10 @@ func (c *Config) checkMandatory() error {
 func (c *Config) setDefaultTLS() {
 	if c.TLS {
 		if c.CertFile == "" {
-			c.CertFile = Path + "cert.pem"
+			c.CertFile = filepath.Join(Path, "cert.pem")
 		}
 		if c.KeyFile == "" {
-			c.KeyFile = Path + "key.pem"
+			c.KeyFile = filepath.Join(Path, "key.pem")
 		}
 	}
 }
@@ -160,7 +161,7 @@ func LoadKeys() (map[string]string, error) {
 	if keys != "" {
 		keyBytes = []byte(keys)
 	} else {
-		keyBytes, err = ioutil.ReadFile(Path + KeyFile)
+		keyBytes, err = ioutil.ReadFile(filepath.Join(Path, KeyFile))
 		if err != nil {
 			return nil, err
 		}
