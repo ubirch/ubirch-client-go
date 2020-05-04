@@ -101,11 +101,26 @@ working directory.
  that works like the production environment, but stores data only in a blockchain test net.
 
 #### Create a self-signed TLS certificate
-Run the following command to create a self-signed certificate with openssl. It will be valid for ten years.
+In order to serve HTTS endpoints, run the following command to create a self-signed certificate with openssl.
+ It will be valid for ten years.
 ```console
 $ openssl req -x509 -newkey rsa:4096 -keyout key.pem -nodes -out cert.pem -days 3650
 ``` 
- 
+By default, docker client will look for the `key.pem` and `cert.pem` files in the working directory 
+(same location as the config file), but you can define a different location (relative to the working 
+directory) and/or filename by adding them to your configuration file like this:
+```
+  "TLS": true,
+  "certFile": "/certs/some-cert.pem",
+  "keyFile": "/certs/some-key.pem"
+```
+...or if you are using environment based configuration:
+```
+export UBIRCH_TLS=true
+export UBIRCH_CERTFILE=/certs/some-cert.pem
+export UBIRCH_KEYFILE=/certs/some-key.pem
+```
+
 #### How to acquire the ubirch backend token
 - Register at the **UBIRCH web UI**: https://console.prod.ubirch.com/ or https://console.demo.ubirch.com/
 - Go to **Things** (in the menu on the left) and click on `+ ADD NEW DEVICE`
@@ -114,12 +129,24 @@ $ openssl req -x509 -newkey rsa:4096 -keyout key.pem -nodes -out cert.pem -days 
 
 ### Run Client in Docker container
 To start the multi-arch Docker image on any system, run:
+```console
+$ docker pull ubirch/ubirch-client:stable
+$ docker run -v $(pwd):/data --network=host ubirch/ubirch-client:stable
 ```
-docker pull ubirch/ubirch-client:stable
-docker run -v $(pwd)/:/data/ --network=host ubirch/ubirch-client:stable .
+The default configuration directory inside the docker container is `/data`.
+The docker image mounts the current directory (`$(pwd)`) into the */data* path to 
+load the configuration file, if configuration is not set via environment variables, 
+and the TLS certificate and key files, if TLS is enabled. 
+If no DSN (database) is set in the configuration, the image stores the protocol context 
+(i.e. keystore, key certificates and last signatures) in this directory as well, 
+in which case the directory must be writable. 
+
+It is also possible to pass an absolute path instead of `$(pwd)` or change the default configuration directory 
+with the following call.
+```console
+$ docker run -v $(pwd):/some-path/some-dir --network=host ubirch/ubirch-client:stable /some-path/some-dir
 ```
-The docker image mounts the current directory (`$(pwd)`) into the */data/* path to load the configuration
- and store keys and last signatures (if no DSN is set). You can also pass an absolute path instead of `$(pwd)`.
+
 
 ### Interface Description
 The UBIRCH client provides two HTTP endpoints for both original data that will be hashed by the client,
@@ -172,9 +199,9 @@ Response codes indicate the successful delivery of the UPP to the UBIRCH backend
 
 1. To run the dockerized UBIRCH client, you will need to have [Docker](https://docs.docker.com/) installed on your computer. 
 Then just enter the following two lines in your working directory:
-    ```
-    docker pull ubirch/ubirch-client:stable
-    docker run -v $(pwd)/:/data/ --network=host ubirch/ubirch-client:stable .
+    ```console
+    $ docker pull ubirch/ubirch-client:stable
+    $ docker run -v $(pwd):/data --network=host ubirch/ubirch-client:stable
     ```
     You should see a console output like this:
     ```
