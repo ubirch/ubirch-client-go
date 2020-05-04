@@ -197,7 +197,7 @@ func (srv *HTTPServer) Serve(ctx context.Context, wg *sync.WaitGroup, TLS bool, 
 		log.Printf("starting HTTP service")
 		var err error
 		if TLS {
-			log.Printf("TLS enabled: cert file = \"%s\", key file = \"%s\"", certFile, keyFile)
+			log.Printf("TLS enabled")
 			err = server.ListenAndServeTLS(certFile, keyFile)
 		} else {
 			err = server.ListenAndServe()
