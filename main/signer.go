@@ -52,8 +52,8 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 
 			// check if there is a known signing key for UUID
 			if !p.Crypto.PrivateKeyExists(name) {
-				if conf.StaticUUID {
-					log.Printf("%s: dynamic key generation is disabled and there is no known signing key for UUID\n", name)
+				if conf.StaticKeys {
+					log.Printf("%s: dynamic key generation is disabled and there is no injected signing key for UUID\n", name)
 					msg.Response <- api.HTTPResponse{
 						Code:    http.StatusUnauthorized,
 						Header:  map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}},

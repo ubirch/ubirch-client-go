@@ -51,7 +51,7 @@ The client is able to handle multiple cryptographic identities (i.e. for multipl
   },
   "secret": "<16 byte secret used to encrypt the key store (base64 encoded)>",
   "DSN": "<optional data source name for database>",
-  "staticUUID": <boolean, defaults to ‘false’>,
+  "staticKeys": <boolean, defaults to ‘false’>,
   "env": "<ubirch backend environment, defaults to “prod”>"
 }
 ```
@@ -62,7 +62,7 @@ The client is able to handle multiple cryptographic identities (i.e. for multipl
 export UBIRCH_DEVICES="<UUID>:<ubirch backend auth token>"
 export UBIRCH_SECRET=<16 byte secret used to encrypt the key store  (base64 encoded)>
 export UBIRCH_DSN=<optional data source name for database>
-export UBIRCH_STATICUUID=<boolean, defaults to ‘false’>
+export UBIRCH_STATICKEYS=<boolean, defaults to ‘false’>
 export UBIRCH_ENV=<ubirch backend environment, defaults to 'prod'>
 ```
 (See [example.env](main/example.env) for an example.)
@@ -78,47 +78,63 @@ The only two mandatory configurations are
  
  All other configuration parameters have default values:
 
-- The `DSN` (*data source name*) can be used to connect the client to a SQL database for storing keys and last signatures 
+- The `DSN` (*Data Source Name*) can be used to connect the client to a SQL database for storing keys and last signatures 
 persistently. If no DSN is set, the client will create a file `protocol.json` (and `protocol.json.bck`) locally in the 
 working directory.
 
     If you want to use a SQL database instead of local files to store keys and last signatures persistently, make sure
  to apply the [database schema](main/schema.sql), as the application will not create it itself on first run.
  
-- The `staticUUID`-flag may be used to disable dynamic key generation. The default value for this flag is `false`, which
- means the client will per default generate a new ECDSA (ecdsa-prime256v1) key pair if it receives a request from a UUID
- without a corresponding signing key in the keystore. An alternative to dynamic key generation is to inject signing keys
- as a map in the form...
+- The `staticKeys`-flag may be used to disable dynamic key generation and only accept requests from UUIDs with injected
+ signing key. The default value for this flag is `false`, which means the client will per default generate a new ECDSA
+ (prime256v1) key pair if it receives a request from a UUID without a corresponding signing key in the keystore.
+ The alternative to dynamic key generation is to inject signing keys as a map in the form...
     
     ```{"<UUID>": "<ecdsa-prime256v1 private key (base64 encoded)>"}```
     
-    ...either as env variable `UBIRCH_KEY_MAP` or in a file `keys.json`.
+    ...either as env variable `UBIRCH_KEYS` or in a file `keys.json`.
     Either way (dynamically generated or injected) the client will register the public key at the UBIRCH key service and
     store the keys persistently in the encrypted keystore.
+    
+    > ECDSA signing keys (prime256v1) can be generated on the command line using openssl:
+    ```console
+    $ openssl ecparam -genkey -name prime256v1 -noout | openssl ec -text -noout | grep priv -A 3 | tail -n +2 | tr -d ': ' | xxd -r -p | base64
+    ```
 
 - The `env` configuration refers to the UBIRCH backend environment. The default value is `prod`, which is the
  production environment. For development, the reference to “prod” may be replaced by “demo”, which is a test system
  that works like the production environment, but stores data only in a blockchain test net.
-
-#### Create a self-signed TLS certificate
-In order to serve HTTS endpoints, run the following command to create a self-signed certificate with openssl.
- It will be valid for ten years.
+ 
+#### Serve HTTPS
+##### Create a self-signed TLS certificate
+In order to serve HTTS endpoints, you can run the following command to create a self-signed certificate with openssl.
+ With this command it will be valid for ten years.
 ```console
 $ openssl req -x509 -newkey rsa:4096 -keyout key.pem -nodes -out cert.pem -days 3650
 ``` 
+
+##### Enable TLS in configuration
+To enable TLS for the UBIRCH client service, set ...
+```
+  "TLS": true
+```
+...in your `config.json` or ...
+```
+export UBIRCH_TLS=true
+```
+as environment variable.
+
 By default, docker client will look for the `key.pem` and `cert.pem` files in the working directory 
 (same location as the config file), but you can define a different location (relative to the working 
 directory) and/or filename by adding them to your configuration file like this:
 ```
-  "TLS": true,
-  "certFile": "/certs/some-cert.pem",
-  "keyFile": "/certs/some-key.pem"
+  "TLSCertFile": "certs/cert.pem",
+  "TLSKeyFile": "certs/key.pem"
 ```
 ...or if you are using environment based configuration:
 ```
-export UBIRCH_TLS=true
-export UBIRCH_CERTFILE=/certs/some-cert.pem
-export UBIRCH_KEYFILE=/certs/some-key.pem
+export UBIRCH_TLS_CERTFILE=certs/cert.pem
+export UBIRCH_TLS_KEYFILE=certs/key.pem
 ```
 
 #### How to acquire the ubirch backend token
@@ -146,7 +162,6 @@ with the following call.
 ```console
 $ docker run -v $(pwd):/some-path/some-dir --network=host ubirch/ubirch-client:stable /some-path/some-dir
 ```
-
 
 ### Interface Description
 The UBIRCH client provides two HTTP endpoints for both original data that will be hashed by the client,

@@ -38,15 +38,15 @@ const (
 
 // configuration of the device
 type Config struct {
-	Devices       map[string]string `json:"devices"`    // maps UUIDs to backend auth tokens
-	Secret        string            `json:"secret"`     // secret used to encrypt the key store
-	DSN           string            `json:"DSN"`        // "data source name" for database connection
-	StaticUUID    bool              `json:"staticUUID"` // only accept requests from UUIDs with injected signing key. default: false -> dynamic key generation
-	Env           string            `json:"env"`        // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
-	TLS           bool              `json:"TLS"`        // enable serving HTTPS endpoints, defaults to 'false'
-	CertFile      string            `json:"certFile"`   // filename of TLS certificate file name, defaults to "cert.pem"
-	KeyFile       string            `json:"keyFile"`    // filename of TLS key file name, defaults to "key.pem"
-	Debug         bool              `json:"debug"`      // enable extended debug output, defaults to 'false'
+	Devices       map[string]string `json:"devices"`     // maps UUIDs to backend auth tokens
+	Secret        string            `json:"secret"`      // secret used to encrypt the key store
+	DSN           string            `json:"DSN"`         // "data source name" for database connection
+	StaticKeys    bool              `json:"staticKeys"`  // disable dynamic key generation, defaults to 'false'
+	Env           string            `json:"env"`         // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
+	TLS           bool              `json:"TLS"`         // enable serving HTTPS endpoints, defaults to 'false'
+	TLS_CertFile  string            `json:"TLSCertFile"` // filename of TLS certificate file name, defaults to "cert.pem"
+	TLS_KeyFile   string            `json:"TLSKeyFile"`  // filename of TLS key file name, defaults to "key.pem"
+	Debug         bool              `json:"debug"`       // enable extended debug output, defaults to 'false'
 	KeyService    string            // key service URL (set automatically)
 	Niomon        string            // authentication service URL (set automatically)
 	VerifyService string            // verification service URL (set automatically)
@@ -112,15 +112,15 @@ func (c *Config) checkMandatory() error {
 
 func (c *Config) setDefaultTLS() {
 	if c.TLS {
-		if c.CertFile == "" {
-			c.CertFile = "cert.pem"
+		if c.TLS_CertFile == "" {
+			c.TLS_CertFile = "cert.pem"
 		}
-		c.CertFile = filepath.Join(ConfigDir, c.CertFile)
+		c.TLS_CertFile = filepath.Join(ConfigDir, c.TLS_CertFile)
 
-		if c.KeyFile == "" {
-			c.KeyFile = "key.pem"
+		if c.TLS_KeyFile == "" {
+			c.TLS_KeyFile = "key.pem"
 		}
-		c.KeyFile = filepath.Join(ConfigDir, c.KeyFile)
+		c.TLS_KeyFile = filepath.Join(ConfigDir, c.TLS_KeyFile)
 	}
 }
 
@@ -160,11 +160,11 @@ func LoadKeys() (map[string]string, error) {
 	var err error
 	var keyBytes []byte
 
-	keys := os.Getenv("UBIRCH_KEY_MAP")
+	keys := os.Getenv(KeysEnv)
 	if keys != "" {
 		keyBytes = []byte(keys)
 	} else {
-		keyBytes, err = ioutil.ReadFile(filepath.Join(ConfigDir, KeyFile))
+		keyBytes, err = ioutil.ReadFile(filepath.Join(ConfigDir, KeysFile))
 		if err != nil {
 			return nil, err
 		}

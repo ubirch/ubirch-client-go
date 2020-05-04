@@ -32,7 +32,8 @@ var ConfigDir string
 const (
 	ConfigFile  = "config.json"
 	ContextFile = "protocol.json"
-	KeyFile     = "keys.json"
+	KeysFile    = "keys.json"
+	KeysEnv     = "UBIRCH_KEYS"
 )
 
 var (
@@ -46,7 +47,7 @@ func shutdown(signals chan os.Signal, p *ExtendedProtocol, wg *sync.WaitGroup, c
 
 	// block until we receive a SIGINT or SIGTERM
 	sig := <-signals
-	log.Printf("\nshutting down after receiving: %v", sig)
+	log.Printf("shutting down after receiving: %v", sig)
 
 	// wait for all go routines to end, cancels the go routines contexts
 	// and waits for the wait group
@@ -73,13 +74,13 @@ func main() {
 	conf := Config{}
 	err := conf.Load()
 	if err != nil {
-		log.Fatalf("Error loading config: %s", err)
+		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
 
 	// read keys from key file / env variable
 	keyMap, err := LoadKeys()
-	if err != nil && conf.StaticUUID {
-		log.Printf("unable to load keys from file: %v", err)
+	if err != nil && conf.StaticKeys {
+		log.Fatalf("ERROR: dynamic key generation disabled and unable to load signing keys from env var \"%s\" or file \"%s\": %v", KeysEnv, KeysFile, err)
 	}
 
 	// create an ubirch protocol instance
@@ -113,7 +114,7 @@ func main() {
 	// listen to messages to sign via http
 	httpSrvSign := api.HTTPServer{MessageHandler: msgsToSign, AuthTokens: conf.Devices}
 	wg.Add(1)
-	httpSrvSign.Serve(ctx, &wg, conf.TLS, conf.CertFile, conf.KeyFile)
+	httpSrvSign.Serve(ctx, &wg, conf.TLS, conf.TLS_CertFile, conf.TLS_KeyFile)
 
 	// wait forever, exit is handled via shutdown
 	select {}

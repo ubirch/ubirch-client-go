@@ -5,8 +5,10 @@
   },
   "secret": "MTIzNDU2Nzg5MDEyMzQ1Ng==",
   "DSN": "postgres://username:password@hostname:5432/database?sslmode=disable",
-  "staticUUID": false,
+  "staticKeys": false,
   "env": "demo",
   "TLS": true,
+  "TLSCertFile": "certs/cert.pem",
+  "TLSKeyFile": "certs/key.pem",
   "debug": false
 }
