@@ -155,8 +155,8 @@ By default, docker client will look for the `key.pem` and `cert.pem` files in th
 (same location as the config file), but you can define a different location (relative to the working 
 directory) and/or filename by adding them to your configuration file like this:
 ```
-  "TLSCertFile": "certs/cert.pem",
-  "TLSKeyFile": "certs/key.pem"
+  "TLSCertFile": "<path/to/TLS-cert-filename>",
+  "TLSKeyFile": "<path/to/TLS-key-filename>"
 ```
 ...or if you are using environment based configuration:
 ```
