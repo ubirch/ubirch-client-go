@@ -77,11 +77,11 @@ The `env` configuration refers to the UBIRCH backend environment. The default va
 production environment. For development, the reference to “prod” may be replaced by “demo”, which is a test system
 that works like the production environment, but stores data only in a blockchain test net.
 
-- file (add the following key-value pair to your `config.json`):
+- add the following key-value pair to your `config.json`:
 ```
   "env": "<ubirch backend environment, defaults to 'prod'>"
 ```
-- env:
+- or set the following environment variable:
 ```
 export UBIRCH_ENV=<ubirch backend environment, defaults to 'prod'>
 ```
@@ -95,7 +95,7 @@ If you want to use a SQL database instead of a local file, make sure to apply th
 [database schema](main/schema.sql), as the application will not create it itself on first run, and 
 set the DSN in the configuration.
 
-- file (add the following key-value pair to your `config.json`):
+- add the following key-value pair to your `config.json`:
 ```
   "DSN": "<data source name for database>"
 ```
@@ -111,7 +111,7 @@ signing key. The default value for this flag is `false`, which means the client 
 
 Instead of having the client generate keys dynamically it is possible to inject signing keys as a map UUID to signing key.
 
-- file (add the following key-value pair to your `config.json`):
+- add the following key-value pair to your `config.json`:
 ```
   "staticKeys": <boolean, defaults to ‘false’>,
   "keys": {"<UUID>": "<ecdsa-prime256v1 private key (base64 encoded)>"}
@@ -132,22 +132,21 @@ store the keys persistently in the encrypted keystore.*
  
 #### Serve HTTPS
 ##### Create a self-signed TLS certificate
-In order to serve HTTS endpoints, you can run the following command to create a self-signed certificate with openssl.
+In order to serve HTTPS endpoints, you can run the following command to create a self-signed certificate with openssl.
  With this command it will be valid for ten years.
 ```console
 $ openssl req -x509 -newkey rsa:4096 -keyout key.pem -nodes -out cert.pem -days 3650
 ``` 
 
 ##### Enable TLS in configuration
-To enable TLS for the UBIRCH client service, set ...
+To enable TLS for the UBIRCH client service, add the following key-value pair to your `config.json`:
 ```
   "TLS": true
 ```
-...in your `config.json` or ...
+...or set the following environment variable:
 ```
 export UBIRCH_TLS=true
 ```
-as environment variable.
 
 By default, docker client will look for the `key.pem` and `cert.pem` files in the working directory 
 (same location as the config file), but you can define a different location (relative to the working 
