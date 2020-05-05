@@ -190,6 +190,14 @@ func (c *Config) loadAuthMap() error {
 		return err
 	}
 
+	if c.Keys == nil {
+		c.Keys = make(map[string]string)
+	}
+
+	if c.Devices == nil {
+		c.Devices = make(map[string]string)
+	}
+
 	for k, v := range buffer {
 		c.Keys[k] = v[0]
 		c.Devices[k] = v[1]
@@ -211,6 +219,10 @@ func (c *Config) loadKeys() error {
 		if err != nil {
 			return err
 		}
+	}
+
+	if c.Keys == nil {
+		c.Keys = make(map[string]string)
 	}
 
 	return json.Unmarshal(keyBytes, &c.Keys)
