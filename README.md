@@ -109,24 +109,17 @@ The `staticKeys`-flag may be used to disable dynamic key generation and only acc
 signing key. The default value for this flag is `false`, which means the client will per default generate a new ECDSA
 (prime256v1) key pair if it receives a request from a UUID without a corresponding signing key in the keystore.
 
-Instead of having the client generate keys dynamically it is possible to inject signing keys as a map in the form...
-
-    {"<UUID>": "<ecdsa-prime256v1 private key (base64 encoded)>"}
-
-...as env variable `UBIRCH_KEYS` or in a file `keys.json`.
+Instead of having the client generate keys dynamically it is possible to inject signing keys as a map UUID to signing key.
 
 - file (add the following key-value pair to your `config.json`):
 ```
-  "staticKeys": <boolean, defaults to ‘false’>
-  "keys": {
-    "e1aead08-1fcb-47b3-bf2c-d3343cb979da": "ZCJEojZraAqDJFPUxYR4saxkwM222tnLdd6MbRMtLKs=",
-    "8a70ad8b-a564-4e58-9a3b-224ac0f0153f": "/yvKyc+hrO0HXlXq3eoofw7m85P1zZIiZ+l2UpExz1I="
-  }
+  "staticKeys": <boolean, defaults to ‘false’>,
+  "keys": {"<UUID>": "<ecdsa-prime256v1 private key (base64 encoded)>"}
 ```
 - env:
 ```
 export UBIRCH_STATICKEYS=<boolean, defaults to ‘false’>
-export UBIRCH_KEYS="e1aead08-1fcb-47b3-bf2c-d3343cb979da:ZCJEojZraAqDJFPUxYR4saxkwM222tnLdd6MbRMtLKs=,8a70ad8b-a564-4e58-9a3b-224ac0f0153f:/yvKyc+hrO0HXlXq3eoofw7m85P1zZIiZ+l2UpExz1I="
+export UBIRCH_KEYS="<UUID>:<ecdsa-prime256v1 private key (base64 encoded)>"
 ```
 
 > ECDSA signing keys (prime256v1) can be generated on the command line using openssl:
@@ -134,8 +127,8 @@ export UBIRCH_KEYS="e1aead08-1fcb-47b3-bf2c-d3343cb979da:ZCJEojZraAqDJFPUxYR4sax
 $ openssl ecparam -genkey -name prime256v1 -noout | openssl ec -text -noout | grep priv -A 3 | tail -n +2 | tr -d ': ' | xxd -r -p | base64
 ```
 
-Either way (dynamically generated or injected) the client will register the public key at the UBIRCH key service and
-store the keys persistently in the encrypted keystore.
+*Either way (dynamically generated or injected) the client will register the public key at the UBIRCH key service and
+store the keys persistently in the encrypted keystore.*
  
 #### Serve HTTPS
 ##### Create a self-signed TLS certificate
