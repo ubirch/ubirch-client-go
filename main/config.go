@@ -34,9 +34,11 @@ const (
 	KEY_URL    = "https://key.%s.ubirch.com/api/keyService/v1/pubkey"
 	NIOMON_URL = "https://niomon.%s.ubirch.com/"
 	VERIFY_URL = "https://verify.%s.ubirch.com/api/upp"
-	KeysFile   = "keys.json"       // legacy
-	KeysEnv    = "UBIRCH_KEY_MAP"  // legacy
-	AuthEnv    = "UBIRCH_AUTH_MAP" // legacy (map UUID: [key, token])
+
+	KeysFile = "keys.json"       // legacy {UUID: key}
+	KeysEnv  = "UBIRCH_KEY_MAP"  // legacy {UUID: key}
+	AuthFile = "auth.json"       // legacy {UUID: [key, token]}
+	AuthEnv  = "UBIRCH_AUTH_MAP" // legacy {UUID: [key, token]}
 )
 
 // configuration of the device
@@ -59,9 +61,9 @@ type Config struct {
 
 func (c *Config) Load() error {
 	// assume that we want to load from env instead of config files, if
-	// we have the UBIRCH_DEVICES env variable set.
+	// we have the UBIRCH_SECRET env variable set.
 	var err error
-	if os.Getenv("UBIRCH_DEVICES") != "" {
+	if os.Getenv("UBIRCH_SECRET") != "" {
 		err = c.loadEnv()
 	} else {
 		err = c.loadFile(filepath.Join(ConfigDir, ConfigFile))
@@ -176,13 +178,10 @@ func (c *Config) loadAuthMap() error {
 	if authMap != "" {
 		authMapBytes = []byte(authMap)
 	} else {
-		return fmt.Errorf("%s not found", AuthEnv)
-		// 	todo
-		//  log.Printf("loading auth from file %s", filepath.Join(ConfigDir, filename))
-		//	authMapBytes, err = ioutil.ReadFile(filepath.Join(ConfigDir, filename))
-		//	if err != nil {
-		//		return err
-		//	}
+		authMapBytes, err = ioutil.ReadFile(filepath.Join(ConfigDir, AuthFile))
+		if err != nil {
+			return err
+		}
 	}
 
 	buffer := make(map[string][]string)
