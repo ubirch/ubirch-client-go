@@ -42,8 +42,8 @@ The client is able to handle multiple cryptographic identities (i.e. for multipl
  these devices must be declared in the configuration file together with their respective authentication token. Only
  requests from *known* UUIDs will be accepted by the client.
 
-The client will first look if the `UBIRCH_DEVICES` env variable exists and load the configuration from the environment
- variables in that case. If the `UBIRCH_DEVICES` env variable is not set or empty, and the `config.json`-file exists in 
+The client will first look if the `UBIRCH_SECRET` env variable exists and load the configuration from the environment
+ variables in that case. If the `UBIRCH_SECRET` env variable is not set or empty, and the `config.json`-file exists in 
  the working directory, the configuration will be loaded from the file. If neither exist, the client will abort and exit.
  
 The only two mandatory configurations are 
