@@ -113,20 +113,25 @@ Instead of having the client generate keys dynamically it is possible to inject 
 
     {"<UUID>": "<ecdsa-prime256v1 private key (base64 encoded)>"}
 
-...as env variable `UBIRCH_KEY_MAP` or in a file `keys.json`.
-
-> ECDSA signing keys (prime256v1) can be generated on the command line using openssl:
-```console
-$ openssl ecparam -genkey -name prime256v1 -noout | openssl ec -text -noout | grep priv -A 3 | tail -n +2 | tr -d ': ' | xxd -r -p | base64
-```
+...as env variable `UBIRCH_KEYS` or in a file `keys.json`.
 
 - file (add the following key-value pair to your `config.json`):
 ```
   "staticKeys": <boolean, defaults to ‘false’>
+  "keys": {
+    "e1aead08-1fcb-47b3-bf2c-d3343cb979da": "ZCJEojZraAqDJFPUxYR4saxkwM222tnLdd6MbRMtLKs=",
+    "8a70ad8b-a564-4e58-9a3b-224ac0f0153f": "/yvKyc+hrO0HXlXq3eoofw7m85P1zZIiZ+l2UpExz1I="
+  }
 ```
 - env:
 ```
 export UBIRCH_STATICKEYS=<boolean, defaults to ‘false’>
+export UBIRCH_KEYS="e1aead08-1fcb-47b3-bf2c-d3343cb979da:ZCJEojZraAqDJFPUxYR4saxkwM222tnLdd6MbRMtLKs=,8a70ad8b-a564-4e58-9a3b-224ac0f0153f:/yvKyc+hrO0HXlXq3eoofw7m85P1zZIiZ+l2UpExz1I="
+```
+
+> ECDSA signing keys (prime256v1) can be generated on the command line using openssl:
+```console
+$ openssl ecparam -genkey -name prime256v1 -noout | openssl ec -text -noout | grep priv -A 3 | tail -n +2 | tr -d ': ' | xxd -r -p | base64
 ```
 
 Either way (dynamically generated or injected) the client will register the public key at the UBIRCH key service and

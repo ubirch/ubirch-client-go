@@ -32,8 +32,6 @@ var ConfigDir string
 const (
 	ConfigFile  = "config.json"
 	ContextFile = "protocol.json"
-	KeysFile    = "keys.json"
-	KeysEnv     = "UBIRCH_KEY_MAP"
 )
 
 var (
@@ -77,12 +75,6 @@ func main() {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
 
-	// read keys from key file / env variable
-	keyMap, err := LoadKeys()
-	if err != nil && conf.StaticKeys {
-		log.Fatalf("ERROR: dynamic key generation disabled and unable to load signing keys from env var \"%s\" or file \"%s\": %v", KeysEnv, KeysFile, err)
-	}
-
 	// create an ubirch protocol instance
 	p := ExtendedProtocol{}
 	p.Crypto = &ubirch.CryptoContext{
@@ -92,7 +84,7 @@ func main() {
 	p.Signatures = map[uuid.UUID][]byte{}
 	p.Certificates = map[string][]byte{}
 
-	err = p.Init(conf.DSN, keyMap)
+	err = p.Init(conf.DSN, conf.Keys)
 	if err != nil {
 		log.Fatal(err)
 	}

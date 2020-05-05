@@ -6,7 +6,11 @@
   "secret": "MTIzNDU2Nzg5MDEyMzQ1Ng==",
   "env": "demo",
   "DSN": "postgres://username:password@hostname:5432/database?sslmode=disable",
-  "staticKeys": false,
+  "staticKeys": true,
+  "keys": {
+    "e1aead08-1fcb-47b3-bf2c-d3343cb979da": "ZCJEojZraAqDJFPUxYR4saxkwM222tnLdd6MbRMtLKs=",
+    "8a70ad8b-a564-4e58-9a3b-224ac0f0153f": "/yvKyc+hrO0HXlXq3eoofw7m85P1zZIiZ+l2UpExz1I="
+  },
   "TLS": true,
   "TLSCertFile": "certs/cert.pem",
   "TLSKeyFile": "certs/key.pem",

@@ -34,6 +34,9 @@ const (
 	KEY_URL    = "https://key.%s.ubirch.com/api/keyService/v1/pubkey"
 	NIOMON_URL = "https://niomon.%s.ubirch.com/"
 	VERIFY_URL = "https://verify.%s.ubirch.com/api/upp"
+	KeysFile   = "keys.json"       // legacy
+	KeysEnv    = "UBIRCH_KEY_MAP"  // legacy
+	AuthEnv    = "UBIRCH_AUTH_MAP" // legacy (map UUID: [key, token])
 )
 
 // configuration of the device
@@ -41,12 +44,13 @@ type Config struct {
 	Devices       map[string]string `json:"devices"`     // maps UUIDs to backend auth tokens
 	Secret        string            `json:"secret"`      // secret used to encrypt the key store
 	DSN           string            `json:"DSN"`         // "data source name" for database connection
-	StaticKeys    bool              `json:"staticKeys"`  // disable dynamic key generation, defaults to 'false'
 	Env           string            `json:"env"`         // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
 	TLS           bool              `json:"TLS"`         // enable serving HTTPS endpoints, defaults to 'false'
 	TLS_CertFile  string            `json:"TLSCertFile"` // filename of TLS certificate file name, defaults to "cert.pem"
 	TLS_KeyFile   string            `json:"TLSKeyFile"`  // filename of TLS key file name, defaults to "key.pem"
 	Debug         bool              `json:"debug"`       // enable extended debug output, defaults to 'false'
+	StaticKeys    bool              `json:"staticKeys"`  // disable dynamic key generation, defaults to 'false'
+	Keys          map[string]string `json:"keys"`        // maps UUIDs to injected keys
 	KeyService    string            // key service URL (set automatically)
 	Niomon        string            // authentication service URL (set automatically)
 	VerifyService string            // verification service URL (set automatically)
@@ -71,11 +75,12 @@ func (c *Config) Load() error {
 		return fmt.Errorf("unable to decode base64 encoded secret (%s): %v", c.Secret, err)
 	}
 
+	_ = c.loadKeys()
+	_ = c.loadAuthMap()
 	err = c.checkMandatory()
 	if err != nil {
 		return err
 	}
-
 	c.setDefaultTLS()
 	return c.setDefaultURLs()
 }
@@ -104,9 +109,16 @@ func (c *Config) checkMandatory() error {
 	} else {
 		log.Printf("loaded %d devices from configuration", len(c.Devices))
 	}
+
 	if len(c.SecretBytes) != 16 {
 		return fmt.Errorf("secret length must be 16 bytes (is %d)", len(c.SecretBytes))
 	}
+
+	if c.StaticKeys && (c.Keys == nil || len(c.Keys) == 0) {
+		return fmt.Errorf("dynamic key generation disabled and unable to load signing keys from "+
+			"env \"%s\" or \"%s\" (legacy) or file \"%s\"", KeysEnv, AuthEnv, KeysFile)
+	}
+
 	return nil
 }
 
@@ -155,8 +167,40 @@ func (c *Config) setDefaultURLs() error {
 	return nil
 }
 
-// LoadKeys loads the keys map from environment or file
-func LoadKeys() (map[string]string, error) {
+// loadAuthMap loads the auth map from the environment
+func (c *Config) loadAuthMap() error {
+	var err error
+	var authMapBytes []byte
+
+	authMap := os.Getenv(AuthEnv)
+	if authMap != "" {
+		authMapBytes = []byte(authMap)
+	} else {
+		return fmt.Errorf("%s not found", AuthEnv)
+		// 	todo
+		//  log.Printf("loading auth from file %s", filepath.Join(ConfigDir, filename))
+		//	authMapBytes, err = ioutil.ReadFile(filepath.Join(ConfigDir, filename))
+		//	if err != nil {
+		//		return err
+		//	}
+	}
+
+	buffer := make(map[string][]string)
+	err = json.Unmarshal(authMapBytes, &buffer)
+	if err != nil {
+		return err
+	}
+
+	for k, v := range buffer {
+		c.Keys[k] = v[0]
+		c.Devices[k] = v[1]
+	}
+
+	return nil
+}
+
+// loadKeys loads the keys map from environment or file
+func (c *Config) loadKeys() error {
 	var err error
 	var keyBytes []byte
 
@@ -166,11 +210,9 @@ func LoadKeys() (map[string]string, error) {
 	} else {
 		keyBytes, err = ioutil.ReadFile(filepath.Join(ConfigDir, KeysFile))
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
-	keyMap := make(map[string]string)
-	err = json.Unmarshal(keyBytes, &keyMap)
-	return keyMap, err
+	return json.Unmarshal(keyBytes, &c.Keys)
 }
