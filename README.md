@@ -99,7 +99,7 @@ set the DSN in the configuration.
 ```
   "DSN": "<data source name for database>"
 ```
-- env:
+- or set the following environment variable:
 ```
 export UBIRCH_DSN=<data source name for database>
 ```
@@ -116,7 +116,7 @@ Instead of having the client generate keys dynamically it is possible to inject 
   "staticKeys": <boolean, defaults to ‘false’>,
   "keys": {"<UUID>": "<ecdsa-prime256v1 private key (base64 encoded)>"}
 ```
-- env:
+- or set the following environment variable:
 ```
 export UBIRCH_STATICKEYS=<boolean, defaults to ‘false’>
 export UBIRCH_KEYS="<UUID>:<ecdsa-prime256v1 private key (base64 encoded)>"
