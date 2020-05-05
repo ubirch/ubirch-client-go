@@ -35,10 +35,10 @@ const (
 	NIOMON_URL = "https://niomon.%s.ubirch.com/"
 	VERIFY_URL = "https://verify.%s.ubirch.com/api/upp"
 
-	KeysFile = "keys.json"       // legacy {UUID: key}
-	KeysEnv  = "UBIRCH_KEY_MAP"  // legacy {UUID: key}
-	AuthFile = "auth.json"       // legacy {UUID: [key, token]}
-	AuthEnv  = "UBIRCH_AUTH_MAP" // legacy {UUID: [key, token]}
+	KeysFile = "keys.json"       // {UUID: key} DEPRECATED
+	KeysEnv  = "UBIRCH_KEYS"     // {UUID: key}
+	AuthEnv  = "UBIRCH_AUTH_MAP" // {UUID: [key, token]}
+	AuthFile = "auth.json"       // {UUID: [key, token]}
 )
 
 // configuration of the device
@@ -77,7 +77,6 @@ func (c *Config) Load() error {
 		return fmt.Errorf("unable to decode base64 encoded secret (%s): %v", c.Secret, err)
 	}
 
-	_ = c.loadKeys()
 	_ = c.loadAuthMap()
 	err = c.checkMandatory()
 	if err != nil {
@@ -104,6 +103,7 @@ func (c *Config) loadFile(filename string) error {
 }
 
 func (c *Config) checkMandatory() error {
+	assertFileNotExist(KeysFile)
 	if c.Devices == nil || len(c.Devices) == 0 {
 		return fmt.Errorf("There are no devices authorized to use this client.\n" +
 			"It is mandatory to set at least one device UUID and auth token in the configuration.\n" +
@@ -117,8 +117,8 @@ func (c *Config) checkMandatory() error {
 	}
 
 	if c.StaticKeys && (c.Keys == nil || len(c.Keys) == 0) {
-		return fmt.Errorf("dynamic key generation disabled and unable to load signing keys from "+
-			"env \"%s\" or \"%s\" (legacy) or file \"%s\"", KeysEnv, AuthEnv, KeysFile)
+		return fmt.Errorf("dynamic key generation disabled but unable to load signing keys from "+
+			"env (\"%s\" or \"%s\") or file (\"%s\" or \"%s\")", KeysEnv, AuthEnv, ConfigFile, AuthFile)
 	}
 
 	return nil
@@ -206,24 +206,14 @@ func (c *Config) loadAuthMap() error {
 	return nil
 }
 
-// loadKeys loads the keys map from environment or file
-func (c *Config) loadKeys() error {
-	var err error
-	var keyBytes []byte
-
-	keys := os.Getenv(KeysEnv)
-	if keys != "" {
-		keyBytes = []byte(keys)
-	} else {
-		keyBytes, err = ioutil.ReadFile(filepath.Join(ConfigDir, KeysFile))
-		if err != nil {
-			return err
-		}
+// helper function to assert deprecated json file does not exist
+// determines program if file exists
+// map (keys: {UUID: key}) is now part of ConfigFile
+func assertFileNotExist(filename string) {
+	_, err := os.Stat(filepath.Join(ConfigDir, filename))
+	if os.IsNotExist(err) {
+		return
 	}
-
-	if c.Keys == nil {
-		c.Keys = make(map[string]string)
-	}
-
-	return json.Unmarshal(keyBytes, &c.Keys)
+	log.Fatalf("ERROR: configuration file \"%s\" is deprecated! Please add "+
+		"'  \"keys\": {\"<UUID>\": \"<key>\"}' to \"%s\" if you want to inject signing keys.", filename, ConfigFile)
 }
