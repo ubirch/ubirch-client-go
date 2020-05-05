@@ -4,8 +4,8 @@ The UBIRCH client provides signature and chaining services to seal original data
  packaging the hashed data into a chained *UBIRCH PROTOCOL PACKET ("UPP")*, signing the package and sending it to the 
  UBIRCH backend for storage, anchoring in the blockchain, and as a source for verification requests.
  
-The original data must be stored in a customer database to be able to execute verification requests at a later stage.
- UBIRCH does not store any original sensitive data!
+*The original data must be stored in a customer database to be able to execute verification requests at a later stage.
+ UBIRCH does not store any original sensitive data!*
  
 UPP data is sent to the UBIRCH client via HTTP requests. The client can receive either the original data as a JSON data
  package which will be formatted and hashed (SHA256) by the client, or the binary representation of a hash that is directly
@@ -113,7 +113,7 @@ Instead of having the client generate keys dynamically it is possible to inject 
 
     {"<UUID>": "<ecdsa-prime256v1 private key (base64 encoded)>"}
 
-...as env variable `UBIRCH_KEYS` or in a file `keys.json`.
+...as env variable `UBIRCH_KEY_MAP` or in a file `keys.json`.
 
 > ECDSA signing keys (prime256v1) can be generated on the command line using openssl:
 ```console

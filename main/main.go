@@ -33,7 +33,7 @@ const (
 	ConfigFile  = "config.json"
 	ContextFile = "protocol.json"
 	KeysFile    = "keys.json"
-	KeysEnv     = "UBIRCH_KEYS"
+	KeysEnv     = "UBIRCH_KEY_MAP"
 )
 
 var (
