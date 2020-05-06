@@ -109,7 +109,7 @@ func (c *Config) checkMandatory() error {
 			"It is mandatory to set at least one device UUID and auth token in the configuration.\n" +
 			"For more information take a look at the README under 'Configuration'.")
 	} else {
-		log.Printf("loaded %d devices from configuration", len(c.Devices))
+		log.Printf("%d known UUID(s)", len(c.Devices))
 	}
 
 	if len(c.SecretBytes) != 16 {
@@ -155,7 +155,7 @@ func (c *Config) setDefaultURLs() error {
 		return fmt.Errorf("invalid UBIRCH backend environment: \"%s\"", c.Env)
 	}
 
-	log.Printf("using UBIRCH backend \"%s\" environment", c.Env)
+	log.Printf("UBIRCH backend \"%s\" environment", c.Env)
 
 	if c.KeyService == "" {
 		c.KeyService = fmt.Sprintf(KEY_URL, c.Env)

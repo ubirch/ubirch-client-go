@@ -248,7 +248,12 @@ Then just enter the following two lines in your working directory:
     ```
     2020/04/14 13:40:54 UBIRCH client (v2.0.0, build=local)
     2020/04/14 13:40:54 loading configuration from file (config.json)
+    2020/04/14 13:40:54 1 known UUID(s)
+    2020/04/14 13:40:54 UBIRCH backend "demo" environment
+    2020/04/14 13:40:54 protocol context will be saved to file (protocol.json)
     2020/04/14 13:40:54 loaded protocol context: 0 certificates, 0 signatures
+    2020/04/14 13:40:54 starting HTTP service
+    
     ```
     That means the client is running and ready!
     
