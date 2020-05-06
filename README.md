@@ -11,8 +11,10 @@ UPP data is sent to the UBIRCH client via HTTP requests. The client can receive 
  package which will be formatted and hashed (SHA256) by the client, or the binary representation of a hash that is directly
  added to the UPP.
  
-The UBIRCH client stores its signing keys and the signature of the last UPP persistently to ensure an intact chain even
+The UBIRCH client stores its signing keys and the signature of the last UPP persistently to ensure an intact chain
  after a restart.
+
+![UBIRCH client](images/ubirch_client.png)
 
 ### Dockerized UBIRCH client
 The UBIRCH client is provided as a docker image that can be configured and run on any system that can run docker (Intel/AMD64 or ARM64 architecture).
@@ -280,7 +282,7 @@ Then just enter the following two lines in your working directory:
    
    If your request was submitted, you'll get a `HTTP/1.1 200 OK` response.
    
-   The HTTP response body from the client is a map containing the data hash and the UPP, that has been sent 
+   The HTTP response body from the client is a JSON map containing the data hash and the UPP, that has been sent 
    to the UBIRCH backend, and the response from the backend, which is a UPP as well. UPPs are in *msgpack*-format.
    
    ```json
@@ -293,13 +295,19 @@ Then just enter the following two lines in your working directory:
    
 1. To stop the client, press `ctrl` + `c`.
    
-1. You can verify that your data hash was received, verified, chained and anchored by the UBIRCH backend
-   - in the [UBIRCH web UI](https://console.demo.ubirch.com/verification/graph)
+### Verification
+1. It is possible to verify that the data hash was received, verified, chained and anchored by the UBIRCH backend
+   - either in the [UBIRCH web UI](https://console.demo.ubirch.com/verification/graph)
    - or with CURL: 
    
         `curl -d '<YOUR_HASH>' https://verify.demo.ubirch.com/api/upp/verify/anchor`
    
-        If the verification was successful, the response looks like this:
+        This endpoint checks if the *UPP*, which contains the data hash has arrived correctly and was verifiable, 
+        gives information about the chain (*prev*ious UPP) as well as blockchain info on the time frame (the upper 
+        and lower bounds) when the data was received, i.e. the closest blockchain transactions before and after the 
+        data was received by the UBIRCH backend (*anchors*).
+        
+        If the verification was successful, the service will send a *200* response with a JSON formatted body like this:
         ```json
         {
           "upp": "liPEEJnqh/TPxEVni9ELTBXq9V7EQGOMAcwCV4rbHGZT+A8sd2DOpRB2mdUyZSSg7wB5hYNix5CszzbhRksmDTP/mADH1EBEPnUgfXbo6Y6dbFBL6CgAxCAy+oS7kDq+fc74gcKSX1UsG0iuOx5iwkW/MyED7Df9PcRAQ9hNm3gkM5vyeIX8zwI+7D/VbsgpLV5o4oYLFo7FilA8Urj5ELQNrC0PKYKco0LoC7xNbVoIhrvOnLNZVyme3w==",
@@ -330,7 +338,8 @@ Then just enter the following two lines in your working directory:
         ```
      > Note that the first UPP to be anchored will not have a 'previous' package to be chained to. The `"prev"` value will therefore be `null`.
     
-        Since this endpoint is relatively slow to respond, you can do a quick check by sending a request with your hash to 
+        Since this endpoint is relatively slow to respond (may take up to 1-2 minutes before the anchors are verifiable),
+        you can do a quick check by sending a request with your hash to 
         ```
         https://verify.demo.ubirch.com/api/upp
         ```
@@ -340,7 +349,7 @@ Then just enter the following two lines in your working directory:
         ```
         which additionally checks the chain. 
         
-        If you get an empty response, that means the hash could not be verified (yet).
+        If you get a *404* response with an empty body, that means the hash could not be verified (yet).
         
  
  More information on the services and functionalities of the UBIRCH backend you can find here: https://developer.ubirch.com/
@@ -362,5 +371,3 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ```
-
-Authors: Matthias L. Jugel, Waldemar Grünwald, Roxana Meixner
