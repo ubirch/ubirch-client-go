@@ -40,6 +40,10 @@ type HTTPResponse struct {
 	Content []byte
 }
 
+func logError(err error) {
+	log.Printf("HTTP SERVER ERROR: %s", err)
+}
+
 // helper function to get "content-type" from headers
 func ContentType(r *http.Request) string {
 	return strings.ToLower(r.Header.Get("content-type"))
@@ -148,20 +152,20 @@ func forwardBackendResponse(w http.ResponseWriter, respChan chan HTTPResponse) {
 	}
 	_, err := w.Write(resp.Content)
 	if err != nil {
-		log.Printf("HTTP server encountered error writing response: %s", err)
+		logError(fmt.Errorf("unable to write response: %s", err))
 	}
 }
 
 func (srv *HTTPServer) sign(w http.ResponseWriter, r *http.Request, isHash bool) {
 	id, err := checkAuth(w, r, srv.AuthTokens)
 	if err != nil {
-		log.Printf("HTTP SERVER ERROR: %s", err)
+		logError(err)
 		return
 	}
 
 	data, err := getData(w, r)
 	if err != nil {
-		log.Printf("HTTP SERVER ERROR: %s", err)
+		logError(err)
 		return
 	}
 
@@ -178,7 +182,7 @@ func (srv *HTTPServer) sign(w http.ResponseWriter, r *http.Request, isHash bool)
 func (srv *HTTPServer) signHash(w http.ResponseWriter, r *http.Request) {
 	err := assertContentType(w, r, BinType)
 	if err != nil {
-		log.Printf("HTTP SERVER ERROR: %s", err)
+		logError(err)
 		return
 	}
 
@@ -188,7 +192,7 @@ func (srv *HTTPServer) signHash(w http.ResponseWriter, r *http.Request) {
 func (srv *HTTPServer) signJSON(w http.ResponseWriter, r *http.Request) {
 	err := assertContentType(w, r, JSONType)
 	if err != nil {
-		log.Printf("HTTP SERVER ERROR: %s", err)
+		logError(err)
 		return
 	}
 
