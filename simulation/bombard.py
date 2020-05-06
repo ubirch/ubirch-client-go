@@ -2,11 +2,12 @@ import base64
 import binascii
 import hashlib
 import json
-import msgpack
-import requests
 import secrets
 import sys
 import time
+
+import msgpack
+import requests
 
 
 def hash_msg(msg: dict) -> (str, str):
@@ -68,7 +69,11 @@ while i < 100:
     dur = int(time.time()) - start_time
     if dur > max_dur: max_dur = dur
 
-    r_map = json.loads(r.text)
+    try:
+        r_map = json.loads(r.text)
+    except Exception:
+        print("client returned unexpected error: ({}) {}".format(r.status_code, r.text))
+        continue
 
     if r.status_code != 200:
         print("request failed! {}: ".format(r.status_code))
@@ -97,6 +102,7 @@ headers = {
     'Accept': 'application/json',
     'Content-Type': 'text/plain'
 }
+
 i = 0
 while len(hashes) > 0:
     i += 1
