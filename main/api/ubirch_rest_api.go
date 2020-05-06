@@ -16,6 +16,8 @@ import (
 	"github.com/google/uuid"
 )
 
+const keyUUID = "uuid"
+
 // wrapper for http.Error that additionally logs the error message to std.Output
 func Error(w http.ResponseWriter, error string, code int) {
 	log.Printf("HTTP server error: " + error)
@@ -30,6 +32,34 @@ func ContentType(r *http.Request) string {
 // helper function to get "x-auth-token" from headers
 func XAuthToken(r *http.Request) string {
 	return r.Header.Get("x-auth-token")
+}
+
+func checkAuth(w http.ResponseWriter, r *http.Request, AuthTokens map[string]string) (uuid.UUID, error) {
+	// get UUID from URL
+	urlParam := chi.URLParam(r, keyUUID)
+	id, err := uuid.Parse(urlParam)
+	if err != nil {
+		err := fmt.Sprintf("unable to parse \"%s\" as UUID: %s", urlParam, err)
+		http.Error(w, err, http.StatusNotFound)
+		return uuid.Nil, fmt.Errorf(err)
+	}
+
+	// check if UUID is known
+	idAuthToken, exists := AuthTokens[id.String()]
+	if !exists {
+		err := fmt.Sprintf("unknown UUID \"%s\"", id.String())
+		http.Error(w, err, http.StatusNotFound)
+		return uuid.Nil, fmt.Errorf(err)
+	}
+
+	// check authorization
+	if XAuthToken(r) != idAuthToken {
+		err := "invalid \"X-Auth-Token\""
+		http.Error(w, err, http.StatusUnauthorized)
+		return uuid.Nil, fmt.Errorf(err)
+	}
+
+	return id, err
 }
 
 // blocks until response is received and forwards it to sender
@@ -65,22 +95,9 @@ type HTTPResponse struct {
 
 func (srv *HTTPServer) handleRequestHash(w http.ResponseWriter, r *http.Request) {
 	// get UUID from URL
-	id, err := uuid.Parse(chi.URLParam(r, "uuid"))
+	id, err := checkAuth(w, r, srv.AuthTokens)
 	if err != nil {
-		Error(w, "page not found", http.StatusNotFound)
-		return
-	}
-
-	// check if UUID is known
-	idAuthToken, exists := srv.AuthTokens[id.String()]
-	if !exists {
-		Error(w, fmt.Sprintf("unknown device %s", id.String()), http.StatusNotFound)
-		return
-	}
-
-	// check authorization
-	if XAuthToken(r) != idAuthToken {
-		Error(w, "invalid \"X-Auth-Token\"", http.StatusUnauthorized)
+		log.Printf("HTTP SERVER ERROR: %s", err)
 		return
 	}
 
@@ -106,23 +123,9 @@ func (srv *HTTPServer) handleRequestHash(w http.ResponseWriter, r *http.Request)
 }
 
 func (srv *HTTPServer) handleRequestData(w http.ResponseWriter, r *http.Request) {
-	// get UUID from URL
-	id, err := uuid.Parse(chi.URLParam(r, "uuid"))
+	id, err := checkAuth(w, r, srv.AuthTokens)
 	if err != nil {
-		Error(w, "page not found", http.StatusNotFound)
-		return
-	}
-
-	// check if UUID is known
-	idAuthToken, exists := srv.AuthTokens[id.String()]
-	if !exists {
-		Error(w, fmt.Sprintf("unknown device %s", id.String()), http.StatusNotFound)
-		return
-	}
-
-	// check authorization
-	if XAuthToken(r) != idAuthToken {
-		Error(w, "invalid \"X-Auth-Token\"", http.StatusUnauthorized)
+		log.Printf("HTTP SERVER ERROR: %s", err)
 		return
 	}
 
@@ -171,8 +174,8 @@ func (srv *HTTPServer) handleRequestData(w http.ResponseWriter, r *http.Request)
 
 func (srv *HTTPServer) Serve(ctx context.Context, wg *sync.WaitGroup, TLS bool, certFile string, keyFile string) {
 	router := chi.NewMux()
-	router.Post("/{uuid}", srv.handleRequestData)
-	router.Post("/{uuid}/hash", srv.handleRequestHash)
+	router.Post(fmt.Sprintf("/{%s}", keyUUID), srv.handleRequestData)
+	router.Post(fmt.Sprintf("/{%s}/hash", keyUUID), srv.handleRequestHash)
 
 	server := &http.Server{
 		Addr:         ":8080",
