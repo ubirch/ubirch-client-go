@@ -16,12 +16,28 @@ import (
 	"github.com/google/uuid"
 )
 
-const keyUUID = "uuid"
+const (
+	UUIDKey  = "uuid"
+	BinType  = "application/octet-stream"
+	JSONType = "application/json"
+)
 
-// wrapper for http.Error that additionally logs the error message to std.Output
-func Error(w http.ResponseWriter, error string, code int) {
-	log.Printf("HTTP server error: " + error)
-	http.Error(w, error, code)
+type HTTPServer struct {
+	MessageHandler chan HTTPMessage
+	AuthTokens     map[string]string
+}
+
+type HTTPMessage struct {
+	ID       uuid.UUID
+	Data     []byte
+	IsHash   bool
+	Response chan HTTPResponse
+}
+
+type HTTPResponse struct {
+	Code    int
+	Header  map[string][]string
+	Content []byte
 }
 
 // helper function to get "content-type" from headers
@@ -29,14 +45,26 @@ func ContentType(r *http.Request) string {
 	return strings.ToLower(r.Header.Get("content-type"))
 }
 
+// make sure request has correct content-type
+func assertContentType(w http.ResponseWriter, r *http.Request, expectedType string) error {
+	if ContentType(r) != expectedType {
+		err := fmt.Sprintf("Wrong content-type. Expected \"%s\"", expectedType)
+		http.Error(w, err, http.StatusBadRequest)
+		return fmt.Errorf(err)
+	}
+
+	return nil
+}
+
 // helper function to get "x-auth-token" from headers
 func XAuthToken(r *http.Request) string {
 	return r.Header.Get("x-auth-token")
 }
 
-func checkAuth(r *http.Request, AuthTokens map[string]string, w http.ResponseWriter) (uuid.UUID, error) {
+// get UUID from request URL and check auth token
+func checkAuth(w http.ResponseWriter, r *http.Request, AuthTokens map[string]string) (uuid.UUID, error) {
 	// get UUID from URL
-	urlParam := chi.URLParam(r, keyUUID)
+	urlParam := chi.URLParam(r, UUIDKey)
 	id, err := uuid.Parse(urlParam)
 	if err != nil {
 		err := fmt.Sprintf("unable to parse \"%s\" as UUID: %s", urlParam, err)
@@ -62,7 +90,7 @@ func checkAuth(r *http.Request, AuthTokens map[string]string, w http.ResponseWri
 	return id, err
 }
 
-func getSortedCompactJSON(data []byte, w http.ResponseWriter) ([]byte, error) {
+func getSortedCompactJSON(w http.ResponseWriter, data []byte) ([]byte, error) {
 	var reqDump interface{}
 	var compactSortedJson bytes.Buffer
 
@@ -88,11 +116,31 @@ func getSortedCompactJSON(data []byte, w http.ResponseWriter) ([]byte, error) {
 		return nil, fmt.Errorf(err)
 	}
 
-	return compactSortedJson.Bytes(), nil
+	return compactSortedJson.Bytes(), err
 }
 
-// blocks until response is received and forwards it to sender
-func forwardResponse(respChan chan HTTPResponse, w http.ResponseWriter) {
+func getData(w http.ResponseWriter, r *http.Request) ([]byte, error) {
+	// read request body
+	data, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		err := fmt.Sprintf("unable to read request body: %v", err)
+		http.Error(w, err, http.StatusBadRequest)
+		return nil, fmt.Errorf(err)
+	}
+
+	if ContentType(r) == JSONType {
+		// generate a sorted compact rendering of the json formatted request body
+		data, err = getSortedCompactJSON(w, data)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return data, err
+}
+
+// blocks until response is received and forwards it to sender	// TODO go
+func forwardBackendResponse(w http.ResponseWriter, respChan chan HTTPResponse) {
 	resp := <-respChan
 	w.WriteHeader(resp.Code)
 	for k, v := range resp.Header {
@@ -104,75 +152,14 @@ func forwardResponse(respChan chan HTTPResponse, w http.ResponseWriter) {
 	}
 }
 
-type HTTPServer struct {
-	MessageHandler chan HTTPMessage
-	AuthTokens     map[string]string
-}
-
-type HTTPMessage struct {
-	ID              uuid.UUID
-	Msg             []byte
-	IsAlreadyHashed bool
-	Response        chan HTTPResponse
-}
-
-type HTTPResponse struct {
-	Code    int
-	Header  map[string][]string
-	Content []byte
-}
-
-func (srv *HTTPServer) signHash(w http.ResponseWriter, r *http.Request) {
-	id, err := checkAuth(r, srv.AuthTokens, w)
+func (srv *HTTPServer) sign(w http.ResponseWriter, r *http.Request, isHash bool) {
+	id, err := checkAuth(w, r, srv.AuthTokens)
 	if err != nil {
 		log.Printf("HTTP SERVER ERROR: %s", err)
 		return
 	}
 
-	// make sure request body is of correct type
-	expectedType := "application/octet-stream"
-	if ContentType(r) != expectedType {
-		Error(w, fmt.Sprintf("Wrong content-type. Expected \"%s\"", expectedType), http.StatusBadRequest)
-		return
-	}
-
-	// read request body
-	reqBody, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		Error(w, fmt.Sprintf("unable to read request body: %v", err), http.StatusBadRequest)
-		return
-	}
-
-	respChan := make(chan HTTPResponse)
-	srv.MessageHandler <- HTTPMessage{ID: id, Msg: reqBody, IsAlreadyHashed: true, Response: respChan}
-
-	// wait for response from ubirch backend to be forwarded
-	forwardResponse(respChan, w)
-}
-
-func (srv *HTTPServer) signJSON(w http.ResponseWriter, r *http.Request) {
-	id, err := checkAuth(r, srv.AuthTokens, w)
-	if err != nil {
-		log.Printf("HTTP SERVER ERROR: %s", err)
-		return
-	}
-
-	// make sure request body is of correct type
-	expectedType := "application/json"
-	if ContentType(r) != expectedType {
-		Error(w, fmt.Sprintf("Wrong content-type. Expected \"%s\"", expectedType), http.StatusBadRequest)
-		return
-	}
-
-	// read request body
-	reqBody, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		Error(w, fmt.Sprintf("unable to read request body: %v", err), http.StatusBadRequest)
-		return
-	}
-
-	// generate a sorted compact rendering of the json formatted request body
-	message, err := getSortedCompactJSON(reqBody, w)
+	data, err := getData(w, r)
 	if err != nil {
 		log.Printf("HTTP SERVER ERROR: %s", err)
 		return
@@ -180,16 +167,38 @@ func (srv *HTTPServer) signJSON(w http.ResponseWriter, r *http.Request) {
 
 	// create HTTPMessage with individual response channel for each request
 	respChan := make(chan HTTPResponse)
-	srv.MessageHandler <- HTTPMessage{ID: id, Msg: message, IsAlreadyHashed: false, Response: respChan}
+
+	// submit message for singing
+	srv.MessageHandler <- HTTPMessage{ID: id, Data: data, IsHash: isHash, Response: respChan}
 
 	// wait for response from ubirch backend to be forwarded
-	forwardResponse(respChan, w)
+	forwardBackendResponse(w, respChan)
+}
+
+func (srv *HTTPServer) signHash(w http.ResponseWriter, r *http.Request) {
+	err := assertContentType(w, r, BinType)
+	if err != nil {
+		log.Printf("HTTP SERVER ERROR: %s", err)
+		return
+	}
+
+	srv.sign(w, r, true)
+}
+
+func (srv *HTTPServer) signJSON(w http.ResponseWriter, r *http.Request) {
+	err := assertContentType(w, r, JSONType)
+	if err != nil {
+		log.Printf("HTTP SERVER ERROR: %s", err)
+		return
+	}
+
+	srv.sign(w, r, false)
 }
 
 func (srv *HTTPServer) Serve(ctx context.Context, wg *sync.WaitGroup, TLS bool, certFile string, keyFile string) {
 	router := chi.NewMux()
-	router.Post(fmt.Sprintf("/{%s}", keyUUID), srv.signJSON)
-	router.Post(fmt.Sprintf("/{%s}/hash", keyUUID), srv.signHash)
+	router.Post(fmt.Sprintf("/{%s}", UUIDKey), srv.signJSON)
+	router.Post(fmt.Sprintf("/{%s}/hash", UUIDKey), srv.signHash)
 
 	server := &http.Server{
 		Addr:         ":8080",

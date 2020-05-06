@@ -118,13 +118,13 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 			}
 
 			// send UPP (hash)
-			data := msg.Msg
+			data := msg.Data
 			if !msg.IsHash {
 				// only log original data if in debug-mode and never on production stage
 				if conf.Debug && conf.Env != PROD_STAGE {
 					log.Printf("compact sorted json (go): %s", string(data))
 				}
-				hash := sha256.Sum256(msg.Msg)
+				hash := sha256.Sum256(msg.Data)
 				data = hash[:]
 			}
 			log.Printf("%s: hash: %s\n", name, base64.StdEncoding.EncodeToString(data))
