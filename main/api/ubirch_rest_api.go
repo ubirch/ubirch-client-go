@@ -34,7 +34,7 @@ func XAuthToken(r *http.Request) string {
 	return r.Header.Get("x-auth-token")
 }
 
-func checkAuth(w http.ResponseWriter, r *http.Request, AuthTokens map[string]string) (uuid.UUID, error) {
+func checkAuth(r *http.Request, AuthTokens map[string]string, w http.ResponseWriter) (uuid.UUID, error) {
 	// get UUID from URL
 	urlParam := chi.URLParam(r, keyUUID)
 	id, err := uuid.Parse(urlParam)
@@ -60,6 +60,35 @@ func checkAuth(w http.ResponseWriter, r *http.Request, AuthTokens map[string]str
 	}
 
 	return id, err
+}
+
+func getSortedCompactJSON(data []byte, w http.ResponseWriter) ([]byte, error) {
+	var reqDump interface{}
+	var compactSortedJson bytes.Buffer
+
+	// json.Unmarshal returns an error if data is not valid JSON
+	err := json.Unmarshal(data, &reqDump)
+	if err != nil {
+		err := fmt.Sprintf("unable to parse request body: %v", err)
+		http.Error(w, err, http.StatusBadRequest)
+		return nil, fmt.Errorf(err)
+	}
+	// json.Marshal sorts the keys
+	sortedJson, err := json.Marshal(reqDump)
+	if err != nil {
+		err := fmt.Sprintf("unable to serialize json object: %v", err)
+		http.Error(w, err, http.StatusBadRequest)
+		return nil, fmt.Errorf(err)
+	}
+	// remove spaces and newlines
+	err = json.Compact(&compactSortedJson, sortedJson)
+	if err != nil {
+		err := fmt.Sprintf("unable to compact json object: %v", err)
+		http.Error(w, err, http.StatusBadRequest)
+		return nil, fmt.Errorf(err)
+	}
+
+	return compactSortedJson.Bytes(), nil
 }
 
 // blocks until response is received and forwards it to sender
@@ -93,9 +122,8 @@ type HTTPResponse struct {
 	Content []byte
 }
 
-func (srv *HTTPServer) handleRequestHash(w http.ResponseWriter, r *http.Request) {
-	// get UUID from URL
-	id, err := checkAuth(w, r, srv.AuthTokens)
+func (srv *HTTPServer) signHash(w http.ResponseWriter, r *http.Request) {
+	id, err := checkAuth(r, srv.AuthTokens, w)
 	if err != nil {
 		log.Printf("HTTP SERVER ERROR: %s", err)
 		return
@@ -109,21 +137,21 @@ func (srv *HTTPServer) handleRequestHash(w http.ResponseWriter, r *http.Request)
 	}
 
 	// read request body
-	message, err := ioutil.ReadAll(r.Body)
+	reqBody, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		Error(w, fmt.Sprintf("unable to read request body: %v", err), http.StatusBadRequest)
 		return
 	}
 
 	respChan := make(chan HTTPResponse)
-	srv.MessageHandler <- HTTPMessage{ID: id, Msg: message, IsAlreadyHashed: true, Response: respChan}
+	srv.MessageHandler <- HTTPMessage{ID: id, Msg: reqBody, IsAlreadyHashed: true, Response: respChan}
 
 	// wait for response from ubirch backend to be forwarded
 	forwardResponse(respChan, w)
 }
 
-func (srv *HTTPServer) handleRequestData(w http.ResponseWriter, r *http.Request) {
-	id, err := checkAuth(w, r, srv.AuthTokens)
+func (srv *HTTPServer) signJSON(w http.ResponseWriter, r *http.Request) {
+	id, err := checkAuth(r, srv.AuthTokens, w)
 	if err != nil {
 		log.Printf("HTTP SERVER ERROR: %s", err)
 		return
@@ -144,25 +172,11 @@ func (srv *HTTPServer) handleRequestData(w http.ResponseWriter, r *http.Request)
 	}
 
 	// generate a sorted compact rendering of the json formatted request body
-	var reqDump interface{}
-	var compactSortedJson bytes.Buffer
-	err = json.Unmarshal(reqBody, &reqDump)
+	message, err := getSortedCompactJSON(reqBody, w)
 	if err != nil {
-		Error(w, fmt.Sprintf("unable to parse request body: %v", err), http.StatusBadRequest)
+		log.Printf("HTTP SERVER ERROR: %s", err)
 		return
 	}
-	// json.Marshal sorts the keys
-	sortedJson, err := json.Marshal(reqDump)
-	if err != nil {
-		Error(w, fmt.Sprintf("unable to serialize json object: %v", err), http.StatusBadRequest)
-		return
-	}
-	err = json.Compact(&compactSortedJson, sortedJson)
-	if err != nil {
-		Error(w, fmt.Sprintf("unable to compact json object: %v", err), http.StatusBadRequest)
-		return
-	}
-	message := compactSortedJson.Bytes()
 
 	// create HTTPMessage with individual response channel for each request
 	respChan := make(chan HTTPResponse)
@@ -174,8 +188,8 @@ func (srv *HTTPServer) handleRequestData(w http.ResponseWriter, r *http.Request)
 
 func (srv *HTTPServer) Serve(ctx context.Context, wg *sync.WaitGroup, TLS bool, certFile string, keyFile string) {
 	router := chi.NewMux()
-	router.Post(fmt.Sprintf("/{%s}", keyUUID), srv.handleRequestData)
-	router.Post(fmt.Sprintf("/{%s}/hash", keyUUID), srv.handleRequestHash)
+	router.Post(fmt.Sprintf("/{%s}", keyUUID), srv.signJSON)
+	router.Post(fmt.Sprintf("/{%s}/hash", keyUUID), srv.signHash)
 
 	server := &http.Server{
 		Addr:         ":8080",
