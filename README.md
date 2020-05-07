@@ -173,21 +173,22 @@ export UBIRCH_TLS_KEYFILE=certs/key.pem
 To start the multi-arch Docker image on any system, run:
 ```console
 $ docker pull ubirch/ubirch-client:stable
-$ docker run -v $(pwd):/data --network=host ubirch/ubirch-client:stable
+$ docker run -v $(pwd):/data -p <host_port>:8080 ubirch/ubirch-client:stable
 ```
+> replace `<host_port>` with the desired TCP network port on the host (e.g. `-p 8080:8080`)
+
 The default configuration directory inside the docker container is `/data`.
 The docker image mounts the current directory (`$(pwd)`) into the */data* path to 
-load the configuration file, if configuration is not set via environment variables, 
-and the TLS certificate and key files, if TLS is enabled. 
+load the configuration file (if configuration is not set via environment variables), 
+and the TLS certificate and key files (if TLS is enabled). 
 If no DSN (database) is set in the configuration, the image stores the protocol context 
 (i.e. keystore, key certificates and last signatures) in this directory as well, 
 in which case the directory must be writable. 
 
-It is also possible to pass an absolute path instead of `$(pwd)` or change the default configuration directory 
-with the following call.
-```console
-$ docker run -v $(pwd):/some-path/some-dir --network=host ubirch/ubirch-client:stable /some-path/some-dir
-```
+It is also possible to pass an absolute path instead of `$(pwd)`.
+
+If the */data* path is not used for either configuration file, TLS cert files, or to store the protocol context, 
+the `-v $(pwd):/data` parameter can be omitted.
 
 ### Interface Description
 The UBIRCH client provides two HTTP endpoints for both original data that will be hashed by the client,
@@ -204,11 +205,9 @@ To access either endpoint an authentication token, which corresponds to the `UUI
 | `X-Auth-Token:` | `ubirch backend token related to <UUID>` |
 |-----------------|------------------------------------------| 
 
-The docker container exposes TCP port **8080**.
-
->HTTP:  ```http://localhost:8080/<UUID>```
-
->HTTPS: ```https://localhost:8080/<UUID>```
+>HTTP:  ```http://localhost:<host_port>/<UUID>```
+>
+>HTTPS: ```https://localhost:<host_port>/<UUID>```
 
 Response codes indicate the successful delivery of the UPP to the UBIRCH backend.
  Any code other than `200` should be considered a failure. The client does not retry itself.
@@ -248,7 +247,7 @@ Response codes indicate the successful delivery of the UPP to the UBIRCH backend
 Then just enter the following two lines in your working directory:
     ```console
     $ docker pull ubirch/ubirch-client:stable
-    $ docker run -v $(pwd):/data --network=host ubirch/ubirch-client:stable
+    $ docker run -v $(pwd):/data -p 8080:8080 ubirch/ubirch-client:stable
     ```
     You should see a console output like this:
     ```
