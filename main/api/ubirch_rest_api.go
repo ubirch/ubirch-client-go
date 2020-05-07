@@ -224,7 +224,7 @@ func (srv *HTTPServer) Serve(ctx context.Context, wg *sync.WaitGroup, TLS bool, 
 	go func() {
 		defer wg.Done()
 
-		log.Printf("starting HTTP service")
+		log.Printf("starting HTTP service (TCP port %s)", server.Addr)
 		var err error
 		if TLS {
 			log.Printf("TLS enabled")

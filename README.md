@@ -204,6 +204,12 @@ To access either endpoint an authentication token, which corresponds to the `UUI
 | `X-Auth-Token:` | `ubirch backend token related to <UUID>` |
 |-----------------|------------------------------------------| 
 
+The docker container exposes TCP port **8080**.
+
+>HTTP:  ```http://localhost:8080/<UUID>```
+
+>HTTPS: ```https://localhost:8080/<UUID>```
+
 Response codes indicate the successful delivery of the UPP to the UBIRCH backend.
  Any code other than `200` should be considered a failure. The client does not retry itself.
  A good approach to handle errors is to add a flag to the original data storage that indicates whether the
