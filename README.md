@@ -243,9 +243,9 @@ If the client receives a JSON data package, it will generate a *sorted compact r
       }
     }
     ```
-- sorted compact rendering:
+- sorted compact rendering (string):
     ```
-    '{"data":{"H":"65","T":"26.250"},"id":"605b91b4-49be-4f17-93e7-f1b14384968f","ts":1585838578}'
+    {"data":{"H":"65","T":"26.250"},"id":"605b91b4-49be-4f17-93e7-f1b14384968f","ts":1585838578}
     ```
 - SHA256 digest (base64):
     ```
@@ -350,64 +350,67 @@ Then just enter the following two lines in your working directory:
    
 1. To stop the client, press `ctrl` + `c`.
    
-### Verification
-1. It is possible to verify that the data hash was received, verified, chained and anchored by the UBIRCH backend
-   - either in the [UBIRCH web UI](https://console.demo.ubirch.com/verification/graph)
-   - or with CURL: 
-   
-        `curl -d '<YOUR_HASH>' https://verify.demo.ubirch.com/api/upp/verify/anchor`
-   
-        This endpoint checks if the *UPP*, which contains the data hash has arrived correctly and was verifiable, 
-        gives information about the chain (*prev*ious UPP) as well as blockchain info on the time frame (the upper 
-        and lower bounds) when the data was received, i.e. the closest blockchain transactions before and after the 
-        data was received by the UBIRCH backend (*anchors*).
-        
-        If the verification was successful, the service will send a *200* response with a JSON formatted body like this:
-        ```json
-        {
-          "upp": "liPEEJnqh/TPxEVni9ELTBXq9V7EQGOMAcwCV4rbHGZT+A8sd2DOpRB2mdUyZSSg7wB5hYNix5CszzbhRksmDTP/mADH1EBEPnUgfXbo6Y6dbFBL6CgAxCAy+oS7kDq+fc74gcKSX1UsG0iuOx5iwkW/MyED7Df9PcRAQ9hNm3gkM5vyeIX8zwI+7D/VbsgpLV5o4oYLFo7FilA8Urj5ELQNrC0PKYKco0LoC7xNbVoIhrvOnLNZVyme3w==",
-          "prev": "liPEEJnqh/TPxEVni9ELTBXq9V7EQFMVGwqOGvuiYahX5+1E9Le/Jse778baMOWX4kPCuvTQnwzCoFOvHY09aor7Wl0Hn7h2mPg7kdJ6N2ZRGKNtXB0AxCCPcQmVZAl1b++fj5h0r17cb1+zPJS3WnjqYt+JsmrZoMRAY4wBzAJXitscZlP4Dyx3YM6lEHaZ1TJlJKDvAHmFg2LHkKzPNuFGSyYNM/+YAMfUQEQ+dSB9dujpjp1sUEvoKA==",
-          "anchors": [
-            {
-              "label": "PUBLIC_CHAIN",
-              "properties": {
-                "timestamp": "2020-04-16T22:09:17.836Z",
-                "hash": "CAGRDRTQBNNHHQONUHBMWPHMUTMCYJ9XNKJJNTHMBUZXYKEUKTERIFMNNFBKWUAMAMXERJBQQFNQWA999",
-                "public_chain": "IOTA_TESTNET_IOTA_TESTNET_NETWORK",
-                "prev_hash": "ca6d36581d1265d38d7cb69a6a410aefb5142cbd31c3004cb7bbe6ec83457d9c683eb0a2e498083699e9e6dc233356be0df6f9fb2e1810d65e71b1bd155b3580",
-                "type": "PUBLIC_CHAIN"
-              }
-            },
-            {
-              "label": "PUBLIC_CHAIN",
-              "properties": {
-                "timestamp": "2020-04-16T22:09:25.614Z",
-                "hash": "0x229d8e167a45efe8a552fff884ca2ca540d331dbd51a427107d8ac12f184dc25",
-                "public_chain": "ETHEREUM_TESTNET_RINKEBY_TESTNET_NETWORK",
-                "prev_hash": "ca6d36581d1265d38d7cb69a6a410aefb5142cbd31c3004cb7bbe6ec83457d9c683eb0a2e498083699e9e6dc233356be0df6f9fb2e1810d65e71b1bd155b3580",
-                "type": "PUBLIC_CHAIN"
-              }
-            }
-          ]
-        }
-        ```
-     > Note that the first UPP to be anchored will not have a 'previous' package to be chained to. The `"prev"` value will therefore be `null`.
+## Verification
+It is possible to verify that the data hash was received, verified, chained and anchored by the UBIRCH backend
+- either in the [UBIRCH web UI](https://console.demo.ubirch.com/verification/graph)
+- or using the API:
     
-        Since this endpoint is relatively slow to respond (may take up to 1-2 minutes before the anchors are verifiable),
-        you can do a quick check by sending a request with your hash to 
-        ```
-        https://verify.demo.ubirch.com/api/upp
-        ```
-        to only verify that your data hash was received by the UBIRCH backend, or to 
-        ```
-        https://verify.demo.ubirch.com/api/upp/verify
-        ```
-        which additionally checks the chain. 
-        
-        If you get a *404* response with an empty body, that means the hash could not be verified (yet).
-        
- 
- More information on the services and functionalities of the UBIRCH backend you can find here: https://developer.ubirch.com/
+    Send a POST request with the hash you wish to verify to the UBIRCH verification service:
+    ```
+    https://verify.demo.ubirch.com/api/upp/verify/anchor
+    ```
+    > e.g. `curl -d '<YOUR_HASH>' https://verify.demo.ubirch.com/api/upp/verify/anchor`
+    
+    This endpoint checks if the *UPP*, which contains the data hash has arrived correctly and was verifiable, 
+    gives information about the chain (*prev*ious UPP) as well as blockchain info on the time frame (the upper 
+    and lower bounds) when the data was received, i.e. the closest blockchain transactions before and after the 
+    data was received by the UBIRCH backend (*anchors*).
+    
+    If the verification was successful, the service will send a *200* response with a JSON formatted body like this:
+    ```json
+    {
+      "upp": "liPEEJnqh/TPxEVni9ELTBXq9V7EQGOMAcwCV4rbHGZT+A8sd2DOpRB2mdUyZSSg7wB5hYNix5CszzbhRksmDTP/mADH1EBEPnUgfXbo6Y6dbFBL6CgAxCAy+oS7kDq+fc74gcKSX1UsG0iuOx5iwkW/MyED7Df9PcRAQ9hNm3gkM5vyeIX8zwI+7D/VbsgpLV5o4oYLFo7FilA8Urj5ELQNrC0PKYKco0LoC7xNbVoIhrvOnLNZVyme3w==",
+      "prev": "liPEEJnqh/TPxEVni9ELTBXq9V7EQFMVGwqOGvuiYahX5+1E9Le/Jse778baMOWX4kPCuvTQnwzCoFOvHY09aor7Wl0Hn7h2mPg7kdJ6N2ZRGKNtXB0AxCCPcQmVZAl1b++fj5h0r17cb1+zPJS3WnjqYt+JsmrZoMRAY4wBzAJXitscZlP4Dyx3YM6lEHaZ1TJlJKDvAHmFg2LHkKzPNuFGSyYNM/+YAMfUQEQ+dSB9dujpjp1sUEvoKA==",
+      "anchors": [
+        {
+          "label": "PUBLIC_CHAIN",
+          "properties": {
+            "timestamp": "2020-04-16T22:09:17.836Z",
+            "hash": "CAGRDRTQBNNHHQONUHBMWPHMUTMCYJ9XNKJJNTHMBUZXYKEUKTERIFMNNFBKWUAMAMXERJBQQFNQWA999",
+            "public_chain": "IOTA_TESTNET_IOTA_TESTNET_NETWORK",
+            "prev_hash": "ca6d36581d1265d38d7cb69a6a410aefb5142cbd31c3004cb7bbe6ec83457d9c683eb0a2e498083699e9e6dc233356be0df6f9fb2e1810d65e71b1bd155b3580",
+            "type": "PUBLIC_CHAIN"
+          }
+        },
+        {
+          "label": "PUBLIC_CHAIN",
+          "properties": {
+            "timestamp": "2020-04-16T22:09:25.614Z",
+            "hash": "0x229d8e167a45efe8a552fff884ca2ca540d331dbd51a427107d8ac12f184dc25",
+            "public_chain": "ETHEREUM_TESTNET_RINKEBY_TESTNET_NETWORK",
+            "prev_hash": "ca6d36581d1265d38d7cb69a6a410aefb5142cbd31c3004cb7bbe6ec83457d9c683eb0a2e498083699e9e6dc233356be0df6f9fb2e1810d65e71b1bd155b3580",
+            "type": "PUBLIC_CHAIN"
+          }
+        }
+      ]
+    }
+    ```
+    > Note that the first UPP to be anchored will not have a 'previous' package to be chained to. The `"prev"` value will therefore be `null`.
+    
+    Since this endpoint is relatively slow to respond (may take up to 1-2 minutes before the anchors are verifiable),
+    you can do a quick check by sending a request with your hash to 
+    ```
+    https://verify.demo.ubirch.com/api/upp
+    ```
+    to only verify that your data hash was received by the UBIRCH backend, or to 
+    ```
+    https://verify.demo.ubirch.com/api/upp/verify
+    ```
+    which additionally checks the chain. 
+    
+    If you get a *404* response with an empty body, that means the hash could not be verified (yet).
+
+> More information on the services and functionalities of the UBIRCH backend you can find here: https://developer.ubirch.com/
 
 ## Copyright
 
