@@ -21,6 +21,7 @@ const (
 	UUIDKey  = "uuid"
 	BinType  = "application/octet-stream"
 	JSONType = "application/json"
+	HashLen  = 32
 )
 
 type HTTPServer struct {
@@ -30,7 +31,7 @@ type HTTPServer struct {
 
 type HTTPMessage struct {
 	ID       uuid.UUID
-	Data     []byte
+	Hash     []byte
 	Response chan HTTPResponse
 }
 
@@ -123,7 +124,7 @@ func getSortedCompactJSON(w http.ResponseWriter, data []byte) ([]byte, error) {
 	return compactSortedJson.Bytes(), err
 }
 
-func getData(w http.ResponseWriter, r *http.Request, isHash bool) ([]byte, error) {
+func getHash(w http.ResponseWriter, r *http.Request, isHash bool) ([]byte, error) {
 	// read request body
 	data, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -146,8 +147,14 @@ func getData(w http.ResponseWriter, r *http.Request, isHash bool) ([]byte, error
 	}
 
 	if !isHash {
-		hash := sha256.Sum256(data)
-		data = hash[:]
+		sum256 := sha256.Sum256(data)
+		data = sum256[:]
+	}
+
+	if len(data) != HashLen {
+		err := fmt.Sprintf("invalid hash size. expected %d bytes, got %d (%s)", HashLen, len(data), data)
+		http.Error(w, err, http.StatusBadRequest)
+		return nil, fmt.Errorf(err)
 	}
 
 	return data, err
@@ -173,7 +180,7 @@ func (srv *HTTPServer) sign(w http.ResponseWriter, r *http.Request, isHash bool)
 		return
 	}
 
-	data, err := getData(w, r, isHash)
+	hash, err := getHash(w, r, isHash)
 	if err != nil {
 		logError(err)
 		return
@@ -183,7 +190,7 @@ func (srv *HTTPServer) sign(w http.ResponseWriter, r *http.Request, isHash bool)
 	respChan := make(chan HTTPResponse)
 
 	// submit message for singing
-	srv.MessageHandler <- HTTPMessage{ID: id, Data: data, Response: respChan}
+	srv.MessageHandler <- HTTPMessage{ID: id, Hash: hash, Response: respChan}
 
 	// wait for response from ubirch backend to be forwarded
 	forwardBackendResponse(w, respChan)

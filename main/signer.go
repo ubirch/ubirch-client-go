@@ -124,10 +124,10 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 			}
 
 			// create a chained UPP
-			data := msg.Data
-			log.Printf("%s: hash: %s\n", name, base64.StdEncoding.EncodeToString(data))
+			hash := msg.Hash
+			log.Printf("%s: hash: %s\n", name, base64.StdEncoding.EncodeToString(hash))
 
-			upp, err := p.SignHash(name, data, ubirch.Chained)
+			upp, err := p.SignHash(name, hash, ubirch.Chained)
 			if err != nil {
 				log.Printf("%s: error creating UPP: %v\n", name, err)
 				msg.Response <- internalServerError(fmt.Sprintf("error creating UPP: %v", err))
@@ -163,7 +163,7 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 				log.Printf("%s: sending UPP to %s failed: (%d) %q\n", name, conf.Niomon, code, resp)
 			}
 
-			extendedResponse, err := json.Marshal(map[string][]byte{"hash": data, "upp": upp, "response": resp})
+			extendedResponse, err := json.Marshal(map[string][]byte{"hash": hash, "upp": upp, "response": resp})
 			if err != nil {
 				log.Printf("error serializing extended response: %s", err)
 				extendedResponse = resp
