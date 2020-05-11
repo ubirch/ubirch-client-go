@@ -24,6 +24,8 @@ const (
 	HashLen  = 32
 )
 
+type Sha256Sum [HashLen]byte
+
 type HTTPServer struct {
 	MessageHandler chan HTTPMessage
 	AuthTokens     map[string]string
@@ -31,7 +33,7 @@ type HTTPServer struct {
 
 type HTTPMessage struct {
 	ID       uuid.UUID
-	Hash     []byte
+	Hash     Sha256Sum
 	Response chan HTTPResponse
 }
 
@@ -124,20 +126,22 @@ func getSortedCompactJSON(w http.ResponseWriter, data []byte) ([]byte, error) {
 	return compactSortedJson.Bytes(), err
 }
 
-func getHash(w http.ResponseWriter, r *http.Request, isHash bool) ([]byte, error) {
+func getHash(w http.ResponseWriter, r *http.Request, isHash bool) (Sha256Sum, error) {
+	var hash Sha256Sum
+
 	// read request body
 	data, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		err := fmt.Sprintf("unable to read request body: %v", err)
 		http.Error(w, err, http.StatusBadRequest)
-		return nil, fmt.Errorf(err)
+		return hash, fmt.Errorf(err)
 	}
 
 	if ContentType(r) == JSONType {
 		// generate a sorted compact rendering of the json formatted request body
 		data, err = getSortedCompactJSON(w, data)
 		if err != nil {
-			return nil, err
+			return hash, err
 		}
 		// TODO
 		//// only log original data if in debug-mode and never on production stage
@@ -147,17 +151,17 @@ func getHash(w http.ResponseWriter, r *http.Request, isHash bool) ([]byte, error
 	}
 
 	if !isHash {
-		sum256 := sha256.Sum256(data)
-		data = sum256[:]
+		hash = sha256.Sum256(data)
+	} else {
+		if len(data) != HashLen {
+			err := fmt.Sprintf("invalid hash size. expected %d bytes, got %d (%s)", HashLen, len(data), data)
+			http.Error(w, err, http.StatusBadRequest)
+			return hash, fmt.Errorf(err)
+		}
+		copy(hash[:], data)
 	}
 
-	if len(data) != HashLen {
-		err := fmt.Sprintf("invalid hash size. expected %d bytes, got %d (%s)", HashLen, len(data), data)
-		http.Error(w, err, http.StatusBadRequest)
-		return nil, fmt.Errorf(err)
-	}
-
-	return data, err
+	return hash, err
 }
 
 // blocks until response is received and forwards it to sender	// TODO go
