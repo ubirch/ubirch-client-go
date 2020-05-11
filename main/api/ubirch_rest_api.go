@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -30,7 +31,6 @@ type HTTPServer struct {
 type HTTPMessage struct {
 	ID       uuid.UUID
 	Data     []byte
-	IsHash   bool
 	Response chan HTTPResponse
 }
 
@@ -123,7 +123,7 @@ func getSortedCompactJSON(w http.ResponseWriter, data []byte) ([]byte, error) {
 	return compactSortedJson.Bytes(), err
 }
 
-func getData(w http.ResponseWriter, r *http.Request) ([]byte, error) {
+func getData(w http.ResponseWriter, r *http.Request, isHash bool) ([]byte, error) {
 	// read request body
 	data, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -138,6 +138,16 @@ func getData(w http.ResponseWriter, r *http.Request) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
+		// TODO
+		//// only log original data if in debug-mode and never on production stage
+		//if Debug && Env != PROD_STAGE {
+		//	log.Printf("compact sorted json (go): %s", string(data))
+		//}
+	}
+
+	if !isHash {
+		hash := sha256.Sum256(data)
+		data = hash[:]
 	}
 
 	return data, err
@@ -163,7 +173,7 @@ func (srv *HTTPServer) sign(w http.ResponseWriter, r *http.Request, isHash bool)
 		return
 	}
 
-	data, err := getData(w, r)
+	data, err := getData(w, r, isHash)
 	if err != nil {
 		logError(err)
 		return
@@ -173,7 +183,7 @@ func (srv *HTTPServer) sign(w http.ResponseWriter, r *http.Request, isHash bool)
 	respChan := make(chan HTTPResponse)
 
 	// submit message for singing
-	srv.MessageHandler <- HTTPMessage{ID: id, Data: data, IsHash: isHash, Response: respChan}
+	srv.MessageHandler <- HTTPMessage{ID: id, Data: data, Response: respChan}
 
 	// wait for response from ubirch backend to be forwarded
 	forwardBackendResponse(w, respChan)

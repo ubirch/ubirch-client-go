@@ -16,7 +16,6 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -117,23 +116,16 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 				}
 			}
 
-			// send UPP (hash)
-			data := msg.Data
-			if !msg.IsHash {
-				// only log original data if in debug-mode and never on production stage
-				if conf.Debug && conf.Env != PROD_STAGE {
-					log.Printf("compact sorted json (go): %s", string(data))
-				}
-				hash := sha256.Sum256(msg.Data)
-				data = hash[:]
-			}
-			log.Printf("%s: hash: %s\n", name, base64.StdEncoding.EncodeToString(data))
-
+			// load last signature for chaining
 			err := p.LoadContext()
 			if err != nil {
 				msg.Response <- internalServerError("")
 				log.Fatalf("unable to load last signature: %v", err)
 			}
+
+			// create a chained UPP
+			data := msg.Data
+			log.Printf("%s: hash: %s\n", name, base64.StdEncoding.EncodeToString(data))
 
 			upp, err := p.SignHash(name, data, ubirch.Chained)
 			if err != nil {
@@ -172,7 +164,6 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 			}
 
 			extendedResponse, err := json.Marshal(map[string][]byte{"hash": data, "upp": upp, "response": resp})
-			//log.Printf(string(extendedResponse))
 			if err != nil {
 				log.Printf("error serializing extended response: %s", err)
 				extendedResponse = resp
