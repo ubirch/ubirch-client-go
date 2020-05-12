@@ -245,7 +245,7 @@ func (srv *HTTPServer) Serve(ctx context.Context, wg *sync.WaitGroup, TLS bool, 
 	go func() {
 		defer wg.Done()
 
-		log.Printf("starting HTTP service (TCP port %s)", server.Addr)
+		log.Printf("starting HTTP service")
 		var err error
 		if TLS {
 			log.Printf("TLS enabled")
@@ -257,4 +257,16 @@ func (srv *HTTPServer) Serve(ctx context.Context, wg *sync.WaitGroup, TLS bool, 
 			log.Fatalf("error starting HTTP service: %v", err)
 		}
 	}()
+}
+
+func InternalServerError(message string) HTTPResponse {
+	if message == "" {
+		message = http.StatusText(http.StatusInternalServerError)
+	}
+	log.Printf(message)
+	return HTTPResponse{
+		Code:    http.StatusInternalServerError,
+		Header:  map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}},
+		Content: []byte(message),
+	}
 }
