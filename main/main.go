@@ -17,6 +17,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/go-chi/chi"
 	"log"
 	"os"
 	"os/signal"
@@ -99,35 +100,40 @@ func main() {
 	signals := make(chan os.Signal, 1)
 	go shutdown(signals, &p, &wg, cancel)
 
-	// create a messages channel that parses the HTTP message and creates UPP
-	msgsToSign := make(chan api.HTTPMessage, 100)
-	wg.Add(1)
-	go signer(msgsToSign, &p, conf, ctx, &wg)
+	httpServer := api.HTTPServer{
+		Router:   chi.NewMux(),
+		TLS:      conf.TLS,
+		CertFile: conf.TLS_CertFile,
+		KeyFile:  conf.TLS_KeyFile,
+	}
 
 	// listen to messages to sign via http
-	httpSrvSign := api.HTTPServer{
-		Endpoint:       fmt.Sprintf("/{%s}", api.UUIDKey),
-		MessageHandler: msgsToSign,
+	httpSrvSign := api.ServerEndpoint{
+		Path:           fmt.Sprintf("/{%s}", api.UUIDKey),
+		MessageHandler: make(chan api.HTTPMessage, 100),
 		RequiresAuth:   true,
 		AuthTokens:     conf.Devices,
 	}
-	wg.Add(1)
-	httpSrvSign.Serve(ctx, &wg, conf.TLS, conf.TLS_CertFile, conf.TLS_KeyFile)
+	httpServer.AddEndpoint(httpSrvSign)
 
-	// create a messages channel that parses the HTTP message and verifies hash in backend
-	msgsToVerify := make(chan api.HTTPMessage, 100)
 	wg.Add(1)
-	go verifier(msgsToSign, &p, conf, ctx, &wg)
+	go signer(httpSrvSign.MessageHandler, &p, conf, ctx, &wg)
 
 	// listen to messages to verify via http
-	httpSrvVerify := api.HTTPServer{
-		Endpoint:       "/verify",
-		MessageHandler: msgsToVerify,
+	httpSrvVerify := api.ServerEndpoint{
+		Path:           "/verify",
+		MessageHandler: make(chan api.HTTPMessage, 100),
 		RequiresAuth:   false,
 		AuthTokens:     nil,
 	}
+	httpServer.AddEndpoint(httpSrvVerify)
+
 	wg.Add(1)
-	httpSrvVerify.Serve(ctx, &wg, conf.TLS, conf.TLS_CertFile, conf.TLS_KeyFile)
+	go verifier(httpSrvVerify.MessageHandler, &p, conf, ctx, &wg)
+
+	// start HTTP server
+	wg.Add(1)
+	go httpServer.Serve(ctx, &wg)
 
 	// wait forever, exit is handled via shutdown
 	select {}
