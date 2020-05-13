@@ -27,7 +27,9 @@ const (
 type Sha256Sum [HashLen]byte
 
 type HTTPServer struct {
+	Endpoint       string
 	MessageHandler chan HTTPMessage
+	RequiresAuth   bool
 	AuthTokens     map[string]string
 }
 
@@ -177,11 +179,16 @@ func forwardBackendResponse(w http.ResponseWriter, respChan chan HTTPResponse) {
 	}
 }
 
-func (srv *HTTPServer) sign(w http.ResponseWriter, r *http.Request, isHash bool) {
-	id, err := checkAuth(w, r, srv.AuthTokens)
-	if err != nil {
-		logError(err)
-		return
+func (srv *HTTPServer) handleRequest(w http.ResponseWriter, r *http.Request, isHash bool) {
+	var id uuid.UUID
+	var err error
+
+	if srv.RequiresAuth {
+		id, err = checkAuth(w, r, srv.AuthTokens)
+		if err != nil {
+			logError(err)
+			return
+		}
 	}
 
 	hash, err := getHash(w, r, isHash)
@@ -200,30 +207,30 @@ func (srv *HTTPServer) sign(w http.ResponseWriter, r *http.Request, isHash bool)
 	forwardBackendResponse(w, respChan)
 }
 
-func (srv *HTTPServer) signHash(w http.ResponseWriter, r *http.Request) {
+func (srv *HTTPServer) handleRequestHash(w http.ResponseWriter, r *http.Request) {
 	err := assertContentType(w, r, BinType)
 	if err != nil {
 		logError(err)
 		return
 	}
 
-	srv.sign(w, r, true)
+	srv.handleRequest(w, r, true)
 }
 
-func (srv *HTTPServer) signJSON(w http.ResponseWriter, r *http.Request) {
+func (srv *HTTPServer) handleRequestJSON(w http.ResponseWriter, r *http.Request) {
 	err := assertContentType(w, r, JSONType)
 	if err != nil {
 		logError(err)
 		return
 	}
 
-	srv.sign(w, r, false)
+	srv.handleRequest(w, r, false)
 }
 
 func (srv *HTTPServer) Serve(ctx context.Context, wg *sync.WaitGroup, TLS bool, certFile string, keyFile string) {
 	router := chi.NewMux()
-	router.Post(fmt.Sprintf("/{%s}", UUIDKey), srv.signJSON)
-	router.Post(fmt.Sprintf("/{%s}/hash", UUIDKey), srv.signHash)
+	router.Post(srv.Endpoint, srv.handleRequestJSON)
+	router.Post(srv.Endpoint+"/hash", srv.handleRequestHash)
 
 	server := &http.Server{
 		Addr:         ":8080",
@@ -244,8 +251,8 @@ func (srv *HTTPServer) Serve(ctx context.Context, wg *sync.WaitGroup, TLS bool, 
 
 	go func() {
 		defer wg.Done()
+		log.Printf("starting HTTP service: %s", srv.Endpoint)
 
-		log.Printf("starting HTTP service")
 		var err error
 		if TLS {
 			log.Printf("TLS enabled")
@@ -254,7 +261,7 @@ func (srv *HTTPServer) Serve(ctx context.Context, wg *sync.WaitGroup, TLS bool, 
 			err = server.ListenAndServe()
 		}
 		if err != nil && err != http.ErrServerClosed {
-			log.Fatalf("error starting HTTP service: %v", err)
+			log.Fatalf("error starting HTTP service (%s): %v", srv.Endpoint, err)
 		}
 	}()
 }

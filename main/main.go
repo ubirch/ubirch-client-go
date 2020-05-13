@@ -16,6 +16,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -98,15 +99,35 @@ func main() {
 	signals := make(chan os.Signal, 1)
 	go shutdown(signals, &p, &wg, cancel)
 
-	// create a messages channel that parses the HTTP message and creates UPPs
+	// create a messages channel that parses the HTTP message and creates UPP
 	msgsToSign := make(chan api.HTTPMessage, 100)
 	wg.Add(1)
 	go signer(msgsToSign, &p, conf, ctx, &wg)
 
 	// listen to messages to sign via http
-	httpSrvSign := api.HTTPServer{MessageHandler: msgsToSign, AuthTokens: conf.Devices}
+	httpSrvSign := api.HTTPServer{
+		Endpoint:       fmt.Sprintf("/{%s}", api.UUIDKey),
+		MessageHandler: msgsToSign,
+		RequiresAuth:   true,
+		AuthTokens:     conf.Devices,
+	}
 	wg.Add(1)
 	httpSrvSign.Serve(ctx, &wg, conf.TLS, conf.TLS_CertFile, conf.TLS_KeyFile)
+
+	// create a messages channel that parses the HTTP message and verifies hash in backend
+	msgsToVerify := make(chan api.HTTPMessage, 100)
+	wg.Add(1)
+	go verifier(msgsToSign, &p, conf, ctx, &wg)
+
+	// listen to messages to verify via http
+	httpSrvVerify := api.HTTPServer{
+		Endpoint:       "/verify",
+		MessageHandler: msgsToVerify,
+		RequiresAuth:   false,
+		AuthTokens:     nil,
+	}
+	wg.Add(1)
+	httpSrvVerify.Serve(ctx, &wg, conf.TLS, conf.TLS_CertFile, conf.TLS_KeyFile)
 
 	// wait forever, exit is handled via shutdown
 	select {}
