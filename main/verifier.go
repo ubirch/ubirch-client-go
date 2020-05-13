@@ -73,22 +73,21 @@ func (p *ExtendedProtocol) loadPublicKey(id uuid.UUID, conf Config) error {
 		return fmt.Errorf("unable to set public key in protocol context: %v", err)
 	}
 
-	// save state
+	// persist new public key
 	err = p.PersistContext()
 	if err != nil {
-		log.Printf("unable to store new public key: %v\n", err)
+		log.Printf("WARNING: unable to persist retrieved public key for UUID %s: %v", id.String(), err)
 	}
 
 	return nil
 }
 
 // returns the UPP which contains a given hash from the ubirch backend
-func loadUPP(hash api.Sha256Sum, conf Config) ([]byte, error) {
-	hashString := base64.StdEncoding.EncodeToString(hash[:])
-	log.Printf("checking hash %s", hashString)
-
+func loadUPP(hash api.Sha256Sum, conf Config) ([]byte, []byte, int, error) {
 	var resp *http.Response
 	var err error
+	url := conf.VerifyService + "/verify"
+	hashString := base64.StdEncoding.EncodeToString(hash[:])
 
 	n := 0
 	for stay, timeout := true, time.After(5*time.Second); stay; { // FIXME needs enhancement
@@ -97,9 +96,9 @@ func loadUPP(hash api.Sha256Sum, conf Config) ([]byte, error) {
 		case <-timeout:
 			stay = false
 		default:
-			resp, err = http.Post(conf.VerifyService, "text/plain", strings.NewReader(hashString))
+			resp, err = http.Post(url, "text/plain", strings.NewReader(hashString))
 			if err != nil {
-				return nil, fmt.Errorf("network error: unable to retrieve data certificate: %v", err)
+				return nil, nil, http.StatusInternalServerError, fmt.Errorf("unable to retrieve data certificate: %v", err)
 			}
 			stay = resp.StatusCode != http.StatusOK
 			if stay {
@@ -110,25 +109,22 @@ func loadUPP(hash api.Sha256Sum, conf Config) ([]byte, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("retrieving data certificate failed: response code: %s", resp.Status)
+		return nil, nil, resp.StatusCode, fmt.Errorf("retrieving data certificate from %s failed with response code: %s", url, resp.Status)
 	}
 
 	vf := verification{}
 	err = json.NewDecoder(resp.Body).Decode(&vf)
 	if err != nil {
-		return nil, fmt.Errorf("unable to decode verification response: %v", err)
+		return nil, nil, http.StatusInternalServerError, fmt.Errorf("unable to decode verification response: %v", err)
 	}
 	_ = resp.Body.Close()
-	upp := vf.UPP
-	log.Printf("UPP: %s", hex.EncodeToString(upp))
-	return upp, nil
+	return vf.UPP, vf.Prev, resp.StatusCode, nil
 }
-
-const errID = "VERIFIER ERROR"
 
 // hash a message and retrieve corresponding UPP to verify it
 func verifier(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
+	const errID = "VERIFIER ERROR"
 
 	for {
 		select {
@@ -137,11 +133,19 @@ func verifier(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config,
 			hash := msg.Hash
 			log.Printf("verifying hash: %s\n", base64.StdEncoding.EncodeToString(hash[:]))
 
-			upp, err := loadUPP(hash, conf)
+			upp, prev, code, err := loadUPP(hash, conf)
 			if err != nil {
-				errMsg := fmt.Sprintf("%s: unable to load corresponding UPP: %v", errID, err)
-				msg.Response <- api.InternalServerError(errMsg)
+				errMsg := fmt.Sprintf("%s: verification of hash %s failed! %v", errID, base64.StdEncoding.EncodeToString(hash[:]), err)
+				log.Printf(errMsg)
+				msg.Response <- api.HTTPResponse{
+					Code:    code,
+					Header:  map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}},
+					Content: []byte(errMsg),
+				}
 				continue
+			}
+			if conf.Debug {
+				log.Printf("retrieved UPP [hex]: %s", hex.EncodeToString(upp))
 			}
 
 			i, err := ubirch.Decode(upp)
@@ -185,13 +189,16 @@ func verifier(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config,
 			}
 
 			// the request has been checked and is okay
-			log.Printf("verification successful. UPP: %s", hex.EncodeToString(upp))
-
-			msg.Response <- api.HTTPResponse{
-				Code:    http.StatusOK,
-				Header:  map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}},
-				Content: []byte("verification successful"), // todo
+			header := map[string][]string{"Content-Type": {"application/json"}}
+			extendedResponse, err := json.Marshal(map[string][]byte{"hash": hash[:], "upp": upp, "prev": prev})
+			if err != nil {
+				log.Printf("error serializing extended response: %s", err)
+				header = map[string][]string{"Content-Type": {"application/octet-stream"}}
+				extendedResponse = upp
 			}
+
+			log.Printf("verification successful. UPP [base64]: %s", base64.StdEncoding.EncodeToString(upp))
+			msg.Response <- api.HTTPResponse{Code: code, Header: header, Content: extendedResponse}
 
 		case <-ctx.Done():
 			log.Println("finishing verifier")
