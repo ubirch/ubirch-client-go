@@ -7,9 +7,5 @@ require (
 	github.com/google/uuid v1.1.1
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/lib/pq v1.3.0
-	github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.1.2
-)
-
-replace (
-	github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.1.2 => ../../ubirch-protocol-go/ubirch
+	github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.1.3
 )
