@@ -40,6 +40,24 @@ type verification struct {
 	Anchors []byte `json:"anchors"`
 }
 
+func verifyUPP(id uuid.UUID, upp []byte, p *ExtendedProtocol, conf Config) error {
+	name := id.String()
+
+	err := p.loadPublicKey(id, conf)
+	if err != nil {
+		return fmt.Errorf("loading public key for UUID %s failed: %v", name, err)
+	}
+
+	verified, err := p.Verify(name, upp, ubirch.Chained)
+	if err != nil {
+		return fmt.Errorf("unable to verify UPP signature: %v", err)
+	}
+	if !verified {
+		return fmt.Errorf("UPP signature verification failed")
+	}
+	return nil
+}
+
 func (p *ExtendedProtocol) loadPublicKey(id uuid.UUID, conf Config) error {
 	_, err := p.Crypto.GetPublicKey(id.String())
 	if err == nil {
@@ -145,8 +163,11 @@ func verifier(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config,
 				}
 				continue
 			}
+
+			uppString := base64.StdEncoding.EncodeToString(upp)
+			prevString := base64.StdEncoding.EncodeToString(prev)
 			if conf.Debug {
-				log.Printf("verifier retrieved UPP: %s (%s)", base64.StdEncoding.EncodeToString(upp), hex.EncodeToString(upp))
+				log.Printf("found corresponding UPP for hash %s: %s (0x%s)", hashString, uppString, hex.EncodeToString(upp))
 			}
 
 			o, err := ubirch.DecodeChained(upp)
@@ -162,37 +183,21 @@ func verifier(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config,
 			}
 
 			uid := o.Uuid
-			name := uid.String()
-
-			err = p.loadPublicKey(uid, conf)
+			err = verifyUPP(uid, upp, p, conf)
 			if err != nil {
-				errMsg := fmt.Sprintf("%s: loading public key for UUID %s failed: %v", errID, o.Uuid.String(), err)
+				errMsg := fmt.Sprintf("%s: UPP verification failed: %v", errID, err)
 				msg.Response <- api.InternalServerError(errMsg)
 				continue
 			}
+			log.Printf("verified hash: %s", hashString)
 
-			verified, err := p.Verify(name, upp, ubirch.Chained)
-			if err != nil {
-				errMsg := fmt.Sprintf("%s: unable to verify UPP signature: %v", errID, err)
-				msg.Response <- api.InternalServerError(errMsg)
-				continue
-			}
-			if !verified {
-				errMsg := fmt.Sprintf("%s: UPP signature verification failed", errID)
-				msg.Response <- api.InternalServerError(errMsg)
-				continue
-			}
-
-			// the request has been checked and is okay
 			header := map[string][]string{"Content-Type": {"application/json"}}
-			response, err := json.Marshal(map[string][]byte{"uuid": uid[:], "hash": hash[:], "upp": upp, "prev": prev})
+			response, err := json.Marshal(map[string]string{"uuid": uid.String(), "hash": hashString, "upp": uppString, "prev": prevString})
 			if err != nil {
 				log.Printf("error serializing extended response: %s", err)
 				header = map[string][]string{"Content-Type": {"application/octet-stream"}}
 				response = upp
 			}
-
-			log.Printf("verified hash: %s", hashString)
 			msg.Response <- api.HTTPResponse{Code: code, Header: header, Content: response}
 
 		case <-ctx.Done():
