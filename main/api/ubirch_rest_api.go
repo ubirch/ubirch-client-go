@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -20,17 +21,21 @@ const (
 	UUIDKey  = "uuid"
 	BinType  = "application/octet-stream"
 	JSONType = "application/json"
+	HashLen  = 32
 )
 
-type HTTPServer struct {
+type Sha256Sum [HashLen]byte
+
+type ServerEndpoint struct {
+	Path           string
 	MessageHandler chan HTTPMessage
+	RequiresAuth   bool
 	AuthTokens     map[string]string
 }
 
 type HTTPMessage struct {
 	ID       uuid.UUID
-	Data     []byte
-	IsHash   bool
+	Hash     Sha256Sum
 	Response chan HTTPResponse
 }
 
@@ -123,24 +128,42 @@ func getSortedCompactJSON(w http.ResponseWriter, data []byte) ([]byte, error) {
 	return compactSortedJson.Bytes(), err
 }
 
-func getData(w http.ResponseWriter, r *http.Request) ([]byte, error) {
+func getHash(w http.ResponseWriter, r *http.Request, isHash bool) (Sha256Sum, error) {
+	var hash Sha256Sum
+
 	// read request body
 	data, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		err := fmt.Sprintf("unable to read request body: %v", err)
 		http.Error(w, err, http.StatusBadRequest)
-		return nil, fmt.Errorf(err)
+		return hash, fmt.Errorf(err)
 	}
 
 	if ContentType(r) == JSONType {
 		// generate a sorted compact rendering of the json formatted request body
 		data, err = getSortedCompactJSON(w, data)
 		if err != nil {
-			return nil, err
+			return hash, err
 		}
+		// TODO
+		//// only log original data if in debug-mode and never on production stage
+		//if Debug && Env != PROD_STAGE {
+		//	log.Printf("compact sorted json (go): %s", string(data))
+		//}
 	}
 
-	return data, err
+	if !isHash {
+		hash = sha256.Sum256(data)
+	} else {
+		if len(data) != HashLen {
+			err := fmt.Sprintf("invalid hash size. expected %d bytes, got %d (%s)", HashLen, len(data), data)
+			http.Error(w, err, http.StatusBadRequest)
+			return hash, fmt.Errorf(err)
+		}
+		copy(hash[:], data)
+	}
+
+	return hash, err
 }
 
 // blocks until response is received and forwards it to sender	// TODO go
@@ -156,14 +179,19 @@ func forwardBackendResponse(w http.ResponseWriter, respChan chan HTTPResponse) {
 	}
 }
 
-func (srv *HTTPServer) sign(w http.ResponseWriter, r *http.Request, isHash bool) {
-	id, err := checkAuth(w, r, srv.AuthTokens)
-	if err != nil {
-		logError(err)
-		return
+func (srv *ServerEndpoint) handleRequest(w http.ResponseWriter, r *http.Request, isHash bool) {
+	var id uuid.UUID
+	var err error
+
+	if srv.RequiresAuth {
+		id, err = checkAuth(w, r, srv.AuthTokens)
+		if err != nil {
+			logError(err)
+			return
+		}
 	}
 
-	data, err := getData(w, r)
+	hash, err := getHash(w, r, isHash)
 	if err != nil {
 		logError(err)
 		return
@@ -173,40 +201,50 @@ func (srv *HTTPServer) sign(w http.ResponseWriter, r *http.Request, isHash bool)
 	respChan := make(chan HTTPResponse)
 
 	// submit message for singing
-	srv.MessageHandler <- HTTPMessage{ID: id, Data: data, IsHash: isHash, Response: respChan}
+	srv.MessageHandler <- HTTPMessage{ID: id, Hash: hash, Response: respChan}
 
 	// wait for response from ubirch backend to be forwarded
 	forwardBackendResponse(w, respChan)
 }
 
-func (srv *HTTPServer) signHash(w http.ResponseWriter, r *http.Request) {
+func (srv *ServerEndpoint) handleRequestHash(w http.ResponseWriter, r *http.Request) {
 	err := assertContentType(w, r, BinType)
 	if err != nil {
 		logError(err)
 		return
 	}
 
-	srv.sign(w, r, true)
+	srv.handleRequest(w, r, true)
 }
 
-func (srv *HTTPServer) signJSON(w http.ResponseWriter, r *http.Request) {
+func (srv *ServerEndpoint) handleRequestJSON(w http.ResponseWriter, r *http.Request) {
 	err := assertContentType(w, r, JSONType)
 	if err != nil {
 		logError(err)
 		return
 	}
 
-	srv.sign(w, r, false)
+	srv.handleRequest(w, r, false)
 }
 
-func (srv *HTTPServer) Serve(ctx context.Context, wg *sync.WaitGroup, TLS bool, certFile string, keyFile string) {
-	router := chi.NewMux()
-	router.Post(fmt.Sprintf("/{%s}", UUIDKey), srv.signJSON)
-	router.Post(fmt.Sprintf("/{%s}/hash", UUIDKey), srv.signHash)
+type HTTPServer struct {
+	Router   *chi.Mux
+	TLS      bool
+	CertFile string
+	KeyFile  string
+}
+
+func (srv *HTTPServer) AddEndpoint(endpoint ServerEndpoint) {
+	srv.Router.Post(endpoint.Path, endpoint.handleRequestJSON)
+	srv.Router.Post(endpoint.Path+"/hash", endpoint.handleRequestHash)
+}
+
+func (srv *HTTPServer) Serve(ctx context.Context, wg *sync.WaitGroup) {
+	defer wg.Done()
 
 	server := &http.Server{
 		Addr:         ":8080",
-		Handler:      router,
+		Handler:      srv.Router,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  75 * time.Second,
@@ -221,19 +259,28 @@ func (srv *HTTPServer) Serve(ctx context.Context, wg *sync.WaitGroup, TLS bool, 
 		}
 	}()
 
-	go func() {
-		defer wg.Done()
+	log.Printf("starting HTTP service")
 
-		log.Printf("starting HTTP service (TCP port %s)", server.Addr)
-		var err error
-		if TLS {
-			log.Printf("TLS enabled")
-			err = server.ListenAndServeTLS(certFile, keyFile)
-		} else {
-			err = server.ListenAndServe()
-		}
-		if err != nil && err != http.ErrServerClosed {
-			log.Fatalf("error starting HTTP service: %v", err)
-		}
-	}()
+	var err error
+	if srv.TLS {
+		log.Printf("TLS enabled")
+		err = server.ListenAndServeTLS(srv.CertFile, srv.KeyFile)
+	} else {
+		err = server.ListenAndServe()
+	}
+	if err != nil && err != http.ErrServerClosed {
+		log.Fatalf("error starting HTTP service: %v", err)
+	}
+}
+
+func InternalServerError(message string) HTTPResponse {
+	if message == "" {
+		message = http.StatusText(http.StatusInternalServerError)
+	}
+	log.Printf(message)
+	return HTTPResponse{
+		Code:    http.StatusInternalServerError,
+		Header:  map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}},
+		Content: []byte(message),
+	}
 }
