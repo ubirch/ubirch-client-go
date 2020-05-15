@@ -116,7 +116,8 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 
 			// create a chained UPP
 			hash := msg.Hash
-			log.Printf("%s: signing hash: %s", name, base64.StdEncoding.EncodeToString(hash[:]))
+			hashString := base64.StdEncoding.EncodeToString(hash[:])
+			log.Printf("%s: signing hash: %s", name, hashString)
 
 			upp, err := p.SignHash(name, hash[:], ubirch.Chained)
 			if err != nil {
@@ -124,8 +125,10 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 				msg.Response <- api.InternalServerError(errMsg)
 				continue
 			}
+
+			uppString := base64.StdEncoding.EncodeToString(upp)
 			if conf.Debug {
-				log.Printf("%s: UPP [hex]: %s", name, hex.EncodeToString(upp))
+				log.Printf("%s: UPP: %s (0x%s)", name, uppString, hex.EncodeToString(upp))
 			}
 
 			// send UPP to ubirch backend
@@ -140,29 +143,47 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 				continue
 			}
 			if conf.Debug {
-				log.Printf("%s: response: (%d) %s", name, code, hex.EncodeToString(resp))
+				log.Printf("%s: response: (%d) %s (0x%s)", name, code, base64.StdEncoding.EncodeToString(resp), hex.EncodeToString(resp))
 			}
 
 			// save last signature after UPP was successfully received in ubirch backend
-			if code == http.StatusOK {
+			if code != http.StatusOK {
+				log.Printf("%s: sending UPP to %s failed: (%d) %q", name, conf.Niomon, code, resp)
+			} else {
 				err = p.PersistContext()
 				if err != nil {
 					msg.Response <- api.InternalServerError("")
 					log.Fatalf("%s: unable to save last signature for UUID %s: %v", errID, name, err)
 				}
-			} else {
-				log.Printf("%s: sending UPP to %s failed: (%d) %q", name, conf.Niomon, code, resp)
 			}
 
-			header = map[string][]string{"Content-Type": {"application/json"}}
-			extendedResponse, err := json.Marshal(map[string][]byte{"hash": hash[:], "upp": upp, "response": resp})
-			if err != nil {
+			// TODO verify response UPP using ECDSA backend public key (not implemented yet)
+
+			// decode response UPP
+			var respContent string
+			if resp[1] == byte(ubirch.Signed) {
+				var respDecoded ubirch.SignedUPP
+				respDecoded, err = ubirch.DecodeSigned(resp)
+				respContent = string(respDecoded.Payload)
+			} else if resp[1] == byte(ubirch.Chained) {
+				var respDecoded ubirch.ChainedUPP
+				respDecoded, err = ubirch.DecodeChained(resp)
+				respContent = string(respDecoded.Payload)
+			}
+			if respContent == "" {
+				log.Printf("%s: response UPP decoding failed: %v", name, err)
+				respContent = base64.StdEncoding.EncodeToString(resp)
+			}
+
+			extendedResponse, err := json.Marshal(map[string]string{"hash": hashString, "upp": uppString, "response": respContent})
+			if err == nil {
+				header = map[string][]string{"Content-Type": {"application/json"}}
+			} else {
 				log.Printf("error serializing extended response: %s", err)
-				header = map[string][]string{"Content-Type": {"application/octet-stream"}}
 				extendedResponse = resp
 			}
-
 			msg.Response <- api.HTTPResponse{Code: code, Header: header, Content: extendedResponse}
+
 		case <-ctx.Done():
 			log.Println("finishing signer")
 			return
