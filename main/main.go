@@ -31,13 +31,10 @@ import (
 var ConfigDir string
 
 const (
+	Version     = "v2.0.0"
+	Build       = "local"
 	ConfigFile  = "config.json"
 	ContextFile = "protocol.json"
-)
-
-var (
-	Version = "v2.0.0"
-	Build   = "local"
 )
 
 // handle graceful shutdown
@@ -102,7 +99,9 @@ func main() {
 	httpServer := api.HTTPServer{}
 	httpServer.Init(conf.Debug)
 	httpServer.SetUpTLS(conf.TLS, conf.TLS_CertFile, conf.TLS_KeyFile)
-	httpServer.SetUpCORS(conf.CORS, conf.CORS_AllowedOrigins)
+	if conf.Env != PROD_STAGE { // never enable CORS on production stage
+		httpServer.SetUpCORS(conf.CORS, conf.CORS_AllowedOrigins)
+	}
 
 	// listen to messages to sign via http
 	httpSrvSign := api.ServerEndpoint{
