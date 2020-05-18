@@ -19,11 +19,10 @@ import (
 )
 
 const (
-	authHeader = "X-Auth-Token"
-	UUIDKey    = "uuid"
-	BinType    = "application/octet-stream"
-	JSONType   = "application/json"
-	HashLen    = 32
+	UUIDKey  = "uuid"
+	BinType  = "application/octet-stream"
+	JSONType = "application/json"
+	HashLen  = 32
 )
 
 type Sha256Sum [HashLen]byte
@@ -51,9 +50,9 @@ func logError(err error) {
 	log.Printf("HTTP SERVER ERROR: %s", err)
 }
 
-// helper function to get "content-type" from headers
+// helper function to get "Content-Type" from headers
 func ContentType(r *http.Request) string {
-	return strings.ToLower(r.Header.Get("content-type"))
+	return strings.ToLower(r.Header.Get("Content-Type"))
 }
 
 // make sure request has correct content-type
@@ -67,9 +66,9 @@ func assertContentType(w http.ResponseWriter, r *http.Request, expectedType stri
 	return nil
 }
 
-// helper function to get "x-auth-token" from headers
+// helper function to get "X-Auth-Token" from headers
 func XAuthToken(r *http.Request) string {
-	return r.Header.Get(authHeader)
+	return r.Header.Get("X-Auth-Token")
 }
 
 // get UUID from request URL and check auth token
@@ -267,10 +266,9 @@ func (srv *HTTPServer) SetUpCORS(CORS bool, allowedOrigins []string) {
 		}
 
 		srv.router.Use(cors.Handler(cors.Options{
-			AllowedOrigins: allowedOrigins,
-			AllowedMethods: []string{"POST"}, // Default value is simple methods (HEAD, GET and POST)
-			AllowedHeaders: []string{"Accept", "Content-Type", "Content-Length", authHeader},
-			// ExposedHeaders:   []string{"Link"},
+			AllowedOrigins:   allowedOrigins,
+			AllowedHeaders:   []string{"Accept", "Content-Type", "Content-Length", "X-Auth-Token"},
+			ExposedHeaders:   []string{"*", "Authorization"},
 			AllowCredentials: true,
 			MaxAge:           300, // Maximum value not ignored by any of major browsers
 			Debug:            srv.debug,
