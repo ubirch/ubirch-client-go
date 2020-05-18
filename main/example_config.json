@@ -14,5 +14,10 @@
   "TLS": true,
   "TLSCertFile": "certs/cert.pem",
   "TLSKeyFile": "certs/key.pem",
+  "CORS": true,
+  "CORS_origins": [
+    "https://foo.com",
+    "https://*.bar.com"
+  ],
   "debug": false
 }

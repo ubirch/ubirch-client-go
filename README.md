@@ -113,12 +113,12 @@ signing key. The default value for this flag is `false`, which means the client 
 
 Instead of having the client generate keys dynamically it is possible to inject signing keys as a map UUID to signing key.
 
-- add the following key-value pair to your `config.json`:
+- add the following key-value pairs to your `config.json`:
 ```
   "staticKeys": <boolean, defaults to ‘false’>,
   "keys": {"<UUID>": "<ecdsa-prime256v1 private key (base64 encoded)>"}
 ```
-- or set the following environment variable:
+- or set the following environment variables:
 ```
 export UBIRCH_STATICKEYS=<boolean, defaults to ‘false’>
 export UBIRCH_KEYS="<UUID>:<ecdsa-prime256v1 private key (base64 encoded)>"
@@ -141,7 +141,7 @@ $ openssl req -x509 -newkey rsa:4096 -keyout key.pem -nodes -out cert.pem -days 
 ``` 
 
 ##### Enable TLS in configuration
-To enable TLS for the UBIRCH client service, add the following key-value pair to your `config.json`:
+To enable TLS (i.e. serve HTTPS) for the UBIRCH client service, add the following key-value pair to your `config.json`:
 ```
   "TLS": true
 ```
@@ -162,6 +162,28 @@ directory) and/or filename by adding them to your configuration file like this:
 export UBIRCH_TLS_CERTFILE=certs/cert.pem
 export UBIRCH_TLS_KEYFILE=certs/key.pem
 ```
+
+#### Enable Cross Origin Resource Sharing (CORS)
+Cross Origin Resource Sharing (CORS) can only be enabled on `dev` and `demo` stages. 
+**This setting is ignored if the UBIRCH backend environment is set to `prod`.**
+
+The user can set a list of *allowed origins*, i.e. origins a cross-domain request can be executed from,
+through the configuration. An origin may contain a wildcard (`*`) to replace 0 or more characters (e.g.:
+ `http://*.domain.com`). Only one wildcard can be used per origin. 
+
+- add the following key-value pairs to your `config.json`:
+```
+  "CORS": true,
+  "CORS_origins": ["https://foo.com", "https://*.bar.com"]
+```
+- or set the following environment variables:
+```
+export UBIRCH_CORS=true
+export UBIRCH_CORS_ORIGINS="https://foo.com,https://*.bar.com"
+```
+
+Default value for `"CORS_origins"`, if CORS is enabled, but no *allowed origins* are specified, is `["*"]` 
+which means, all origins will be allowed.
 
 ### How to acquire the ubirch backend token
 - Register at the **UBIRCH web UI**: https://console.prod.ubirch.com/ or https://console.demo.ubirch.com/
