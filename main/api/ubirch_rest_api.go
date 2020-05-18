@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi"
+	"github.com/go-chi/cors"
 	"github.com/google/uuid"
 )
 
@@ -49,9 +50,9 @@ func logError(err error) {
 	log.Printf("HTTP SERVER ERROR: %s", err)
 }
 
-// helper function to get "content-type" from headers
+// helper function to get "Content-Type" from headers
 func ContentType(r *http.Request) string {
-	return strings.ToLower(r.Header.Get("content-type"))
+	return strings.ToLower(r.Header.Get("Content-Type"))
 }
 
 // make sure request has correct content-type
@@ -65,9 +66,9 @@ func assertContentType(w http.ResponseWriter, r *http.Request, expectedType stri
 	return nil
 }
 
-// helper function to get "x-auth-token" from headers
+// helper function to get "X-Auth-Token" from headers
 func XAuthToken(r *http.Request) string {
-	return r.Header.Get("x-auth-token")
+	return r.Header.Get("X-Auth-Token")
 }
 
 // get UUID from request URL and check auth token
@@ -228,15 +229,56 @@ func (srv *ServerEndpoint) handleRequestJSON(w http.ResponseWriter, r *http.Requ
 }
 
 type HTTPServer struct {
-	Router   *chi.Mux
-	TLS      bool
-	CertFile string
-	KeyFile  string
+	router   *chi.Mux
+	tls      bool
+	certFile string
+	keyFile  string
+	debug    bool
+}
+
+func (srv *HTTPServer) Init(debug bool) {
+	srv.router = chi.NewMux()
+	srv.debug = debug
+}
+
+func (srv *HTTPServer) SetUpTLS(TLS bool, certFile string, keyFile string) {
+	srv.tls = TLS
+	srv.certFile = certFile
+	srv.keyFile = keyFile
+
+	if srv.tls {
+		log.Printf("TLS enabled")
+		if srv.debug {
+			log.Printf(" - Cert: %s", srv.certFile)
+			log.Printf(" -  Key: %s", srv.keyFile)
+		}
+	}
+}
+
+func (srv *HTTPServer) SetUpCORS(CORS bool, allowedOrigins []string) {
+	if CORS {
+		if allowedOrigins == nil {
+			allowedOrigins = []string{"*"} // allow all origins
+		}
+		log.Printf("CORS enabled")
+		if srv.debug {
+			log.Printf(" - Allowed Origins: %v", allowedOrigins)
+		}
+
+		srv.router.Use(cors.Handler(cors.Options{
+			AllowedOrigins:   allowedOrigins,
+			AllowedHeaders:   []string{"Accept", "Content-Type", "Content-Length", "X-Auth-Token"},
+			ExposedHeaders:   []string{"*", "Authorization"},
+			AllowCredentials: true,
+			MaxAge:           300, // Maximum value not ignored by any of major browsers
+			Debug:            srv.debug,
+		}))
+	}
 }
 
 func (srv *HTTPServer) AddEndpoint(endpoint ServerEndpoint) {
-	srv.Router.Post(endpoint.Path, endpoint.handleRequestJSON)
-	srv.Router.Post(endpoint.Path+"/hash", endpoint.handleRequestHash)
+	srv.router.Post(endpoint.Path, endpoint.handleRequestJSON)
+	srv.router.Post(endpoint.Path+"/hash", endpoint.handleRequestHash)
 }
 
 func (srv *HTTPServer) Serve(ctx context.Context, wg *sync.WaitGroup) {
@@ -244,7 +286,7 @@ func (srv *HTTPServer) Serve(ctx context.Context, wg *sync.WaitGroup) {
 
 	server := &http.Server{
 		Addr:         ":8080",
-		Handler:      srv.Router,
+		Handler:      srv.router,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  75 * time.Second,
@@ -262,9 +304,8 @@ func (srv *HTTPServer) Serve(ctx context.Context, wg *sync.WaitGroup) {
 	log.Printf("starting HTTP service")
 
 	var err error
-	if srv.TLS {
-		log.Printf("TLS enabled")
-		err = server.ListenAndServeTLS(srv.CertFile, srv.KeyFile)
+	if srv.tls {
+		err = server.ListenAndServeTLS(srv.certFile, srv.keyFile)
 	} else {
 		err = server.ListenAndServe()
 	}
