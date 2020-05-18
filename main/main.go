@@ -17,7 +17,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/go-chi/chi"
 	"log"
 	"os"
 	"os/signal"
@@ -100,12 +99,10 @@ func main() {
 	signals := make(chan os.Signal, 1)
 	go shutdown(signals, &p, &wg, cancel)
 
-	httpServer := api.HTTPServer{
-		Router:   chi.NewMux(),
-		TLS:      conf.TLS,
-		CertFile: conf.TLS_CertFile,
-		KeyFile:  conf.TLS_KeyFile,
-	}
+	httpServer := api.HTTPServer{}
+	httpServer.Init(conf.Debug)
+	httpServer.SetUpTLS(conf.TLS, conf.TLS_CertFile, conf.TLS_KeyFile)
+	httpServer.SetUpCORS(conf.CORS, conf.CORS_AllowedOrigins)
 
 	// listen to messages to sign via http
 	httpSrvSign := api.ServerEndpoint{
@@ -116,9 +113,6 @@ func main() {
 	}
 	httpServer.AddEndpoint(httpSrvSign)
 
-	wg.Add(1)
-	go signer(httpSrvSign.MessageHandler, &p, conf, ctx, &wg)
-
 	// listen to messages to verify via http
 	httpSrvVerify := api.ServerEndpoint{
 		Path:           "/verify",
@@ -128,6 +122,11 @@ func main() {
 	}
 	httpServer.AddEndpoint(httpSrvVerify)
 
+	// start signer
+	wg.Add(1)
+	go signer(httpSrvSign.MessageHandler, &p, conf, ctx, &wg)
+
+	// start verifier
 	wg.Add(1)
 	go verifier(httpSrvVerify.MessageHandler, &p, conf, ctx, &wg)
 

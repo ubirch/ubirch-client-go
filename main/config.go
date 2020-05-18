@@ -43,20 +43,22 @@ const (
 
 // configuration of the device
 type Config struct {
-	Devices       map[string]string `json:"devices"`     // maps UUIDs to backend auth tokens
-	Secret        string            `json:"secret"`      // secret used to encrypt the key store
-	DSN           string            `json:"DSN"`         // "data source name" for database connection
-	Env           string            `json:"env"`         // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
-	TLS           bool              `json:"TLS"`         // enable serving HTTPS endpoints, defaults to 'false'
-	TLS_CertFile  string            `json:"TLSCertFile"` // filename of TLS certificate file name, defaults to "cert.pem"
-	TLS_KeyFile   string            `json:"TLSKeyFile"`  // filename of TLS key file name, defaults to "key.pem"
-	Debug         bool              `json:"debug"`       // enable extended debug output, defaults to 'false'
-	StaticKeys    bool              `json:"staticKeys"`  // disable dynamic key generation, defaults to 'false'
-	Keys          map[string]string `json:"keys"`        // maps UUIDs to injected keys
-	KeyService    string            // key service URL (set automatically)
-	Niomon        string            // authentication service URL (set automatically)
-	VerifyService string            // verification service URL (set automatically)
-	SecretBytes   []byte            // the decoded key store secret
+	Devices             map[string]string `json:"devices"`      // maps UUIDs to backend auth tokens
+	Secret              string            `json:"secret"`       // secret used to encrypt the key store
+	DSN                 string            `json:"DSN"`          // "data source name" for database connection
+	Env                 string            `json:"env"`          // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
+	TLS                 bool              `json:"TLS"`          // enable serving HTTPS endpoints, defaults to 'false'
+	TLS_CertFile        string            `json:"TLSCertFile"`  // filename of TLS certificate file name, defaults to "cert.pem"
+	TLS_KeyFile         string            `json:"TLSKeyFile"`   // filename of TLS key file name, defaults to "key.pem"
+	CORS                bool              `json:"CORS"`         // enable CORS, defaults to false
+	CORS_AllowedOrigins []string          `json:"CORS_origins"` // list of allowed origin hosts, defaults to ["*"]
+	Debug               bool              `json:"debug"`        // enable extended debug output, defaults to 'false'
+	StaticKeys          bool              `json:"staticKeys"`   // disable dynamic key generation, defaults to 'false'
+	Keys                map[string]string `json:"keys"`         // maps UUIDs to injected keys
+	KeyService          string            // key service URL (set automatically)
+	Niomon              string            // authentication service URL (set automatically)
+	VerifyService       string            // verification service URL (set automatically)
+	SecretBytes         []byte            // the decoded key store secret
 }
 
 func (c *Config) Load() error {
