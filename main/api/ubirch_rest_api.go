@@ -269,7 +269,7 @@ func (srv *HTTPServer) SetUpCORS(CORS bool, allowedOrigins []string) {
 		srv.router.Use(cors.Handler(cors.Options{
 			AllowedOrigins: allowedOrigins,
 			AllowedMethods: []string{"POST"}, // Default value is simple methods (HEAD, GET and POST)
-			AllowedHeaders: []string{"Accept", "Content-Type", authHeader},
+			AllowedHeaders: []string{"Accept", "Content-Type", "Content-Length", authHeader},
 			// ExposedHeaders:   []string{"Link"},
 			AllowCredentials: true,
 			MaxAge:           300, // Maximum value not ignored by any of major browsers
