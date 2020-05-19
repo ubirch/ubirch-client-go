@@ -21,6 +21,7 @@ import (
 const (
 	UUIDKey  = "uuid"
 	BinType  = "application/octet-stream"
+	TextType = "text/plain"
 	JSONType = "application/json"
 	HashLen  = 32
 )
@@ -46,8 +47,10 @@ type HTTPResponse struct {
 	Content []byte
 }
 
-func logError(err error) {
+// wrapper for http.Error that additionally logs the error message to std.Output
+func Error(w http.ResponseWriter, err error, code int) {
 	log.Printf("HTTP SERVER ERROR: %s", err)
+	http.Error(w, fmt.Sprintf("%v", err), code)
 }
 
 // helper function to get "Content-Type" from headers
@@ -55,96 +58,59 @@ func ContentType(r *http.Request) string {
 	return strings.ToLower(r.Header.Get("Content-Type"))
 }
 
-// make sure request has correct content-type
-func assertContentType(w http.ResponseWriter, r *http.Request, expectedType string) error {
-	if ContentType(r) != expectedType {
-		err := fmt.Sprintf("Wrong content-type. Expected \"%s\"", expectedType)
-		http.Error(w, err, http.StatusBadRequest)
-		return fmt.Errorf(err)
-	}
-
-	return nil
-}
-
 // helper function to get "X-Auth-Token" from headers
 func XAuthToken(r *http.Request) string {
 	return r.Header.Get("X-Auth-Token")
 }
 
-// get UUID from request URL and check auth token
-func checkAuth(w http.ResponseWriter, r *http.Request, AuthTokens map[string]string) (uuid.UUID, error) {
-	// get UUID from URL
+// get UUID from request URL
+func getUUID(r *http.Request) (uuid.UUID, error) {
 	urlParam := chi.URLParam(r, UUIDKey)
 	id, err := uuid.Parse(urlParam)
 	if err != nil {
-		err := fmt.Sprintf("unable to parse \"%s\" as UUID: %s", urlParam, err)
-		http.Error(w, err, http.StatusNotFound)
-		return uuid.Nil, fmt.Errorf(err)
+		return uuid.Nil, fmt.Errorf("unable to parse \"%s\" as UUID: %s", urlParam, err)
 	}
 
-	// check if UUID is known
-	idAuthToken, exists := AuthTokens[id.String()]
-	if !exists {
-		err := fmt.Sprintf("unknown UUID \"%s\"", id.String())
-		http.Error(w, err, http.StatusNotFound)
-		return uuid.Nil, fmt.Errorf(err)
-	}
-
-	// check authorization
-	if XAuthToken(r) != idAuthToken {
-		err := "invalid \"X-Auth-Token\""
-		http.Error(w, err, http.StatusUnauthorized)
-		return uuid.Nil, fmt.Errorf(err)
-	}
-
-	return id, err
+	return id, nil
 }
 
-func getSortedCompactJSON(w http.ResponseWriter, data []byte) ([]byte, error) {
+func getSortedCompactJSON(data []byte) ([]byte, error) {
 	var reqDump interface{}
 	var compactSortedJson bytes.Buffer
 
 	// json.Unmarshal returns an error if data is not valid JSON
 	err := json.Unmarshal(data, &reqDump)
 	if err != nil {
-		err := fmt.Sprintf("unable to parse request body: %v", err)
-		http.Error(w, err, http.StatusBadRequest)
-		return nil, fmt.Errorf(err)
+		return nil, fmt.Errorf("unable to parse request body: %v", err)
 	}
 	// json.Marshal sorts the keys
 	sortedJson, err := json.Marshal(reqDump)
 	if err != nil {
-		err := fmt.Sprintf("unable to serialize json object: %v", err)
-		http.Error(w, err, http.StatusBadRequest)
-		return nil, fmt.Errorf(err)
+		return nil, fmt.Errorf("unable to serialize json object: %v", err)
 	}
 	// remove spaces and newlines
 	err = json.Compact(&compactSortedJson, sortedJson)
 	if err != nil {
-		err := fmt.Sprintf("unable to compact json object: %v", err)
-		http.Error(w, err, http.StatusBadRequest)
-		return nil, fmt.Errorf(err)
+		return nil, fmt.Errorf("unable to compact json object: %v", err)
 	}
 
 	return compactSortedJson.Bytes(), err
 }
 
-func getHash(w http.ResponseWriter, r *http.Request, isHash bool) (Sha256Sum, error) {
+func getHash(r *http.Request, isHash bool) (Sha256Sum, error) {
 	var hash Sha256Sum
 
 	// read request body
 	data, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		err := fmt.Sprintf("unable to read request body: %v", err)
-		http.Error(w, err, http.StatusBadRequest)
-		return hash, fmt.Errorf(err)
+		return Sha256Sum{}, fmt.Errorf("unable to read request body: %v", err)
 	}
 
 	if ContentType(r) == JSONType {
 		// generate a sorted compact rendering of the json formatted request body
-		data, err = getSortedCompactJSON(w, data)
+		data, err = getSortedCompactJSON(data)
 		if err != nil {
-			return hash, err
+			return Sha256Sum{}, err
 		}
 		//// TODO only log original data if in debug-mode and never on production stage
 		//if Debug && Env != PROD_STAGE {
@@ -156,9 +122,7 @@ func getHash(w http.ResponseWriter, r *http.Request, isHash bool) (Sha256Sum, er
 		hash = sha256.Sum256(data)
 	} else {
 		if len(data) != HashLen {
-			err := fmt.Sprintf("invalid hash size. expected %d bytes, got %d (%s)", HashLen, len(data), data)
-			http.Error(w, err, http.StatusBadRequest)
-			return hash, fmt.Errorf(err)
+			return Sha256Sum{}, fmt.Errorf("invalid hash size. expected %d bytes, got %d (%s)", HashLen, len(data), data)
 		}
 		copy(hash[:], data)
 	}
@@ -175,8 +139,25 @@ func forwardBackendResponse(w http.ResponseWriter, respChan chan HTTPResponse) {
 	}
 	_, err := w.Write(resp.Content)
 	if err != nil {
-		logError(fmt.Errorf("unable to write response: %s", err))
+		log.Printf("unable to write response: %s", err)
 	}
+}
+
+// check if auth token from request header is correct.
+// Returns error if UUID is unknown or auth token does not match.
+func (srv *ServerEndpoint) checkAuth(id uuid.UUID, authHeader string) error {
+	// check if UUID is known
+	idAuthToken, exists := srv.AuthTokens[id.String()]
+	if !exists {
+		return fmt.Errorf("unknown UUID \"%s\"", id.String())
+	}
+
+	// check auth token
+	if authHeader != idAuthToken {
+		return fmt.Errorf("invalid auth token")
+	}
+
+	return nil
 }
 
 func (srv *ServerEndpoint) handleRequest(w http.ResponseWriter, r *http.Request, isHash bool) {
@@ -184,16 +165,21 @@ func (srv *ServerEndpoint) handleRequest(w http.ResponseWriter, r *http.Request,
 	var err error
 
 	if srv.RequiresAuth {
-		id, err = checkAuth(w, r, srv.AuthTokens)
+		id, err = getUUID(r)
 		if err != nil {
-			logError(err)
+			Error(w, err, http.StatusNotFound)
+			return
+		}
+		err = srv.checkAuth(id, XAuthToken(r))
+		if err != nil {
+			Error(w, err, http.StatusUnauthorized)
 			return
 		}
 	}
 
-	hash, err := getHash(w, r, isHash)
+	hash, err := getHash(r, isHash)
 	if err != nil {
-		logError(err)
+		Error(w, err, http.StatusBadRequest)
 		return
 	}
 
@@ -208,9 +194,8 @@ func (srv *ServerEndpoint) handleRequest(w http.ResponseWriter, r *http.Request,
 }
 
 func (srv *ServerEndpoint) handleRequestHash(w http.ResponseWriter, r *http.Request) {
-	err := assertContentType(w, r, BinType)
-	if err != nil {
-		logError(err)
+	if ContentType(r) != BinType {
+		Error(w, fmt.Errorf("wrong content-type. expected \"%s\"", BinType), http.StatusBadRequest)
 		return
 	}
 
@@ -218,9 +203,8 @@ func (srv *ServerEndpoint) handleRequestHash(w http.ResponseWriter, r *http.Requ
 }
 
 func (srv *ServerEndpoint) handleRequestJSON(w http.ResponseWriter, r *http.Request) {
-	err := assertContentType(w, r, JSONType)
-	if err != nil {
-		logError(err)
+	if ContentType(r) != JSONType {
+		Error(w, fmt.Errorf("wrong content-type. expected \"%s\" for ", JSONType), http.StatusBadRequest)
 		return
 	}
 
