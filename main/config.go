@@ -35,10 +35,13 @@ const (
 	NIOMON_URL = "https://niomon.%s.ubirch.com/"
 	VERIFY_URL = "https://verify.%s.ubirch.com/api/upp"
 
-	KeysFile = "keys.json"       // {UUID: key} DEPRECATED
-	KeysEnv  = "UBIRCH_KEYS"     // {UUID: key}
 	AuthEnv  = "UBIRCH_AUTH_MAP" // {UUID: [key, token]}
+	KeysEnv  = "UBIRCH_KEYS"     // {UUID: key}
 	AuthFile = "auth.json"       // {UUID: [key, token]}
+	KeysFile = "keys.json"       // {UUID: key} DEPRECATED
+
+	DefaultTLSCertFile = "cert.pem"
+	DefaultTLSKeyFile  = "key.pem"
 )
 
 // configuration of the device
@@ -129,12 +132,12 @@ func (c *Config) checkMandatory() error {
 func (c *Config) setDefaultTLS() {
 	if c.TLS {
 		if c.TLS_CertFile == "" {
-			c.TLS_CertFile = "cert.pem"
+			c.TLS_CertFile = DefaultTLSCertFile
 		}
 		c.TLS_CertFile = filepath.Join(ConfigDir, c.TLS_CertFile)
 
 		if c.TLS_KeyFile == "" {
-			c.TLS_KeyFile = "key.pem"
+			c.TLS_KeyFile = DefaultTLSKeyFile
 		}
 		c.TLS_KeyFile = filepath.Join(ConfigDir, c.TLS_KeyFile)
 	}
