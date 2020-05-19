@@ -30,7 +30,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-client-go/main/api"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
@@ -140,7 +139,7 @@ func loadUPP(hashString string, conf Config) ([]byte, []byte, int, error) {
 }
 
 // hash a message and retrieve corresponding UPP to verify it
-func verifier(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, ctx context.Context, wg *sync.WaitGroup) {
+func verifier(msgHandler chan HTTPMessage, p *ExtendedProtocol, conf Config, ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 	const errID = "VERIFIER ERROR"
 
@@ -154,13 +153,7 @@ func verifier(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config,
 
 			upp, prev, code, err := loadUPP(hashString, conf)
 			if err != nil {
-				errMsg := fmt.Sprintf("%s: verification failed! %v", errID, err)
-				log.Printf(errMsg)
-				msg.Response <- api.HTTPResponse{
-					Code:    code,
-					Header:  map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}},
-					Content: []byte(errMsg),
-				}
+				msg.Response <- HTTPErrorResponse(code, fmt.Sprintf("%s: verification failed! %v", errID, err))
 				continue
 			}
 
@@ -172,21 +165,19 @@ func verifier(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config,
 
 			o, err := ubirch.DecodeChained(upp)
 			if err != nil {
-				errMsg := fmt.Sprintf("%s: UPP decoding failed: %v", errID, err)
-				msg.Response <- api.InternalServerError(errMsg)
+				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("%s: UPP decoding failed: %v", errID, err))
 				continue
 			}
 
 			if bytes.Compare(hash[:], o.Payload) != 0 { // todo this really should not happen!
-				msg.Response <- api.InternalServerError("hash and UPP content don't match. retrieved wrong UPP")
+				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "hash and UPP content don't match. retrieved wrong UPP")
 				continue
 			}
 
 			uid := o.Uuid
 			err = verifyUPP(uid, upp, p, conf)
 			if err != nil {
-				errMsg := fmt.Sprintf("%s: UPP verification failed: %v", errID, err)
-				msg.Response <- api.InternalServerError(errMsg)
+				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("%s: UPP verification failed: %v", errID, err))
 				continue
 			}
 			log.Printf("verified hash: %s", hashString)
@@ -198,7 +189,7 @@ func verifier(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config,
 				header = map[string][]string{"Content-Type": {"application/octet-stream"}}
 				response = upp
 			}
-			msg.Response <- api.HTTPResponse{Code: code, Header: header, Content: response}
+			msg.Response <- HTTPResponse{Code: code, Header: header, Content: response}
 
 		case <-ctx.Done():
 			log.Println("finishing verifier")

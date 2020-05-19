@@ -24,7 +24,6 @@ import (
 	"syscall"
 
 	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-client-go/main/api"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
@@ -96,26 +95,24 @@ func main() {
 	signals := make(chan os.Signal, 1)
 	go shutdown(signals, &p, &wg, cancel)
 
-	httpServer := api.HTTPServer{}
-	httpServer.Init(conf.Debug)
+	httpServer := HTTPServer{}
+	httpServer.Init(conf.Debug, conf.Env)
 	httpServer.SetUpTLS(conf.TLS, conf.TLS_CertFile, conf.TLS_KeyFile)
-	if conf.Env != PROD_STAGE { // never enable CORS on production stage
-		httpServer.SetUpCORS(conf.CORS, conf.CORS_AllowedOrigins)
-	}
+	httpServer.SetUpCORS(conf.CORS, conf.CORS_AllowedOrigins)
 
 	// listen to messages to sign via http
-	httpSrvSign := api.ServerEndpoint{
-		Path:           fmt.Sprintf("/{%s}", api.UUIDKey),
-		MessageHandler: make(chan api.HTTPMessage, 100),
+	httpSrvSign := ServerEndpoint{
+		Path:           fmt.Sprintf("/{%s}", UUIDKey),
+		MessageHandler: make(chan HTTPMessage, 100),
 		RequiresAuth:   true,
 		AuthTokens:     conf.Devices,
 	}
 	httpServer.AddEndpoint(httpSrvSign)
 
 	// listen to messages to verify via http
-	httpSrvVerify := api.ServerEndpoint{
+	httpSrvVerify := ServerEndpoint{
 		Path:           "/verify",
-		MessageHandler: make(chan api.HTTPMessage, 100),
+		MessageHandler: make(chan HTTPMessage, 100),
 		RequiresAuth:   false,
 		AuthTokens:     nil,
 	}

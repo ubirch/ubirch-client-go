@@ -1,9 +1,10 @@
-package api
+package main
 
 import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -16,6 +17,11 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/cors"
 	"github.com/google/uuid"
+)
+
+var (
+	DEBUG bool
+	ENV   string
 )
 
 const (
@@ -49,7 +55,7 @@ type HTTPResponse struct {
 
 // wrapper for http.Error that additionally logs the error message to std.Output
 func Error(w http.ResponseWriter, err error, code int) {
-	log.Printf("HTTP SERVER ERROR: %s", err)
+	log.Printf("HTTP SERVER ERROR: %v", err)
 	http.Error(w, fmt.Sprintf("%v", err), code)
 }
 
@@ -94,7 +100,7 @@ func getSortedCompactJSON(data []byte) ([]byte, error) {
 		return nil, fmt.Errorf("unable to compact json object: %v", err)
 	}
 
-	return compactSortedJson.Bytes(), err
+	return compactSortedJson.Bytes(), nil
 }
 
 func getHash(r *http.Request, isHash bool) (Sha256Sum, error) {
@@ -106,21 +112,33 @@ func getHash(r *http.Request, isHash bool) (Sha256Sum, error) {
 		return Sha256Sum{}, fmt.Errorf("unable to read request body: %v", err)
 	}
 
-	if ContentType(r) == JSONType {
-		// generate a sorted compact rendering of the json formatted request body
-		data, err = getSortedCompactJSON(data)
-		if err != nil {
-			return Sha256Sum{}, err
+	contentType := ContentType(r)
+	if !isHash { // request contains original data
+		if contentType == JSONType {
+			// generate a sorted compact rendering of the json formatted request body
+			data, err = getSortedCompactJSON(data)
+			if err != nil {
+				return Sha256Sum{}, err
+			}
+			// only log original data if in debug-mode and never on production stage
+			if DEBUG && ENV != PROD_STAGE {
+				log.Printf("compact sorted json (go): %s", string(data))
+			}
+		} else {
+			return Sha256Sum{}, fmt.Errorf("wrong content-type for original data. expected \"%s\"", JSONType)
 		}
-		//// TODO only log original data if in debug-mode and never on production stage
-		//if Debug && Env != PROD_STAGE {
-		//	log.Printf("compact sorted json (go): %s", string(data))
-		//}
-	}
 
-	if !isHash {
 		hash = sha256.Sum256(data)
-	} else {
+	} else { // request contains hash
+		if contentType == TextType {
+			data, err = base64.StdEncoding.DecodeString(string(data))
+			if err != nil {
+				return Sha256Sum{}, fmt.Errorf("decoding base64 encoded hash failed: %v (%s)", err, string(data))
+			}
+		} else if contentType != BinType {
+			return Sha256Sum{}, fmt.Errorf("wrong content-type for hash. expected \"%s\" or \"%s\"", BinType, TextType)
+		}
+
 		if len(data) != HashLen {
 			return Sha256Sum{}, fmt.Errorf("invalid hash size. expected %d bytes, got %d (%s)", HashLen, len(data), data)
 		}
@@ -145,9 +163,9 @@ func forwardBackendResponse(w http.ResponseWriter, respChan chan HTTPResponse) {
 
 // check if auth token from request header is correct.
 // Returns error if UUID is unknown or auth token does not match.
-func (srv *ServerEndpoint) checkAuth(id uuid.UUID, authHeader string) error {
+func (endpnt *ServerEndpoint) checkAuth(id uuid.UUID, authHeader string) error {
 	// check if UUID is known
-	idAuthToken, exists := srv.AuthTokens[id.String()]
+	idAuthToken, exists := endpnt.AuthTokens[id.String()]
 	if !exists {
 		return fmt.Errorf("unknown UUID \"%s\"", id.String())
 	}
@@ -160,17 +178,17 @@ func (srv *ServerEndpoint) checkAuth(id uuid.UUID, authHeader string) error {
 	return nil
 }
 
-func (srv *ServerEndpoint) handleRequest(w http.ResponseWriter, r *http.Request, isHash bool) {
+func (endpnt *ServerEndpoint) handleRequest(w http.ResponseWriter, r *http.Request, isHash bool) {
 	var id uuid.UUID
 	var err error
 
-	if srv.RequiresAuth {
+	if endpnt.RequiresAuth {
 		id, err = getUUID(r)
 		if err != nil {
 			Error(w, err, http.StatusNotFound)
 			return
 		}
-		err = srv.checkAuth(id, XAuthToken(r))
+		err = endpnt.checkAuth(id, XAuthToken(r))
 		if err != nil {
 			Error(w, err, http.StatusUnauthorized)
 			return
@@ -187,31 +205,21 @@ func (srv *ServerEndpoint) handleRequest(w http.ResponseWriter, r *http.Request,
 	respChan := make(chan HTTPResponse)
 
 	// submit message for singing
-	srv.MessageHandler <- HTTPMessage{ID: id, Hash: hash, Response: respChan}
+	endpnt.MessageHandler <- HTTPMessage{ID: id, Hash: hash, Response: respChan}
 
 	// wait for response from ubirch backend to be forwarded
 	forwardBackendResponse(w, respChan)
 }
 
-func (srv *ServerEndpoint) handleRequestHash(w http.ResponseWriter, r *http.Request) {
-	if ContentType(r) != BinType {
-		Error(w, fmt.Errorf("wrong content-type. expected \"%s\"", BinType), http.StatusBadRequest)
-		return
-	}
-
-	srv.handleRequest(w, r, true)
+func (endpnt *ServerEndpoint) handleRequestHash(w http.ResponseWriter, r *http.Request) {
+	endpnt.handleRequest(w, r, true)
 }
 
-func (srv *ServerEndpoint) handleRequestJSON(w http.ResponseWriter, r *http.Request) {
-	if ContentType(r) != JSONType {
-		Error(w, fmt.Errorf("wrong content-type. expected \"%s\" for ", JSONType), http.StatusBadRequest)
-		return
-	}
-
-	srv.handleRequest(w, r, false)
+func (endpnt *ServerEndpoint) handleRequestJSON(w http.ResponseWriter, r *http.Request) {
+	endpnt.handleRequest(w, r, false)
 }
 
-func (srv *ServerEndpoint) handleOptions(writer http.ResponseWriter, request *http.Request) {
+func (endpnt *ServerEndpoint) handleOptions(writer http.ResponseWriter, request *http.Request) {
 	return
 }
 
@@ -220,12 +228,12 @@ type HTTPServer struct {
 	tls      bool
 	certFile string
 	keyFile  string
-	debug    bool
 }
 
-func (srv *HTTPServer) Init(debug bool) {
+func (srv *HTTPServer) Init(debug bool, env string) {
 	srv.router = chi.NewMux()
-	srv.debug = debug
+	DEBUG = debug
+	ENV = env
 }
 
 func (srv *HTTPServer) SetUpTLS(TLS bool, certFile string, keyFile string) {
@@ -235,7 +243,7 @@ func (srv *HTTPServer) SetUpTLS(TLS bool, certFile string, keyFile string) {
 
 	if srv.tls {
 		log.Printf("TLS enabled")
-		if srv.debug {
+		if DEBUG {
 			log.Printf(" - Cert: %s", srv.certFile)
 			log.Printf(" -  Key: %s", srv.keyFile)
 		}
@@ -243,12 +251,12 @@ func (srv *HTTPServer) SetUpTLS(TLS bool, certFile string, keyFile string) {
 }
 
 func (srv *HTTPServer) SetUpCORS(CORS bool, allowedOrigins []string) {
-	if CORS {
+	if CORS && ENV != PROD_STAGE { // never enable CORS on production stage
 		if allowedOrigins == nil {
 			allowedOrigins = []string{"*"} // allow all origins
 		}
 		log.Printf("CORS enabled")
-		if srv.debug {
+		if DEBUG {
 			log.Printf(" - Allowed Origins: %v", allowedOrigins)
 		}
 
@@ -259,7 +267,7 @@ func (srv *HTTPServer) SetUpCORS(CORS bool, allowedOrigins []string) {
 			ExposedHeaders:   []string{"Accept", "Content-Type", "Content-Length", "X-Auth-Token"},
 			AllowCredentials: true,
 			MaxAge:           300, // Maximum value not ignored by any of major browsers
-			Debug:            srv.debug,
+			Debug:            DEBUG,
 		}))
 	}
 }
@@ -305,13 +313,13 @@ func (srv *HTTPServer) Serve(ctx context.Context, wg *sync.WaitGroup) {
 	}
 }
 
-func InternalServerError(message string) HTTPResponse {
+func HTTPErrorResponse(code int, message string) HTTPResponse {
 	if message == "" {
-		message = http.StatusText(http.StatusInternalServerError)
+		message = http.StatusText(code)
 	}
 	log.Printf(message)
 	return HTTPResponse{
-		Code:    http.StatusInternalServerError,
+		Code:    code,
 		Header:  map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}},
 		Content: []byte(message),
 	}
