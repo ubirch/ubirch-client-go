@@ -49,9 +49,11 @@ The client will first look if the `UBIRCH_SECRET` env variable exists and load t
  the working directory, the configuration will be loaded from the file. If neither exist, the client will abort and exit.
  
 The only two mandatory configurations are 
-- the `devices`-map, which maps device UUIDs to their authentication token 
-(see [here](#how-to-acquire-the-ubirch-backend-token) how to acquire the authentication token),
-- and the 16 byte base64 encoded `secret`, which is used to encrypt the key store.
+- the `devices`-map, which maps device UUIDs to their authentication token
+    > - A UUID can be generated in a Linux terminal with the `uuidgen` command
+    > - See [how to acquire the authentication token](#how-to-acquire-the-ubirch-backend-token)
+- the 16 byte base64 encoded `secret`, which is used to encrypt the key store.
+    > Quickly generate a random 16 byte base64 encoded secret in a Linux terminal with `head -c 16 /dev/urandom | base64`
 
 ### File Based Configuration 
 `config.json`:
@@ -68,27 +70,30 @@ The only two mandatory configurations are
 ### Environment Based Configuration
 ```
 export UBIRCH_DEVICES="<UUID>:<ubirch backend auth token>"
-export UBIRCH_SECRET=<16 byte secret used to encrypt the key store  (base64 encoded)>
+export UBIRCH_SECRET=<16 byte secret used to encrypt the key store (base64 encoded)>
 ```
 (See [example.env](main/example.env) for an example.)
  
  All other configuration parameters have default values, but can be configured as follows.
 
-#### Set a UBIRCH backend environment
+### Set the UBIRCH backend environment
 The `env` configuration refers to the UBIRCH backend environment. The default value is `prod`, which is the
-production environment. For development, the reference to “prod” may be replaced by “demo”, which is a test system
+production environment. For development, the environment may be set to `demo`, which is a test system
 that works like the production environment, but stores data only in a blockchain test net.
 
+> Note that the UUIDs must be registered at the according UBIRCH backend environment.
+
+To switch to the `demo` backend environment
 - add the following key-value pair to your `config.json`:
 ```
-  "env": "<ubirch backend environment, defaults to 'prod'>"
+  "env": "demo"
 ```
 - or set the following environment variable:
 ```
-export UBIRCH_ENV=<ubirch backend environment, defaults to 'prod'>
+export UBIRCH_ENV=demo
 ```
  
-#### Use a SQL database to store the protocol context
+### Use a SQL database to store the protocol context
 The `DSN` (*Data Source Name*) can be used to connect the client to a SQL database for storing the protocol context 
 (i.e. the encrypted keystore, key certificates and last signatures) persistently. If DSN is not set or empty, the 
 client will create a file `protocol.json` (and `protocol.json.bck`) locally in the working directory.
@@ -106,7 +111,7 @@ set the DSN in the configuration.
 export UBIRCH_DSN=<data source name for database>
 ```
 
-#### Inject signing keys
+### Inject signing keys
 The `staticKeys`-flag may be used to disable dynamic key generation and only accept requests from UUIDs with injected
 signing key. The default value for this flag is `false`, which means the client will per default generate a new ECDSA
 (prime256v1) key pair if it receives a request from a UUID without a corresponding signing key in the keystore.
@@ -132,23 +137,25 @@ $ openssl ecparam -genkey -name prime256v1 -noout | openssl ec -text -noout | gr
 *Either way (dynamically generated or injected) the client will register the public key at the UBIRCH key service and
 store the keys persistently in the encrypted keystore.*
  
-#### Serve HTTPS
-##### Create a self-signed TLS certificate
-In order to serve HTTPS endpoints, you can run the following command to create a self-signed certificate with openssl.
- With this command it will be valid for ten years.
-```console
-$ openssl req -x509 -newkey rsa:4096 -keyout key.pem -nodes -out cert.pem -days 3650
-``` 
+### Serve HTTPS
+- Create a self-signed TLS certificate
 
-##### Enable TLS in configuration
-To enable TLS (i.e. serve HTTPS) for the UBIRCH client service, add the following key-value pair to your `config.json`:
-```
-  "TLS": true
-```
-...or set the following environment variable:
-```
-export UBIRCH_TLS=true
-```
+    In order to serve HTTPS endpoints, you can run the following command to create a self-signed certificate with openssl.
+     With this command it will be valid for ten years.
+    ```console
+    $ openssl req -x509 -newkey rsa:4096 -keyout key.pem -nodes -out cert.pem -days 3650
+    ``` 
+
+- Enable TLS in configuration
+
+    To enable TLS (i.e. serve HTTPS) for the UBIRCH client service, add the following key-value pair to your `config.json`:
+    ```
+      "TLS": true
+    ```
+    ...or set the following environment variable:
+    ```
+    export UBIRCH_TLS=true
+    ```
 
 By default, docker client will look for the `key.pem` and `cert.pem` files in the working directory 
 (same location as the config file), but you can define a different location (relative to the working 
@@ -163,30 +170,41 @@ export UBIRCH_TLS_CERTFILE=certs/cert.pem
 export UBIRCH_TLS_KEYFILE=certs/key.pem
 ```
 
-#### Enable Cross Origin Resource Sharing (CORS)
-Cross Origin Resource Sharing (CORS) can only be enabled on `dev` and `demo` stages. 
-**This setting is ignored if the UBIRCH backend environment is set to `prod`.**
+### Enable Cross Origin Resource Sharing (CORS)
+**Cross Origin Resource Sharing (CORS) can only be enabled if the UBIRCH backend environment is set to `demo`
+ and will be ignored on production stage.**
+> [See how to set the UBIRCH backend environment](#set-the-ubirch-backend-environment)
 
-The user can set a list of *allowed origins*, i.e. origins a cross-domain request can be executed from,
-through the configuration. An origin may contain a wildcard (`*`) to replace 0 or more characters (e.g.:
- `http://*.domain.com`). Only one wildcard can be used per origin. 
-
-- add the following key-value pairs to your `config.json`:
+To enable CORS add the following key-value pair to your `config.json`:
 ```
-  "CORS": true,
-  "CORS_origins": ["https://foo.com", "https://*.bar.com"]
+ "CORS": true,
 ```
-- or set the following environment variables:
+or set the following environment variable:
 ```
 export UBIRCH_CORS=true
-export UBIRCH_CORS_ORIGINS="https://foo.com,https://*.bar.com"
 ```
 
-Default value for `"CORS_origins"`, if CORS is enabled, but no *allowed origins* are specified, is `["*"]` 
-which means, all origins will be allowed.
+*(Optional)* Configure a list of *allowed origins*, i.e. origins a cross-domain request can be executed from:
+- `config.json`:
+```
+  "CORS_origins": ["<allowed origin>"]
+```
+- environment variable:
+```
+export UBIRCH_CORS_ORIGINS="<allowed origin>"
+```
+An origin may contain a wildcard (`*`) to replace 0 or more characters (e.g.: `http://*.domain.com`). 
+Only one wildcard can be used per origin. 
+
+If CORS is enabled, but no *allowed origins* are specified, the default value is `["*"]` 
+which means, all origins will be allowed. 
 
 ### How to acquire the ubirch backend token
-- Register at the **UBIRCH web UI**: https://console.prod.ubirch.com/ or https://console.demo.ubirch.com/
+- Register at the **UBIRCH web UI**: 
+    
+    Depending on the UBIRCH backend environment you are using, go to
+    - `prod`: https://console.prod.ubirch.com/
+    - `demo`: https://console.demo.ubirch.com/
 - Go to **Things** (in the menu on the left) and click on `+ ADD NEW DEVICE`
 - Enter your device UUID to the **ID** field. You can also add a description for your device, if you want. Then click on `register`. 
 - Your device should now show up under **Your Things**-overview. Click on it and copy the "password" (which looks like a UUID) as the ubirch backend token.
@@ -284,6 +302,9 @@ If the client receives a JSON data package, it will generate a *sorted compact r
 > }
 > ```
 
+### Uniqueness of hashes
+[TODO](#uniqueness-of-hashes)
+
 ## Quick Start
 1. First, you will need a device UUID, an auth token, and a 16 byte secret:
     1. Generate a UUID. On Linux simply enter `uuidgen` in your terminal. Alternatively, you can use an online tool.
@@ -357,7 +378,7 @@ Then just enter the following two lines in your working directory:
    ```
    > Take note of the hash!
    
-   If your request was submitted, you'll get a `HTTP/1.1 200 OK` response.
+   If your request was submitted, you'll get a `200` response code.
    
    The HTTP response body from the client is a JSON map containing the data hash and the UPP, that has been sent 
    to the UBIRCH backend, and the response from the backend, which is a UPP as well. UPPs are in *msgpack*-format.
