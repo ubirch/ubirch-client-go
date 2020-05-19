@@ -171,7 +171,7 @@ func signer(msgHandler chan api.HTTPMessage, p *ExtendedProtocol, conf Config, c
 				respContent = string(respDecoded.Payload)
 			}
 			if respContent == "" {
-				log.Printf("%s: response UPP decoding failed: %v", name, err)
+				//log.Printf("%s: response UPP decoding failed: %v", name, err)
 				respContent = base64.StdEncoding.EncodeToString(resp)
 			}
 
