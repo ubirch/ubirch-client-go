@@ -146,8 +146,7 @@ func getHash(w http.ResponseWriter, r *http.Request, isHash bool) (Sha256Sum, er
 		if err != nil {
 			return hash, err
 		}
-		// TODO
-		//// only log original data if in debug-mode and never on production stage
+		//// TODO only log original data if in debug-mode and never on production stage
 		//if Debug && Env != PROD_STAGE {
 		//	log.Printf("compact sorted json (go): %s", string(data))
 		//}
@@ -228,6 +227,10 @@ func (srv *ServerEndpoint) handleRequestJSON(w http.ResponseWriter, r *http.Requ
 	srv.handleRequest(w, r, false)
 }
 
+func (srv *ServerEndpoint) handleOptions(writer http.ResponseWriter, request *http.Request) {
+	return
+}
+
 type HTTPServer struct {
 	router   *chi.Mux
 	tls      bool
@@ -267,8 +270,9 @@ func (srv *HTTPServer) SetUpCORS(CORS bool, allowedOrigins []string) {
 
 		srv.router.Use(cors.Handler(cors.Options{
 			AllowedOrigins:   allowedOrigins,
+			AllowedMethods:   []string{"POST", "OPTIONS"},
 			AllowedHeaders:   []string{"Accept", "Content-Type", "Content-Length", "X-Auth-Token"},
-			ExposedHeaders:   []string{"*", "Authorization"},
+			ExposedHeaders:   []string{"Accept", "Content-Type", "Content-Length", "X-Auth-Token"},
 			AllowCredentials: true,
 			MaxAge:           300, // Maximum value not ignored by any of major browsers
 			Debug:            srv.debug,
@@ -279,6 +283,9 @@ func (srv *HTTPServer) SetUpCORS(CORS bool, allowedOrigins []string) {
 func (srv *HTTPServer) AddEndpoint(endpoint ServerEndpoint) {
 	srv.router.Post(endpoint.Path, endpoint.handleRequestJSON)
 	srv.router.Post(endpoint.Path+"/hash", endpoint.handleRequestHash)
+
+	srv.router.Options(endpoint.Path, endpoint.handleOptions)
+	srv.router.Options(endpoint.Path+"/hash", endpoint.handleOptions)
 }
 
 func (srv *HTTPServer) Serve(ctx context.Context, wg *sync.WaitGroup) {
