@@ -79,7 +79,7 @@ def check_signing_response(r: requests.Response, request_type: str, msg: str, se
             print("hash (py): {}".format(hash))
             return False
 
-    hashes.append((msg, binascii.a2b_base64(hash), r_map["upp"]))  # [(msg, msg_hash, upp)]
+    hashes.append((msg, hash, r_map["upp"]))  # [(msg, msg_hash, upp)]
     return True
 
 
@@ -134,6 +134,7 @@ if len(sys.argv) < 3:
     print("python3 ./bombard.py <UUID> <AUTH_TOKEN>")
     sys.exit()
 
+num = 30
 env = "demo"
 uuid = sys.argv[1]
 auth = sys.argv[2]
@@ -149,18 +150,13 @@ hash_bin_header = {'Content-Type': 'application/octet-stream'}
 hash_txt_header = {'Content-Type': 'text/plain'}
 json_header = {'Content-Type': 'application/json'}
 
+print("\nsigning {} messages...".format(num * len(types)))
 i, failed[json_type], failed[hash_bin_type], failed[hash_b64_type] = 0, 0, 0, 0
-while i < 1:
+while i < num:
     i += 1
 
-    # sign JSON
-    send_signing_request(json_type)
-
-    # sign hash (binary)
-    send_signing_request(hash_bin_type)
-
-    # sign hash (base64)
-    send_signing_request(hash_b64_type)
+    for t in types:
+        send_signing_request(t)
 
     if i % 10 == 0 and i != 0:
         for t in types:
@@ -168,19 +164,13 @@ while i < 1:
         print(" max. duration: {} sec".format(max_dur))
         max_dur = 0
 
-i, failed[json_type], failed[hash_bin_type], failed[hash_b64_type] = 0, 0, 0, 0
 print("\nverifying {} hashes...".format(len(hashes)))
+i, failed[json_type], failed[hash_bin_type], failed[hash_b64_type] = 0, 0, 0, 0
 for msg, hash, upp in hashes:
     i += 1
 
-    # verify JSON
-    send_verification_request(json_type, msg, hash, upp)
-
-    # verify hash (binary)
-    send_verification_request(hash_bin_type, msg, hash, upp)
-
-    # verify hash (base64)
-    send_verification_request(hash_b64_type, msg, hash, upp)
+    for t in types:
+        send_verification_request(t, msg, hash, upp)
 
     if i % 10 == 0:
         for t in types:
