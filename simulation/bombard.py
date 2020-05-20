@@ -14,7 +14,10 @@ json_type = "JSON data package"
 hash_bin_type = "binary hash"
 hash_b64_type = "base64 hash"
 
-hashes = []
+types = [json_type, hash_bin_type, hash_b64_type]
+
+hashes = []  # [(msg, hash, upp)]
+failed = {}
 max_dur = 0
 
 
@@ -44,9 +47,8 @@ def get_message() -> (str, str, str):
             secrets.choice(letters): secrets.randbits(32)
         }
     }
-    msg_str = json.dumps(msg)
     serialized, msg_hash = hash_msg(msg)
-    return msg_str, serialized, msg_hash
+    return json.dumps(msg), serialized, msg_hash
 
 
 def send_request(url: str, headers: dict, data: str or bytes) -> requests.Response:
@@ -58,7 +60,7 @@ def send_request(url: str, headers: dict, data: str or bytes) -> requests.Respon
     return r
 
 
-def check_response(r: requests.Response, request_kind: str, msg_str: str, serialized: str, msg_hash: str) -> bool:
+def check_signing_response(r: requests.Response, request_type: str, msg: str, serialized: str, hash: str) -> bool:
     try:
         r_map = json.loads(r.text)
     except Exception:
@@ -66,19 +68,65 @@ def check_response(r: requests.Response, request_kind: str, msg_str: str, serial
         return False
 
     if r.status_code != 200:
-        print("{} signing request failed! {}: ".format(request_kind, r.status_code))
+        print("{} signing request failed! {}: ".format(request_type, r.status_code))
         print(msgpack.unpackb(binascii.a2b_base64(r_map["response"]), raw=False)[-2])
         return False
     else:
-        if r_map["hash"] != msg_hash:
+        if r_map["hash"] != hash:
             print(" - - - HASH MISMATCH ! - - - ")
             print("compact sorted json (py): {}".format(serialized))
             print("hash (go): {}".format(r_map["hash"]))
-            print("hash (py): {}".format(msg_hash))
+            print("hash (py): {}".format(hash))
             return False
-        else:
-            hashes.append((msg_str, binascii.a2b_base64(msg_hash)))
-            return True
+
+    hashes.append((msg, binascii.a2b_base64(hash), r_map["upp"]))  # [(msg, msg_hash, upp)]
+    return True
+
+
+def send_signing_request(request_type: str):
+    msg, serialized, hash = get_message()
+
+    if request_type == json_type:
+        url, header, data = sign_json_url, json_header, msg
+    if request_type == hash_bin_type:
+        url, header, data = sign_hash_url, hash_bin_header, binascii.a2b_base64(hash)
+    if request_type == hash_b64_type:
+        url, header, data = sign_hash_url, hash_txt_header, hash
+
+    r = send_request(url=url, headers={**auth_header, **header}, data=data)
+    if not check_signing_response(r, request_type, msg, serialized, hash):
+        failed[request_type] += 1
+
+
+def check_verification_response(r: requests.Response, request_type: str, msg: str, hash: str, upp: str) -> bool:
+    if r.status_code != 200:
+        print("NOT VERIFIED: ({})".format(request_type))
+        print("hash: {}".format(hash))
+        print("json: {}".format(msg))
+        print("response: ({}) {}".format(r.status_code, r.text))
+        return False
+    else:
+        r_map = json.loads(r.text)
+        if r_map["upp"] != upp:
+            print(" - - - UPP MISMATCH ! - - - ")
+            print("UPP from sign. resp.: {}".format(upp))
+            print("UPP from veri. resp.: {}".format(r_map["upp"]))
+            return False
+
+    return True
+
+
+def send_verification_request(request_type: str, msg: str, hash: str, upp: str):
+    if request_type == json_type:
+        url, header, data = vrfy_json_url, json_header, msg
+    if request_type == hash_bin_type:
+        url, header, data = vrfy_hash_url, hash_bin_header, binascii.a2b_base64(hash)
+    if request_type == hash_b64_type:
+        url, header, data = vrfy_hash_url, hash_txt_header, hash
+
+    r = send_request(url=url, headers=header, data=data)
+    if not check_verification_response(r, request_type, msg, hash, upp):
+        failed[request_type] += 1
 
 
 if len(sys.argv) < 3:
@@ -101,131 +149,41 @@ hash_bin_header = {'Content-Type': 'application/octet-stream'}
 hash_txt_header = {'Content-Type': 'text/plain'}
 json_header = {'Content-Type': 'application/json'}
 
-i, failed, failed[json_type], failed[hash_bin_type], failed[hash_b64_type] = 0, {}, 0, 0, 0
+i, failed[json_type], failed[hash_bin_type], failed[hash_b64_type] = 0, 0, 0, 0
 while i < 1:
     i += 1
 
     # sign JSON
-    msg_str, serialized, msg_hash = get_message()
-    r = send_request(url=sign_json_url,
-                     headers={**auth_header, **json_header},
-                     data=msg_str)
-    if not check_response(r, json_type, msg_str, serialized, msg_hash):
-        failed[json_type] += 1
+    send_signing_request(json_type)
 
     # sign hash (binary)
-    (msg_str, serialized, msg_hash) = get_message()
-    r = send_request(url=sign_hash_url,
-                     headers={**auth_header, **hash_bin_header},
-                     data=binascii.a2b_base64(msg_hash))
-    if not check_response(r, hash_bin_type, msg_str, serialized, msg_hash):
-        failed[hash_bin_type] += 1
+    send_signing_request(hash_bin_type)
 
     # sign hash (base64)
-    msg_str, serialized, msg_hash = get_message()
-    r = send_request(url=sign_hash_url,
-                     headers={**auth_header, **hash_txt_header},
-                     data=msg_hash)
-    if not check_response(r, hash_b64_type, msg_str, serialized, msg_hash):
-        failed[hash_b64_type] += 1
+    send_signing_request(hash_b64_type)
 
     if i % 10 == 0 and i != 0:
-        print("{} of {} {} signing requests failed.".format(failed[json_type], i, json_type))
-        print("{} of {} {} signing requests failed.".format(failed[hash_bin_type], i, hash_bin_type))
-        print("{} of {} {} signing requests failed.".format(failed[hash_b64_type], i, hash_b64_type))
+        for t in types:
+            print("{} of {} {} signing requests failed.".format(failed[t], i, t))
         print(" max. duration: {} sec".format(max_dur))
         max_dur = 0
 
-unverified_hashes = []
-unverified_json_msgs = []
 i, failed[json_type], failed[hash_bin_type], failed[hash_b64_type] = 0, 0, 0, 0
 print("\nverifying {} hashes...".format(len(hashes)))
-for msg, hash in hashes:
+for msg, hash, upp in hashes:
     i += 1
 
     # verify JSON
-    r = send_request(url=vrfy_json_url,
-                     headers=json_header,
-                     data=msg)
-
-    if r.status_code != 200:
-        print("NOT VERIFIED: {} ({})".format(msg, json_type))
-        print("response: ({}) {}".format(r.status_code, r.text))
-        unverified_json_msgs.append(msg)
-        failed[json_type] += 1
+    send_verification_request(json_type, msg, hash, upp)
 
     # verify hash (binary)
-    r = send_request(url=vrfy_hash_url,
-                     headers=hash_bin_header,
-                     data=hash)
-
-    if r.status_code != 200:
-        print("NOT VERIFIED: {} ({})".format(binascii.b2a_base64(hash).decode(), hash_bin_type))
-        print("response: ({}) {}".format(r.status_code, r.text))
-        unverified_hashes.append(hash)
-        failed[hash_bin_type] += 1
+    send_verification_request(hash_bin_type, msg, hash, upp)
 
     # verify hash (base64)
-    r = send_request(url=vrfy_hash_url,
-                     headers=hash_txt_header,
-                     data=binascii.b2a_base64(hash).decode().rstrip('\n'))
-
-    if r.status_code != 200:
-        print("NOT VERIFIED: {} ({})".format(binascii.b2a_base64(hash).decode(), hash_b64_type))
-        print("response: ({}) {}".format(r.status_code, r.text))
-        unverified_hashes.append(hash)
-        failed[hash_b64_type] += 1
+    send_verification_request(hash_b64_type, msg, hash, upp)
 
     if i % 10 == 0:
-        print("{} of {} {} verification requests failed.".format(failed[json_type], i, json_type))
-        print("{} of {} {} verification requests failed.".format(failed[hash_bin_type], i, hash_bin_type))
-        print("{} of {} {} verification requests failed.".format(failed[hash_b64_type], i, hash_b64_type))
+        for t in types:
+            print("{} of {} {} verification requests failed.".format(failed[t], i, t))
         print(" max. duration: {} sec".format(max_dur))
         max_dur = 0
-
-number_unverified_msgs = len(unverified_json_msgs)
-print("{} unverified json msgs".format(number_unverified_msgs))
-number_unverified_hashes = len(unverified_hashes)
-print("{} unverified hashes".format(number_unverified_hashes))
-
-failed[json_type], failed[hash_bin_type], failed[hash_b64_type] = 0, 0, 0
-if number_unverified_msgs > 0:
-    print("\nretry verifying {} json messages...".format(number_unverified_msgs))
-    for msg in unverified_json_msgs:
-        # verify JSON
-        r = send_request(url=vrfy_json_url,
-                         headers=json_header,
-                         data=msg)
-
-        if r.status_code != 200:
-            print("NOT VERIFIED: {} ({})".format(msg, json_type))
-            print("response: ({}) {}".format(r.status_code, r.text))
-            failed[json_type] += 1
-
-    print("{} {}s were unverifiable".format(failed[json_type], json_type))
-
-if number_unverified_hashes > 0:
-    print("\nretry verifying {} hashes...".format(number_unverified_hashes))
-    for hash in unverified_hashes:
-        # verify hash (binary)
-        r = send_request(url=vrfy_hash_url,
-                         headers=hash_bin_header,
-                         data=hash)
-
-        if r.status_code != 200:
-            print("NOT VERIFIED: {} ({})".format(binascii.b2a_base64(hash).decode(), hash_bin_type))
-            print("response: ({}) {}".format(r.status_code, r.text))
-            failed[hash_bin_type] += 1
-
-        # verify hash (base64)
-        r = send_request(url=vrfy_hash_url,
-                         headers=hash_txt_header,
-                         data=binascii.b2a_base64(hash).decode().rstrip('\n'))
-
-        if r.status_code != 200:
-            print("NOT VERIFIED: {} ({})".format(binascii.b2a_base64(hash).decode(), hash_b64_type))
-            print("response: ({}) {}".format(r.status_code, r.text))
-            failed[hash_b64_type] += 1
-
-    print("{} {}es were unverifiable".format(failed[hash_bin_type], hash_bin_type))
-    print("{} {}es were unverifiable".format(failed[hash_b64_type], hash_b64_type))
