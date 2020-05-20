@@ -32,7 +32,8 @@ vrfy_json_url = base_url + '/verify'.format(uuid)
 vrfy_hash_url = base_url + '/verify/hash'.format(uuid)
 
 auth_header = {'X-Auth-Token': auth}
-hash_header = {'Content-Type': 'application/octet-stream'}
+hash_bin_header = {'Content-Type': 'application/octet-stream'}
+hash_txt_header = {'Content-Type': 'text/plain'}
 json_header = {'Content-Type': 'application/json'}
 
 hashes = []
@@ -40,14 +41,14 @@ max_dur = 0
 i, failed = 0, 0
 letters = ("a", "b", "c", "d", "e", "f", "A", "B", "C", "D", "E", "F", "ä", "ö", "ü", "Ä", "Ö", "Ü")
 
-while i < 10:
+while i < 100:
     i += 1
 
     # create message to sign
     msg = {
         "id": uuid,
         "ts": int(time.time()),
-        "big": secrets.randbits(53),
+        "big": secrets.randbits(16),
         # "tpl": (secrets.randbits(32), secrets.randbits(8), secrets.randbits(16), secrets.randbits(4)),
         # "lst": [
         #     secrets.choice(letters),
@@ -102,15 +103,26 @@ while i < 10:
         print("          max. duration: {} sec".format(max_dur))
         max_dur = 0
 
-i = 0
-while len(hashes) > 0:
-    i += 1
-    print("\nverifying {} hashes...".format(len(hashes)))
-    for hash in hashes:
-        r = requests.post(url=vrfy_hash_url, headers=hash_header, data=hash)
+unverified_hashes = []
+print("\nverifying {} hashes...".format(len(hashes)))
+for hash in hashes:
+    r = requests.post(url=vrfy_hash_url, headers=hash_bin_header, data=hash)
+    if r.status_code != 200:
+        print("NOT VERIFIED: " + binascii.b2a_base64(hash).decode())
+        print("response: ({}) {}".format(r.status_code, r.text))
+        unverified_hashes.append(hash)
+
+number_unverified = len(unverified_hashes)
+print("\n{} verifications failed\n".format(number_unverified))
+
+if number_unverified > 0:
+    unverifiable = 0
+    print("\nretry verifying {} hashes...".format(number_unverified))
+    for hash in unverified_hashes:
+        r = requests.post(url=vrfy_hash_url, headers=hash_bin_header, data=hash)
         if r.status_code != 200:
             print("NOT VERIFIED: " + binascii.b2a_base64(hash).decode())
             print("response: ({}) {}".format(r.status_code, r.text))
-        else:
-            hashes.remove(hash)
-    print("\n{} verifications failed on {}. try.\n".format(len(hashes), i))
+            unverifiable += 1
+
+    print("\n{} verifications failed\n".format(unverifiable))
