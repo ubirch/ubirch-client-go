@@ -24,17 +24,23 @@ if len(sys.argv) < 3:
 env = "demo"
 uuid = sys.argv[1]
 auth = sys.argv[2]
-url = 'http://localhost:8080/{}'.format(uuid)
-headers = {
-    'Content-Type': 'application/json',
-    'X-Auth-Token': auth,
-}
+
+base_url = 'http://localhost:8080'
+sign_json_url = base_url + '/{}'.format(uuid)
+sign_hash_url = base_url + '/{}/hash'.format(uuid)
+vrfy_json_url = base_url + '/verify'.format(uuid)
+vrfy_hash_url = base_url + '/verify/hash'.format(uuid)
+
+auth_header = {'X-Auth-Token': auth}
+hash_header = {'Content-Type': 'application/octet-stream'}
+json_header = {'Content-Type': 'application/json'}
+
 hashes = []
 max_dur = 0
 i, failed = 0, 0
 letters = ("a", "b", "c", "d", "e", "f", "A", "B", "C", "D", "E", "F", "ä", "ö", "ü", "Ä", "Ö", "Ü")
 
-while i < 100:
+while i < 10:
     i += 1
 
     # create message to sign
@@ -42,19 +48,19 @@ while i < 100:
         "id": uuid,
         "ts": int(time.time()),
         "big": secrets.randbits(53),
-        "tpl": (secrets.randbits(32), secrets.randbits(8), secrets.randbits(16), secrets.randbits(4)),
-        "lst": [
-            secrets.choice(letters),
-            secrets.choice(letters),
-            secrets.choice(letters),
-            secrets.choice(letters)
-        ],
-        "map": {
-            secrets.choice(letters): secrets.randbits(4),
-            secrets.choice(letters): secrets.randbits(16),
-            secrets.choice(letters): secrets.randbits(8),
-            secrets.choice(letters): secrets.randbits(32)
-        }
+        # "tpl": (secrets.randbits(32), secrets.randbits(8), secrets.randbits(16), secrets.randbits(4)),
+        # "lst": [
+        #     secrets.choice(letters),
+        #     secrets.choice(letters),
+        #     secrets.choice(letters),
+        #     secrets.choice(letters)
+        # ],
+        # "map": {
+        #     secrets.choice(letters): secrets.randbits(4),
+        #     secrets.choice(letters): secrets.randbits(16),
+        #     secrets.choice(letters): secrets.randbits(8),
+        #     secrets.choice(letters): secrets.randbits(32)
+        # }
     }
     msg_str = json.dumps(msg)
     serialized, msg_hash = hash_msg(msg)
@@ -65,14 +71,16 @@ while i < 100:
 
     # send request
     start_time = int(time.time())
-    r = requests.post(url=url, headers=headers, data=msg_str)
+    r = requests.post(url=sign_json_url,
+                      headers={**auth_header, **json_header},
+                      data=msg_str)
     dur = int(time.time()) - start_time
     if dur > max_dur: max_dur = dur
 
     try:
         r_map = json.loads(r.text)
     except Exception:
-        print("client returned unexpected error: ({}) {}".format(r.status_code, r.text))
+        print("client returned error: ({}) {}".format(r.status_code, r.text))
         continue
 
     if r.status_code != 200:
@@ -87,31 +95,22 @@ while i < 100:
             print("hash (go): {}".format(r_map["hash"]))
             print("hash (py): {}".format(msg_hash))
         else:
-            hashes.append(msg_hash)
+            hashes.append(binascii.a2b_base64(msg_hash))
 
     if i % 10 == 0 and i != 0:
         print("{} of {} requests failed.".format(failed, i))
         print("          max. duration: {} sec".format(max_dur))
         max_dur = 0
 
-# wait before verifying
-time.sleep(2)
-
-url = "https://verify.{}.ubirch.com/api/upp/verify".format(env)
-headers = {
-    'Accept': 'application/json',
-    'Content-Type': 'text/plain'
-}
-
 i = 0
 while len(hashes) > 0:
     i += 1
-    print("\nverifying {} hashes... ({}.)".format(len(hashes), i))
+    print("\nverifying {} hashes...".format(len(hashes)))
     for hash in hashes:
-        r = requests.post(url=url, headers=headers, data=hash)
+        r = requests.post(url=vrfy_hash_url, headers=hash_header, data=hash)
         if r.status_code != 200:
-            print("NOT VERIFIED: " + hash)
-            print("response: {}: {}".format(r.status_code, r.text))
+            print("NOT VERIFIED: " + binascii.b2a_base64(hash).decode())
+            print("response: ({}) {}".format(r.status_code, r.text))
         else:
             hashes.remove(hash)
     print("\n{} verifications failed on {}. try.\n".format(len(hashes), i))
