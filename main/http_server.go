@@ -82,7 +82,7 @@ func getUUID(r *http.Request) (uuid.UUID, error) {
 
 func getSortedCompactJSON(data []byte) ([]byte, error) {
 	var reqDump interface{}
-	var compactSortedJson bytes.Buffer
+	var sortedCompactJson bytes.Buffer
 
 	// json.Unmarshal returns an error if data is not valid JSON
 	err := json.Unmarshal(data, &reqDump)
@@ -95,12 +95,12 @@ func getSortedCompactJSON(data []byte) ([]byte, error) {
 		return nil, fmt.Errorf("unable to serialize json object: %v", err)
 	}
 	// remove spaces and newlines
-	err = json.Compact(&compactSortedJson, sortedJson)
+	err = json.Compact(&sortedCompactJson, sortedJson)
 	if err != nil {
 		return nil, fmt.Errorf("unable to compact json object: %v", err)
 	}
 
-	return compactSortedJson.Bytes(), nil
+	return sortedCompactJson.Bytes(), nil
 }
 
 func getHash(r *http.Request, isHash bool) (Sha256Sum, error) {
@@ -121,14 +121,15 @@ func getHash(r *http.Request, isHash bool) (Sha256Sum, error) {
 				return Sha256Sum{}, err
 			}
 			// only log original data if in debug-mode and never on production stage
-			if DEBUG && ENV != PROD_STAGE {
-				log.Printf("compact sorted json (go): %s", string(data))
-			}
 		} else {
 			return Sha256Sum{}, fmt.Errorf("wrong content-type for original data. expected \"%s\"", JSONType)
 		}
 
 		hash = sha256.Sum256(data)
+
+		if DEBUG && ENV != PROD_STAGE {
+			log.Printf("sorted compact json: %s >> hash: %s", string(data), base64.StdEncoding.EncodeToString(hash[:]))
+		}
 	} else { // request contains hash
 		if contentType == TextType {
 			data, err = base64.StdEncoding.DecodeString(string(data))
@@ -140,7 +141,7 @@ func getHash(r *http.Request, isHash bool) (Sha256Sum, error) {
 		}
 
 		if len(data) != HashLen {
-			return Sha256Sum{}, fmt.Errorf("invalid hash size. expected %d bytes, got %d (%s)", HashLen, len(data), data)
+			return Sha256Sum{}, fmt.Errorf("invalid hash size. expected %d bytes, got %d bytes (%s)", HashLen, len(data), data)
 		}
 		copy(hash[:], data)
 	}
@@ -148,7 +149,7 @@ func getHash(r *http.Request, isHash bool) (Sha256Sum, error) {
 	return hash, err
 }
 
-// blocks until response is received and forwards it to sender	// TODO go
+// blocks until response is received and forwards it to sender
 func forwardBackendResponse(w http.ResponseWriter, respChan chan HTTPResponse) {
 	resp := <-respChan
 	w.WriteHeader(resp.Code)
@@ -286,7 +287,7 @@ func (srv *HTTPServer) Serve(ctx context.Context, wg *sync.WaitGroup) {
 	server := &http.Server{
 		Addr:         ":8080",
 		Handler:      srv.router,
-		ReadTimeout:  10 * time.Second,
+		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  75 * time.Second,
 	}

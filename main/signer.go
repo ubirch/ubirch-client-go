@@ -30,7 +30,6 @@ import (
 // handle incoming messages, create, sign and send a ubirch protocol packet (UPP) to the ubirch backend
 func signer(msgHandler chan HTTPMessage, p *ExtendedProtocol, conf Config, ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
-	const errID = "SIGNER ERROR"
 
 	for {
 		select {
@@ -41,7 +40,7 @@ func signer(msgHandler chan HTTPMessage, p *ExtendedProtocol, conf Config, ctx c
 			// check if there is a known signing key for UUID
 			if !p.Crypto.PrivateKeyExists(name) {
 				if conf.StaticKeys {
-					msg.Response <- HTTPErrorResponse(http.StatusUnauthorized, fmt.Sprintf("%s: dynamic key generation is disabled and there is no injected signing key for UUID %s", errID, name))
+					msg.Response <- HTTPErrorResponse(http.StatusUnauthorized, fmt.Sprintf("dynamic key generation is disabled and there is no injected signing key for UUID %s", name))
 					continue
 				}
 
@@ -49,7 +48,7 @@ func signer(msgHandler chan HTTPMessage, p *ExtendedProtocol, conf Config, ctx c
 				log.Printf("%s: generating new key pair", name)
 				err := p.Crypto.GenerateKey(name, uid)
 				if err != nil {
-					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("%s: generating new key pair for UUID %s failed: %v", errID, name, err))
+					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("failed to generate new key pair for UUID %s: %v", name, err))
 					continue
 				}
 
@@ -57,7 +56,7 @@ func signer(msgHandler chan HTTPMessage, p *ExtendedProtocol, conf Config, ctx c
 				err = p.PersistContext()
 				if err != nil {
 					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
-					log.Fatalf("%s: unable to store new key pair for UUID %s: %v", errID, name, err)
+					log.Fatalf("unable to persist new key pair for UUID %s: %v", name, err)
 				}
 			}
 
@@ -67,18 +66,18 @@ func signer(msgHandler chan HTTPMessage, p *ExtendedProtocol, conf Config, ctx c
 				// create a signed certificate for public key registration
 				cert, err := getSignedCertificate(p, name)
 				if err != nil {
-					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("%s: generating signed key certificate for UUID %s failed: %v", errID, name, err))
+					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("failed to generate signed key certificate for UUID %s: %v", name, err))
 					continue
 				}
 				log.Printf("%s: CERT: %s\n", name, cert)
 
 				code, _, resp, err := post(cert, conf.KeyService, map[string]string{"Content-Type": "application/json; charset=utf-8"})
 				if err != nil {
-					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("%s: sending key registration message for UUID %s failed: %v", errID, name, err))
+					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("failed to send key registration message for UUID %s: %v", name, err))
 					continue
 				}
 				if code != http.StatusOK {
-					msg.Response <- HTTPErrorResponse(code, fmt.Sprintf("%s: key registration for UUID %s at key service (%s) failed. (%d)\n key registration message: %s\n key service response: %s", errID, name, conf.KeyService, code, cert, string(resp)))
+					msg.Response <- HTTPErrorResponse(code, fmt.Sprintf("key registration for UUID %s at key service (%s) failed with response code %d\n key registration message: %s\n key service response: %s", name, conf.KeyService, code, cert, string(resp)))
 					continue
 				}
 				log.Printf("%s: key registration successful", name)
@@ -88,7 +87,7 @@ func signer(msgHandler chan HTTPMessage, p *ExtendedProtocol, conf Config, ctx c
 				err = p.PersistContext()
 				if err != nil {
 					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
-					log.Fatalf("%s: unable to store new key certificate for UUID %s: %v", errID, name, err)
+					log.Fatalf("unable to persist new key certificate for UUID %s: %v", name, err)
 				}
 			}
 
@@ -96,7 +95,7 @@ func signer(msgHandler chan HTTPMessage, p *ExtendedProtocol, conf Config, ctx c
 			err := p.LoadContext()
 			if err != nil {
 				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
-				log.Fatalf("%s: unable to load last signature for UUID %s: %v", errID, name, err)
+				log.Fatalf("unable to load last signature for UUID %s: %v", name, err)
 			}
 
 			// create a chained UPP
@@ -106,7 +105,7 @@ func signer(msgHandler chan HTTPMessage, p *ExtendedProtocol, conf Config, ctx c
 
 			upp, err := p.SignHash(name, hash[:], ubirch.Chained)
 			if err != nil {
-				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("%s: error creating UPP for UUID %s: %v", errID, name, err))
+				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("error creating UPP for UUID %s: %v", name, err))
 				continue
 			}
 
@@ -122,7 +121,7 @@ func signer(msgHandler chan HTTPMessage, p *ExtendedProtocol, conf Config, ctx c
 				"x-ubirch-credential":  base64.StdEncoding.EncodeToString([]byte(conf.Devices[name])),
 			})
 			if err != nil {
-				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("%s: error sending UPP for UUID %s to ubirch backend: %v", errID, name, err))
+				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("error sending UPP %s to ubirch backend: %v", uppString, err))
 				continue
 			}
 			if conf.Debug {
@@ -136,7 +135,7 @@ func signer(msgHandler chan HTTPMessage, p *ExtendedProtocol, conf Config, ctx c
 				err = p.PersistContext()
 				if err != nil {
 					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
-					log.Fatalf("%s: unable to save last signature for UUID %s: %v", errID, name, err)
+					log.Fatalf("unable to persist last signature for UUID %s: %v", name, err)
 				}
 			}
 
@@ -154,7 +153,7 @@ func signer(msgHandler chan HTTPMessage, p *ExtendedProtocol, conf Config, ctx c
 				respContent = string(respDecoded.Payload)
 			}
 			if respContent == "" {
-				log.Printf("%s: response UPP decoding failed: %v", name, err)
+				// FIXME log.Printf("%s: response UPP decoding failed: %v", name, err)
 				respContent = base64.StdEncoding.EncodeToString(resp)
 			}
 

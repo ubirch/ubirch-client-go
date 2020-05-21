@@ -76,7 +76,7 @@ def check_signing_response(r: requests.Response, request_type: str, msg: str, se
     else:
         if r_map["hash"] != hash:
             print(" - - - HASH MISMATCH ! - - - ")
-            print("compact sorted json (py): {}".format(serialized))
+            print("sorted compact json (py): {}".format(serialized))
             print("hash (go): {}".format(r_map["hash"]))
             print("hash (py): {}".format(hash))
             return False
@@ -111,13 +111,13 @@ def check_verification_response(r: requests.Response, request_type: str, msg: st
         return False
     else:
         r_map = json.loads(r.text)
+
         if upp != r_map["upp"]:
             print(" - - - UPP MISMATCH ! - - - ")
             print("UPP from signing resp.: {}".format(upp))
             print("UPP from verification resp.: {}".format(r_map["upp"]))
             return False
 
-        print(prev)
         if prev != "" and prev != r_map["prev"]:
             print(" - - - PREV. UPP MISMATCH ! - - - ")
             print("UPP: {}".format(upp))
