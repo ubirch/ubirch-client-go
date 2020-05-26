@@ -120,16 +120,16 @@ func getHash(r *http.Request, isHash bool) (Sha256Sum, error) {
 			if err != nil {
 				return Sha256Sum{}, err
 			}
+
 			// only log original data if in debug-mode and never on production stage
-		} else {
-			return Sha256Sum{}, fmt.Errorf("wrong content-type for original data. expected \"%s\"", JSONType)
+			if DEBUG && ENV != PROD_STAGE {
+				log.Printf("sorted compact JSON: %s", string(data))
+			}
+		} else if contentType != BinType {
+			return Sha256Sum{}, fmt.Errorf("wrong content-type for original data. expected \"%s\" or \"%s\"", BinType, JSONType)
 		}
 
 		hash = sha256.Sum256(data)
-
-		if DEBUG && ENV != PROD_STAGE {
-			log.Printf("sorted compact json: %s >> hash: %s", string(data), base64.StdEncoding.EncodeToString(hash[:]))
-		}
 	} else { // request contains hash
 		if contentType == TextType {
 			data, err = base64.StdEncoding.DecodeString(string(data))
