@@ -137,7 +137,7 @@ $ openssl ecparam -genkey -name prime256v1 -noout | openssl ec -text -noout | gr
 *Either way (dynamically generated or injected) the client will register the public key at the UBIRCH key service and
 store the keys persistently in the encrypted keystore.*
  
-### Serve HTTPS
+### Enable TLS (serve HTTPS)
 - Create a self-signed TLS certificate
 
     In order to serve HTTPS endpoints, you can run the following command to create a self-signed certificate with openssl.
@@ -148,7 +148,7 @@ store the keys persistently in the encrypted keystore.*
 
 - Enable TLS in configuration
 
-    To enable TLS (i.e. serve HTTPS) for the UBIRCH client service, add the following key-value pair to your `config.json`:
+    To serve HTTPS requests to the UBIRCH client service, add the following key-value pair to your `config.json`:
     ```
       "TLS": true
     ```
@@ -231,13 +231,17 @@ If the */data* path is not used for either configuration file, TLS cert files, o
 the `-v $(pwd):/data` parameter can be omitted.
 
 ## Interface Description
-The UBIRCH client provides two HTTP endpoints for both original data that will be hashed by the client,
+The UBIRCH client provides HTTP endpoints for *ubirching* both original data that will be hashed by the client,
  and direct data hash injection, i.e. the SHA256 digest of the original data.
 
 | Method | Path | Content-Type | Description |
 |--------|------|--------------|-------------|
-| POST | `/<UUID>` | `application/json` | JSON data package |
+| POST | `/<UUID>` | `application/octet-stream` | original data (binary) |
+| POST | `/<UUID>` | `application/json` | original data (JSON data package) |
 | POST | `/<UUID>/hash` | `application/octet-stream` | hash (binary) |
+| POST | `/<UUID>/hash` | `text/plain` | hash (base64 string repr.) |
+> When receiving a JSON data package, the UBIRCH client will sort the keys alphabetically and remove insignificant
+> space characters before hashing. See [reproducibility of hashes](#reproducibility-of-hashes).
 
 To access either endpoint an authentication token, which corresponds to the `UUID` used in the request,
  must be sent with the request header. Without it, the client won’t accept the request:
@@ -245,16 +249,20 @@ To access either endpoint an authentication token, which corresponds to the `UUI
 | `X-Auth-Token:` | `ubirch backend token related to <UUID>` |
 |-----------------|------------------------------------------| 
 
->HTTP:  ```http://localhost:<host_port>/<UUID>```
+> When running the client locally, it will be available under:
 >
->HTTPS: ```https://localhost:<host_port>/<UUID>```
+> `localhost:8080/<UUID>`
+>
+> (or `https://localhost:8080/<UUID>` if TLS is enabled)
 
 Response codes indicate the successful delivery of the UPP to the UBIRCH backend.
  Any code other than `200` should be considered a failure. The client does not retry itself.
  A good approach to handle errors is to add a flag to the original data storage that indicates whether the
  UBIRCH blockchain anchoring was successful and retry at a later point if necessary.
  
-The response body contains either an error message, or a JSON map:
+The response body contains either an error message, or a JSON map with the anchored data hash, 
+the UPP, which contains that data hash and was sent to the UBIRCH backend, 
+as well as the response from the UBIRCH backend, which is also a UPP:
 ```json
 {
   "hash": "<the base64 encoded data hash>",
@@ -262,10 +270,30 @@ The response body contains either an error message, or a JSON map:
   "response": "<the base64 encoded backend response (UPP)>"
 }
 ```
+> UPPs (such as the backend response) are [MessagePack](https://github.com/msgpack/msgpack/blob/master/spec.md) formatted
+> and can be decoded using an online tool like [this MessagePack to JSON Converter](https://toolslick.com/conversion/data/messagepack-to-json).
+
+### Verification endpoints
+Further, the UBIRCH client provides endpoints for verification in the same manner as the endpoints for *ubirching*
+original data and hashes.
+
+| Method | Path | Content-Type | Description |
+|--------|------|--------------|-------------|
+| POST | `/verify` | `application/octet-stream` | original data (binary) |
+| POST | `/verify` | `application/json` | original data (JSON data package) |
+| POST | `/verify/hash` | `application/octet-stream` | hash (binary) |
+| POST | `/verify/hash` | `text/plain` | hash (base64 string repr.) |
+
+There is no authentication token necessary to access the verification endpoints.
+
+A `200` response code indicates the successful verification of the data in the UBIRCH backend as well as a local 
+verification of the validity of the retrieved UPP. Please note, that it can take up to two minutes 
+after the anchoring before the verification returns a success response.
 
 ### Reproducibility of hashes
-It is essential for the hashes to be reproducible. Since the JSON format is non-deterministic, we need to
- define rules for converting it to a binary representation before calculating the hash.
+It is essential for the hashes to be reproducible in order to use them for verification of the data at a later time.
+Since the JSON format is non-deterministic, we need to define rules for converting it to a binary representation 
+before calculating the hash.
  
 If the client receives a JSON data package, it will generate a *sorted compact rendering* before calculating
  the hash, i.e. it will first create a string representation of the JSON formatted data where the keys 
@@ -381,7 +409,7 @@ Then just enter the following two lines in your working directory:
    If your request was submitted, you'll get a `200` response code.
    
    The HTTP response body from the client is a JSON map containing the data hash and the UPP, that has been sent 
-   to the UBIRCH backend, and the response from the backend, which is a UPP as well. UPPs are in *msgpack*-format.
+   to the UBIRCH backend, and the response from the backend, which is a UPP as well. UPPs are in *MessagePack* format.
    
    ```json
     {
@@ -390,6 +418,8 @@ Then just enter the following two lines in your working directory:
       "upp": "liPEEPfutp5U60IAt/7nLuSggtLEQPgwxioCe/xc+22gjjvULF32Q+zZNDosE0msmzyppKHihm2a7wb7g3VJoXg2UhpM4xS87kAapI+m+QRONig9bIkAxCBtNrANA7uecH7eHnn/pXJD5OZ3VFNX1HRwVx/sJFbNBMRAZqKMnYa7nuyfmyV1dAUxwBvXG3fdZYUxyRE+mfeC/GWDwNXE4Tga5iauFfzOaULeNcUR2msAzwcL0FObMZaNaw=="
     }
    ```
+   If you get a response code other than `200`, it means that something went wrong. You can check the error message if
+   you decode the `"response"`-UPP from the backend 
    
 1. To stop the client, press `ctrl` + `c`.
    
