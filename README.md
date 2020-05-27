@@ -287,8 +287,18 @@ original data and hashes.
 There is no authentication token necessary to access the verification endpoints.
 
 A `200` response code indicates the successful verification of the data in the UBIRCH backend as well as a local 
-verification of the validity of the retrieved UPP. Please note, that it can take up to two minutes 
-after the anchoring before the verification returns a success response.
+verification of the validity of the retrieved UPP.
+ 
+The response body contains either an error message, or a JSON map with the requested data hash, 
+the UPP, which contains that data hash and was retrieved from the UBIRCH backend, 
+as well as the UUID of the device from which the data originated:
+```json
+{
+  "hash": "<the base64 encoded requested data hash>",
+  "upp": "<the base64 encoded UPP containing the requested data hash that was retrieved from the ubirch backend by the client>",
+  "uuid": "<the standard string representation of the device UUID>"
+}
+```
 
 ### Reproducibility of hashes
 It is essential for the hashes to be reproducible in order to use them for verification of the data at a later time.
