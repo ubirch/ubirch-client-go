@@ -108,16 +108,18 @@ func (p *ExtendedProtocol) loadPublicKey(id uuid.UUID, conf Config) ([]byte, err
 func loadUPP(hashString string, conf Config) ([]byte, int, error) {
 	var resp *http.Response
 	var err error
-	var n int
+
+	verificationURL := conf.VerifyService // + "/verify"
+	n := 0
 	for stay, timeout := true, time.After(5*time.Second); stay; {
 		n++
 		select {
 		case <-timeout:
 			stay = false
 		default:
-			resp, err = http.Post(conf.VerifyService, "text/plain", strings.NewReader(hashString))
+			resp, err = http.Post(verificationURL, "text/plain", strings.NewReader(hashString))
 			if err != nil {
-				return nil, http.StatusInternalServerError, fmt.Errorf("post request to verification service (%s) failed: %v", conf.VerifyService, err)
+				return nil, http.StatusInternalServerError, fmt.Errorf("post request to verification service (%s) failed: %v", verificationURL, err)
 			}
 			stay = resp.StatusCode != http.StatusOK
 			if stay {
@@ -128,7 +130,7 @@ func loadUPP(hashString string, conf Config) ([]byte, int, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, resp.StatusCode, fmt.Errorf("could not (yet) retrieve certificate for hash %s from verification service (%s): %s", hashString, conf.VerifyService, resp.Status)
+		return nil, resp.StatusCode, fmt.Errorf("could not (yet) retrieve certificate for hash %s from verification service (%s): %s", hashString, verificationURL, resp.Status)
 	}
 
 	vf := verification{}
