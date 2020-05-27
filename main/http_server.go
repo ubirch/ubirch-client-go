@@ -216,7 +216,7 @@ func (endpnt *ServerEndpoint) handleRequestHash(w http.ResponseWriter, r *http.R
 	endpnt.handleRequest(w, r, true)
 }
 
-func (endpnt *ServerEndpoint) handleRequestJSON(w http.ResponseWriter, r *http.Request) {
+func (endpnt *ServerEndpoint) handleRequestOrigData(w http.ResponseWriter, r *http.Request) {
 	endpnt.handleRequest(w, r, false)
 }
 
@@ -274,7 +274,7 @@ func (srv *HTTPServer) SetUpCORS(CORS bool, allowedOrigins []string) {
 }
 
 func (srv *HTTPServer) AddEndpoint(endpoint ServerEndpoint) {
-	srv.router.Post(endpoint.Path, endpoint.handleRequestJSON)
+	srv.router.Post(endpoint.Path, endpoint.handleRequestOrigData)
 	srv.router.Post(endpoint.Path+"/hash", endpoint.handleRequestHash)
 
 	srv.router.Options(endpoint.Path, endpoint.handleOptions)
