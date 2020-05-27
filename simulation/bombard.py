@@ -16,8 +16,7 @@ hash_b64_type = "base64 hash"
 
 types = [json_type, hash_bin_type, hash_b64_type]
 
-prev_upp = ""
-hashes = []  # [(msg, hash, upp, prev)]
+hashes = []  # [(msg, hash, upp)]
 failed = {}
 max_dur = 0
 
@@ -62,7 +61,6 @@ def send_request(url: str, headers: dict, data: str or bytes) -> requests.Respon
 
 
 def check_signing_response(r: requests.Response, request_type: str, msg: str, serialized: str, hash: str) -> bool:
-    global prev_upp
     try:
         r_map = json.loads(r.text)
     except Exception:
@@ -81,8 +79,7 @@ def check_signing_response(r: requests.Response, request_type: str, msg: str, se
             print("hash (py): {}".format(hash))
             return False
 
-    hashes.append((msg, hash, r_map["upp"], prev_upp))  # [(msg, hash, upp, prev)]
-    prev_upp = r_map["upp"]
+    hashes.append((msg, hash, r_map["upp"]))  # [(msg, hash, upp)]
     return True
 
 
@@ -101,8 +98,7 @@ def send_signing_request(request_type: str):
         failed[request_type] += 1
 
 
-def check_verification_response(r: requests.Response, request_type: str, msg: str, hash: str, upp: str,
-                                prev: str) -> bool:
+def check_verification_response(r: requests.Response, request_type: str, msg: str, hash: str, upp: str) -> bool:
     if r.status_code != 200:
         print("NOT VERIFIED: ({})".format(request_type))
         print("json: {}".format(msg))
@@ -118,17 +114,10 @@ def check_verification_response(r: requests.Response, request_type: str, msg: st
             print("UPP from verification resp.: {}".format(r_map["upp"]))
             return False
 
-        if prev != "" and prev != r_map["prev"]:
-            print(" - - - PREV. UPP MISMATCH ! - - - ")
-            print("UPP: {}".format(upp))
-            print("prev. UPP: {}".format(prev))
-            print("prev. UPP from verification resp.: {}".format(r_map["prev"]))
-            return False
-
     return True
 
 
-def send_verification_request(request_type: str, msg: str, hash: str, upp: str, prev: str):
+def send_verification_request(request_type: str, msg: str, hash: str, upp: str):
     if request_type == json_type:
         url, header, data = vrfy_json_url, json_header, msg
     if request_type == hash_bin_type:
@@ -137,7 +126,7 @@ def send_verification_request(request_type: str, msg: str, hash: str, upp: str, 
         url, header, data = vrfy_hash_url, hash_txt_header, hash
 
     r = send_request(url=url, headers=header, data=data)
-    if not check_verification_response(r, request_type, msg, hash, upp, prev):
+    if not check_verification_response(r, request_type, msg, hash, upp):
         failed[request_type] += 1
 
 
@@ -179,11 +168,11 @@ max_dur = 0
 
 print("\nverifying {} hashes...".format(len(hashes)))
 i, failed[json_type], failed[hash_bin_type], failed[hash_b64_type] = 0, 0, 0, 0
-for msg, hash, upp, prev in hashes:
+for msg, hash, upp in hashes:
     i += 1
 
     for t in types:
-        send_verification_request(t, msg, hash, upp, prev)
+        send_verification_request(t, msg, hash, upp)
 
     if i % 10 == 0:
         for t in types:
