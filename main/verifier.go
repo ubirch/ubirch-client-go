@@ -17,7 +17,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/hex"
@@ -40,22 +39,21 @@ type verification struct {
 	Anchors []byte `json:"anchors"`
 }
 
-func verifyUPP(id uuid.UUID, upp []byte, p *ExtendedProtocol, conf Config) error {
+func (p *ExtendedProtocol) verifyUPP(upp []byte, conf Config) (uuid.UUID, []byte, bool, error) {
+	o, err := ubirch.DecodeChained(upp)
+	if err != nil {
+		return uuid.Nil, nil, false, fmt.Errorf("UPP decoding failed: %v", err)
+	}
+	id := o.Uuid
 	name := id.String()
 
 	pubkey, err := p.loadPublicKey(id, conf)
 	if err != nil {
-		return fmt.Errorf("loading public key failed: %v", err)
+		return uuid.Nil, nil, false, fmt.Errorf("loading public key failed: %v", err)
 	}
 
-	verified, err := p.Verify(name, upp, ubirch.Chained)
-	if err != nil {
-		return fmt.Errorf("unable to verify UPP signature: %v", err)
-	}
-	if !verified {
-		return fmt.Errorf("UPP signature could not be verified with public key %s", base64.StdEncoding.EncodeToString(pubkey))
-	}
-	return nil
+	v, err := p.Verify(name, upp, ubirch.Chained)
+	return id, pubkey, v, err
 }
 
 func (p *ExtendedProtocol) loadPublicKey(id uuid.UUID, conf Config) ([]byte, error) {
@@ -78,11 +76,19 @@ func (p *ExtendedProtocol) loadPublicKey(id uuid.UUID, conf Config) ([]byte, err
 	}
 
 	keys := make([]SignedKeyRegistration, 1)
-	decoder := json.NewDecoder(resp.Body)
-
-	err = decoder.Decode(&keys)
+	respBodyBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read response body: %v", err)
+	}
+	err = json.Unmarshal(respBodyBytes, &keys)
 	if err != nil {
 		return nil, fmt.Errorf("unable to decode key registration info: %v", err)
+	}
+
+	if len(keys) < 1 {
+		return nil, fmt.Errorf("no public key found")
+	} else if len(keys) > 1 {
+		log.Printf("WARNING: several public keys registered for device %s", id.String())
 	}
 
 	log.Printf("public key (%s): %s", keys[0].PubKeyInfo.HwDeviceId, keys[0].PubKeyInfo.PubKey)
@@ -165,22 +171,16 @@ func verifier(msgHandler chan HTTPMessage, p *ExtendedProtocol, conf Config, ctx
 				log.Printf("retrieved corresponding UPP for hash %s : %s (0x%s)", hashString, uppString, hex.EncodeToString(upp))
 			}
 
-			o, err := ubirch.DecodeChained(upp)
-			if err != nil {
-				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("retrieved corresponding UPP for hash %s but UPP decoding failed: %v\n UPP: %s", hashString, err, uppString))
-				continue
-			}
-
-			if bytes.Compare(hash[:], o.Payload) != 0 { // todo this really should not happen!
-				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "hash and UPP content don't match. retrieved wrong UPP")
-				continue
-			}
-
-			uid := o.Uuid
-			err = verifyUPP(uid, upp, p, conf)
-			if err != nil {
-				errMsg := fmt.Sprintf("retrieved corresponding UPP for hash %s but signature verification failed: %v\n- UPP: %s\n- UUID: %s", hashString, err, uppString, uid.String())
-				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, errMsg)
+			uid, pubkey, verified, err := p.verifyUPP(upp, conf)
+			if !verified {
+				code := http.StatusNotFound
+				info := fmt.Sprintf("UPP signature verification failed!\n- public key used for verification: %s", base64.StdEncoding.EncodeToString(pubkey))
+				if err != nil {
+					code = http.StatusInternalServerError
+					info = fmt.Sprintf("unable to verify signature: %v", err)
+				}
+				errMsg := fmt.Sprintf("retrieved corresponding UPP for hash %s but %s\n- UUID: %s\n- UPP: %s", hashString, info, uid.String(), uppString)
+				msg.Response <- HTTPErrorResponse(code, errMsg)
 				continue
 			}
 
