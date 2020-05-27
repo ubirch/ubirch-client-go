@@ -109,9 +109,8 @@ func signer(msgHandler chan HTTPMessage, p *ExtendedProtocol, conf Config, ctx c
 				continue
 			}
 
-			uppString := base64.StdEncoding.EncodeToString(upp)
 			if conf.Debug {
-				log.Printf("%s: UPP: %s (0x%s)", name, uppString, hex.EncodeToString(upp))
+				log.Printf("%s: UPP: %s (0x%s)", name, base64.StdEncoding.EncodeToString(upp), hex.EncodeToString(upp))
 			}
 
 			// send UPP to ubirch backend
@@ -121,7 +120,7 @@ func signer(msgHandler chan HTTPMessage, p *ExtendedProtocol, conf Config, ctx c
 				"x-ubirch-credential":  base64.StdEncoding.EncodeToString([]byte(conf.Devices[name])),
 			})
 			if err != nil {
-				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("error sending UPP %s to ubirch backend: %v", uppString, err))
+				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("error sending UPP to backend: %v", err))
 				continue
 			}
 			if conf.Debug {
@@ -129,35 +128,17 @@ func signer(msgHandler chan HTTPMessage, p *ExtendedProtocol, conf Config, ctx c
 			}
 
 			// save last signature after UPP was successfully received in ubirch backend
-			if code != http.StatusOK {
-				log.Printf("%s: sending UPP to %s failed: (%d) %q", name, conf.Niomon, code, resp)
-			} else {
+			if code == http.StatusOK {
 				err = p.PersistContext()
 				if err != nil {
 					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
 					log.Fatalf("unable to persist last signature for UUID %s: %v", name, err)
 				}
+			} else {
+				log.Printf("%s: sending UPP to %s failed: (%d) %q", name, conf.Niomon, code, resp)
 			}
 
-			// TODO verify response UPP using ECDSA backend public key (not implemented yet)
-
-			// decode response UPP
-			var respContent string
-			if resp[1] == byte(ubirch.Signed) {
-				var respDecoded ubirch.SignedUPP
-				respDecoded, err = ubirch.DecodeSigned(resp)
-				respContent = string(respDecoded.Payload)
-			} else if resp[1] == byte(ubirch.Chained) {
-				var respDecoded ubirch.ChainedUPP
-				respDecoded, err = ubirch.DecodeChained(resp)
-				respContent = string(respDecoded.Payload)
-			}
-			if respContent == "" {
-				// FIXME log.Printf("%s: response UPP decoding failed: %v", name, err)
-				respContent = base64.StdEncoding.EncodeToString(resp)
-			}
-
-			extendedResponse, err := json.Marshal(map[string]string{"hash": hashString, "upp": uppString, "response": respContent})
+			extendedResponse, err := json.Marshal(map[string][]byte{"hash": hash[:], "upp": upp, "response": resp})
 			if err == nil {
 				header = map[string][]string{"Content-Type": {"application/json"}}
 			} else {
