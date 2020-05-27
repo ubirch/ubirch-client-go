@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"flag"
 	"io/ioutil"
 	insecuremathrand "math/rand"
 	"net/http"
@@ -16,6 +17,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+//Flags used for skipping tests which need a reachable running client
+var clientOnline = flag.Bool("clientOnline", false, "perform tests on a running client instance")
 
 //For these tests to work the client needs to be started and reachable at the following address
 const (
@@ -59,6 +63,9 @@ func createHashRequest(address string, authToken string, uuidString string, hash
 // defined number of times before flagging a certain hash as causing an error to allow for timeouts/packet
 // loss when talking to the backend.
 func TestHashRandom(t *testing.T) {
+	if !*clientOnline {
+		t.Skip("skipping test in offline mode, use 'clientOnline' flag to enable")
+	}
 	const nrOfTests = 1000 //how many random hashes to send
 	const nrOfTries = 5    // How often to send a packet (if backend does not reply with 200)
 
@@ -101,6 +108,9 @@ func TestHashRandom(t *testing.T) {
 
 //TestHashTableFail tests cases with a specific hash as an input which must fail
 func TestHashTableFail(t *testing.T) {
+	if !*clientOnline {
+		t.Skip("skipping test in offline mode, use 'clientOnline' flag to enable")
+	}
 	var tests = []struct {
 		testName string
 		hash     string
@@ -174,6 +184,9 @@ func TestHashTableFail(t *testing.T) {
 
 //TestHashTableSucceed tests cases with a specific hash as an input which must succeed
 func TestHashTableSucceed(t *testing.T) {
+	if !*clientOnline {
+		t.Skip("skipping test in offline mode, use 'clientOnline' flag to enable")
+	}
 	const nrOfTries = 5 // How often to send a packet before giving up (if backend does not reply with 200)
 
 	var tests = []struct {
@@ -233,6 +246,9 @@ func TestHashTableSucceed(t *testing.T) {
 
 //TestJSONDataLength tests input of random Key/Value Pairs into the JSON endpoint
 func TestJSONRandomKeyValuePairs(t *testing.T) {
+	if !*clientOnline {
+		t.Skip("skipping test in offline mode, use 'clientOnline' flag to enable")
+	}
 	const (
 		nrOfTests = 100
 		nrOfTries = 5 // How often to send a packet before giving up (if backend does not reply with 200)
@@ -310,6 +326,9 @@ func TestJSONRandomKeyValuePairs(t *testing.T) {
 
 //TestJSONTableFail tests cases with a specific JSON as an input which must fail
 func TestJSONTableFail(t *testing.T) {
+	if !*clientOnline {
+		t.Skip("skipping test in offline mode, use 'clientOnline' flag to enable")
+	}
 	var tests = []struct {
 		testName  string
 		JSONBytes []byte
@@ -362,6 +381,9 @@ func TestJSONTableFail(t *testing.T) {
 
 //TestJSONTableSucceed tests cases with a specific JSON as an input which must succeed
 func TestJSONTableSucceed(t *testing.T) {
+	if !*clientOnline {
+		t.Skip("skipping test in offline mode, use 'clientOnline' flag to enable")
+	}
 	const nrOfTries = 5 // How often to send a packet before giving up (if backend does not reply with 200)
 
 	var tests = []struct {
@@ -447,6 +469,9 @@ func TestJSONTableSucceed(t *testing.T) {
 
 //TestJSONDataLength tests various length data input into the JSON endpoint
 func TestJSONDataLength(t *testing.T) {
+	if !*clientOnline {
+		t.Skip("skipping test in offline mode, use 'clientOnline' flag to enable")
+	}
 	const maxDataSize = 1030 // Largest []byte size to use for the JSON generation
 	const nrOfTries = 5      // How often to send a packet before giving up (if backend does not reply with 200)
 
