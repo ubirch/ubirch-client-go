@@ -31,47 +31,46 @@ const (
 	DEV_STAGE  = "dev"
 	DEMO_STAGE = "demo"
 	PROD_STAGE = "prod"
-	KEY_URL    = "https://key.%s.ubirch.com/api/keyService/v1/pubkey"
-	NIOMON_URL = "https://niomon.%s.ubirch.com/"
-	VERIFY_URL = "https://verify.%s.ubirch.com/api/upp"
 
-	AuthEnv  = "UBIRCH_AUTH_MAP" // {UUID: [key, token]}
-	KeysEnv  = "UBIRCH_KEYS"     // {UUID: key}
-	AuthFile = "auth.json"       // {UUID: [key, token]}
-	KeysFile = "keys.json"       // {UUID: key} DEPRECATED
+	keyURL    = "https://key.%s.ubirch.com/api/keyService/v1/pubkey"
+	niomonURL = "https://niomon.%s.ubirch.com/"
+	verifyURL = "https://verify.%s.ubirch.com/api/upp"
 
-	DefaultTLSCertFile = "cert.pem"
-	DefaultTLSKeyFile  = "key.pem"
+	authEnv  = "UBIRCH_AUTH_MAP" // {UUID: [key, token]}
+	authFile = "auth.json"       // {UUID: [key, token]}
+
+	defaultTLSCertFile = "cert.pem"
+	defaultTLSKeyFile  = "key.pem"
 )
 
 // configuration of the device
 type Config struct {
 	Devices             map[string]string `json:"devices"`      // maps UUIDs to backend auth tokens
 	Secret              string            `json:"secret"`       // secret used to encrypt the key store
-	DSN                 string            `json:"DSN"`          // "data source name" for database connection
 	Env                 string            `json:"env"`          // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
+	DSN                 string            `json:"DSN"`          // "data source name" for database connection
+	StaticKeys          bool              `json:"staticKeys"`   // disable dynamic key generation, defaults to 'false'
+	Keys                map[string]string `json:"keys"`         // maps UUIDs to injected keys
 	TLS                 bool              `json:"TLS"`          // enable serving HTTPS endpoints, defaults to 'false'
 	TLS_CertFile        string            `json:"TLSCertFile"`  // filename of TLS certificate file name, defaults to "cert.pem"
 	TLS_KeyFile         string            `json:"TLSKeyFile"`   // filename of TLS key file name, defaults to "key.pem"
 	CORS                bool              `json:"CORS"`         // enable CORS, defaults to false
 	CORS_AllowedOrigins []string          `json:"CORS_origins"` // list of allowed origin hosts, defaults to ["*"]
 	Debug               bool              `json:"debug"`        // enable extended debug output, defaults to 'false'
-	StaticKeys          bool              `json:"staticKeys"`   // disable dynamic key generation, defaults to 'false'
-	Keys                map[string]string `json:"keys"`         // maps UUIDs to injected keys
+	SecretBytes         []byte            // the decoded key store secret
 	KeyService          string            // key service URL (set automatically)
 	Niomon              string            // authentication service URL (set automatically)
 	VerifyService       string            // verification service URL (set automatically)
-	SecretBytes         []byte            // the decoded key store secret
 }
 
-func (c *Config) Load() error {
+func (c *Config) Load(configDir string, filename string) error {
 	// assume that we want to load from env instead of config files, if
 	// we have the UBIRCH_SECRET env variable set.
 	var err error
 	if os.Getenv("UBIRCH_SECRET") != "" {
 		err = c.loadEnv()
 	} else {
-		err = c.loadFile(filepath.Join(ConfigDir, ConfigFile))
+		err = c.loadFile(filepath.Join(configDir, filename))
 	}
 	if err != nil {
 		return err
@@ -82,12 +81,12 @@ func (c *Config) Load() error {
 		return fmt.Errorf("unable to decode base64 encoded secret (%s): %v", c.Secret, err)
 	}
 
-	_ = c.loadAuthMap()
+	_ = c.loadAuthMap(configDir)
 	err = c.checkMandatory()
 	if err != nil {
 		return err
 	}
-	c.setDefaultTLS()
+	c.setDefaultTLS(configDir)
 	return c.setDefaultURLs()
 }
 
@@ -108,7 +107,6 @@ func (c *Config) loadFile(filename string) error {
 }
 
 func (c *Config) checkMandatory() error {
-	assertFileNotExist(KeysFile)
 	if c.Devices == nil || len(c.Devices) == 0 {
 		return fmt.Errorf("There are no devices authorized to use this client.\n" +
 			"It is mandatory to set at least one device UUID and auth token in the configuration.\n" +
@@ -122,24 +120,23 @@ func (c *Config) checkMandatory() error {
 	}
 
 	if c.StaticKeys && (c.Keys == nil || len(c.Keys) == 0) {
-		return fmt.Errorf("dynamic key generation disabled but unable to load signing keys from "+
-			"env (\"%s\" or \"%s\") or file (\"%s\" or \"%s\")", KeysEnv, AuthEnv, ConfigFile, AuthFile)
+		return fmt.Errorf("dynamic key generation disabled but no injected signing keys found in configuration")
 	}
 
 	return nil
 }
 
-func (c *Config) setDefaultTLS() {
+func (c *Config) setDefaultTLS(configDir string) {
 	if c.TLS {
 		if c.TLS_CertFile == "" {
-			c.TLS_CertFile = DefaultTLSCertFile
+			c.TLS_CertFile = defaultTLSCertFile
 		}
-		c.TLS_CertFile = filepath.Join(ConfigDir, c.TLS_CertFile)
+		c.TLS_CertFile = filepath.Join(configDir, c.TLS_CertFile)
 
 		if c.TLS_KeyFile == "" {
-			c.TLS_KeyFile = DefaultTLSKeyFile
+			c.TLS_KeyFile = defaultTLSKeyFile
 		}
-		c.TLS_KeyFile = filepath.Join(ConfigDir, c.TLS_KeyFile)
+		c.TLS_KeyFile = filepath.Join(configDir, c.TLS_KeyFile)
 	}
 }
 
@@ -149,7 +146,7 @@ func (c *Config) setDefaultURLs() error {
 	}
 
 	if c.Niomon == "" {
-		c.Niomon = fmt.Sprintf(NIOMON_URL, c.Env)
+		c.Niomon = fmt.Sprintf(niomonURL, c.Env)
 	}
 
 	// now make sure the Env variable has the actual environment value that is used in the URL
@@ -163,27 +160,27 @@ func (c *Config) setDefaultURLs() error {
 	log.Printf("UBIRCH backend \"%s\" environment", c.Env)
 
 	if c.KeyService == "" {
-		c.KeyService = fmt.Sprintf(KEY_URL, c.Env)
+		c.KeyService = fmt.Sprintf(keyURL, c.Env)
 	} else {
 		c.KeyService = strings.TrimSuffix(c.KeyService, "/mpack")
 	}
 
 	if c.VerifyService == "" {
-		c.VerifyService = fmt.Sprintf(VERIFY_URL, c.Env)
+		c.VerifyService = fmt.Sprintf(verifyURL, c.Env)
 	}
 	return nil
 }
 
 // loadAuthMap loads the auth map from the environment
-func (c *Config) loadAuthMap() error {
+func (c *Config) loadAuthMap(configDir string) error {
 	var err error
 	var authMapBytes []byte
 
-	authMap := os.Getenv(AuthEnv)
+	authMap := os.Getenv(authEnv)
 	if authMap != "" {
 		authMapBytes = []byte(authMap)
 	} else {
-		authMapBytes, err = ioutil.ReadFile(filepath.Join(ConfigDir, AuthFile))
+		authMapBytes, err = ioutil.ReadFile(filepath.Join(configDir, authFile))
 		if err != nil {
 			return err
 		}
@@ -209,16 +206,4 @@ func (c *Config) loadAuthMap() error {
 	}
 
 	return nil
-}
-
-// helper function to assert deprecated json file does not exist
-// determines program if file exists
-// map (keys: {UUID: key}) is now part of ConfigFile
-func assertFileNotExist(filename string) {
-	_, err := os.Stat(filepath.Join(ConfigDir, filename))
-	if os.IsNotExist(err) {
-		return
-	}
-	log.Fatalf("ERROR: configuration file \"%s\" is deprecated! Please add "+
-		"'  \"keys\": {\"<UUID>\": \"<key>\"}' to \"%s\" if you want to inject signing keys.", filename, ConfigFile)
 }

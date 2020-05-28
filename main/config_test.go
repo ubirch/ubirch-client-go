@@ -7,7 +7,7 @@ import (
 )
 
 func TestConfig(t *testing.T) {
-	configBytes := []byte(`{"devices":null,"secret":"MTIzNDU2Nzg5MDU2Nzg5MA==","DSN":"","staticKeys":false,"env":"","TLS":false,"TLS_CertFile":"","TLS_KeyFile":"","debug":false,"KeyService":"","Niomon":"","VerifyService":"","SecretBytes":null}`)
+	configBytes := []byte(`{"devices":null,"secret":"MTIzNDU2Nzg5MDU2Nzg5MA==","env":"","DSN":"","staticKeys":false,"keys":null,"TLS":false,"TLSCertFile":"","TLSKeyFile":"","CORS":false,"CORS_origins":null,"debug":false,"SecretBytes":null,"KeyService":"","Niomon":"","VerifyService":""}`)
 
 	config := &Config{}
 
@@ -22,7 +22,7 @@ func TestConfig(t *testing.T) {
 
 	jsonBytes, err := json.Marshal(config)
 	if err != nil {
-		t.Errorf("Failed to serialize secret")
+		t.Errorf("Failed to serialize config")
 	}
 
 	if !bytes.Equal(configBytes, jsonBytes) {

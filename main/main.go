@@ -27,15 +27,6 @@ import (
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
-var ConfigDir string
-
-const (
-	Version     = "v2.0.0"
-	Build       = "local"
-	ConfigFile  = "config.json"
-	ContextFile = "protocol.json"
-)
-
 // handle graceful shutdown
 func shutdown(signals chan os.Signal, p *ExtendedProtocol, wg *sync.WaitGroup, cancel context.CancelFunc) {
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
@@ -59,15 +50,23 @@ func shutdown(signals chan os.Signal, p *ExtendedProtocol, wg *sync.WaitGroup, c
 }
 
 func main() {
+	const (
+		Version     = "v2.0.0"
+		Build       = "local"
+		configFile  = "config.json"
+		contextFile = "protocol.json"
+	)
+
+	var configDir string
 	if len(os.Args) > 1 {
-		ConfigDir = os.Args[1]
+		configDir = os.Args[1]
 	}
 
 	log.Printf("UBIRCH client (%s, build=%s)", Version, Build)
 
 	// read configuration
 	conf := Config{}
-	err := conf.Load()
+	err := conf.Load(configDir, configFile)
 	if err != nil {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
@@ -81,7 +80,7 @@ func main() {
 	p.Signatures = map[uuid.UUID][]byte{}
 	p.Certificates = map[string][]byte{}
 
-	err = p.Init(conf.DSN, conf.Keys)
+	err = p.Init(configDir, contextFile, conf.DSN, conf.Keys)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -30,15 +30,15 @@ import (
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
-var DB Database
-
 type ExtendedProtocol struct {
 	ubirch.Protocol
 	Certificates map[string][]byte
+	db           Database
+	contextFile  string
 }
 
 // INIT sets keys in crypto context and automatically updates keystore in persistent storage
-func (p *ExtendedProtocol) Init(dsn string, keys map[string]string) error {
+func (p *ExtendedProtocol) Init(configDir string, filename string, dsn string, keys map[string]string) error {
 	// check if we want to use a database as persistent storage
 	if dsn != "" {
 		// use the database
@@ -46,10 +46,11 @@ func (p *ExtendedProtocol) Init(dsn string, keys map[string]string) error {
 		if err != nil {
 			return fmt.Errorf("unable to connect to database: %v", err)
 		}
+		p.db = db
 		log.Printf("protocol context will be saved to database")
-		DB = db
 	} else {
-		log.Printf("protocol context will be saved to file (%s)", filepath.Join(ConfigDir, ContextFile))
+		p.contextFile = filepath.Join(configDir, filename)
+		log.Printf("protocol context will be saved to file (%s)", p.contextFile)
 	}
 
 	// try to read an existing protocol context from persistent storage (keystore, last signatures, key certificates)
@@ -88,27 +89,27 @@ func (p *ExtendedProtocol) Init(dsn string, keys map[string]string) error {
 }
 
 func (p *ExtendedProtocol) Deinit() error {
-	if DB != nil {
-		return DB.Close()
+	if p.db != nil {
+		return p.db.Close()
 	}
 	return nil
 }
 
 // PersistContext saves current ubirch-protocol context, storing keystore, key certificates and signatures
 func (p *ExtendedProtocol) PersistContext() error {
-	if DB != nil {
-		return DB.SetProtocolContext(p)
+	if p.db != nil {
+		return p.db.SetProtocolContext(p)
 	} else {
-		return p.saveFile(filepath.Join(ConfigDir, ContextFile))
+		return p.saveFile(p.contextFile)
 	}
 }
 
 // LoadContext loads current ubirch-protocol context, loading keys and signatures
 func (p *ExtendedProtocol) LoadContext() error {
-	if DB != nil {
-		return DB.GetProtocolContext(p)
+	if p.db != nil {
+		return p.db.GetProtocolContext(p)
 	} else {
-		return p.loadFile(filepath.Join(ConfigDir, ContextFile))
+		return p.loadFile(p.contextFile)
 	}
 }
 
