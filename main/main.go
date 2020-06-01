@@ -17,7 +17,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -25,6 +24,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"golang.org/x/sync/errgroup"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // handle graceful shutdown
@@ -53,6 +54,7 @@ func main() {
 		configDir = os.Args[1]
 	}
 
+	log.SetFormatter(&log.TextFormatter{FullTimestamp: true, TimestampFormat: "2006-01-02 15:04:05.000 -0700"})
 	log.Printf("UBIRCH client (%s, build=%s)", Version, Build)
 
 	// read configuration
@@ -60,6 +62,10 @@ func main() {
 	err := conf.Load(configDir, configFile)
 	if err != nil {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
+	}
+
+	if conf.Debug {
+		log.SetLevel(log.DebugLevel)
 	}
 
 	// create an ubirch protocol instance
@@ -86,7 +92,7 @@ func main() {
 
 	// set up HTTP server
 	httpServer := HTTPServer{}
-	httpServer.Init(conf.Debug, conf.Env)
+	httpServer.Init(conf.Env)
 	if conf.TLS {
 		httpServer.SetUpTLS(conf.TLS_CertFile, conf.TLS_KeyFile)
 	}
@@ -137,7 +143,7 @@ func waitUntilDone(g *errgroup.Group, p ExtendedProtocol) error {
 	err := g.Wait()
 
 	if err2 := p.Deinit(); err2 != nil {
-		log.Print(err2)
+		log.Error(err2)
 	}
 
 	return err

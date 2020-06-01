@@ -23,13 +23,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type verification struct {
@@ -87,7 +88,7 @@ func (p *ExtendedProtocol) loadPublicKey(id uuid.UUID, conf Config) ([]byte, err
 	if len(keys) < 1 {
 		return nil, fmt.Errorf("no public key found")
 	} else if len(keys) > 1 {
-		log.Printf("WARNING: several public keys registered for device %s", id.String())
+		log.Warnf("several public keys registered for device %s", id.String())
 	}
 
 	log.Printf("public key (%s): %s", keys[0].PubKeyInfo.HwDeviceId, keys[0].PubKeyInfo.PubKey)
@@ -103,7 +104,7 @@ func (p *ExtendedProtocol) loadPublicKey(id uuid.UUID, conf Config) ([]byte, err
 	// persist new public key
 	err = p.PersistContext()
 	if err != nil {
-		log.Printf("WARNING: unable to persist retrieved public key for UUID %s: %v", id.String(), err)
+		log.Errorf("unable to persist retrieved public key for UUID %s: %v", id.String(), err)
 	}
 
 	return pubKeyBytes, nil
@@ -164,9 +165,7 @@ func verifier(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProto
 			}
 
 			uppString := base64.StdEncoding.EncodeToString(upp)
-			if conf.Debug {
-				log.Printf("retrieved corresponding UPP for hash %s : %s (0x%s)", hashString, uppString, hex.EncodeToString(upp))
-			}
+			log.Debugf("retrieved corresponding UPP for hash %s : %s (0x%s)", hashString, uppString, hex.EncodeToString(upp))
 
 			uid, pubkey, verified, err := p.verifyUPP(upp, conf)
 			if !verified {
@@ -184,7 +183,7 @@ func verifier(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProto
 			header := map[string][]string{"Content-Type": {"application/json"}}
 			response, err := json.Marshal(map[string]string{"uuid": uid.String(), "hash": hashString, "upp": uppString})
 			if err != nil {
-				log.Printf("error serializing extended response: %s", err)
+				log.Warnf("error serializing extended response: %s", err)
 				header = map[string][]string{"Content-Type": {"application/octet-stream"}}
 				response = upp
 			}

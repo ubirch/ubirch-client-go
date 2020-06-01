@@ -21,13 +21,14 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type ExtendedProtocol struct {
@@ -119,7 +120,7 @@ func (p *ExtendedProtocol) saveFile(file string) error {
 	if _, err := os.Stat(file); !os.IsNotExist(err) { // if file already exists, create a backup
 		err = os.Rename(file, file+".bck")
 		if err != nil {
-			log.Printf("WARNING: unable to create backup file for %s: %v", file, err)
+			log.Warnf("unable to create backup file for %s: %v", file, err)
 		}
 	}
 	contextBytes, _ := json.MarshalIndent(p, "", "  ")

@@ -19,8 +19,8 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"time"
 )
@@ -105,8 +105,7 @@ func post(upp []byte, url string, headers map[string]string) (int, map[string][]
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(upp))
 	if err != nil {
-		log.Printf("can't make new post request: %v", err)
-		return 0, nil, nil, err
+		return 0, nil, nil, fmt.Errorf("can't make new post request: %v", err)
 	}
 
 	for k, v := range headers {

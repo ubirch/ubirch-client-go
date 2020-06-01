@@ -20,10 +20,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // handle incoming messages, create, sign and send a ubirch protocol packet (UPP) to the ubirch backend
@@ -106,9 +107,7 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 				continue
 			}
 
-			if conf.Debug {
-				log.Printf("%s: UPP: %s (0x%s)", name, base64.StdEncoding.EncodeToString(upp), hex.EncodeToString(upp))
-			}
+			log.Debugf("%s: UPP: %s (0x%s)", name, base64.StdEncoding.EncodeToString(upp), hex.EncodeToString(upp))
 
 			// send UPP to ubirch backend
 			code, header, resp, err := post(upp, conf.Niomon, map[string]string{
@@ -120,15 +119,13 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("error sending UPP to backend: %v", err))
 				continue
 			}
-			if conf.Debug {
-				log.Printf("%s: response: (%d) %s (0x%s)", name, code, base64.StdEncoding.EncodeToString(resp), hex.EncodeToString(resp))
-			}
+			log.Debugf("%s: response: (%d) %s (0x%s)", name, code, base64.StdEncoding.EncodeToString(resp), hex.EncodeToString(resp))
 
 			if code == http.StatusOK {
 				// save last signature after UPP was successfully received in ubirch backend
 				err = p.PersistContext()
 			} else {
-				log.Printf("%s: sending UPP to %s failed: (%d) %q", name, conf.Niomon, code, resp)
+				log.Warnf("%s: sending UPP to %s failed: (%d) %q", name, conf.Niomon, code, resp)
 				// reset last signature in protocol context if sending UPP to backend fails to ensure intact chain
 				err = p.LoadContext()
 			}
@@ -141,7 +138,7 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 			if err == nil {
 				header = map[string][]string{"Content-Type": {"application/json"}}
 			} else {
-				log.Printf("error serializing extended response: %s", err)
+				log.Warnf("error serializing extended response: %s", err)
 				extendedResponse = resp
 			}
 			msg.Response <- HTTPResponse{Code: code, Header: header, Content: extendedResponse}

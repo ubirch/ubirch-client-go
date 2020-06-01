@@ -17,7 +17,8 @@ package main
 import (
 	"database/sql"
 	"database/sql/driver"
-	"log"
+
+	log "github.com/sirupsen/logrus"
 
 	// postgres driver is imported for side effects
 	_ "github.com/lib/pq"

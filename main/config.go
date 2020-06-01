@@ -19,12 +19,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/kelseyhightower/envconfig"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -93,7 +94,7 @@ func (c *Config) Load(configDir string, filename string) error {
 
 // loadEnv reads the configuration from environment variables
 func (c *Config) loadEnv() error {
-	log.Println("loading configuration from environment variables")
+	log.Print("loading configuration from environment variables")
 	return envconfig.Process("ubirch", c)
 }
 

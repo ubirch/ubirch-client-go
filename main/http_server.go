@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -16,12 +15,11 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/cors"
 	"github.com/google/uuid"
+
+	log "github.com/sirupsen/logrus"
 )
 
-var (
-	DEBUG bool
-	ENV   string
-)
+var ENV string
 
 const (
 	UUIDKey  = "uuid"
@@ -54,7 +52,7 @@ type HTTPResponse struct {
 
 // wrapper for http.Error that additionally logs the error message to std.Output
 func Error(w http.ResponseWriter, err error, code int) {
-	log.Printf("HTTP SERVER ERROR: %v", err)
+	log.Error(err)
 	http.Error(w, fmt.Sprint(err), code)
 }
 
@@ -121,8 +119,8 @@ func getHash(r *http.Request, isHash bool) (Sha256Sum, error) {
 			}
 
 			// only log original data if in debug-mode and never on production stage
-			if DEBUG && ENV != PROD_STAGE {
-				log.Printf("sorted compact JSON: %s", string(data))
+			if ENV != PROD_STAGE {
+				log.Debugf("sorted compact JSON: %s", string(data))
 			}
 		} else if contentType != BinType {
 			return Sha256Sum{}, fmt.Errorf("wrong content-type for original data. expected \"%s\" or \"%s\"", BinType, JSONType)
@@ -157,7 +155,7 @@ func forwardBackendResponse(w http.ResponseWriter, respChan chan HTTPResponse) {
 	}
 	_, err := w.Write(resp.Content)
 	if err != nil {
-		log.Printf("unable to write response: %s", err)
+		log.Errorf("unable to write response: %s", err)
 	}
 }
 
@@ -230,9 +228,8 @@ type HTTPServer struct {
 	keyFile  string
 }
 
-func (srv *HTTPServer) Init(debug bool, env string) {
+func (srv *HTTPServer) Init(env string) {
 	srv.router = chi.NewMux()
-	DEBUG = debug
 	ENV = env
 }
 
@@ -242,10 +239,8 @@ func (srv *HTTPServer) SetUpTLS(certFile string, keyFile string) {
 	srv.keyFile = keyFile
 
 	log.Printf("TLS enabled")
-	if DEBUG {
-		log.Printf(" - Cert: %s", srv.certFile)
-		log.Printf(" -  Key: %s", srv.keyFile)
-	}
+	log.Debugf(" - Cert: %s", srv.certFile)
+	log.Debugf(" -  Key: %s", srv.keyFile)
 }
 
 func (srv *HTTPServer) SetUpCORS(allowedOrigins []string) {
@@ -256,13 +251,11 @@ func (srv *HTTPServer) SetUpCORS(allowedOrigins []string) {
 		ExposedHeaders:   []string{"Accept", "Content-Type", "Content-Length", "X-Auth-Token"},
 		AllowCredentials: true,
 		MaxAge:           300, // Maximum value not ignored by any of major browsers
-		Debug:            DEBUG,
+		Debug:            true,
 	}))
 
 	log.Printf("CORS enabled")
-	if DEBUG {
-		log.Printf(" - Allowed Origins: %v", allowedOrigins)
-	}
+	log.Debugf(" - Allowed Origins: %v", allowedOrigins)
 }
 
 func (srv *HTTPServer) AddEndpoint(endpoint ServerEndpoint) {
@@ -287,7 +280,7 @@ func (srv *HTTPServer) Serve(ctx context.Context) error {
 		log.Printf("shutting down http server")
 		server.SetKeepAlivesEnabled(false) // disallow clients to create new long-running conns
 		if err := server.Shutdown(ctx); err != nil {
-			log.Printf("Failed to gracefully shut down server: %s", err)
+			log.Warnf("Failed to gracefully shut down server: %s", err)
 		}
 	}()
 
@@ -309,7 +302,7 @@ func HTTPErrorResponse(code int, message string) HTTPResponse {
 	if message == "" {
 		message = http.StatusText(code)
 	}
-	log.Printf(message)
+	log.Error(message)
 	return HTTPResponse{
 		Code:    code,
 		Header:  map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}},
