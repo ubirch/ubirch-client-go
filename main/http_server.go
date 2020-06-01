@@ -11,7 +11,6 @@ import (
 	"log"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -56,7 +55,7 @@ type HTTPResponse struct {
 // wrapper for http.Error that additionally logs the error message to std.Output
 func Error(w http.ResponseWriter, err error, code int) {
 	log.Printf("HTTP SERVER ERROR: %v", err)
-	http.Error(w, fmt.Sprintf("%v", err), code)
+	http.Error(w, fmt.Sprint(err), code)
 }
 
 // helper function to get "Content-Type" from headers
@@ -281,9 +280,7 @@ func (srv *HTTPServer) AddEndpoint(endpoint ServerEndpoint) {
 	srv.router.Options(endpoint.Path+"/hash", endpoint.handleOptions)
 }
 
-func (srv *HTTPServer) Serve(ctx context.Context, wg *sync.WaitGroup) {
-	defer wg.Done()
-
+func (srv *HTTPServer) Serve(ctx context.Context) error {
 	server := &http.Server{
 		Addr:         ":8080",
 		Handler:      srv.router,
@@ -310,8 +307,9 @@ func (srv *HTTPServer) Serve(ctx context.Context, wg *sync.WaitGroup) {
 		err = server.ListenAndServe()
 	}
 	if err != nil && err != http.ErrServerClosed {
-		log.Fatalf("error starting HTTP service: %v", err)
+		return fmt.Errorf("error starting HTTP service: %v", err)
 	}
+	return nil
 }
 
 func HTTPErrorResponse(code int, message string) HTTPResponse {

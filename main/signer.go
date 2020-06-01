@@ -22,15 +22,12 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"sync"
 
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
 // handle incoming messages, create, sign and send a ubirch protocol packet (UPP) to the ubirch backend
-func signer(msgHandler chan HTTPMessage, p *ExtendedProtocol, conf Config, ctx context.Context, wg *sync.WaitGroup) {
-	defer wg.Done()
-
+func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtocol, conf Config) error {
 	for {
 		select {
 		case msg := <-msgHandler:
@@ -56,7 +53,7 @@ func signer(msgHandler chan HTTPMessage, p *ExtendedProtocol, conf Config, ctx c
 				err = p.PersistContext()
 				if err != nil {
 					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
-					log.Fatalf("unable to persist new key pair for UUID %s: %v", name, err)
+					return fmt.Errorf("unable to persist new key pair for UUID %s: %v", name, err)
 				}
 			}
 
@@ -87,7 +84,7 @@ func signer(msgHandler chan HTTPMessage, p *ExtendedProtocol, conf Config, ctx c
 				err = p.PersistContext()
 				if err != nil {
 					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
-					log.Fatalf("unable to persist new key certificate for UUID %s: %v", name, err)
+					return fmt.Errorf("unable to persist new key certificate for UUID %s: %v", name, err)
 				}
 			}
 
@@ -95,7 +92,7 @@ func signer(msgHandler chan HTTPMessage, p *ExtendedProtocol, conf Config, ctx c
 			err := p.LoadContext()
 			if err != nil {
 				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
-				log.Fatalf("unable to load last signature for UUID %s: %v", name, err)
+				return fmt.Errorf("unable to load last signature for UUID %s: %v", name, err)
 			}
 
 			// create a chained UPP
@@ -127,15 +124,17 @@ func signer(msgHandler chan HTTPMessage, p *ExtendedProtocol, conf Config, ctx c
 				log.Printf("%s: response: (%d) %s (0x%s)", name, code, base64.StdEncoding.EncodeToString(resp), hex.EncodeToString(resp))
 			}
 
-			// save last signature after UPP was successfully received in ubirch backend
 			if code == http.StatusOK {
+				// save last signature after UPP was successfully received in ubirch backend
 				err = p.PersistContext()
-				if err != nil {
-					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
-					log.Fatalf("unable to persist last signature for UUID %s: %v", name, err)
-				}
 			} else {
 				log.Printf("%s: sending UPP to %s failed: (%d) %q", name, conf.Niomon, code, resp)
+				// reset last signature in protocol context if sending UPP to backend fails to ensure intact chain
+				err = p.LoadContext()
+			}
+			if err != nil {
+				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
+				return fmt.Errorf("unable to load/persist last signature for UUID %s: %v", name, err)
 			}
 
 			extendedResponse, err := json.Marshal(map[string][]byte{"hash": hash[:], "upp": upp, "response": resp})
@@ -149,7 +148,7 @@ func signer(msgHandler chan HTTPMessage, p *ExtendedProtocol, conf Config, ctx c
 
 		case <-ctx.Done():
 			log.Println("finishing signer")
-			return
+			return nil
 		}
 	}
 }

@@ -26,7 +26,6 @@ import (
 	"log"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -149,9 +148,7 @@ func loadUPP(hashString string, conf Config) ([]byte, int, error) {
 }
 
 // hash a message and retrieve corresponding UPP to verify it
-func verifier(msgHandler chan HTTPMessage, p *ExtendedProtocol, conf Config, ctx context.Context, wg *sync.WaitGroup) {
-	defer wg.Done()
-
+func verifier(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtocol, conf Config) error {
 	for {
 		select {
 		case msg := <-msgHandler:
@@ -195,7 +192,7 @@ func verifier(msgHandler chan HTTPMessage, p *ExtendedProtocol, conf Config, ctx
 
 		case <-ctx.Done():
 			log.Println("finishing verifier")
-			return
+			return nil
 		}
 	}
 }

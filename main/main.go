@@ -20,33 +20,25 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
+	"golang.org/x/sync/errgroup"
 )
 
 // handle graceful shutdown
-func shutdown(signals chan os.Signal, p *ExtendedProtocol, wg *sync.WaitGroup, cancel context.CancelFunc) {
+func shutdown(signals chan os.Signal, p *ExtendedProtocol, cancel context.CancelFunc) error {
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
 	// block until we receive a SIGINT or SIGTERM
 	sig := <-signals
 	log.Printf("shutting down after receiving: %v", sig)
 
-	// wait for all go routines to end, cancels the go routines contexts
-	// and waits for the wait group
+	// cancel the go routines contexts
 	cancel()
-	wg.Wait()
 
-	err := p.Deinit()
-	if err != nil {
-		log.Printf("unable to close database connection: %v", err)
-		os.Exit(1)
-	}
-
-	os.Exit(0)
+	return p.Deinit()
 }
 
 func main() {
@@ -87,12 +79,14 @@ func main() {
 
 	// create a waitgroup that contains all asynchronous operations
 	// a cancellable context is used to stop the operations gracefully
-	wg := sync.WaitGroup{}
+	g := errgroup.Group{}
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// set up graceful shutdown handling
 	signals := make(chan os.Signal, 1)
-	go shutdown(signals, &p, &wg, cancel)
+	g.Go(func() error {
+		return shutdown(signals, &p, cancel)
+	})
 
 	httpServer := HTTPServer{}
 	httpServer.Init(conf.Debug, conf.Env)
@@ -118,17 +112,24 @@ func main() {
 	httpServer.AddEndpoint(httpSrvVerify)
 
 	// start signer
-	wg.Add(1)
-	go signer(httpSrvSign.MessageHandler, &p, conf, ctx, &wg)
+	g.Go(func() error {
+		return signer(ctx, httpSrvSign.MessageHandler, &p, conf)
+	})
 
 	// start verifier
-	wg.Add(1)
-	go verifier(httpSrvVerify.MessageHandler, &p, conf, ctx, &wg)
+	g.Go(func() error {
+		return verifier(ctx, httpSrvVerify.MessageHandler, &p, conf)
+	})
 
 	// start HTTP server
-	wg.Add(1)
-	go httpServer.Serve(ctx, &wg)
+	g.Go(func() error {
+		return httpServer.Serve(ctx)
+	})
 
-	// wait forever, exit is handled via shutdown
-	select {}
+	//wait until all function calls from the g.Go method have returned
+	if err := g.Wait(); err != nil {
+		log.Fatal(err)
+	} else {
+		log.Printf("done")
+	}
 }
