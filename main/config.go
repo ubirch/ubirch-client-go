@@ -87,6 +87,7 @@ func (c *Config) Load(configDir string, filename string) error {
 		return err
 	}
 	c.setDefaultTLS(configDir)
+	c.setDefaultCORS()
 	return c.setDefaultURLs()
 }
 
@@ -137,6 +138,14 @@ func (c *Config) setDefaultTLS(configDir string) {
 			c.TLS_KeyFile = defaultTLSKeyFile
 		}
 		c.TLS_KeyFile = filepath.Join(configDir, c.TLS_KeyFile)
+	}
+}
+
+func (c *Config) setDefaultCORS() {
+	if c.CORS {
+		if c.CORS_AllowedOrigins == nil {
+			c.CORS_AllowedOrigins = []string{"*"} // allow all origins
+		}
 	}
 }
 
