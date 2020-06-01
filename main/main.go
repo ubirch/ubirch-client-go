@@ -28,7 +28,8 @@ import (
 )
 
 // handle graceful shutdown
-func shutdown(signals chan os.Signal, p *ExtendedProtocol, cancel context.CancelFunc) error {
+func shutdown(cancel context.CancelFunc) {
+	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
 	// block until we receive a SIGINT or SIGTERM
@@ -37,8 +38,6 @@ func shutdown(signals chan os.Signal, p *ExtendedProtocol, cancel context.Cancel
 
 	// cancel the go routines contexts
 	cancel()
-
-	return p.Deinit()
 }
 
 func main() {
@@ -79,19 +78,21 @@ func main() {
 
 	// create a waitgroup that contains all asynchronous operations
 	// a cancellable context is used to stop the operations gracefully
-	g := errgroup.Group{}
 	ctx, cancel := context.WithCancel(context.Background())
+	g, ctx := errgroup.WithContext(ctx)
 
 	// set up graceful shutdown handling
-	signals := make(chan os.Signal, 1)
-	g.Go(func() error {
-		return shutdown(signals, &p, cancel)
-	})
+	go shutdown(cancel)
 
+	// set up HTTP server
 	httpServer := HTTPServer{}
 	httpServer.Init(conf.Debug, conf.Env)
-	httpServer.SetUpTLS(conf.TLS, conf.TLS_CertFile, conf.TLS_KeyFile)
-	httpServer.SetUpCORS(conf.CORS, conf.CORS_AllowedOrigins)
+	if conf.TLS {
+		httpServer.SetUpTLS(conf.TLS_CertFile, conf.TLS_KeyFile)
+	}
+	if conf.CORS && ENV != PROD_STAGE { // never enable CORS on production stage
+		httpServer.SetUpCORS(conf.CORS_AllowedOrigins)
+	}
 
 	// listen to messages to sign via http
 	httpSrvSign := ServerEndpoint{
@@ -126,10 +127,18 @@ func main() {
 		return httpServer.Serve(ctx)
 	})
 
-	//wait until all function calls from the g.Go method have returned
-	if err := g.Wait(); err != nil {
+	//wait until all function calls from the Go method have returned
+	if err = waitUntilDone(g, p); err != nil {
 		log.Fatal(err)
-	} else {
-		log.Printf("done")
 	}
+}
+
+func waitUntilDone(g *errgroup.Group, p ExtendedProtocol) error {
+	err := g.Wait()
+
+	if err2 := p.Deinit(); err2 != nil {
+		log.Print(err2)
+	}
+
+	return err
 }

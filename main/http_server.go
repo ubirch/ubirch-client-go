@@ -236,39 +236,32 @@ func (srv *HTTPServer) Init(debug bool, env string) {
 	ENV = env
 }
 
-func (srv *HTTPServer) SetUpTLS(TLS bool, certFile string, keyFile string) {
-	srv.tls = TLS
+func (srv *HTTPServer) SetUpTLS(certFile string, keyFile string) {
+	srv.tls = true
 	srv.certFile = certFile
 	srv.keyFile = keyFile
 
-	if srv.tls {
-		log.Printf("TLS enabled")
-		if DEBUG {
-			log.Printf(" - Cert: %s", srv.certFile)
-			log.Printf(" -  Key: %s", srv.keyFile)
-		}
+	log.Printf("TLS enabled")
+	if DEBUG {
+		log.Printf(" - Cert: %s", srv.certFile)
+		log.Printf(" -  Key: %s", srv.keyFile)
 	}
 }
 
-func (srv *HTTPServer) SetUpCORS(CORS bool, allowedOrigins []string) {
-	if CORS && ENV != PROD_STAGE { // never enable CORS on production stage
-		if allowedOrigins == nil {
-			allowedOrigins = []string{"*"} // allow all origins
-		}
-		log.Printf("CORS enabled")
-		if DEBUG {
-			log.Printf(" - Allowed Origins: %v", allowedOrigins)
-		}
+func (srv *HTTPServer) SetUpCORS(allowedOrigins []string) {
+	srv.router.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   allowedOrigins,
+		AllowedMethods:   []string{"POST", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Content-Type", "Content-Length", "X-Auth-Token"},
+		ExposedHeaders:   []string{"Accept", "Content-Type", "Content-Length", "X-Auth-Token"},
+		AllowCredentials: true,
+		MaxAge:           300, // Maximum value not ignored by any of major browsers
+		Debug:            DEBUG,
+	}))
 
-		srv.router.Use(cors.Handler(cors.Options{
-			AllowedOrigins:   allowedOrigins,
-			AllowedMethods:   []string{"POST", "OPTIONS"},
-			AllowedHeaders:   []string{"Accept", "Content-Type", "Content-Length", "X-Auth-Token"},
-			ExposedHeaders:   []string{"Accept", "Content-Type", "Content-Length", "X-Auth-Token"},
-			AllowCredentials: true,
-			MaxAge:           300, // Maximum value not ignored by any of major browsers
-			Debug:            DEBUG,
-		}))
+	log.Printf("CORS enabled")
+	if DEBUG {
+		log.Printf(" - Allowed Origins: %v", allowedOrigins)
 	}
 }
 
@@ -294,7 +287,7 @@ func (srv *HTTPServer) Serve(ctx context.Context) error {
 		log.Printf("shutting down http server")
 		server.SetKeepAlivesEnabled(false) // disallow clients to create new long-running conns
 		if err := server.Shutdown(ctx); err != nil {
-			log.Printf("Failed to gracefully shutdown server: %s", err)
+			log.Printf("Failed to gracefully shut down server: %s", err)
 		}
 	}()
 
