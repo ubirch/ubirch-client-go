@@ -140,11 +140,11 @@ func main() {
 }
 
 func waitUntilDone(g *errgroup.Group, p ExtendedProtocol) error {
-	err := g.Wait()
+	groupErr := g.Wait()
 
-	if err2 := p.Deinit(); err2 != nil {
-		log.Error(err2)
+	if err := p.Deinit(); err != nil {
+		log.Error(err)
 	}
 
-	return err
+	return groupErr
 }
