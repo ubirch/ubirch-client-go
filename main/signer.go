@@ -15,11 +15,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
@@ -55,6 +57,49 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 				if err != nil {
 					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
 					return fmt.Errorf("unable to persist new key pair for UUID %s: %v", name, err)
+				}
+			}
+
+			subjectCountry := "DE"
+			subjectOrganization := "ubirch GmbH"
+
+			if _, found := p.CSRs[name]; !found { // if there is no CSR stored yet, create one
+				log.Printf("%s: creating CSR", name)
+
+				csr, err := p.GetCSR(name, subjectCountry, subjectOrganization)
+				if err != nil {
+					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("failed to create CSR for UUID %s: %v", name, err))
+					continue
+				}
+				log.Printf("%s: CSR [DER]: %s\n", name, hex.EncodeToString(csr))
+
+				resp, err := http.Post(conf.IdentityService, "application/octet-stream", bytes.NewBuffer(csr))
+				if err != nil {
+					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("failed to send CSR for UUID %s: %v", name, err))
+					continue
+				}
+
+				respBodyBytes, err := ioutil.ReadAll(resp.Body)
+				//noinspection GoUnhandledErrorResult
+				resp.Body.Close() // todo
+				if err != nil {
+					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("unable to read response body: %v", err))
+					continue
+				}
+
+				if resp.StatusCode != http.StatusOK {
+					msg.Response <- HTTPErrorResponse(resp.StatusCode,
+						fmt.Sprintf("request to identity service (%s) failed: %s", conf.IdentityService, string(respBodyBytes)))
+					continue
+				}
+				log.Printf("%s: CSR successfully sent: %s", name, string(respBodyBytes))
+				p.CSRs[name] = csr
+
+				// store newly generated CSR in persistent storage
+				err = p.PersistContext()
+				if err != nil {
+					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
+					return fmt.Errorf("unable to persist new CSR for UUID %s: %v", name, err)
 				}
 			}
 
@@ -125,7 +170,7 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 				// save last signature after UPP was successfully received in ubirch backend
 				err = p.PersistContext()
 			} else {
-				log.Warnf("%s: sending UPP to %s failed: (%d) %q", name, conf.Niomon, code, resp)
+				log.Errorf("%s: sending UPP to %s failed: (%d) %q", name, conf.Niomon, code, resp)
 				// reset last signature in protocol context if sending UPP to backend fails to ensure intact chain
 				err = p.LoadContext()
 			}

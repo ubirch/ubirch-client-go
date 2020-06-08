@@ -34,6 +34,7 @@ import (
 type ExtendedProtocol struct {
 	ubirch.Protocol
 	Certificates map[string][]byte
+	CSRs         map[string][]byte
 	db           Database
 	contextFile  string
 }

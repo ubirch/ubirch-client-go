@@ -76,6 +76,7 @@ func main() {
 	}
 	p.Signatures = map[uuid.UUID][]byte{}
 	p.Certificates = map[string][]byte{}
+	p.CSRs = map[string][]byte{}
 
 	err = p.Init(configDir, contextFile, conf.DSN, conf.Keys)
 	if err != nil {
