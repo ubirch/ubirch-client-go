@@ -33,9 +33,10 @@ const (
 	DEMO_STAGE = "demo"
 	PROD_STAGE = "prod"
 
-	keyURL    = "https://key.%s.ubirch.com/api/keyService/v1/pubkey"
-	niomonURL = "https://niomon.%s.ubirch.com/"
-	verifyURL = "https://verify.%s.ubirch.com/api/upp"
+	keyURL      = "https://key.%s.ubirch.com/api/keyService/v1/pubkey"
+	identityURL = "https://identity.%s.ubirch.com/api/certs/v1/csr/register"
+	niomonURL   = "https://niomon.%s.ubirch.com/"
+	verifyURL   = "https://verify.%s.ubirch.com/api/upp"
 
 	authEnv  = "UBIRCH_AUTH_MAP" // {UUID: [key, token]}
 	authFile = "auth.json"       // {UUID: [key, token]}
@@ -60,6 +61,7 @@ type Config struct {
 	Debug               bool              `json:"debug"`        // enable extended debug output, defaults to 'false'
 	SecretBytes         []byte            // the decoded key store secret
 	KeyService          string            // key service URL (set automatically)
+	IdentityService     string            // identity service URL (set automatically)
 	Niomon              string            // authentication service URL (set automatically)
 	VerifyService       string            // verification service URL (set automatically)
 }
@@ -173,6 +175,10 @@ func (c *Config) setDefaultURLs() error {
 		c.KeyService = fmt.Sprintf(keyURL, c.Env)
 	} else {
 		c.KeyService = strings.TrimSuffix(c.KeyService, "/mpack")
+	}
+
+	if c.IdentityService == "" {
+		c.IdentityService = fmt.Sprintf(identityURL, c.Env)
 	}
 
 	if c.VerifyService == "" {
