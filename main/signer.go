@@ -60,13 +60,10 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 				}
 			}
 
-			subjectCountry := "DE"
-			subjectOrganization := "ubirch GmbH"
-
 			if _, found := p.CSRs[name]; !found { // if there is no CSR stored yet, create one
 				log.Printf("%s: creating CSR", name)
 
-				csr, err := p.GetCSR(name, subjectCountry, subjectOrganization)
+				csr, err := p.GetCSR(name, conf.CSR_Country, conf.CSR_Organization)
 				if err != nil {
 					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("failed to create CSR for UUID %s: %v", name, err))
 					continue
