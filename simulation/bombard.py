@@ -8,7 +8,14 @@ import time
 import msgpack
 import requests
 
-letters = ("a", "b", "c", "d", "e", "f", "A", "B", "C", "D", "E", "F", "ä", "ö", "ü", "Ä", "Ö", "Ü")
+if len(sys.argv) < 3:
+    print("usage:")
+    print("python3 ./bombard.py <UUID> <AUTH_TOKEN>")
+    sys.exit()
+
+num = 10
+uuid = sys.argv[1]
+auth = sys.argv[2]
 
 data_json_type = "JSON data"
 data_bin_type = "binary data"
@@ -17,6 +24,18 @@ hash_b64_type = "base64 hash"
 
 types = [data_json_type, data_bin_type, hash_bin_type, hash_b64_type]
 
+base_url = 'http://localhost:8080'
+sign_data_url = base_url + '/{}'.format(uuid)
+sign_hash_url = base_url + '/{}/hash'.format(uuid)
+vrfy_data_url = base_url + '/verify'
+vrfy_hash_url = base_url + '/verify/hash'
+
+auth_header = {'X-Auth-Token': auth}
+bin_header = {'Content-Type': 'application/octet-stream'}
+txt_header = {'Content-Type': 'text/plain'}
+json_header = {'Content-Type': 'application/json'}
+
+letters = ("a", "b", "c", "d", "e", "f", "A", "B", "C", "D", "E", "F", "ä", "ö", "ü", "Ä", "Ö", "Ü")
 hashes = []  # [(msg, hash, upp)]
 failed = {}
 max_dur = 0
@@ -135,27 +154,6 @@ def send_verification_request(request_type: str, msg: dict, hash: str, upp: str)
     if not check_verification_response(r, request_type, msg, hash, upp):
         failed[request_type] += 1
 
-
-if len(sys.argv) < 3:
-    print("usage:")
-    print("python3 ./bombard.py <UUID> <AUTH_TOKEN>")
-    sys.exit()
-
-num = 2
-env = "demo"
-uuid = sys.argv[1]
-auth = sys.argv[2]
-
-base_url = 'http://localhost:8080'
-sign_data_url = base_url + '/{}'.format(uuid)
-sign_hash_url = base_url + '/{}/hash'.format(uuid)
-vrfy_data_url = base_url + '/verify'
-vrfy_hash_url = base_url + '/verify/hash'
-
-auth_header = {'X-Auth-Token': auth}
-bin_header = {'Content-Type': 'application/octet-stream'}
-txt_header = {'Content-Type': 'text/plain'}
-json_header = {'Content-Type': 'application/json'}
 
 print("\nsigning {} messages...".format(num * len(types)))
 i = 0
