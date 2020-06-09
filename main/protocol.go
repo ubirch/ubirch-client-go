@@ -60,7 +60,7 @@ func (p *ExtendedProtocol) Init(configDir string, filename string, dsn string, k
 	if err != nil {
 		return fmt.Errorf("unable to load protocol context: %v", err)
 	}
-	log.Printf("loaded protocol context: %d certificates, %d signatures\n", len(p.Certificates), len(p.Signatures))
+	log.Printf("loaded protocol context: %d certificates, %d signatures", len(p.Certificates), len(p.Signatures))
 
 	if keys != nil {
 		// inject keys from configuration to keystore
