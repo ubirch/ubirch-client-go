@@ -16,7 +16,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -48,7 +47,7 @@ func getSignedCertificate(p *ExtendedProtocol, name string) ([]byte, error) {
 	const timeFormat = "2006-01-02T15:04:05.000Z"
 
 	// get the UUID
-	uid, err := p.Crypto.GetUUID(name)
+	uid, err := p.GetUUID(name)
 	if err != nil {
 		return nil, err
 	}
@@ -93,17 +92,12 @@ func getSignedCertificate(p *ExtendedProtocol, name string) ([]byte, error) {
 	return json.Marshal(cert)
 }
 
-// submit a UPP to a backend service, such as the key-service or niomon.
+// submit a message to a backend service, such as the key-service or niomon.
 // returns the response status code, the response headers, the response body and encountered errors.
-func post(upp []byte, url string, headers map[string]string) (int, map[string][]string, []byte, error) {
-	// force HTTP/1.1 as HTTP/2 will break the headers on the server
-	client := &http.Client{
-		Transport: &http.Transport{
-			TLSNextProto: make(map[string]func(authority string, c *tls.Conn) http.RoundTripper),
-		},
-	}
+func post(data []byte, url string, headers map[string]string) (int, map[string][]string, []byte, error) {
+	client := &http.Client{}
 
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(upp))
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(data))
 	if err != nil {
 		return 0, nil, nil, fmt.Errorf("can't make new post request: %v", err)
 	}
@@ -120,6 +114,6 @@ func post(upp []byte, url string, headers map[string]string) (int, map[string][]
 	//noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()
 
-	respContent, err := ioutil.ReadAll(resp.Body)
-	return resp.StatusCode, resp.Header, respContent, err
+	respBodyBytes, err := ioutil.ReadAll(resp.Body)
+	return resp.StatusCode, resp.Header, respBodyBytes, err
 }
