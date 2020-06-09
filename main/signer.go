@@ -59,7 +59,7 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 			}
 
 			// register public key at the key service
-			if _, found := p.Certificates[name]; !found { // if there is no certificate stored yet, the key has probably not been registered
+			if _, found := p.Certificates[name]; !found { // if there is no certificate stored yet, the key has not been registered
 				log.Printf("%s: registering public key at key service", name)
 				// create a self-signed certificate for public key registration
 				cert, err := getSignedCertificate(p, name)
