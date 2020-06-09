@@ -46,7 +46,7 @@ type HTTPMessage struct {
 
 type HTTPResponse struct {
 	Code    int
-	Header  map[string][]string
+	Headers map[string][]string
 	Content []byte
 }
 
@@ -150,7 +150,7 @@ func getHash(r *http.Request, isHash bool) (Sha256Sum, error) {
 func forwardBackendResponse(w http.ResponseWriter, respChan chan HTTPResponse) {
 	resp := <-respChan
 	w.WriteHeader(resp.Code)
-	for k, v := range resp.Header {
+	for k, v := range resp.Headers {
 		w.Header().Set(k, v[0])
 	}
 	_, err := w.Write(resp.Content)
@@ -213,7 +213,7 @@ func (endpnt *ServerEndpoint) handleRequestHash(w http.ResponseWriter, r *http.R
 	endpnt.handleRequest(w, r, true)
 }
 
-func (endpnt *ServerEndpoint) handleRequestOrigData(w http.ResponseWriter, r *http.Request) {
+func (endpnt *ServerEndpoint) handleRequestOriginalData(w http.ResponseWriter, r *http.Request) {
 	endpnt.handleRequest(w, r, false)
 }
 
@@ -259,7 +259,7 @@ func (srv *HTTPServer) SetUpCORS(allowedOrigins []string) {
 }
 
 func (srv *HTTPServer) AddEndpoint(endpoint ServerEndpoint) {
-	srv.router.Post(endpoint.Path, endpoint.handleRequestOrigData)
+	srv.router.Post(endpoint.Path, endpoint.handleRequestOriginalData)
 	srv.router.Post(endpoint.Path+"/hash", endpoint.handleRequestHash)
 
 	srv.router.Options(endpoint.Path, endpoint.handleOptions)
@@ -305,7 +305,7 @@ func HTTPErrorResponse(code int, message string) HTTPResponse {
 	log.Error(message)
 	return HTTPResponse{
 		Code:    code,
-		Header:  map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}},
+		Headers: map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}},
 		Content: []byte(message),
 	}
 }

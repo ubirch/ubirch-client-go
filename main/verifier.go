@@ -131,6 +131,7 @@ func loadUPP(hashString string, conf Config) ([]byte, int, error) {
 			if stay {
 				_ = resp.Body.Close()
 				log.Printf("Couldn't verify hash yet (%d). Retry... %d\n", resp.StatusCode, n)
+				time.Sleep(time.Second)
 			}
 		}
 	}
@@ -180,14 +181,14 @@ func verifier(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProto
 				continue
 			}
 
-			header := map[string][]string{"Content-Type": {"application/json"}}
+			headers := map[string][]string{"Content-Type": {"application/json"}}
 			response, err := json.Marshal(map[string]string{"uuid": uid.String(), "hash": hashString, "upp": uppString})
 			if err != nil {
 				log.Warnf("error serializing extended response: %s", err)
-				header = map[string][]string{"Content-Type": {"application/octet-stream"}}
+				headers = map[string][]string{"Content-Type": {"application/octet-stream"}}
 				response = upp
 			}
-			msg.Response <- HTTPResponse{Code: code, Header: header, Content: response}
+			msg.Response <- HTTPResponse{Code: code, Headers: headers, Content: response}
 
 		case <-ctx.Done():
 			log.Println("finishing verifier")

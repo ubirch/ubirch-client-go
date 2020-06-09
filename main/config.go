@@ -33,9 +33,10 @@ const (
 	DEMO_STAGE = "demo"
 	PROD_STAGE = "prod"
 
-	keyURL    = "https://key.%s.ubirch.com/api/keyService/v1/pubkey"
-	niomonURL = "https://niomon.%s.ubirch.com/"
-	verifyURL = "https://verify.%s.ubirch.com/api/upp"
+	keyURL      = "https://key.%s.ubirch.com/api/keyService/v1/pubkey"
+	identityURL = "https://identity.%s.ubirch.com/api/certs/v1/csr/register"
+	niomonURL   = "https://niomon.%s.ubirch.com/"
+	verifyURL   = "https://verify.%s.ubirch.com/api/upp"
 
 	authEnv  = "UBIRCH_AUTH_MAP" // {UUID: [key, token]}
 	authFile = "auth.json"       // {UUID: [key, token]}
@@ -46,20 +47,23 @@ const (
 
 // configuration of the device
 type Config struct {
-	Devices             map[string]string `json:"devices"`      // maps UUIDs to backend auth tokens
-	Secret              string            `json:"secret"`       // secret used to encrypt the key store
-	Env                 string            `json:"env"`          // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
-	DSN                 string            `json:"DSN"`          // "data source name" for database connection
-	StaticKeys          bool              `json:"staticKeys"`   // disable dynamic key generation, defaults to 'false'
-	Keys                map[string]string `json:"keys"`         // maps UUIDs to injected keys
-	TLS                 bool              `json:"TLS"`          // enable serving HTTPS endpoints, defaults to 'false'
-	TLS_CertFile        string            `json:"TLSCertFile"`  // filename of TLS certificate file name, defaults to "cert.pem"
-	TLS_KeyFile         string            `json:"TLSKeyFile"`   // filename of TLS key file name, defaults to "key.pem"
-	CORS                bool              `json:"CORS"`         // enable CORS, defaults to false
-	CORS_AllowedOrigins []string          `json:"CORS_origins"` // list of allowed origin hosts, defaults to ["*"]
-	Debug               bool              `json:"debug"`        // enable extended debug output, defaults to 'false'
+	Devices             map[string]string `json:"devices"`          // maps UUIDs to backend auth tokens
+	Secret              string            `json:"secret"`           // secret used to encrypt the key store
+	Env                 string            `json:"env"`              // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
+	DSN                 string            `json:"DSN"`              // "data source name" for database connection
+	StaticKeys          bool              `json:"staticKeys"`       // disable dynamic key generation, defaults to 'false'
+	Keys                map[string]string `json:"keys"`             // maps UUIDs to injected keys
+	CSR_Country         string            `json:"CSR_country"`      // subject country for public key Certificate Signing Requests
+	CSR_Organization    string            `json:"CSR_organization"` // subject organization for public key Certificate Signing Requests
+	TLS                 bool              `json:"TLS"`              // enable serving HTTPS endpoints, defaults to 'false'
+	TLS_CertFile        string            `json:"TLSCertFile"`      // filename of TLS certificate file name, defaults to "cert.pem"
+	TLS_KeyFile         string            `json:"TLSKeyFile"`       // filename of TLS key file name, defaults to "key.pem"
+	CORS                bool              `json:"CORS"`             // enable CORS, defaults to false
+	CORS_AllowedOrigins []string          `json:"CORS_origins"`     // list of allowed origin hosts, defaults to ["*"]
+	Debug               bool              `json:"debug"`            // enable extended debug output, defaults to 'false'
 	SecretBytes         []byte            // the decoded key store secret
 	KeyService          string            // key service URL (set automatically)
+	IdentityService     string            // identity service URL (set automatically)
 	Niomon              string            // authentication service URL (set automatically)
 	VerifyService       string            // verification service URL (set automatically)
 }
@@ -87,6 +91,7 @@ func (c *Config) Load(configDir string, filename string) error {
 	if err != nil {
 		return err
 	}
+	c.setDefaultCSR()
 	c.setDefaultTLS(configDir)
 	c.setDefaultCORS()
 	return c.setDefaultURLs()
@@ -126,6 +131,16 @@ func (c *Config) checkMandatory() error {
 	}
 
 	return nil
+}
+
+func (c *Config) setDefaultCSR() {
+	if c.CSR_Country == "" {
+		c.CSR_Country = "DE"
+	}
+
+	if c.CSR_Organization == "" {
+		c.CSR_Organization = "ubirch GmbH"
+	}
 }
 
 func (c *Config) setDefaultTLS(configDir string) {
@@ -173,6 +188,10 @@ func (c *Config) setDefaultURLs() error {
 		c.KeyService = fmt.Sprintf(keyURL, c.Env)
 	} else {
 		c.KeyService = strings.TrimSuffix(c.KeyService, "/mpack")
+	}
+
+	if c.IdentityService == "" {
+		c.IdentityService = fmt.Sprintf(identityURL, c.Env)
 	}
 
 	if c.VerifyService == "" {

@@ -8,27 +8,47 @@ import time
 import msgpack
 import requests
 
-letters = ("a", "b", "c", "d", "e", "f", "A", "B", "C", "D", "E", "F", "ä", "ö", "ü", "Ä", "Ö", "Ü")
+if len(sys.argv) < 3:
+    print("usage:")
+    print("python3 ./bombard.py <UUID> <AUTH_TOKEN>")
+    sys.exit()
 
-json_type = "JSON data package"
+num = 10
+uuid = sys.argv[1]
+auth = sys.argv[2]
+
+data_json_type = "JSON data"
+data_bin_type = "binary data"
 hash_bin_type = "binary hash"
 hash_b64_type = "base64 hash"
 
-types = [json_type, hash_bin_type, hash_b64_type]
+types = [data_json_type, data_bin_type, hash_bin_type, hash_b64_type]
 
+base_url = 'http://localhost:8080'
+sign_data_url = base_url + '/{}'.format(uuid)
+sign_hash_url = base_url + '/{}/hash'.format(uuid)
+vrfy_data_url = base_url + '/verify'
+vrfy_hash_url = base_url + '/verify/hash'
+
+auth_header = {'X-Auth-Token': auth}
+bin_header = {'Content-Type': 'application/octet-stream'}
+txt_header = {'Content-Type': 'text/plain'}
+json_header = {'Content-Type': 'application/json'}
+
+letters = ("a", "b", "c", "d", "e", "f", "A", "B", "C", "D", "E", "F", "ä", "ö", "ü", "Ä", "Ö", "Ü")
 hashes = []  # [(msg, hash, upp)]
 failed = {}
 max_dur = 0
 
 
-def hash_msg(msg: dict) -> (str, str):
+def hash_msg(msg: dict) -> (bytes, str):
     serialized = json.dumps(msg, separators=(',', ':'), sort_keys=True, ensure_ascii=False).encode()
     msg_hash = hashlib.sha256(serialized).digest()
-    return serialized.decode(), binascii.b2a_base64(msg_hash).decode().rstrip('\n')
+    return serialized, binascii.b2a_base64(msg_hash).decode().rstrip('\n')
 
 
 # generates random JSON message and returns msg_str, serialized, msg_hash
-def get_message() -> (str, str, str):
+def get_message() -> (dict, bytes, str):
     msg = {
         "id": uuid,
         "ts": int(time.time()),
@@ -48,7 +68,7 @@ def get_message() -> (str, str, str):
         }
     }
     serialized, msg_hash = hash_msg(msg)
-    return json.dumps(msg), serialized, msg_hash
+    return msg, serialized, msg_hash
 
 
 def send_request(url: str, headers: dict, data: str or bytes) -> requests.Response:
@@ -60,7 +80,7 @@ def send_request(url: str, headers: dict, data: str or bytes) -> requests.Respon
     return r
 
 
-def check_signing_response(r: requests.Response, request_type: str, msg: str, serialized: str, hash: str) -> bool:
+def check_signing_response(r: requests.Response, request_type: str, msg: dict, serialized: bytes, hash: str) -> bool:
     try:
         r_map = json.loads(r.text)
     except Exception:
@@ -74,7 +94,7 @@ def check_signing_response(r: requests.Response, request_type: str, msg: str, se
     else:
         if r_map["hash"] != hash:
             print(" - - - HASH MISMATCH ! - - - ")
-            print("sorted compact json (py): {}".format(serialized))
+            print("sorted compact json (py): {}".format(serialized.decode()))
             print("hash (go): {}".format(r_map["hash"]))
             print("hash (py): {}".format(hash))
             return False
@@ -86,22 +106,24 @@ def check_signing_response(r: requests.Response, request_type: str, msg: str, se
 def send_signing_request(request_type: str):
     msg, serialized, hash = get_message()
 
-    if request_type == json_type:
-        url, header, data = sign_json_url, json_header, msg
+    if request_type == data_json_type:
+        url, header, data = sign_data_url, json_header, json.dumps(msg)
+    if request_type == data_bin_type:
+        url, header, data = sign_data_url, bin_header, serialized
     if request_type == hash_bin_type:
-        url, header, data = sign_hash_url, hash_bin_header, binascii.a2b_base64(hash)
+        url, header, data = sign_hash_url, bin_header, binascii.a2b_base64(hash)
     if request_type == hash_b64_type:
-        url, header, data = sign_hash_url, hash_txt_header, hash
+        url, header, data = sign_hash_url, txt_header, hash
 
     r = send_request(url=url, headers={**auth_header, **header}, data=data)
     if not check_signing_response(r, request_type, msg, serialized, hash):
         failed[request_type] += 1
 
 
-def check_verification_response(r: requests.Response, request_type: str, msg: str, hash: str, upp: str) -> bool:
+def check_verification_response(r: requests.Response, request_type: str, msg: dict, hash: str, upp: str) -> bool:
     if r.status_code != 200:
         print("NOT VERIFIED: ({})".format(request_type))
-        print("json: {}".format(msg))
+        print("json: {}".format(repr(msg)))
         print("hash: {}".format(hash))
         print("response: ({}) {}".format(r.status_code, r.text))
         return False
@@ -117,42 +139,26 @@ def check_verification_response(r: requests.Response, request_type: str, msg: st
     return True
 
 
-def send_verification_request(request_type: str, msg: str, hash: str, upp: str):
-    if request_type == json_type:
-        url, header, data = vrfy_json_url, json_header, msg
+def send_verification_request(request_type: str, msg: dict, hash: str, upp: str):
+    if request_type == data_json_type:
+        url, header, data = vrfy_data_url, json_header, json.dumps(msg)
+    if request_type == data_bin_type:
+        url, header, data = vrfy_data_url, bin_header, json.dumps(msg, separators=(',', ':'), sort_keys=True,
+                                                                  ensure_ascii=False).encode()
     if request_type == hash_bin_type:
-        url, header, data = vrfy_hash_url, hash_bin_header, binascii.a2b_base64(hash)
+        url, header, data = vrfy_hash_url, bin_header, binascii.a2b_base64(hash)
     if request_type == hash_b64_type:
-        url, header, data = vrfy_hash_url, hash_txt_header, hash
+        url, header, data = vrfy_hash_url, txt_header, hash
 
     r = send_request(url=url, headers=header, data=data)
     if not check_verification_response(r, request_type, msg, hash, upp):
         failed[request_type] += 1
 
 
-if len(sys.argv) < 3:
-    print("usage:")
-    print("python3 ./bombard.py <UUID> <AUTH_TOKEN>")
-    sys.exit()
-
-num = 2
-env = "demo"
-uuid = sys.argv[1]
-auth = sys.argv[2]
-
-base_url = 'http://localhost:8080'
-sign_json_url = base_url + '/{}'.format(uuid)
-sign_hash_url = base_url + '/{}/hash'.format(uuid)
-vrfy_json_url = base_url + '/verify'.format(uuid)
-vrfy_hash_url = base_url + '/verify/hash'.format(uuid)
-
-auth_header = {'X-Auth-Token': auth}
-hash_bin_header = {'Content-Type': 'application/octet-stream'}
-hash_txt_header = {'Content-Type': 'text/plain'}
-json_header = {'Content-Type': 'application/json'}
-
 print("\nsigning {} messages...".format(num * len(types)))
-i, failed[json_type], failed[hash_bin_type], failed[hash_b64_type] = 0, 0, 0, 0
+i = 0
+for t in types:
+    failed[t] = 0
 while i < num:
     i += 1
 
@@ -167,7 +173,9 @@ print(" max. signing duration: {} sec".format(max_dur))
 max_dur = 0
 
 print("\nverifying {} hashes...".format(len(hashes)))
-i, failed[json_type], failed[hash_bin_type], failed[hash_b64_type] = 0, 0, 0, 0
+i = 0
+for t in types:
+    failed[t] = 0
 for msg, hash, upp in hashes:
     i += 1
 
