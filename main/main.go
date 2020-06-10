@@ -64,10 +64,6 @@ func main() {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
 
-	if conf.Debug {
-		log.SetLevel(log.DebugLevel)
-	}
-
 	// create an ubirch protocol instance
 	p := ExtendedProtocol{}
 	p.Crypto = &ubirch.CryptoContext{

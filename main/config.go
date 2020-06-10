@@ -86,6 +86,10 @@ func (c *Config) Load(configDir string, filename string) error {
 		return fmt.Errorf("unable to decode base64 encoded secret (%s): %v", c.Secret, err)
 	}
 
+	if c.Debug {
+		log.SetLevel(log.DebugLevel)
+	}
+
 	_ = c.loadAuthMap(configDir)
 	err = c.checkMandatory()
 	if err != nil {
@@ -120,9 +124,8 @@ func (c *Config) checkMandatory() error {
 			"For more information take a look at the README under 'Configuration'.")
 	} else {
 		log.Printf("%d known UUID(s)", len(c.Devices))
-
-		for name, key := range c.Devices {
-			log.Printf("%s : %s", name, key)
+		for name := range c.Devices {
+			log.Debugf(" - %s", name)
 		}
 	}
 
