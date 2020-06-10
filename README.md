@@ -69,8 +69,8 @@ The only two mandatory configurations are
 
 ### Environment Based Configuration
 ```
-export UBIRCH_DEVICES="<UUID>:<ubirch backend auth token>"
-export UBIRCH_SECRET=<16 byte secret used to encrypt the key store (base64 encoded)>
+UBIRCH_DEVICES=<UUID>:<ubirch backend auth token>
+UBIRCH_SECRET=<16 byte secret used to encrypt the key store (base64 encoded)>
 ```
 (See [example.env](main/example.env) for an example.)
  
@@ -90,7 +90,7 @@ To switch to the `demo` backend environment
 ```
 - or set the following environment variable:
 ```
-export UBIRCH_ENV=demo
+UBIRCH_ENV=demo
 ```
  
 ### Use a SQL database to store the protocol context
@@ -108,7 +108,7 @@ set the DSN in the configuration.
 ```
 - or set the following environment variable:
 ```
-export UBIRCH_DSN=<data source name for database>
+UBIRCH_DSN=<data source name for database>
 ```
 
 ### Inject signing keys
@@ -125,8 +125,8 @@ Instead of having the client generate keys dynamically it is possible to inject 
 ```
 - or set the following environment variables:
 ```
-export UBIRCH_STATICKEYS=<boolean, defaults to ‘false’>
-export UBIRCH_KEYS="<UUID>:<ecdsa-prime256v1 private key (base64 encoded)>"
+UBIRCH_STATICKEYS=<boolean, defaults to ‘false’>
+UBIRCH_KEYS=<UUID>:<ecdsa-prime256v1 private key (base64 encoded)>
 ```
 
 > ECDSA signing keys (prime256v1) can be generated on the command line using openssl:
@@ -136,6 +136,22 @@ $ openssl ecparam -genkey -name prime256v1 -noout | openssl ec -text -noout | gr
 
 *Either way (dynamically generated or injected) the client will register the public key at the UBIRCH key service and
 store the keys persistently in the encrypted keystore.*
+ 
+### X.509 Certificate Signing Requests
+The client creates X.509 Certificate Signing Requests (*CSR*) for the public keys of the devices it is managing.
+The CSR subject *Common Name* is the device UUID which corresponds to the public key.
+The subject *Organization* and *Country* can be set through the configuration.
+
+- add the following key-value pairs to your `config.json`:
+```
+  "CSR_country": "<CSR Subject Country Name (2 letter code)>",
+  "CSR_organization": "<CSR Subject Organization Name (e.g. company)>"
+```
+- or set the following environment variables:
+```
+UBIRCH_CSR_COUNTRY=<CSR Subject Country Name (2 letter code)>
+UBIRCH_CSR_ORGANIZATION=<CSR Subject Organization Name (e.g. company)>
+```
  
 ### Enable TLS (serve HTTPS)
 - Create a self-signed TLS certificate
@@ -154,7 +170,7 @@ store the keys persistently in the encrypted keystore.*
     ```
     ...or set the following environment variable:
     ```
-    export UBIRCH_TLS=true
+    UBIRCH_TLS=true
     ```
 
 By default, docker client will look for the `key.pem` and `cert.pem` files in the working directory 
@@ -166,8 +182,8 @@ directory) and/or filename by adding them to your configuration file like this:
 ```
 ...or if you are using environment based configuration:
 ```
-export UBIRCH_TLS_CERTFILE=certs/cert.pem
-export UBIRCH_TLS_KEYFILE=certs/key.pem
+UBIRCH_TLS_CERTFILE=certs/cert.pem
+UBIRCH_TLS_KEYFILE=certs/key.pem
 ```
 
 ### Enable Cross Origin Resource Sharing (CORS)
@@ -175,29 +191,34 @@ export UBIRCH_TLS_KEYFILE=certs/key.pem
  and will be ignored on production stage.**
 > [See how to set the UBIRCH backend environment](#set-the-ubirch-backend-environment)
 
-To enable CORS add the following key-value pair to your `config.json`:
+To enable CORS and configure a list of *allowed origins*, i.e. origins a cross-domain request can be executed from,
+ add the following key-value pair to your `config.json`:
 ```
- "CORS": true,
+  "CORS": true,
+  "CORS_origins": ["<allowed origin>"]
 ```
 or set the following environment variable:
 ```
-export UBIRCH_CORS=true
+UBIRCH_CORS=true
+UBIRCH_CORS_ORIGINS=<allowed origin>
 ```
 
-*(Optional)* Configure a list of *allowed origins*, i.e. origins a cross-domain request can be executed from:
-- `config.json`:
-```
-  "CORS_origins": ["<allowed origin>"]
-```
-- environment variable:
-```
-export UBIRCH_CORS_ORIGINS="<allowed origin>"
-```
 An origin may contain a wildcard (`*`) to replace 0 or more characters (e.g.: `http://*.domain.com`). 
 Only one wildcard can be used per origin. 
 
-If CORS is enabled, but no *allowed origins* are specified, the default value is `["*"]` 
-which means, all origins will be allowed. 
+Setting *allowed origins* is optional. If CORS is enabled, but no *allowed origins* are specified, the default value is `["*"]` 
+which means, **all** origins will be allowed. 
+
+### Extended Debug Output
+To set the logging level to `debug` and so enable extended debug output
+ add the following key-value pair to your `config.json`:
+```
+  "debug": true
+```
+or set the following environment variable:
+```
+UBIRCH_DEBUG=true
+```
 
 ### How to acquire the ubirch backend token
 - Register at the **UBIRCH web UI**: 
