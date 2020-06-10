@@ -67,7 +67,7 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("failed to generate signed key certificate for UUID %s: %v", name, err))
 					continue
 				}
-				log.Printf("%s: CERT: %s\n", name, cert)
+				log.Printf("%s: CERT: %s", name, cert)
 
 				code, _, resp, err := post(cert, conf.KeyService, map[string]string{"Content-Type": "application/json"})
 				if err != nil {
@@ -98,7 +98,7 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("failed to create CSR for UUID %s: %v", name, err))
 					continue
 				}
-				log.Printf("%s: CSR [DER]: %s\n", name, hex.EncodeToString(csr))
+				log.Printf("%s: CSR [DER]: %s", name, hex.EncodeToString(csr))
 
 				code, _, resp, err := post(csr, conf.IdentityService, map[string]string{"Content-Type": "application/octet-stream"})
 				if err != nil {

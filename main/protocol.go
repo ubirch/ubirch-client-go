@@ -52,7 +52,7 @@ func (p *ExtendedProtocol) Init(configDir string, filename string, dsn string, k
 		log.Printf("protocol context will be saved to database")
 	} else {
 		p.contextFile = filepath.Join(configDir, filename)
-		log.Printf("protocol context will be saved to file (%s)", p.contextFile)
+		log.Printf("protocol context will be saved to file: %s", p.contextFile)
 	}
 
 	// try to read an existing protocol context from persistent storage (keystore, last signatures, key certificates)
@@ -60,7 +60,7 @@ func (p *ExtendedProtocol) Init(configDir string, filename string, dsn string, k
 	if err != nil {
 		return fmt.Errorf("unable to load protocol context: %v", err)
 	}
-	log.Printf("loaded protocol context: %d certificates, %d signatures", len(p.Certificates), len(p.Signatures))
+	log.Printf("loaded existing protocol context: %d certificates, %d signatures", len(p.Certificates), len(p.Signatures))
 
 	if keys != nil {
 		// inject keys from configuration to keystore
@@ -79,12 +79,10 @@ func (p *ExtendedProtocol) Init(configDir string, filename string, dsn string, k
 			}
 		}
 
-		log.Printf("injected %d keys from configuration to keystore\n", len(keys))
-
 		// update keystore in persistent storage
 		err = p.PersistContext()
 		if err != nil {
-			return fmt.Errorf("unable to store key pairs: %v\n", err)
+			return fmt.Errorf("unable to store key pairs: %v", err)
 		}
 	}
 	return nil

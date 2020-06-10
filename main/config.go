@@ -118,7 +118,7 @@ func (c *Config) loadFile(filename string) error {
 }
 
 func (c *Config) checkMandatory() error {
-	if c.Devices == nil || len(c.Devices) == 0 {
+	if len(c.Devices) == 0 {
 		return fmt.Errorf("There are no devices authorized to use this client.\n" +
 			"It is mandatory to set at least one device UUID and auth token in the configuration.\n" +
 			"For more information take a look at the README under 'Configuration'.")
@@ -133,8 +133,17 @@ func (c *Config) checkMandatory() error {
 		return fmt.Errorf("secret length must be 16 bytes (is %d)", len(c.SecretBytes))
 	}
 
-	if c.StaticKeys && (c.Keys == nil || len(c.Keys) == 0) {
-		return fmt.Errorf("dynamic key generation disabled but no injected signing keys found in configuration")
+	if len(c.Keys) != 0 {
+		log.Printf("%d injected key(s)", len(c.Keys))
+	}
+
+	if c.StaticKeys {
+		log.Debug("dynamic key generation disabled")
+		if len(c.Keys) == 0 {
+			return fmt.Errorf("dynamic key generation disabled but no injected signing keys found in configuration")
+		}
+	} else {
+		log.Debug("dynamic key generation enabled")
 	}
 
 	return nil
@@ -144,10 +153,12 @@ func (c *Config) setDefaultCSR() {
 	if c.CSR_Country == "" {
 		c.CSR_Country = "DE"
 	}
+	log.Debugf("CSR Subject Country: %s", c.CSR_Country)
 
 	if c.CSR_Organization == "" {
 		c.CSR_Organization = "ubirch GmbH"
 	}
+	log.Debugf("CSR Subject Organization: %s", c.CSR_Organization)
 }
 
 func (c *Config) setDefaultTLS(configDir string) {
@@ -204,6 +215,12 @@ func (c *Config) setDefaultURLs() error {
 	if c.VerifyService == "" {
 		c.VerifyService = fmt.Sprintf(verifyURL, c.Env)
 	}
+
+	log.Debugf(" - Key Service URL: %s", c.KeyService)
+	log.Debugf(" - Identity Service URL: %s", c.IdentityService)
+	log.Debugf(" - Authentication Service URL: %s", c.Niomon)
+	log.Debugf(" - Verification Service URL: %s", c.VerifyService)
+
 	return nil
 }
 

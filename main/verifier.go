@@ -130,7 +130,7 @@ func loadUPP(hashString string, conf Config) ([]byte, int, error) {
 			stay = resp.StatusCode != http.StatusOK
 			if stay {
 				_ = resp.Body.Close()
-				log.Printf("Couldn't verify hash yet (%d). Retry... %d\n", resp.StatusCode, n)
+				log.Printf("Couldn't verify hash yet (%d). Retry... %d", resp.StatusCode, n)
 				time.Sleep(time.Second)
 			}
 		}
@@ -157,7 +157,7 @@ func verifier(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProto
 
 			hash := msg.Hash
 			hashString := base64.StdEncoding.EncodeToString(hash[:])
-			log.Printf("verifying hash: %s\n", hashString)
+			log.Printf("verifying hash: %s", hashString)
 
 			upp, code, err := loadUPP(hashString, conf)
 			if err != nil {
