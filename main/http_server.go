@@ -146,10 +146,10 @@ func getHash(r *http.Request, isHash bool) (Sha256Sum, error) {
 // blocks until response is received and forwards it to sender
 func forwardBackendResponse(w http.ResponseWriter, respChan chan HTTPResponse) {
 	resp := <-respChan
-	w.WriteHeader(resp.Code)
 	for k, v := range resp.Headers {
 		w.Header().Set(k, v[0])
 	}
+	w.WriteHeader(resp.Code)
 	_, err := w.Write(resp.Content)
 	if err != nil {
 		log.Errorf("unable to write response: %s", err)
