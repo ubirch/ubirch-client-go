@@ -19,8 +19,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var ENV string
-
 const (
 	UUIDKey  = "uuid"
 	BinType  = "application/octet-stream"
@@ -118,10 +116,9 @@ func getHash(r *http.Request, isHash bool) (Sha256Sum, error) {
 				return Sha256Sum{}, err
 			}
 
-			// only log original data if in debug-mode and never on production stage
-			if ENV != PROD_STAGE {
-				log.Debugf("sorted compact JSON: %s", string(data))
-			}
+			// only log original data if in debug-mode
+			log.Debugf("sorted compact JSON: %s", string(data))
+
 		} else if contentType != BinType {
 			return Sha256Sum{}, fmt.Errorf("wrong content-type for original data. expected \"%s\" or \"%s\"", BinType, JSONType)
 		}
@@ -223,24 +220,12 @@ func (endpnt *ServerEndpoint) handleOptions(writer http.ResponseWriter, request 
 
 type HTTPServer struct {
 	router   *chi.Mux
-	tls      bool
 	certFile string
 	keyFile  string
 }
 
-func (srv *HTTPServer) Init(env string) {
-	srv.router = chi.NewMux()
-	ENV = env
-}
-
-func (srv *HTTPServer) SetUpTLS(certFile string, keyFile string) {
-	srv.tls = true
-	srv.certFile = certFile
-	srv.keyFile = keyFile
-
-	log.Printf("TLS enabled")
-	log.Debugf(" - Cert: %s", srv.certFile)
-	log.Debugf(" -  Key: %s", srv.keyFile)
+func NewRouter() *chi.Mux {
+	return chi.NewMux()
 }
 
 func (srv *HTTPServer) SetUpCORS(allowedOrigins []string) {
@@ -266,7 +251,7 @@ func (srv *HTTPServer) AddEndpoint(endpoint ServerEndpoint) {
 	srv.router.Options(endpoint.Path+"/hash", endpoint.handleOptions)
 }
 
-func (srv *HTTPServer) Serve(ctx context.Context) error {
+func (srv *HTTPServer) Serve(ctx context.Context, enableTLS bool) error {
 	server := &http.Server{
 		Addr:         ":8080",
 		Handler:      srv.router,
@@ -287,7 +272,10 @@ func (srv *HTTPServer) Serve(ctx context.Context) error {
 	log.Printf("starting HTTP service")
 
 	var err error
-	if srv.tls {
+	if enableTLS {
+		log.Printf("TLS enabled")
+		log.Debugf(" - Cert: %s", srv.certFile)
+		log.Debugf(" -  Key: %s", srv.keyFile)
 		err = server.ListenAndServeTLS(srv.certFile, srv.keyFile)
 	} else {
 		err = server.ListenAndServe()

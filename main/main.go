@@ -88,12 +88,12 @@ func main() {
 	go shutdown(cancel)
 
 	// set up HTTP server
-	httpServer := HTTPServer{}
-	httpServer.Init(conf.Env)
-	if conf.TLS {
-		httpServer.SetUpTLS(conf.TLS_CertFile, conf.TLS_KeyFile)
+	httpServer := HTTPServer{
+		router:   NewRouter(),
+		certFile: conf.TLS_CertFile,
+		keyFile:  conf.TLS_KeyFile,
 	}
-	if conf.CORS && ENV != PROD_STAGE { // never enable CORS on production stage
+	if conf.CORS && conf.Env != PROD_STAGE { // never enable CORS on production stage
 		httpServer.SetUpCORS(conf.CORS_Origins)
 	}
 
@@ -127,7 +127,7 @@ func main() {
 
 	// start HTTP server
 	g.Go(func() error {
-		return httpServer.Serve(ctx)
+		return httpServer.Serve(ctx, conf.TLS)
 	})
 
 	//wait until all function calls from the Go method have returned
