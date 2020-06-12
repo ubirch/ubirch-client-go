@@ -166,11 +166,12 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 			}
 
 			extendedResponse, err := json.Marshal(map[string][]byte{"hash": hash[:], "upp": upp, "response": respBody})
-			if err == nil {
-				respHeaders = map[string][]string{"Content-Type": {"application/json"}}
-			} else {
+			if err != nil {
 				log.Warnf("error serializing extended response: %v", err)
 				extendedResponse = respBody
+			} else {
+				respHeaders.Del("Content-Length")
+				respHeaders.Set("Content-Type", "application/json")
 			}
 			msg.Response <- HTTPResponse{Code: respCode, Headers: respHeaders, Content: extendedResponse}
 
