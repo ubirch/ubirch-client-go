@@ -181,10 +181,10 @@ func verifier(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProto
 				msg.Response <- HTTPErrorResponse(code, fmt.Sprintf("verification of hash %s failed! %v", hashString, err))
 				continue
 			}
-
 			uppString := base64.StdEncoding.EncodeToString(upp)
 			log.Debugf("%s: retrieved UPP: %s (0x%s)", hashString, uppString, hex.EncodeToString(upp))
-			message := uppString
+
+			message := "ok"
 
 			uid, err := p.verifyUPP(conf.IdentityService, upp)
 			if err != nil {
