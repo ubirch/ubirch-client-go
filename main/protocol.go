@@ -73,7 +73,7 @@ func (p *ExtendedProtocol) Init(configDir string, filename string, dsn string, k
 			if err != nil {
 				return fmt.Errorf("unable to decode private key string for %s: %v, string was: %s", name, err, key)
 			}
-			err = p.Crypto.SetKey(name, uid, keyBytes)
+			err = p.SetKey(name, uid, keyBytes)
 			if err != nil {
 				return fmt.Errorf("unable to insert private key to protocol context: %v", err)
 			}

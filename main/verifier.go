@@ -22,7 +22,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -51,9 +50,21 @@ func (p *ExtendedProtocol) verifyUPP(identityService string, upp []byte) (uuid.U
 	pubkey, err := p.GetPublicKey(id.String())
 	if err != nil {
 		log.Warn(err)
-		pubkey, err = p.loadPublicKey(identityService, id)
+
+		pubkey, err = loadPublicKey(identityService, id)
 		if err != nil {
-			return uuid.Nil, fmt.Errorf("loading public key failed: %v", err)
+			return id, fmt.Errorf("loading public key failed: %v", err)
+		}
+
+		err = p.SetPublicKey(id.String(), id, pubkey)
+		if err != nil {
+			return id, fmt.Errorf("unable to set public key in protocol context: %v", err)
+		}
+
+		// persist new public key
+		err = p.PersistContext()
+		if err != nil {
+			log.Errorf("unable to persist retrieved public key for UUID %s: %v", id.String(), err)
 		}
 	}
 	log.Debug("verifying UPP signature using pubkey %s of identity %s", base64.StdEncoding.EncodeToString(pubkey), name)
@@ -68,54 +79,10 @@ func (p *ExtendedProtocol) verifyUPP(identityService string, upp []byte) (uuid.U
 	return id, nil
 }
 
-func (p *ExtendedProtocol) loadPublicKey(identityService string, id uuid.UUID) ([]byte, error) {
-	keys, err := p.requestPublicKey(identityService, id)
+func loadPublicKey(identityService string, id uuid.UUID) ([]byte, error) {
+	keys, err := requestPublicKeys(identityService, id)
 	if err != nil {
 		return nil, err
-	}
-
-	log.Printf("public key (%s): %s", keys[0].PubKeyInfo.HwDeviceId, keys[0].PubKeyInfo.PubKey)
-	pubKeyBytes, err := base64.StdEncoding.DecodeString(keys[0].PubKeyInfo.PubKey)
-	if err != nil {
-		return nil, fmt.Errorf("public key not in base64 encoding: %v", err)
-	}
-	err = p.Crypto.SetPublicKey(id.String(), id, pubKeyBytes)
-	if err != nil {
-		return nil, fmt.Errorf("unable to set public key in protocol context: %v", err)
-	}
-
-	// persist new public key
-	err = p.PersistContext()
-	if err != nil {
-		log.Errorf("unable to persist retrieved public key for UUID %s: %v", id.String(), err)
-	}
-
-	return pubKeyBytes, nil
-}
-
-// request a devices public key at the ubirch identity service
-func (p *ExtendedProtocol) requestPublicKey(identityService string, id uuid.UUID) ([]SignedKeyRegistration, error) {
-	url := filepath.Join(identityService, "/api/keyService/v1/pubkey/current/hardwareId/", id.String())
-	resp, err := http.Get(url)
-	if err != nil {
-		return nil, fmt.Errorf("unable to retrieve public key info: %v", err)
-	}
-	//noinspection GoUnhandledErrorResult
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		respContent, _ := ioutil.ReadAll(resp.Body)
-		return nil, fmt.Errorf("retrieving public key info from %s failed: (%s) %s", url, resp.Status, string(respContent))
-	}
-
-	keys := make([]SignedKeyRegistration, 1)
-	respBodyBytes, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("unable to read response body: %v", err)
-	}
-	err = json.Unmarshal(respBodyBytes, &keys)
-	if err != nil {
-		return nil, fmt.Errorf("unable to decode key registration info: %v", err)
 	}
 
 	if len(keys) < 1 {
@@ -123,7 +90,14 @@ func (p *ExtendedProtocol) requestPublicKey(identityService string, id uuid.UUID
 	} else if len(keys) > 1 {
 		log.Warnf("several public keys registered for device %s", id.String())
 	}
-	return keys, nil
+
+	log.Printf("public key (%s): %s", keys[0].PubKeyInfo.HwDeviceId, keys[0].PubKeyInfo.PubKey)
+	pubKeyBytes, err := base64.StdEncoding.DecodeString(keys[0].PubKeyInfo.PubKey)
+	if err != nil {
+		return nil, fmt.Errorf("public key not in base64 encoding: %v", err)
+	}
+
+	return pubKeyBytes, nil
 }
 
 // returns the UPP which contains a given hash from the ubirch backend

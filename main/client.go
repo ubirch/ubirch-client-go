@@ -21,7 +21,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"path/filepath"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type KeyRegistration struct {
@@ -39,10 +42,8 @@ type SignedKeyRegistration struct {
 	Signature  string          `json:"signature"`
 }
 
-// [WIP] this is a legacy method that will be replaced by CSR handling.
-//
-// This function will get the public key from the card and create a json registration package
-// to be sent to the ubirch key service. The json structure is signed and sent to ubirch.
+// getSignedCertificate gets a self-signed JSON key registration for the public key
+// to be sent to the ubirch identity service
 func getSignedCertificate(p *ExtendedProtocol, name string) ([]byte, error) {
 	const timeFormat = "2006-01-02T15:04:05.000Z"
 
@@ -92,7 +93,7 @@ func getSignedCertificate(p *ExtendedProtocol, name string) ([]byte, error) {
 	return json.Marshal(cert)
 }
 
-// submit a message to a backend service, such as the key-service or niomon.
+// post submits a message to a backend service.
 // returns the response status code, the response headers, the response body and encountered errors.
 func post(url string, data []byte, headers map[string]string) (int, []byte, http.Header, error) {
 	client := &http.Client{}
@@ -116,4 +117,47 @@ func post(url string, data []byte, headers map[string]string) (int, []byte, http
 
 	respBodyBytes, err := ioutil.ReadAll(resp.Body)
 	return resp.StatusCode, respBodyBytes, resp.Header, err
+}
+
+// request a devices public key at the ubirch identity service
+func requestPublicKeys(identityService string, id uuid.UUID) ([]SignedKeyRegistration, error) {
+	url := filepath.Join(identityService, "/api/keyService/v1/pubkey/current/hardwareId/", id.String())
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("unable to retrieve public key info: %v", err)
+	}
+	//noinspection GoUnhandledErrorResult
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respContent, _ := ioutil.ReadAll(resp.Body)
+		return nil, fmt.Errorf("retrieving public key info from %s failed: (%s) %s", url, resp.Status, string(respContent))
+	}
+
+	respBodyBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read response body: %v", err)
+	}
+
+	var keys []SignedKeyRegistration
+	err = json.Unmarshal(respBodyBytes, &keys)
+	if err != nil {
+		return nil, fmt.Errorf("unable to decode key registration info: %v", err)
+	}
+
+	return keys, nil
+}
+
+func isKeyRegistered(identityService string, id uuid.UUID, pubKey []byte) (bool, error) {
+	certs, err := requestPublicKeys(identityService, id)
+	if err != nil {
+		return false, err
+	}
+
+	for _, cert := range certs {
+		if cert.PubKeyInfo.PubKey == base64.StdEncoding.EncodeToString(pubKey) {
+			return true, nil
+		}
+	}
+	return false, nil
 }

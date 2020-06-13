@@ -37,7 +37,7 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 			name := uid.String()
 
 			// check if there is a known signing key for UUID
-			if !p.Crypto.PrivateKeyExists(name) {
+			if !p.PrivateKeyExists(name) {
 				if conf.StaticKeys {
 					msg.Response <- HTTPErrorResponse(http.StatusUnauthorized, fmt.Sprintf("dynamic key generation is disabled and there is no injected signing key for UUID %s", name))
 					continue
@@ -45,7 +45,7 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 
 				// if dynamic key generation is enabled generate new key pair
 				log.Printf("%s: generating new key pair", name)
-				err := p.Crypto.GenerateKey(name, uid)
+				err := p.GenerateKey(name, uid)
 				if err != nil {
 					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("failed to generate new key pair for UUID %s: %v", name, err))
 					continue
