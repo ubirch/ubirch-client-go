@@ -27,7 +27,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func registerPublicKey(p *ExtendedProtocol, identityService string, name string) ([]byte, error) {
+func registerPublicKey(p *ExtendedProtocol, identityService string, name string, subjectCountry string, subjectOrganization string) ([]byte, error) {
 	// get the key
 	pubKey, err := p.GetPublicKey(name)
 	if err != nil {
@@ -48,6 +48,12 @@ func registerPublicKey(p *ExtendedProtocol, identityService string, name string)
 
 	if !isRegistered {
 		log.Printf("%s: registering public key at identity service", name)
+
+		// submit a X.509 Certificate Signing Request for the public key
+		_, err = submitCSR(p, identityService, name, subjectCountry, subjectOrganization)
+		if err != nil {
+			return nil, err
+		}
 
 		// create a self-signed certificate for the public key registration
 		cert, err := getSignedCertificate(p, name, uid)
@@ -127,13 +133,7 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 
 			// register public key at the identity service
 			if _, found := registeredKeys[name]; !found {
-				pubKey, err := registerPublicKey(p, conf.IdentityService, name)
-				if err != nil {
-					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("%s: %v", name, err))
-					continue
-				}
-				// submit a X.509 Certificate Signing Request for the public key
-				_, err = submitCSR(p, conf.IdentityService, name, conf.CSR_Country, conf.CSR_Organization)
+				pubKey, err := registerPublicKey(p, conf.IdentityService, name, conf.CSR_Country, conf.CSR_Organization)
 				if err != nil {
 					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("%s: %v", name, err))
 					continue
