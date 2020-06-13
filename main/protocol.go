@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/google/uuid"
@@ -39,7 +40,7 @@ type ExtendedProtocol struct {
 }
 
 // INIT sets keys in crypto context and automatically updates keystore in persistent storage
-func (p *ExtendedProtocol) Init(contextFile string, dsn string, keys map[string]string) error {
+func (p *ExtendedProtocol) Init(configDir string, filename string, dsn string, keys map[string]string) error {
 	// check if we want to use a database as persistent storage
 	if dsn != "" {
 		// use the database
@@ -50,7 +51,7 @@ func (p *ExtendedProtocol) Init(contextFile string, dsn string, keys map[string]
 		p.db = db
 		log.Printf("protocol context will be saved to database")
 	} else {
-		p.contextFile = contextFile
+		p.contextFile = filepath.Join(configDir, filename)
 		log.Printf("protocol context will be saved to file: %s", p.contextFile)
 	}
 

@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 
 	"github.com/google/uuid"
@@ -44,10 +43,10 @@ func shutdown(cancel context.CancelFunc) {
 
 func main() {
 	const (
-		Version         = "v2.0.0"
-		Build           = "local"
-		configFileName  = "config.json"
-		contextFileName = "protocol.json"
+		Version     = "v2.0.0"
+		Build       = "local"
+		configFile  = "config.json"
+		contextFile = "protocol.json"
 	)
 
 	var configDir string
@@ -60,7 +59,7 @@ func main() {
 
 	// read configuration
 	conf := Config{}
-	err := conf.Load(configDir, configFileName)
+	err := conf.Load(configDir, configFile)
 	if err != nil {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
@@ -75,14 +74,7 @@ func main() {
 	p.Certificates = map[string][]byte{}
 	p.CSRs = map[string][]byte{}
 
-	var contextFile string
-	if conf.Env == PROD_STAGE {
-		contextFile = filepath.Join(configDir, contextFileName)
-	} else {
-		contextFile = filepath.Join(configDir, conf.Env+"_"+contextFileName)
-	}
-
-	err = p.Init(contextFile, conf.DSN, conf.Keys)
+	err = p.Init(configDir, contextFile, conf.DSN, conf.Keys)
 	if err != nil {
 		log.Fatal(err)
 	}
