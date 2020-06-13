@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path/filepath"
 
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
@@ -69,13 +70,15 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 				}
 				log.Printf("%s: CERT: %s", name, cert)
 
-				code, _, resp, err := post(cert, conf.KeyService, map[string]string{"Content-Type": "application/json"})
+				// todo extract method
+				keyService := filepath.Join(conf.IdentityService, "/api/keyService/v1/pubkey")
+				code, resp, _, err := post(keyService, cert, map[string]string{"Content-Type": "application/json"})
 				if err != nil {
 					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("error sending key registration for UUID %s: %v", name, err))
 					continue
 				}
 				if code != http.StatusOK {
-					msg.Response <- HTTPErrorResponse(code, fmt.Sprintf("key registration for UUID %s at key service (%s) failed with response code %d\n key registration message: %s\n key service response: %s", name, conf.KeyService, code, cert, string(resp)))
+					msg.Response <- HTTPErrorResponse(code, fmt.Sprintf("key registration for UUID %s at key service (%s) failed with response code %d\n key registration message: %s\n key service response: %s", name, keyService, code, cert, string(resp)))
 					continue
 				}
 				log.Printf("%s: key registration successful", name)
@@ -100,13 +103,14 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 				}
 				log.Printf("%s: CSR [DER]: %s", name, hex.EncodeToString(csr))
 
-				code, _, resp, err := post(csr, conf.IdentityService, map[string]string{"Content-Type": "application/octet-stream"})
+				csrService := filepath.Join(conf.IdentityService, "/api/certs/v1/csr/register")
+				code, resp, _, err := post(csrService, csr, map[string]string{"Content-Type": "application/octet-stream"})
 				if err != nil {
 					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("error sending CSR for UUID %s: %v", name, err))
 					continue
 				}
 				if code != http.StatusOK {
-					msg.Response <- HTTPErrorResponse(code, fmt.Sprintf("sending CSR for for UUID %s to identity service (%s) failed: (%d) %s", name, conf.IdentityService, code, string(resp)))
+					msg.Response <- HTTPErrorResponse(code, fmt.Sprintf("sending CSR for for UUID %s to %s failed: (%d) %s", name, csrService, code, string(resp)))
 					continue
 				}
 				log.Printf("%s: CSR successfully sent: %s", name, string(resp))
@@ -141,7 +145,7 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 			log.Debugf("%s: UPP: %s (0x%s)", name, base64.StdEncoding.EncodeToString(upp), hex.EncodeToString(upp))
 
 			// send UPP to ubirch backend
-			respCode, respHeaders, respBody, err := post(upp, conf.Niomon, map[string]string{
+			respCode, respBody, respHeaders, err := post(conf.Niomon, upp, map[string]string{
 				"x-ubirch-hardware-id": name,
 				"x-ubirch-auth-type":   "ubirch",
 				"x-ubirch-credential":  base64.StdEncoding.EncodeToString([]byte(conf.Devices[name])),

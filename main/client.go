@@ -94,7 +94,7 @@ func getSignedCertificate(p *ExtendedProtocol, name string) ([]byte, error) {
 
 // submit a message to a backend service, such as the key-service or niomon.
 // returns the response status code, the response headers, the response body and encountered errors.
-func post(data []byte, url string, headers map[string]string) (int, http.Header, []byte, error) {
+func post(url string, data []byte, headers map[string]string) (int, []byte, http.Header, error) {
 	client := &http.Client{}
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(data))
@@ -115,5 +115,5 @@ func post(data []byte, url string, headers map[string]string) (int, http.Header,
 	defer resp.Body.Close()
 
 	respBodyBytes, err := ioutil.ReadAll(resp.Body)
-	return resp.StatusCode, resp.Header, respBodyBytes, err
+	return resp.StatusCode, respBodyBytes, resp.Header, err
 }

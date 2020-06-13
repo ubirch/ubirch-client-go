@@ -33,10 +33,9 @@ const (
 	DEMO_STAGE = "demo"
 	PROD_STAGE = "prod"
 
-	keyURL      = "https://key.%s.ubirch.com/api/keyService/v1/pubkey"
-	identityURL = "https://identity.%s.ubirch.com/api/certs/v1/csr/register"
+	identityURL = "https://identity.%s.ubirch.com/"
 	niomonURL   = "https://niomon.%s.ubirch.com/"
-	verifyURL   = "https://verify.%s.ubirch.com/api/upp"
+	verifyURL   = "https://verify.%s.ubirch.com/"
 
 	authEnv  = "UBIRCH_AUTH_MAP" // {UUID: [key, token]}
 	authFile = "auth.json"       // {UUID: [key, token]}
@@ -62,7 +61,6 @@ type Config struct {
 	CORS_Origins     []string          `json:"CORS_origins"`     // list of allowed origin hosts, defaults to ["*"]
 	Debug            bool              `json:"debug"`            // enable extended debug output, defaults to 'false'
 	SecretBytes      []byte            // the decoded key store secret
-	KeyService       string            // key service URL (set automatically)
 	IdentityService  string            // identity service URL (set automatically)
 	Niomon           string            // authentication service URL (set automatically)
 	VerifyService    string            // verification service URL (set automatically)
@@ -202,12 +200,6 @@ func (c *Config) setDefaultURLs() error {
 
 	log.Printf("UBIRCH backend \"%s\" environment", c.Env)
 
-	if c.KeyService == "" {
-		c.KeyService = fmt.Sprintf(keyURL, c.Env)
-	} else {
-		c.KeyService = strings.TrimSuffix(c.KeyService, "/mpack")
-	}
-
 	if c.IdentityService == "" {
 		c.IdentityService = fmt.Sprintf(identityURL, c.Env)
 	}
@@ -216,10 +208,9 @@ func (c *Config) setDefaultURLs() error {
 		c.VerifyService = fmt.Sprintf(verifyURL, c.Env)
 	}
 
-	log.Debugf(" - Key Service URL: %s", c.KeyService)
-	log.Debugf(" - Identity Service URL: %s", c.IdentityService)
-	log.Debugf(" - Authentication Service URL: %s", c.Niomon)
-	log.Debugf(" - Verification Service URL: %s", c.VerifyService)
+	log.Debugf(" - Identity Service: %s", c.IdentityService)
+	log.Debugf(" - Authentication Service: %s", c.Niomon)
+	log.Debugf(" - Verification Service: %s", c.VerifyService)
 
 	return nil
 }
