@@ -95,7 +95,7 @@ UBIRCH_ENV=demo
  
 ### Use a SQL database to store the protocol context
 The `DSN` (*Data Source Name*) can be used to connect the client to a SQL database for storing the protocol context 
-(i.e. the encrypted keystore, key certificates and last signatures) persistently. If DSN is not set or empty, the 
+(i.e. the encrypted keystore and last signatures) persistently. If DSN is not set or empty, the 
 client will create a file `protocol.json` (and `protocol.json.bck`) locally in the working directory.
 
 If you want to use a SQL database instead of a local file, make sure to apply the 
@@ -243,7 +243,7 @@ The docker image mounts the current directory (`$(pwd)`) into the */data* path t
 load the configuration file (if configuration is not set via environment variables), 
 and the TLS certificate and key files (if TLS is enabled). 
 If no DSN (database) is set in the configuration, the image stores the protocol context 
-(i.e. keystore, key certificates and last signatures) in this directory as well, 
+(i.e. keystore and last signatures) in this directory as well, 
 in which case the directory must be writable. 
 
 It is also possible to pass an absolute path instead of `$(pwd)`.
@@ -404,7 +404,7 @@ Then just enter the following two lines in your working directory:
     2020/04/14 13:40:54 1 known UUID(s)
     2020/04/14 13:40:54 UBIRCH backend "demo" environment
     2020/04/14 13:40:54 protocol context will be saved to file (protocol.json)
-    2020/04/14 13:40:54 loaded protocol context: 0 certificates, 0 signatures
+    2020/04/14 13:40:54 loaded protocol context: 0 signatures
     2020/04/14 13:40:54 starting HTTP service
     
     ```
