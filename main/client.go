@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"path/filepath"
 	"time"
 
 	"github.com/google/uuid"
@@ -115,7 +114,7 @@ func post(url string, data []byte, headers map[string]string) (int, []byte, http
 
 // request a devices public key at the ubirch identity service
 func requestPublicKeys(identityService string, id uuid.UUID) ([]SignedKeyRegistration, error) {
-	url := filepath.Join(identityService, "/api/keyService/v1/pubkey/current/hardwareId/", id.String())
+	url := identityService + "/api/keyService/v1/pubkey/current/hardwareId/" + id.String()
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("unable to retrieve public key info: %v", err)

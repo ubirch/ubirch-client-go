@@ -33,9 +33,9 @@ const (
 	DEMO_STAGE = "demo"
 	PROD_STAGE = "prod"
 
-	identityURL = "https://identity.%s.ubirch.com/"
-	niomonURL   = "https://niomon.%s.ubirch.com/"
-	verifyURL   = "https://verify.%s.ubirch.com/"
+	identityURL = "https://identity.%s.ubirch.com"
+	niomonURL   = "https://niomon.%s.ubirch.com"
+	verifyURL   = "https://verify.%s.ubirch.com"
 
 	authEnv  = "UBIRCH_AUTH_MAP" // {UUID: [key, token]}
 	authFile = "auth.json"       // {UUID: [key, token]}

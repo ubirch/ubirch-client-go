@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"path/filepath"
 
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
@@ -57,7 +56,7 @@ func registerPublicKey(p *ExtendedProtocol, identityService string, name string)
 		}
 		log.Printf("%s: CERT: %s", name, cert)
 
-		keyService := filepath.Join(identityService, "/api/keyService/v1/pubkey")
+		keyService := identityService + "/api/keyService/v1/pubkey"
 		code, resp, _, err := post(keyService, cert, map[string]string{"Content-Type": "application/json"})
 		if err != nil {
 			return nil, fmt.Errorf("error sending key registration: %v", err)
@@ -80,7 +79,7 @@ func submitCSR(p *ExtendedProtocol, identityService string, name string, subject
 	}
 	log.Printf("%s: CSR [DER]: %s", name, hex.EncodeToString(csr))
 
-	csrService := filepath.Join(identityService, "/api/certs/v1/csr/register")
+	csrService := identityService + "/api/certs/v1/csr/register"
 	code, resp, _, err := post(csrService, csr, map[string]string{"Content-Type": "application/octet-stream"})
 	if err != nil {
 		return nil, fmt.Errorf("error sending CSR: %v", err)
@@ -95,7 +94,7 @@ func submitCSR(p *ExtendedProtocol, identityService string, name string, subject
 
 // handle incoming messages, create, sign and send a ubirch protocol packet (UPP) to the ubirch backend
 func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtocol, conf Config) error {
-	var registeredKeys map[string][]byte
+	registeredKeys := map[string][]byte{}
 
 	for {
 		select {
@@ -161,7 +160,8 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 			log.Debugf("%s: UPP: %s (0x%s)", name, base64.StdEncoding.EncodeToString(upp), hex.EncodeToString(upp))
 
 			// send UPP to ubirch backend
-			respCode, respBody, respHeaders, err := post(conf.Niomon, upp, map[string]string{
+			authService := conf.Niomon + "/"
+			respCode, respBody, respHeaders, err := post(authService, upp, map[string]string{
 				"x-ubirch-hardware-id": name,
 				"x-ubirch-auth-type":   "ubirch",
 				"x-ubirch-credential":  base64.StdEncoding.EncodeToString([]byte(conf.Devices[name])),
@@ -176,7 +176,7 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 				// save last signature after UPP was successfully received in ubirch backend
 				err = p.PersistContext()
 			} else {
-				log.Errorf("%s: sending UPP to %s failed: (%d) %q", name, conf.Niomon, respCode, respBody)
+				log.Errorf("%s: sending UPP to %s failed: (%d) %q", name, authService, respCode, respBody)
 				// reset last signature in protocol context if sending UPP to backend fails to ensure intact chain
 				err = p.LoadContext()
 			}

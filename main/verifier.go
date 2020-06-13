@@ -23,7 +23,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -44,7 +43,7 @@ func loadUPP(verifyService string, hashString string) ([]byte, int, error) {
 	var resp *http.Response
 	var err error
 
-	verificationURL := filepath.Join(verifyService, "/api/upp") // /verify
+	verificationURL := verifyService + "/api/upp" // + "/verify"
 	n := 0
 	for stay, timeout := true, time.After(5*time.Second); stay; {
 		n++
@@ -87,7 +86,7 @@ func (p *ExtendedProtocol) verifyUPP(identityService string, upp []byte) (uuid.U
 	id := o.Uuid
 	name := id.String()
 
-	pubkey, err := p.GetPublicKey(id.String())
+	pubkey, err := p.GetPublicKey(name)
 	if err != nil {
 		log.Warn(err)
 
@@ -96,7 +95,7 @@ func (p *ExtendedProtocol) verifyUPP(identityService string, upp []byte) (uuid.U
 			return id, fmt.Errorf("loading public key failed: %v", err)
 		}
 
-		err = p.SetPublicKey(id.String(), id, pubkey)
+		err = p.SetPublicKey(name, id, pubkey)
 		if err != nil {
 			return id, fmt.Errorf("unable to set public key in protocol context: %v", err)
 		}
@@ -104,10 +103,10 @@ func (p *ExtendedProtocol) verifyUPP(identityService string, upp []byte) (uuid.U
 		// persist new public key
 		err = p.PersistContext()
 		if err != nil {
-			log.Errorf("unable to persist retrieved public key for UUID %s: %v", id.String(), err)
+			log.Errorf("unable to persist retrieved public key for UUID %s: %v", name, err)
 		}
 	}
-	log.Debug("verifying UPP signature using pubkey %s of identity %s", base64.StdEncoding.EncodeToString(pubkey), name)
+	log.Debugf("verifying UPP signature using pubkey %s of identity %s", base64.StdEncoding.EncodeToString(pubkey), name)
 
 	verified, err := p.Verify(name, upp, ubirch.Chained)
 	if err != nil {
