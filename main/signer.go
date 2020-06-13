@@ -28,7 +28,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func (p *ExtendedProtocol) registerPublicKey(identityService string, name string) ([]byte, error) {
+func registerPublicKey(p *ExtendedProtocol, identityService string, name string) ([]byte, error) {
 	// get the key
 	pubKey, err := p.GetPublicKey(name)
 	if err != nil {
@@ -67,10 +67,11 @@ func (p *ExtendedProtocol) registerPublicKey(identityService string, name string
 		}
 		log.Printf("%s: key registration successful", name)
 	}
+
 	return pubKey, nil
 }
 
-func (p *ExtendedProtocol) submitCSR(identityService string, name string, subjectCountry string, subjectOrganization string) ([]byte, error) {
+func submitCSR(p *ExtendedProtocol, identityService string, name string, subjectCountry string, subjectOrganization string) ([]byte, error) {
 	log.Printf("%s: submitting CSR to identity service", name)
 
 	csr, err := p.GetCSR(name, subjectCountry, subjectOrganization)
@@ -127,15 +128,15 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 
 			// register public key at the identity service
 			if _, found := registeredKeys[name]; !found {
-				pubKey, err := p.registerPublicKey(conf.IdentityService, name)
+				pubKey, err := registerPublicKey(p, conf.IdentityService, name)
 				if err != nil {
-					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("%s: public key registration failed: %v", name, err))
+					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("%s: %v", name, err))
 					continue
 				}
 				// submit a X.509 Certificate Signing Request for the public key
-				_, err = p.submitCSR(conf.IdentityService, name, conf.CSR_Country, conf.CSR_Organization)
+				_, err = submitCSR(p, conf.IdentityService, name, conf.CSR_Country, conf.CSR_Organization)
 				if err != nil {
-					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("%s: submitting CSR failed: %v", name, err))
+					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("%s: %v", name, err))
 					continue
 				}
 				registeredKeys[name] = pubKey
@@ -149,11 +150,9 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 			}
 
 			// create a chained UPP
-			hash := msg.Hash
-			hashString := base64.StdEncoding.EncodeToString(hash[:])
-			log.Printf("%s: signing hash: %s", name, hashString)
+			log.Printf("%s: signing hash: %s", name, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
-			upp, err := p.SignHash(name, hash[:], ubirch.Chained)
+			upp, err := p.SignHash(name, msg.Hash[:], ubirch.Chained)
 			if err != nil {
 				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("error creating UPP for UUID %s: %v", name, err))
 				continue
@@ -186,7 +185,7 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 				return fmt.Errorf("unable to load/persist last signature for UUID %s: %v", name, err)
 			}
 
-			extendedResponse, err := json.Marshal(map[string][]byte{"hash": hash[:], "upp": upp, "response": respBody})
+			extendedResponse, err := json.Marshal(map[string][]byte{"hash": msg.Hash[:], "upp": upp, "response": respBody})
 			if err != nil {
 				log.Warnf("error serializing extended response: %v", err)
 				extendedResponse = respBody
