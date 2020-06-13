@@ -33,10 +33,8 @@ import (
 
 type ExtendedProtocol struct {
 	ubirch.Protocol
-	Certificates map[string][]byte
-	CSRs         map[string][]byte
-	db           Database
-	contextFile  string
+	db          Database
+	contextFile string
 }
 
 // INIT sets keys in crypto context and automatically updates keystore in persistent storage
@@ -60,7 +58,7 @@ func (p *ExtendedProtocol) Init(configDir string, filename string, dsn string, k
 	if err != nil {
 		return fmt.Errorf("unable to load protocol context: %v", err)
 	}
-	log.Printf("loaded existing protocol context: %d certificates, %d signatures", len(p.Certificates), len(p.Signatures))
+	log.Printf("loaded existing protocol context: %d signatures", len(p.Signatures))
 
 	if keys != nil {
 		// inject keys from configuration to keystore

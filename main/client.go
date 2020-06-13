@@ -44,14 +44,8 @@ type SignedKeyRegistration struct {
 
 // getSignedCertificate gets a self-signed JSON key registration for the public key
 // to be sent to the ubirch identity service
-func getSignedCertificate(p *ExtendedProtocol, name string) ([]byte, error) {
+func getSignedCertificate(p *ExtendedProtocol, name string, uid uuid.UUID) ([]byte, error) {
 	const timeFormat = "2006-01-02T15:04:05.000Z"
-
-	// get the UUID
-	uid, err := p.GetUUID(name)
-	if err != nil {
-		return nil, err
-	}
 
 	// get the key
 	pubKey, err := p.GetPublicKey(name)

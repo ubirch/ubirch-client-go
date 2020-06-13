@@ -28,8 +28,74 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+func (p *ExtendedProtocol) registerPublicKey(identityService string, name string) ([]byte, error) {
+	// get the key
+	pubKey, err := p.GetPublicKey(name)
+	if err != nil {
+		return nil, err
+	}
+
+	// get the UUID
+	uid, err := p.GetUUID(name)
+	if err != nil {
+		return nil, err
+	}
+
+	// check if key is already registered at the identity service
+	isRegistered, err := isKeyRegistered(identityService, uid, pubKey)
+	if err != nil {
+		return nil, err
+	}
+
+	if !isRegistered {
+		log.Printf("%s: registering public key at identity service", name)
+
+		// create a self-signed certificate for the public key registration
+		cert, err := getSignedCertificate(p, name, uid)
+		if err != nil {
+			return nil, fmt.Errorf("error creating public key certificate: %v", err)
+		}
+		log.Printf("%s: CERT: %s", name, cert)
+
+		keyService := filepath.Join(identityService, "/api/keyService/v1/pubkey")
+		code, resp, _, err := post(keyService, cert, map[string]string{"Content-Type": "application/json"})
+		if err != nil {
+			return nil, fmt.Errorf("error sending key registration: %v", err)
+		}
+		if code != http.StatusOK {
+			return nil, fmt.Errorf("key registration at %s failed: (%d) %s", keyService, code, string(resp))
+		}
+		log.Printf("%s: key registration successful", name)
+	}
+	return pubKey, nil
+}
+
+func (p *ExtendedProtocol) submitCSR(identityService string, name string, subjectCountry string, subjectOrganization string) ([]byte, error) {
+	log.Printf("%s: submitting CSR to identity service", name)
+
+	csr, err := p.GetCSR(name, subjectCountry, subjectOrganization)
+	if err != nil {
+		return nil, fmt.Errorf("error creating CSR: %v", err)
+	}
+	log.Printf("%s: CSR [DER]: %s", name, hex.EncodeToString(csr))
+
+	csrService := filepath.Join(identityService, "/api/certs/v1/csr/register")
+	code, resp, _, err := post(csrService, csr, map[string]string{"Content-Type": "application/octet-stream"})
+	if err != nil {
+		return nil, fmt.Errorf("error sending CSR: %v", err)
+	}
+	if code != http.StatusOK {
+		return nil, fmt.Errorf("submitting CSR to %s failed: (%d) %s", csrService, code, string(resp))
+	}
+	log.Printf("%s: CSR successfully sent: %s", name, string(resp))
+
+	return csr, nil
+}
+
 // handle incoming messages, create, sign and send a ubirch protocol packet (UPP) to the ubirch backend
 func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtocol, conf Config) error {
+	var registeredKeys map[string][]byte
+
 	for {
 		select {
 		case msg := <-msgHandler:
@@ -47,7 +113,7 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 				log.Printf("%s: generating new key pair", name)
 				err := p.GenerateKey(name, uid)
 				if err != nil {
-					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("failed to generate new key pair for UUID %s: %v", name, err))
+					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("%s: generating new key pair failed: %v", name, err))
 					continue
 				}
 
@@ -59,69 +125,20 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 				}
 			}
 
-			// register public key at the key service
-			if _, found := p.Certificates[name]; !found { // if there is no certificate stored yet, the key has not been registered
-				log.Printf("%s: registering public key at key service", name)
-				// create a self-signed certificate for public key registration
-				cert, err := getSignedCertificate(p, name)
+			// register public key at the identity service
+			if _, found := registeredKeys[name]; !found {
+				pubKey, err := p.registerPublicKey(conf.IdentityService, name)
 				if err != nil {
-					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("failed to generate signed key certificate for UUID %s: %v", name, err))
+					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("%s: public key registration failed: %v", name, err))
 					continue
 				}
-				log.Printf("%s: CERT: %s", name, cert)
-
-				// todo extract method
-				keyService := filepath.Join(conf.IdentityService, "/api/keyService/v1/pubkey")
-				code, resp, _, err := post(keyService, cert, map[string]string{"Content-Type": "application/json"})
+				// submit a X.509 Certificate Signing Request for the public key
+				_, err = p.submitCSR(conf.IdentityService, name, conf.CSR_Country, conf.CSR_Organization)
 				if err != nil {
-					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("error sending key registration for UUID %s: %v", name, err))
+					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("%s: submitting CSR failed: %v", name, err))
 					continue
 				}
-				if code != http.StatusOK {
-					msg.Response <- HTTPErrorResponse(code, fmt.Sprintf("key registration for UUID %s at key service (%s) failed with response code %d\n key registration message: %s\n key service response: %s", name, keyService, code, cert, string(resp)))
-					continue
-				}
-				log.Printf("%s: key registration successful", name)
-				p.Certificates[name] = cert
-
-				// store newly generated certificate in persistent storage
-				err = p.PersistContext()
-				if err != nil {
-					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
-					return fmt.Errorf("unable to persist new key certificate for UUID %s: %v", name, err)
-				}
-			}
-
-			// create a X.509 Certificate Signing Request for the public key
-			if _, found := p.CSRs[name]; !found { // if there is no CSR stored yet, create one
-				log.Printf("%s: creating CSR", name)
-
-				csr, err := p.GetCSR(name, conf.CSR_Country, conf.CSR_Organization)
-				if err != nil {
-					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("failed to create CSR for UUID %s: %v", name, err))
-					continue
-				}
-				log.Printf("%s: CSR [DER]: %s", name, hex.EncodeToString(csr))
-
-				csrService := filepath.Join(conf.IdentityService, "/api/certs/v1/csr/register")
-				code, resp, _, err := post(csrService, csr, map[string]string{"Content-Type": "application/octet-stream"})
-				if err != nil {
-					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("error sending CSR for UUID %s: %v", name, err))
-					continue
-				}
-				if code != http.StatusOK {
-					msg.Response <- HTTPErrorResponse(code, fmt.Sprintf("sending CSR for for UUID %s to %s failed: (%d) %s", name, csrService, code, string(resp)))
-					continue
-				}
-				log.Printf("%s: CSR successfully sent: %s", name, string(resp))
-				p.CSRs[name] = csr
-
-				// store newly generated CSR in persistent storage
-				err = p.PersistContext()
-				if err != nil {
-					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
-					return fmt.Errorf("unable to persist new CSR for UUID %s: %v", name, err)
-				}
+				registeredKeys[name] = pubKey
 			}
 
 			// load last signature for chaining
