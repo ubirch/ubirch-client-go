@@ -38,6 +38,7 @@ type ServerEndpoint struct {
 
 type HTTPMessage struct {
 	ID       uuid.UUID
+	Auth     []byte
 	Hash     Sha256Sum
 	Response chan HTTPResponse
 }
@@ -175,6 +176,7 @@ func (endpnt *ServerEndpoint) checkAuth(id uuid.UUID, authHeader string) error {
 
 func (endpnt *ServerEndpoint) handleRequest(w http.ResponseWriter, r *http.Request, isHash bool) {
 	var id uuid.UUID
+	var auth []byte
 	var err error
 
 	if endpnt.RequiresAuth {
@@ -188,6 +190,7 @@ func (endpnt *ServerEndpoint) handleRequest(w http.ResponseWriter, r *http.Reque
 			Error(w, err, http.StatusUnauthorized)
 			return
 		}
+		auth = []byte(XAuthToken(r))
 	}
 
 	hash, err := getHash(r, isHash)
@@ -200,7 +203,7 @@ func (endpnt *ServerEndpoint) handleRequest(w http.ResponseWriter, r *http.Reque
 	respChan := make(chan HTTPResponse)
 
 	// submit message for singing
-	endpnt.MessageHandler <- HTTPMessage{ID: id, Hash: hash, Response: respChan}
+	endpnt.MessageHandler <- HTTPMessage{ID: id, Auth: auth, Hash: hash, Response: respChan}
 
 	// wait for response from ubirch backend to be forwarded
 	forwardBackendResponse(w, respChan)

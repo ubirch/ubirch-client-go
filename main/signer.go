@@ -164,7 +164,7 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 			respCode, respBody, respHeaders, err := post(authService, upp, map[string]string{
 				"x-ubirch-hardware-id": name,
 				"x-ubirch-auth-type":   "ubirch",
-				"x-ubirch-credential":  base64.StdEncoding.EncodeToString([]byte(conf.Devices[name])),
+				"x-ubirch-credential":  base64.StdEncoding.EncodeToString(msg.Auth),
 			})
 			if err != nil {
 				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("error sending UPP to backend: %v", err))
