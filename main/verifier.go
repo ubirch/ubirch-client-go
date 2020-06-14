@@ -38,7 +38,7 @@ type verification struct {
 	Anchors []byte `json:"anchors"`
 }
 
-// returns the UPP which contains a given hash from the ubirch backend
+// retrieves the UPP which contains a given hash from the ubirch backend
 func loadUPP(verifyService string, hashString string) ([]byte, int, error) {
 	var resp *http.Response
 	var err error
@@ -78,6 +78,7 @@ func loadUPP(verifyService string, hashString string) ([]byte, int, error) {
 	return vf.UPP, http.StatusOK, nil
 }
 
+// Verifies the validity of a UPP's signature. Requests public key from identity service if unknown.
 func (p *ExtendedProtocol) verifyUPP(identityService string, upp []byte) (uuid.UUID, error) {
 	o, err := ubirch.DecodeChained(upp)
 	if err != nil {
@@ -106,18 +107,19 @@ func (p *ExtendedProtocol) verifyUPP(identityService string, upp []byte) (uuid.U
 			log.Errorf("unable to persist retrieved public key for UUID %s: %v", name, err)
 		}
 	}
-	log.Debugf("verifying UPP signature using pubkey %s of identity %s", base64.StdEncoding.EncodeToString(pubkey), name)
+	log.Debugf("verifying validity of UPP signature using pubkey %s of identity %s", base64.StdEncoding.EncodeToString(pubkey), name)
 
 	verified, err := p.Verify(name, upp, ubirch.Chained)
 	if err != nil {
 		return id, err
 	}
 	if !verified {
-		return id, fmt.Errorf("UPP signature could not be verified using public key %s of identity %s", base64.StdEncoding.EncodeToString(pubkey), name)
+		return id, fmt.Errorf("validity of UPP signature could not be verified using public key %s of identity %s", base64.StdEncoding.EncodeToString(pubkey), name)
 	}
 	return id, nil
 }
 
+// Retrieves the first public key associated with a device from the identity service
 func loadPublicKey(identityService string, id uuid.UUID) ([]byte, error) {
 	keys, err := requestPublicKeys(identityService, id)
 	if err != nil {
@@ -139,7 +141,7 @@ func loadPublicKey(identityService string, id uuid.UUID) ([]byte, error) {
 	return pubKeyBytes, nil
 }
 
-// hash a message and retrieve corresponding UPP to verify it
+// retrieve corresponding UPP for a given hash from the ubirch backend and verify the validity of its signature
 func verifier(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtocol, conf Config) error {
 	for {
 		select {
@@ -148,6 +150,7 @@ func verifier(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProto
 			hash64 := base64.StdEncoding.EncodeToString(msg.Hash[:])
 			log.Printf("%s: verifying", hash64)
 
+			// retrieve corresponding UPP from the ubirch backend
 			upp, code, err := loadUPP(conf.VerifyService, hash64)
 			if err != nil {
 				msg.Response <- HTTPErrorResponse(code, fmt.Sprintf("verification of hash %s failed! %v", hash64, err))
@@ -157,6 +160,7 @@ func verifier(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProto
 			upp64 := base64.StdEncoding.EncodeToString(upp)
 			log.Debugf("%s: retrieved UPP: %s (0x%s)", hash64, upp64, hex.EncodeToString(upp))
 
+			// verify validity of the retrieved UPP locally
 			uid, err := p.verifyUPP(conf.IdentityService, upp)
 			if err != nil {
 				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("verification of UPP %s failed! %v", upp64, err))

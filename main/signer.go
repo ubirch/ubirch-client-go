@@ -40,29 +40,27 @@ func registerPublicKey(p *ExtendedProtocol, identityService string, name string,
 		return nil, err
 	}
 
-	// check if key is already registered at the identity service
+	// check if the key is already registered at the identity service
 	isRegistered, err := isKeyRegistered(identityService, uid, pubKey)
 	if err != nil {
 		return nil, err
 	}
 
 	if !isRegistered {
-		log.Printf("%s: registering public key at identity service", name)
-
-		// submit a X.509 Certificate Signing Request for the public key
-		_, err = submitCSR(p, identityService, name, subjectCountry, subjectOrganization)
+		err = submitCSR(p, identityService, name, subjectCountry, subjectOrganization)
 		if err != nil {
 			return nil, err
 		}
 
-		// create a self-signed certificate for the public key registration
-		cert, err := getSignedCertificate(p, name, uid)
+		cert, err := getSignedCertificate(p, uid, pubKey)
 		if err != nil {
 			return nil, fmt.Errorf("error creating public key certificate: %v", err)
 		}
-		log.Printf("%s: CERT: %s", name, cert)
+		log.Printf("%s: certificate: %s", name, cert)
 
 		keyService := identityService + "/api/keyService/v1/pubkey"
+		log.Printf("%s: registering public key at identity service: %s", name, keyService)
+
 		code, resp, _, err := post(keyService, cert, map[string]string{"Content-Type": "application/json"})
 		if err != nil {
 			return nil, fmt.Errorf("error sending key registration: %v", err)
@@ -70,32 +68,35 @@ func registerPublicKey(p *ExtendedProtocol, identityService string, name string,
 		if code != http.StatusOK {
 			return nil, fmt.Errorf("key registration at %s failed: (%d) %s", keyService, code, string(resp))
 		}
+
 		log.Printf("%s: key registration successful", name)
 	}
 
 	return pubKey, nil
 }
 
-func submitCSR(p *ExtendedProtocol, identityService string, name string, subjectCountry string, subjectOrganization string) ([]byte, error) {
-	log.Printf("%s: submitting CSR to identity service", name)
-
+// submitCSR submits a X.509 Certificate Signing Request for the public key to the identity service
+func submitCSR(p *ExtendedProtocol, identityService string, name string, subjectCountry string, subjectOrganization string) error {
 	csr, err := p.GetCSR(name, subjectCountry, subjectOrganization)
 	if err != nil {
-		return nil, fmt.Errorf("error creating CSR: %v", err)
+		return fmt.Errorf("error creating CSR: %v", err)
 	}
-	log.Printf("%s: CSR [DER]: %s", name, hex.EncodeToString(csr))
+	log.Printf("%s:   CSR [der]: %s", name, hex.EncodeToString(csr))
 
 	csrService := identityService + "/api/certs/v1/csr/register"
+	log.Printf("%s: submitting CSR to identity service: %s", name, csr)
+
 	code, resp, _, err := post(csrService, csr, map[string]string{"Content-Type": "application/octet-stream"})
 	if err != nil {
-		return nil, fmt.Errorf("error sending CSR: %v", err)
+		return fmt.Errorf("error sending CSR: %v", err)
 	}
 	if code != http.StatusOK {
-		return nil, fmt.Errorf("submitting CSR to %s failed: (%d) %s", csrService, code, string(resp))
+		return fmt.Errorf("submitting CSR to %s failed: (%d) %s", csrService, code, string(resp))
 	}
-	log.Printf("%s: CSR successfully sent: %s", name, string(resp))
 
-	return csr, nil
+	log.Printf("%s: CSR submitted: %s", name, string(resp))
+
+	return nil
 }
 
 // handle incoming messages, create, sign and send a ubirch protocol packet (UPP) to the ubirch backend
@@ -131,7 +132,7 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 				}
 			}
 
-			// register public key at the identity service
+			// register public key at the ubirch backend
 			if _, found := registeredKeys[name]; !found {
 				pubKey, err := registerPublicKey(p, conf.IdentityService, name, conf.CSR_Country, conf.CSR_Organization)
 				if err != nil {
@@ -156,7 +157,6 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("error creating UPP for UUID %s: %v", name, err))
 				continue
 			}
-
 			log.Debugf("%s: UPP: %s (0x%s)", name, base64.StdEncoding.EncodeToString(upp), hex.EncodeToString(upp))
 
 			// send UPP to ubirch backend
@@ -185,15 +185,15 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 				return fmt.Errorf("unable to load/persist last signature for UUID %s: %v", name, err)
 			}
 
-			extendedResponse, err := json.Marshal(map[string][]byte{"hash": msg.Hash[:], "upp": upp, "response": respBody})
+			response, err := json.Marshal(map[string][]byte{"hash": msg.Hash[:], "upp": upp, "response": respBody})
 			if err != nil {
 				log.Warnf("error serializing extended response: %v", err)
-				extendedResponse = respBody
+				response = respBody
 			} else {
 				respHeaders.Del("Content-Length")
 				respHeaders.Set("Content-Type", "application/json")
 			}
-			msg.Response <- HTTPResponse{Code: respCode, Headers: respHeaders, Content: extendedResponse}
+			msg.Response <- HTTPResponse{Code: respCode, Headers: respHeaders, Content: response}
 
 		case <-ctx.Done():
 			log.Println("finishing signer")

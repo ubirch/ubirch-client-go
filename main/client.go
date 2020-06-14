@@ -41,18 +41,10 @@ type SignedKeyRegistration struct {
 	Signature  string          `json:"signature"`
 }
 
-// getSignedCertificate gets a self-signed JSON key registration for the public key
-// to be sent to the ubirch identity service
-func getSignedCertificate(p *ExtendedProtocol, name string, uid uuid.UUID) ([]byte, error) {
+// getSignedCertificate creates a self-signed JSON key certificate
+// to be sent to the identity service for public key registration
+func getSignedCertificate(p *ExtendedProtocol, uid uuid.UUID, pubKey []byte) ([]byte, error) {
 	const timeFormat = "2006-01-02T15:04:05.000Z"
-
-	// get the key
-	pubKey, err := p.GetPublicKey(name)
-	if err != nil {
-		return nil, err
-	}
-
-	pub64 := base64.StdEncoding.EncodeToString(pubKey)
 
 	// put it all together
 	now := time.Now().UTC()
@@ -60,8 +52,8 @@ func getSignedCertificate(p *ExtendedProtocol, name string, uid uuid.UUID) ([]by
 		Algorithm:      "ecdsa-p256v1",
 		Created:        now.Format(timeFormat),
 		HwDeviceId:     uid.String(),
-		PubKey:         pub64,
-		PubKeyId:       pub64,
+		PubKey:         base64.StdEncoding.EncodeToString(pubKey),
+		PubKeyId:       base64.StdEncoding.EncodeToString(pubKey),
 		ValidNotAfter:  now.Add(10 * 365 * 24 * time.Hour).Format(timeFormat), // valid for 10 years
 		ValidNotBefore: now.Format(timeFormat),
 	}
@@ -112,7 +104,8 @@ func post(url string, data []byte, headers map[string]string) (int, []byte, http
 	return resp.StatusCode, respBodyBytes, resp.Header, err
 }
 
-// request a devices public key at the ubirch identity service
+// request a devices public keys at the ubirch identity service
+// returns a list of the retrieved public key certificates
 func requestPublicKeys(identityService string, id uuid.UUID) ([]SignedKeyRegistration, error) {
 	url := identityService + "/api/keyService/v1/pubkey/current/hardwareId/" + id.String()
 	resp, err := http.Get(url)
@@ -141,6 +134,8 @@ func requestPublicKeys(identityService string, id uuid.UUID) ([]SignedKeyRegistr
 	return keys, nil
 }
 
+// isKeyRegistered sends a request to the identity service to determine
+// if a specified public key is registered for the specified UUID
 func isKeyRegistered(identityService string, id uuid.UUID, pubKey []byte) (bool, error) {
 	certs, err := requestPublicKeys(identityService, id)
 	if err != nil {
