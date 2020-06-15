@@ -102,7 +102,7 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 			uid := msg.ID
 			name := uid.String()
 
-			// check if there is a known signing key for UUID
+			// check if there is a known signing key for the UUID
 			if !p.PrivateKeyExists(name) {
 				if conf.StaticKeys {
 					msg.Response <- HTTPErrorResponse(http.StatusUnauthorized, fmt.Sprintf("dynamic key generation is disabled and there is no injected signing key for UUID %s", name))
@@ -135,11 +135,21 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 				registeredKeys[name] = pubKey
 			}
 
-			// load last signature for chaining
-			err := p.LoadContext()
-			if err != nil {
-				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
-				return fmt.Errorf("unable to load last signature for UUID %s: %v", name, err)
+			// submit a X.509 Certificate Signing Request for the public key
+			if _, found := p.CSRs[name]; !found {
+				csr, err := submitCSR(p, conf.IdentityService, name, conf.CSR_Country, conf.CSR_Organization)
+				if err != nil {
+					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("%s: %v", name, err))
+					continue
+				}
+				p.CSRs[name] = csr
+
+				// store newly generated CSR in persistent storage
+				err = p.PersistContext()
+				if err != nil {
+					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
+					return fmt.Errorf("unable to persist new CSR for UUID %s: %v", name, err)
+				}
 			}
 
 			// create a chained UPP
@@ -179,7 +189,7 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 
 			response, err := json.Marshal(map[string][]byte{"hash": msg.Hash[:], "upp": upp, "response": respBody})
 			if err != nil {
-				log.Warnf("error serializing extended response: %v", err)
+				log.Errorf("error serializing extended response: %v", err)
 				response = respBody
 			} else {
 				respHeaders.Del("Content-Length")
