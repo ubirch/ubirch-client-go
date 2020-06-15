@@ -78,8 +78,8 @@ func getSignedCertificate(p *ExtendedProtocol, uid uuid.UUID, pubKey []byte) ([]
 	return json.Marshal(cert)
 }
 
-// post submits a message to a backend service.
-// returns the response status code, the response headers, the response body and encountered errors.
+// post submits a message to a backend service
+// returns the response status code, body and headers and encountered errors
 func post(url string, data []byte, headers map[string]string) (int, []byte, http.Header, error) {
 	client := &http.Client{}
 
@@ -104,10 +104,10 @@ func post(url string, data []byte, headers map[string]string) (int, []byte, http
 	return resp.StatusCode, respBodyBytes, resp.Header, err
 }
 
-// request a devices public keys at the ubirch identity service
+// requestPublicKeys requests a devices public keys at the identity service
 // returns a list of the retrieved public key certificates
-func requestPublicKeys(identityService string, id uuid.UUID) ([]SignedKeyRegistration, error) {
-	url := identityService + "/api/keyService/v1/pubkey/current/hardwareId/" + id.String()
+func requestPublicKeys(keyService string, id uuid.UUID) ([]SignedKeyRegistration, error) {
+	url := keyService + "/current/hardwareId/" + id.String()
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("unable to retrieve public key info: %v", err)
@@ -136,8 +136,8 @@ func requestPublicKeys(identityService string, id uuid.UUID) ([]SignedKeyRegistr
 
 // isKeyRegistered sends a request to the identity service to determine
 // if a specified public key is registered for the specified UUID
-func isKeyRegistered(identityService string, id uuid.UUID, pubKey []byte) (bool, error) {
-	certs, err := requestPublicKeys(identityService, id)
+func isKeyRegistered(keyService string, id uuid.UUID, pubKey []byte) (bool, error) {
+	certs, err := requestPublicKeys(keyService, id)
 	if err != nil {
 		return false, err
 	}

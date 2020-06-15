@@ -38,12 +38,11 @@ type verification struct {
 	Anchors []byte `json:"anchors"`
 }
 
-// retrieves the UPP which contains a given hash from the ubirch backend
+// loadUPP retrieves the UPP which contains a given hash from the ubirch backend
 func loadUPP(verifyService string, hashString string) ([]byte, int, error) {
 	var resp *http.Response
 	var err error
 
-	verificationURL := verifyService + "/api/upp" // + "/verify"
 	n := 0
 	for stay, timeout := true, time.After(5*time.Second); stay; {
 		n++
@@ -51,9 +50,9 @@ func loadUPP(verifyService string, hashString string) ([]byte, int, error) {
 		case <-timeout:
 			stay = false
 		default:
-			resp, err = http.Post(verificationURL, "text/plain", strings.NewReader(hashString))
+			resp, err = http.Post(verifyService, "text/plain", strings.NewReader(hashString))
 			if err != nil {
-				return nil, http.StatusInternalServerError, fmt.Errorf("unable to send request to %s: %v", verificationURL, err)
+				return nil, http.StatusInternalServerError, fmt.Errorf("error sending verification request: %v", err)
 			}
 			stay = resp.StatusCode != http.StatusOK
 			if stay {
@@ -67,7 +66,7 @@ func loadUPP(verifyService string, hashString string) ([]byte, int, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, resp.StatusCode, fmt.Errorf("could not (yet) retrieve certificate for hash %s from verification service (%s): %s", hashString, verificationURL, resp.Status)
+		return nil, resp.StatusCode, fmt.Errorf("could not (yet) retrieve certificate for hash %s from verification service (%s): %s", hashString, verifyService, resp.Status)
 	}
 
 	vf := verification{}
@@ -78,8 +77,8 @@ func loadUPP(verifyService string, hashString string) ([]byte, int, error) {
 	return vf.UPP, http.StatusOK, nil
 }
 
-// Verifies the validity of a UPP's signature. Requests public key from identity service if unknown.
-func (p *ExtendedProtocol) verifyUPP(identityService string, upp []byte) (uuid.UUID, error) {
+// verifyUPP verifies the validity of a UPP's signature. Requests public key from identity service if unknown.
+func (p *ExtendedProtocol) verifyUPP(keyService string, upp []byte) (uuid.UUID, error) {
 	o, err := ubirch.DecodeChained(upp)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("UPP decoding failed: %v", err)
@@ -91,7 +90,7 @@ func (p *ExtendedProtocol) verifyUPP(identityService string, upp []byte) (uuid.U
 	if err != nil {
 		log.Warn(err)
 
-		pubkey, err = loadPublicKey(identityService, id)
+		pubkey, err = loadPublicKey(keyService, id)
 		if err != nil {
 			return id, fmt.Errorf("loading public key failed: %v", err)
 		}
@@ -119,9 +118,9 @@ func (p *ExtendedProtocol) verifyUPP(identityService string, upp []byte) (uuid.U
 	return id, nil
 }
 
-// Retrieves the first public key associated with a device from the identity service
-func loadPublicKey(identityService string, id uuid.UUID) ([]byte, error) {
-	keys, err := requestPublicKeys(identityService, id)
+// loadPublicKey retrieves the first valid public key associated with a device from the identity service
+func loadPublicKey(keyService string, id uuid.UUID) ([]byte, error) {
+	keys, err := requestPublicKeys(keyService, id)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +140,7 @@ func loadPublicKey(identityService string, id uuid.UUID) ([]byte, error) {
 	return pubKeyBytes, nil
 }
 
-// retrieve corresponding UPP for a given hash from the ubirch backend and verify the validity of its signature
+// verifier retrieves corresponding UPP for a given hash from the ubirch backend and verifies the validity of its signature
 func verifier(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtocol, conf Config) error {
 	for {
 		select {
@@ -161,7 +160,7 @@ func verifier(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProto
 			log.Debugf("%s: retrieved UPP: %s (0x%s)", hash64, upp64, hex.EncodeToString(upp))
 
 			// verify validity of the retrieved UPP locally
-			uid, err := p.verifyUPP(conf.IdentityService, upp)
+			uid, err := p.verifyUPP(conf.KeyService, upp)
 			if err != nil {
 				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("verification of UPP %s failed! %v", upp64, err))
 				continue

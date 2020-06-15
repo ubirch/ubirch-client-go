@@ -33,9 +33,10 @@ const (
 	DEMO_STAGE = "demo"
 	PROD_STAGE = "prod"
 
-	identityURL = "https://identity.%s.ubirch.com"
-	niomonURL   = "https://niomon.%s.ubirch.com"
-	verifyURL   = "https://verify.%s.ubirch.com"
+	keyURL      = "https://key.%s.ubirch.com/api/keyService/v1/pubkey"
+	identityURL = "https://identity.%s.ubirch.com/api/certs/v1/csr/register"
+	niomonURL   = "https://niomon.%s.ubirch.com/"
+	verifyURL   = "https://verify.%s.ubirch.com/api/upp"
 
 	authEnv  = "UBIRCH_AUTH_MAP" // {UUID: [key, token]}
 	authFile = "auth.json"       // {UUID: [key, token]}
@@ -61,6 +62,7 @@ type Config struct {
 	CORS_Origins     []string          `json:"CORS_origins"`     // list of allowed origin hosts, defaults to ["*"]
 	Debug            bool              `json:"debug"`            // enable extended debug output, defaults to 'false'
 	SecretBytes      []byte            // the decoded key store secret
+	KeyService       string            // key service URL (set automatically)
 	IdentityService  string            // identity service URL (set automatically)
 	Niomon           string            // authentication service URL (set automatically)
 	VerifyService    string            // verification service URL (set automatically)
@@ -186,13 +188,6 @@ func (c *Config) setDefaultURLs() error {
 		c.Env = PROD_STAGE
 	}
 
-	if c.Niomon == "" {
-		c.Niomon = fmt.Sprintf(niomonURL, c.Env)
-	}
-
-	// now make sure the Env variable has the actual environment value that is used in the URL
-	c.Env = strings.Split(c.Niomon, ".")[1]
-
 	// assert Env variable value is a valid UBIRCH backend environment
 	if !(c.Env == DEV_STAGE || c.Env == DEMO_STAGE || c.Env == PROD_STAGE) {
 		return fmt.Errorf("invalid UBIRCH backend environment: \"%s\"", c.Env)
@@ -200,14 +195,25 @@ func (c *Config) setDefaultURLs() error {
 
 	log.Printf("UBIRCH backend \"%s\" environment", c.Env)
 
+	if c.KeyService == "" {
+		c.KeyService = fmt.Sprintf(keyURL, c.Env)
+	} else {
+		c.KeyService = strings.TrimSuffix(c.KeyService, "/mpack")
+	}
+
 	if c.IdentityService == "" {
 		c.IdentityService = fmt.Sprintf(identityURL, c.Env)
+	}
+
+	if c.Niomon == "" {
+		c.Niomon = fmt.Sprintf(niomonURL, c.Env)
 	}
 
 	if c.VerifyService == "" {
 		c.VerifyService = fmt.Sprintf(verifyURL, c.Env)
 	}
 
+	log.Debugf(" - Key Service: %s", c.KeyService)
 	log.Debugf(" - Identity Service: %s", c.IdentityService)
 	log.Debugf(" - Authentication Service: %s", c.Niomon)
 	log.Debugf(" - Verification Service: %s", c.VerifyService)
