@@ -33,7 +33,6 @@ import (
 
 type ExtendedProtocol struct {
 	ubirch.Protocol
-	CSRs        map[string][]byte
 	db          Database
 	contextFile string
 }
@@ -60,8 +59,8 @@ func (p *ExtendedProtocol) Init(configDir string, filename string, dsn string, k
 		return fmt.Errorf("unable to load protocol context: %v", err)
 	}
 
-	if len(p.Signatures) != 0 || len(p.CSRs) != 0 {
-		log.Printf("loaded existing protocol context: %d signatures, %d CSRs", len(p.Signatures), len(p.CSRs))
+	if len(p.Signatures) != 0 {
+		log.Printf("loaded existing protocol context: %d signatures", len(p.Signatures))
 	}
 
 	if keys != nil {
