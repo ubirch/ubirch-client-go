@@ -88,7 +88,7 @@ func (p *ExtendedProtocol) verifyUPP(keyService string, upp []byte) (uuid.UUID, 
 
 	pubkey, err := p.GetPublicKey(name)
 	if err != nil {
-		log.Warn(err)
+		log.Warnf("couldn't get public key for %s from local context: %s", name, err)
 
 		pubkey, err = loadPublicKey(keyService, id)
 		if err != nil {
@@ -120,6 +120,7 @@ func (p *ExtendedProtocol) verifyUPP(keyService string, upp []byte) (uuid.UUID, 
 
 // loadPublicKey retrieves the first valid public key associated with a device from the identity service
 func loadPublicKey(keyService string, id uuid.UUID) ([]byte, error) {
+	log.Printf("requesting public key for %s from key service: %s", id.String(), keyService)
 	keys, err := requestPublicKeys(keyService, id)
 	if err != nil {
 		return nil, err
@@ -169,7 +170,7 @@ func verifier(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProto
 			headers := map[string][]string{"Content-Type": {"application/json"}}
 			response, err := json.Marshal(map[string]string{"uuid": uid.String(), "hash": hash64, "upp": upp64})
 			if err != nil {
-				log.Warnf("error serializing extended response: %s", err)
+				log.Errorf("error serializing extended response: %s", err)
 				headers = map[string][]string{"Content-Type": {"application/octet-stream"}}
 				response = upp
 			}
