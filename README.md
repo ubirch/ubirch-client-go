@@ -138,9 +138,9 @@ $ openssl ecparam -genkey -name prime256v1 -noout | openssl ec -text -noout | gr
 store the keys persistently in the encrypted keystore.*
  
 ### X.509 Certificate Signing Requests
-The client creates X.509 Certificate Signing Requests (*CSR*) for the public keys of the devices it is managing.
-The CSR subject *Common Name* is the device UUID which corresponds to the public key.
-The subject *Organization* and *Country* can be set through the configuration.
+The client creates X.509 Certificate Signing Requests (*CSRs*) for the public keys of the devices it is managing.
+The *Common Name* of the CSR subject is the UUID associated with the public key.
+The values for the *Organization* and *Country* of the CSR subject can be set through the configuration.
 
 - add the following key-value pairs to your `config.json`:
 ```
