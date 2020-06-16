@@ -202,7 +202,7 @@ func (endpnt *ServerEndpoint) handleRequest(w http.ResponseWriter, r *http.Reque
 	// create HTTPMessage with individual response channel for each request
 	respChan := make(chan HTTPResponse)
 
-	// submit message for singing
+	// submit message for signing
 	endpnt.MessageHandler <- HTTPMessage{ID: id, Auth: auth, Hash: hash, Response: respChan}
 
 	// wait for response from ubirch backend to be forwarded
