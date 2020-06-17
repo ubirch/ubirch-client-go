@@ -39,7 +39,7 @@ type verification struct {
 }
 
 // loadUPP retrieves the UPP which contains a given hash from the ubirch backend
-func loadUPP(verifyService string, hashString string) ([]byte, int, error) {
+func loadUPP(hashString string, verifyService string) ([]byte, int, error) {
 	var resp *http.Response
 	var err error
 
@@ -77,8 +77,8 @@ func loadUPP(verifyService string, hashString string) ([]byte, int, error) {
 	return vf.UPP, http.StatusOK, nil
 }
 
-// verifyUPP verifies the validity of a UPP's signature. Requests public key from identity service if unknown.
-func (p *ExtendedProtocol) verifyUPP(keyService string, upp []byte) (uuid.UUID, error) {
+// verifyUPP verifies the validity of a UPP's signature. Requests public key from the key service if unknown.
+func verifyUPP(p *ExtendedProtocol, upp []byte, keyService string) (uuid.UUID, error) {
 	o, err := ubirch.DecodeChained(upp)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("UPP decoding failed: %v", err)
@@ -86,25 +86,9 @@ func (p *ExtendedProtocol) verifyUPP(keyService string, upp []byte) (uuid.UUID, 
 	id := o.Uuid
 	name := id.String()
 
-	pubkey, err := p.GetPublicKey(name)
+	pubkey, err := loadPublicKey(p, name, id, keyService)
 	if err != nil {
-		log.Warnf("couldn't get public key for %s from local context: %s", name, err)
-
-		pubkey, err = loadPublicKey(keyService, id)
-		if err != nil {
-			return id, fmt.Errorf("loading public key failed: %v", err)
-		}
-
-		err = p.SetPublicKey(name, id, pubkey)
-		if err != nil {
-			return id, fmt.Errorf("unable to set public key in protocol context: %v", err)
-		}
-
-		// persist new public key
-		err = p.PersistContext()
-		if err != nil {
-			log.Errorf("unable to persist retrieved public key for UUID %s: %v", name, err)
-		}
+		return id, err
 	}
 	log.Debugf("verifying validity of UPP signature using pubkey %s of identity %s", base64.StdEncoding.EncodeToString(pubkey), name)
 
@@ -118,27 +102,43 @@ func (p *ExtendedProtocol) verifyUPP(keyService string, upp []byte) (uuid.UUID, 
 	return id, nil
 }
 
-// loadPublicKey retrieves the first valid public key associated with a device from the identity service
-func loadPublicKey(keyService string, id uuid.UUID) ([]byte, error) {
-	log.Printf("requesting public key for %s from key service: %s", id.String(), keyService)
-	keys, err := requestPublicKeys(keyService, id)
+// loadPublicKey retrieves the first valid public key associated with an identity from the key service
+func loadPublicKey(p *ExtendedProtocol, name string, id uuid.UUID, keyService string) ([]byte, error) {
+	pubkey, err := p.GetPublicKey(name)
 	if err != nil {
-		return nil, err
-	}
+		log.Warnf("couldn't get public key for identity %s from local context", name)
+		log.Printf("requesting public key for identity %s from key service: %s", id.String(), keyService)
 
-	if len(keys) < 1 {
-		return nil, fmt.Errorf("no public key found")
-	} else if len(keys) > 1 {
-		log.Warnf("several public keys registered for device %s", id.String())
-	}
+		keys, err := requestPublicKeys(keyService, id)
+		if err != nil {
+			return nil, err
+		}
 
-	log.Printf("public key (%s): %s", keys[0].PubKeyInfo.HwDeviceId, keys[0].PubKeyInfo.PubKey)
-	pubKeyBytes, err := base64.StdEncoding.DecodeString(keys[0].PubKeyInfo.PubKey)
-	if err != nil {
-		return nil, fmt.Errorf("public key not in base64 encoding: %v", err)
-	}
+		if len(keys) < 1 {
+			return nil, fmt.Errorf("no public key for identity %s registered at key service (%s)", id.String(), keyService)
+		} else if len(keys) > 1 {
+			log.Warnf("several public keys registered for identity %s", id.String())
+		}
 
-	return pubKeyBytes, nil
+		log.Printf("retrieved public key for identity %s: %s", keys[0].PubKeyInfo.HwDeviceId, keys[0].PubKeyInfo.PubKey)
+
+		pubkey, err = base64.StdEncoding.DecodeString(keys[0].PubKeyInfo.PubKey)
+		if err != nil {
+			return nil, fmt.Errorf("public key not in base64 encoding: %v", err)
+		}
+
+		err = p.SetPublicKey(name, id, pubkey)
+		if err != nil {
+			return nil, fmt.Errorf("unable to set public key in protocol context: %v", err)
+		}
+
+		// persist new public key
+		err = p.PersistContext()
+		if err != nil {
+			log.Errorf("unable to persist retrieved public key for UUID %s: %v", name, err)
+		}
+	}
+	return pubkey, nil
 }
 
 // verifier retrieves corresponding UPP for a given hash from the ubirch backend and verifies the validity of its signature
@@ -151,7 +151,7 @@ func verifier(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProto
 			log.Printf("%s: verifying", hash64)
 
 			// retrieve corresponding UPP from the ubirch backend
-			upp, code, err := loadUPP(conf.VerifyService, hash64)
+			upp, code, err := loadUPP(hash64, conf.VerifyService)
 			if err != nil {
 				msg.Response <- HTTPErrorResponse(code, fmt.Sprintf("verification of hash %s failed! %v", hash64, err))
 				continue
@@ -161,7 +161,7 @@ func verifier(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProto
 			log.Debugf("%s: retrieved UPP: %s (0x%s)", hash64, upp64, hex.EncodeToString(upp))
 
 			// verify validity of the retrieved UPP locally
-			uid, err := p.verifyUPP(conf.KeyService, upp)
+			uid, err := verifyUPP(p, upp, conf.KeyService)
 			if err != nil {
 				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("verification of UPP %s failed! %v", upp64, err))
 				continue
@@ -170,7 +170,7 @@ func verifier(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProto
 			headers := map[string][]string{"Content-Type": {"application/json"}}
 			response, err := json.Marshal(map[string]string{"uuid": uid.String(), "hash": hash64, "upp": upp64})
 			if err != nil {
-				log.Errorf("error serializing extended response: %s", err)
+				log.Warnf("error serializing extended response: %s", err)
 				headers = map[string][]string{"Content-Type": {"application/octet-stream"}}
 				response = upp
 			}

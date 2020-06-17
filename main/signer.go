@@ -27,7 +27,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func registerPublicKey(p *ExtendedProtocol, keyService string, name string) error {
+func registerPublicKey(p *ExtendedProtocol, name string, keyService string) error {
 	// get the key
 	pubKey, err := p.GetPublicKey(name)
 	if err != nil {
@@ -70,7 +70,7 @@ func registerPublicKey(p *ExtendedProtocol, keyService string, name string) erro
 }
 
 // submitCSR submits a X.509 Certificate Signing Request for the public key to the identity service
-func submitCSR(p *ExtendedProtocol, identityService string, name string, subjectCountry string, subjectOrganization string) error {
+func submitCSR(p *ExtendedProtocol, name string, subjectCountry string, subjectOrganization string, identityService string) error {
 	log.Printf("%s: submitting CSR to identity service: %s", name, identityService)
 
 	csr, err := p.GetCSR(name, subjectCountry, subjectOrganization)
@@ -127,14 +127,14 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 
 			if _, isRegistered := registered[name]; !isRegistered {
 				// register public key at the ubirch backend
-				err := registerPublicKey(p, conf.KeyService, name)
+				err := registerPublicKey(p, name, conf.KeyService)
 				if err != nil {
 					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("%s: key registration failed: %v", name, err))
 					continue
 				}
 
 				// submit a X.509 Certificate Signing Request for the public key
-				err = submitCSR(p, conf.IdentityService, name, conf.CSR_Country, conf.CSR_Organization)
+				err = submitCSR(p, name, conf.CSR_Country, conf.CSR_Organization, conf.IdentityService)
 				if err != nil {
 					log.Errorf("%s: submitting CSR failed: %v", name, err)
 				} else {
@@ -179,7 +179,7 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 
 			response, err := json.Marshal(map[string][]byte{"hash": msg.Hash[:], "upp": upp, "response": respBody})
 			if err != nil {
-				log.Errorf("error serializing extended response: %v", err)
+				log.Warnf("error serializing extended response: %v", err)
 				response = respBody
 			} else {
 				respHeaders.Del("Content-Length")
