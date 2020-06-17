@@ -136,11 +136,10 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 				// submit a X.509 Certificate Signing Request for the public key
 				err = submitCSR(p, conf.IdentityService, name, conf.CSR_Country, conf.CSR_Organization)
 				if err != nil {
-					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("%s: submitting CSR failed: %v", name, err))
-					continue
+					log.Errorf("%s: submitting CSR failed: %v", name, err)
+				} else {
+					registered[name] = true
 				}
-
-				registered[name] = true
 			}
 
 			// create a chained UPP
