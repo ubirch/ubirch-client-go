@@ -38,8 +38,8 @@ const (
 	niomonURL   = "https://niomon.%s.ubirch.com/"
 	verifyURL   = "https://verify.%s.ubirch.com/api/upp"
 
-	authEnv  = "UBIRCH_AUTH_MAP" // {UUID: [key, token]}
-	authFile = "auth.json"       // {UUID: [key, token]}
+	authEnv  = "UBIRCH_AUTH_MAP" // {UUID: [key, token]} (legacy)
+	authFile = "auth.json"       // {UUID: [key, token]} (legacy)
 
 	defaultTLSCertFile = "cert.pem"
 	defaultTLSKeyFile  = "key.pem"
@@ -47,18 +47,18 @@ const (
 
 // configuration of the device
 type Config struct {
-	Devices          map[string]string `json:"devices"`          // maps UUIDs to backend auth tokens
-	Secret           string            `json:"secret"`           // secret used to encrypt the key store
+	Devices          map[string]string `json:"devices"`          // maps UUIDs to backend auth tokens (mandatory)
+	Secret           string            `json:"secret"`           // secret used to encrypt the key store (mandatory)
 	Env              string            `json:"env"`              // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
 	DSN              string            `json:"DSN"`              // "data source name" for database connection
 	StaticKeys       bool              `json:"staticKeys"`       // disable dynamic key generation, defaults to 'false'
-	Keys             map[string]string `json:"keys"`             // maps UUIDs to injected keys
+	Keys             map[string]string `json:"keys"`             // maps UUIDs to injected private keys
 	CSR_Country      string            `json:"CSR_country"`      // subject country for public key Certificate Signing Requests
 	CSR_Organization string            `json:"CSR_organization"` // subject organization for public key Certificate Signing Requests
 	TLS              bool              `json:"TLS"`              // enable serving HTTPS endpoints, defaults to 'false'
 	TLS_CertFile     string            `json:"TLSCertFile"`      // filename of TLS certificate file name, defaults to "cert.pem"
 	TLS_KeyFile      string            `json:"TLSKeyFile"`       // filename of TLS key file name, defaults to "key.pem"
-	CORS             bool              `json:"CORS"`             // enable CORS, defaults to false
+	CORS             bool              `json:"CORS"`             // enable CORS, defaults to 'false'
 	CORS_Origins     []string          `json:"CORS_origins"`     // list of allowed origin hosts, defaults to ["*"]
 	Debug            bool              `json:"debug"`            // enable extended debug output, defaults to 'false'
 	SecretBytes      []byte            // the decoded key store secret
@@ -188,13 +188,6 @@ func (c *Config) setDefaultURLs() error {
 		c.Env = PROD_STAGE
 	}
 
-	if c.Niomon == "" {
-		c.Niomon = fmt.Sprintf(niomonURL, c.Env)
-	}
-
-	// now make sure the Env variable has the actual environment value that is used in the URL
-	c.Env = strings.Split(c.Niomon, ".")[1]
-
 	// assert Env variable value is a valid UBIRCH backend environment
 	if !(c.Env == DEV_STAGE || c.Env == DEMO_STAGE || c.Env == PROD_STAGE) {
 		return fmt.Errorf("invalid UBIRCH backend environment: \"%s\"", c.Env)
@@ -212,14 +205,18 @@ func (c *Config) setDefaultURLs() error {
 		c.IdentityService = fmt.Sprintf(identityURL, c.Env)
 	}
 
+	if c.Niomon == "" {
+		c.Niomon = fmt.Sprintf(niomonURL, c.Env)
+	}
+
 	if c.VerifyService == "" {
 		c.VerifyService = fmt.Sprintf(verifyURL, c.Env)
 	}
 
-	log.Debugf(" - Key Service URL: %s", c.KeyService)
-	log.Debugf(" - Identity Service URL: %s", c.IdentityService)
-	log.Debugf(" - Authentication Service URL: %s", c.Niomon)
-	log.Debugf(" - Verification Service URL: %s", c.VerifyService)
+	log.Debugf(" - Key Service: %s", c.KeyService)
+	log.Debugf(" - Identity Service: %s", c.IdentityService)
+	log.Debugf(" - Authentication Service: %s", c.Niomon)
+	log.Debugf(" - Verification Service: %s", c.VerifyService)
 
 	return nil
 }
