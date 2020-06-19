@@ -7,15 +7,15 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"flag"
+	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	insecuremathrand "math/rand"
 	"net/http"
+	"os"
 	"strconv"
 	"testing"
-	"time"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 //Flags used for skipping tests which need a reachable running client
@@ -24,28 +24,26 @@ var clientOnline = flag.Bool("clientOnline", false, "perform tests on a running 
 //For these tests to work the client needs to be started and reachable at the following address
 const (
 	defaultClientAddress = "http://localhost:8080"
-	//defaultUUID          = ""
-	//defaultAuthToken     = ""
 )
 
-//Struct for testing JSON marshaling
-type TestDataStruct struct {
-	Name    string
-	Value   int
-	Created time.Time
-}
+// variables for testing, which will be loaded from 'test_config.json' in MainTest()
+var defaultUUID = ""
+var defaultAuthToken = ""
 
 //Helper function for constant test JSON definitions which panics if the test JSON can't be marshaled to bytes
 func mustMarshalJSON(v interface{}) []byte {
-	bytes, err := json.Marshal(v)
+	jsonBytes, err := json.Marshal(v)
 	if err != nil {
 		panic("Test case data could not be marshaled to JSON")
 	}
-	return bytes
+	return jsonBytes
 }
 func createJSONRequest(address string, authToken string, uuidString string, jsonBytes []byte) (*http.Request, error) {
 	url := address + "/" + uuidString
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonBytes))
+	if err != nil {
+		return nil, err
+	}
 	req.Header.Set("X-Auth-Token", authToken)
 	req.Header.Set("Content-Type", "application/json")
 	return req, err
@@ -54,10 +52,48 @@ func createJSONRequest(address string, authToken string, uuidString string, json
 func createHashRequest(address string, authToken string, uuidString string, hashBytes []byte) (*http.Request, error) {
 	url := address + "/" + uuidString + "/hash"
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(hashBytes))
+	if err != nil {
+		return nil, err
+	}
 	req.Header.Set("X-Auth-Token", authToken)
 	req.Header.Set("Content-Type", "application/octet-stream")
 	return req, err
 }
+
+//##################################################################
+// --- Main Test function, will be executed, if calling 'go test'---
+//##################################################################
+
+// TestMain is the main test function, which checks the requirements and executes all other tests,
+// or exits with error message
+func TestMain(m *testing.M) {
+	const (
+		configFile = "test_config.json"
+	)
+	// load the configuration
+	conf := Config{}
+	err := conf.Load(".", configFile)
+	if err != nil {
+		log.Fatalf("\r\n" +
+			"###\r\n" +
+			"ERROR loading the configuration file,\r\n" +
+			"Please copy the 'sample_test_config.json' to '" + configFile + "'\r\n" +
+			"and enter the correct <UUID:AuthToken>, you want to test.\r\n" +
+			"###")
+	}
+	// extract the UUID and the Auth toke from the FIRST entry in the config
+	for key, value := range conf.Devices {
+		defaultUUID = key
+		defaultAuthToken = value
+		break
+	}
+
+	// run all other tests
+	code := m.Run()
+	os.Exit(code)
+}
+
+//################################################################
 
 // TestHashRandom tests if hash signing request with random hashes always succeed. It tries a
 // defined number of times before flagging a certain hash as causing an error to allow for timeouts/packet
@@ -66,8 +102,8 @@ func TestHashRandom(t *testing.T) {
 	if !*clientOnline {
 		t.Skip("skipping test in offline mode, use 'clientOnline' flag to enable")
 	}
-	const nrOfTests = 1000 //how many random hashes to send
-	const nrOfTries = 5    // How often to send a packet (if backend does not reply with 200)
+	const nrOfTests = 10 //how many random hashes to send
+	const nrOfTries = 5  // How often to send a packet (if backend does not reply with 200)
 
 	hashBytes := make([]byte, 32)
 	client := &http.Client{}
@@ -77,7 +113,8 @@ func TestHashRandom(t *testing.T) {
 	for currTest := 0; currTest < nrOfTests; currTest++ {
 		t.Logf("Sending random hash %v/%v", currTest+1, nrOfTests) //This will only be shown in verbose mode or in case of error
 		//Create request
-		rand.Read(hashBytes) //generate new Hash for this request
+		_, err := rand.Read(hashBytes) //generate new Hash for this request
+		requirer.NoError(err, "Failed to create random hash bytes, aborting")
 		req, err := createHashRequest(defaultClientAddress, defaultAuthToken, defaultUUID, hashBytes)
 		requirer.NoError(err, "Failed to create hash request, aborting")
 
@@ -250,7 +287,7 @@ func TestJSONRandomKeyValuePairs(t *testing.T) {
 		t.Skip("skipping test in offline mode, use 'clientOnline' flag to enable")
 	}
 	const (
-		nrOfTests = 100
+		nrOfTests = 10
 		nrOfTries = 5 // How often to send a packet before giving up (if backend does not reply with 200)
 
 		nrOfPairs     = 30 //pairs to generate for each test
@@ -424,7 +461,7 @@ func TestJSONTableSucceed(t *testing.T) {
 				struct {
 					Key1 int
 					Key2 []byte
-				}{123, make([]byte, 10*1024*1024)}),
+				}{124, make([]byte, 10*1024*1024)}),
 		},
 	}
 

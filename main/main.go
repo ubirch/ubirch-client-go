@@ -16,70 +16,56 @@ package main
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 
 	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-client-go/main/api"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
-)
+	"golang.org/x/sync/errgroup"
 
-var Path string
-
-const (
-	ConfigFile  = "config.json"
-	ContextFile = "protocol.json"
-	KeyFile     = "keys.json"
-)
-
-var (
-	Version = "v2.0.0"
-	Build   = "local"
+	log "github.com/sirupsen/logrus"
 )
 
 // handle graceful shutdown
-func shutdown(signals chan os.Signal, p *ExtendedProtocol, wg *sync.WaitGroup, cancel context.CancelFunc) {
+func shutdown(cancel context.CancelFunc) {
+	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
 	// block until we receive a SIGINT or SIGTERM
 	sig := <-signals
 	log.Printf("shutting down after receiving: %v", sig)
 
-	// wait for all go routines to end, cancels the go routines contexts
-	// and waits for the wait group
+	// cancel the go routines contexts
 	cancel()
-	wg.Wait()
-
-	err := p.Deinit()
-	if err != nil {
-		log.Printf("unable to close database connection: %v", err)
-		os.Exit(1)
-	}
-
-	os.Exit(0)
 }
 
 func main() {
+	const (
+		Version     = "v2.0.0"
+		Build       = "local"
+		configFile  = "config.json"
+		contextFile = "protocol.json"
+	)
+
+	var configDir string
 	if len(os.Args) > 1 {
-		Path = os.Args[1]
+		configDir = os.Args[1]
 	}
 
+	log.SetFormatter(&log.TextFormatter{FullTimestamp: true, TimestampFormat: "2006-01-02 15:04:05.000 -0700"})
 	log.Printf("UBIRCH client (%s, build=%s)", Version, Build)
 
 	// read configuration
 	conf := Config{}
-	err := conf.Load()
+	err := conf.Load(configDir, configFile)
 	if err != nil {
-		log.Fatalf("Error loading config: %s", err)
+		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
 
-	// read keys from key file / env variable
-	keyMap, err := LoadKeys()
-	if err != nil && conf.StaticUUID {
-		log.Printf("unable to load keys from file: %v", err)
+	if conf.Debug {
+		log.SetLevel(log.DebugLevel)
 	}
 
 	// create an ubirch protocol instance
@@ -91,30 +77,74 @@ func main() {
 	p.Signatures = map[uuid.UUID][]byte{}
 	p.Certificates = map[string][]byte{}
 
-	err = p.Init(conf.DSN, keyMap)
+	err = p.Init(configDir, contextFile, conf.DSN, conf.Keys)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// create a waitgroup that contains all asynchronous operations
 	// a cancellable context is used to stop the operations gracefully
-	wg := sync.WaitGroup{}
 	ctx, cancel := context.WithCancel(context.Background())
+	g, ctx := errgroup.WithContext(ctx)
 
 	// set up graceful shutdown handling
-	signals := make(chan os.Signal, 1)
-	go shutdown(signals, &p, &wg, cancel)
+	go shutdown(cancel)
 
-	// create a messages channel that parses the HTTP message and creates UPPs
-	msgsToSign := make(chan api.HTTPMessage, 100)
-	wg.Add(1)
-	go signer(msgsToSign, &p, conf, ctx, &wg)
+	// set up HTTP server
+	httpServer := HTTPServer{}
+	httpServer.Init(conf.Env)
+	if conf.TLS {
+		httpServer.SetUpTLS(conf.TLS_CertFile, conf.TLS_KeyFile)
+	}
+	if conf.CORS && ENV != PROD_STAGE { // never enable CORS on production stage
+		httpServer.SetUpCORS(conf.CORS_AllowedOrigins)
+	}
 
 	// listen to messages to sign via http
-	httpSrvSign := api.HTTPServer{MessageHandler: msgsToSign, AuthTokens: conf.Devices}
-	wg.Add(1)
-	httpSrvSign.Serve(ctx, &wg)
+	httpSrvSign := ServerEndpoint{
+		Path:           fmt.Sprintf("/{%s}", UUIDKey),
+		MessageHandler: make(chan HTTPMessage, 100),
+		RequiresAuth:   true,
+		AuthTokens:     conf.Devices,
+	}
+	httpServer.AddEndpoint(httpSrvSign)
 
-	// wait forever, exit is handled via shutdown
-	select {}
+	// listen to messages to verify via http
+	httpSrvVerify := ServerEndpoint{
+		Path:           "/verify",
+		MessageHandler: make(chan HTTPMessage, 100),
+		RequiresAuth:   false,
+		AuthTokens:     nil,
+	}
+	httpServer.AddEndpoint(httpSrvVerify)
+
+	// start signer
+	g.Go(func() error {
+		return signer(ctx, httpSrvSign.MessageHandler, &p, conf)
+	})
+
+	// start verifier
+	g.Go(func() error {
+		return verifier(ctx, httpSrvVerify.MessageHandler, &p, conf)
+	})
+
+	// start HTTP server
+	g.Go(func() error {
+		return httpServer.Serve(ctx)
+	})
+
+	//wait until all function calls from the Go method have returned
+	if err = waitUntilDone(g, p); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func waitUntilDone(g *errgroup.Group, p ExtendedProtocol) error {
+	groupErr := g.Wait()
+
+	if err := p.Deinit(); err != nil {
+		log.Error(err)
+	}
+
+	return groupErr
 }

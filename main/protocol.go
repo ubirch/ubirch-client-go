@@ -21,34 +21,37 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
-)
 
-var DB Database
+	log "github.com/sirupsen/logrus"
+)
 
 type ExtendedProtocol struct {
 	ubirch.Protocol
 	Certificates map[string][]byte
+	db           Database
+	contextFile  string
 }
 
 // INIT sets keys in crypto context and automatically updates keystore in persistent storage
-func (p *ExtendedProtocol) Init(dsn string, keys map[string]string) error {
+func (p *ExtendedProtocol) Init(configDir string, filename string, dsn string, keys map[string]string) error {
 	// check if we want to use a database as persistent storage
 	if dsn != "" {
 		// use the database
-		log.Printf("connecting to database")
 		db, err := NewPostgres(dsn)
 		if err != nil {
 			return fmt.Errorf("unable to connect to database: %v", err)
 		}
-		DB = db
+		p.db = db
+		log.Printf("protocol context will be saved to database")
 	} else {
-		log.Printf("protocol context file: %s", Path+ContextFile)
+		p.contextFile = filepath.Join(configDir, filename)
+		log.Printf("protocol context will be saved to file (%s)", p.contextFile)
 	}
 
 	// try to read an existing protocol context from persistent storage (keystore, last signatures, key certificates)
@@ -87,27 +90,29 @@ func (p *ExtendedProtocol) Init(dsn string, keys map[string]string) error {
 }
 
 func (p *ExtendedProtocol) Deinit() error {
-	if DB != nil {
-		return DB.Close()
+	if p.db != nil {
+		if err := p.db.Close(); err != nil {
+			return fmt.Errorf("unable to close database connection: %v", err)
+		}
 	}
 	return nil
 }
 
 // PersistContext saves current ubirch-protocol context, storing keystore, key certificates and signatures
 func (p *ExtendedProtocol) PersistContext() error {
-	if DB != nil {
-		return DB.SetProtocolContext(p)
+	if p.db != nil {
+		return p.db.SetProtocolContext(p)
 	} else {
-		return p.saveFile(Path + ContextFile)
+		return p.saveFile(p.contextFile)
 	}
 }
 
 // LoadContext loads current ubirch-protocol context, loading keys and signatures
 func (p *ExtendedProtocol) LoadContext() error {
-	if DB != nil {
-		return DB.GetProtocolContext(p)
+	if p.db != nil {
+		return p.db.GetProtocolContext(p)
 	} else {
-		return p.loadFile(Path + ContextFile)
+		return p.loadFile(p.contextFile)
 	}
 }
 
@@ -115,7 +120,7 @@ func (p *ExtendedProtocol) saveFile(file string) error {
 	if _, err := os.Stat(file); !os.IsNotExist(err) { // if file already exists, create a backup
 		err = os.Rename(file, file+".bck")
 		if err != nil {
-			log.Printf("WARNING: unable to create backup file for %s: %v", file, err)
+			log.Warnf("unable to create backup file for %s: %v", file, err)
 		}
 	}
 	contextBytes, _ := json.MarshalIndent(p, "", "  ")
