@@ -78,7 +78,9 @@ func TestMain(m *testing.M) {
 			"###\r\n" +
 			"ERROR loading the configuration file,\r\n" +
 			"Please copy the 'sample_test_config.json' to '" + configFile + "'\r\n" +
-			"and enter the correct <UUID:AuthToken>, you want to test.\r\n" +
+			"and enter the correct <UUID:AuthToken>, you want to test.\r\n\n" +
+			"The same configuration has to be used in the docker container,\r\n" +
+			"where it is named config.json\r\n" +
 			"###")
 	}
 	// extract the UUID and the Auth toke from the FIRST entry in the config
