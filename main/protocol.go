@@ -33,9 +33,8 @@ import (
 
 type ExtendedProtocol struct {
 	ubirch.Protocol
-	Certificates map[string][]byte
-	db           Database
-	contextFile  string
+	db          Database
+	contextFile string
 }
 
 // INIT sets keys in crypto context and automatically updates keystore in persistent storage
@@ -51,15 +50,18 @@ func (p *ExtendedProtocol) Init(configDir string, filename string, dsn string, k
 		log.Printf("protocol context will be saved to database")
 	} else {
 		p.contextFile = filepath.Join(configDir, filename)
-		log.Printf("protocol context will be saved to file (%s)", p.contextFile)
+		log.Printf("protocol context will be saved to file: %s", p.contextFile)
 	}
 
-	// try to read an existing protocol context from persistent storage (keystore, last signatures, key certificates)
+	// try to read an existing protocol context from persistent storage (keystore, last signatures, CSRs)
 	err := p.LoadContext()
 	if err != nil {
 		return fmt.Errorf("unable to load protocol context: %v", err)
 	}
-	log.Printf("loaded protocol context: %d certificates, %d signatures\n", len(p.Certificates), len(p.Signatures))
+
+	if len(p.Signatures) != 0 {
+		log.Printf("loaded existing protocol context: %d signatures", len(p.Signatures))
+	}
 
 	if keys != nil {
 		// inject keys from configuration to keystore
@@ -72,18 +74,16 @@ func (p *ExtendedProtocol) Init(configDir string, filename string, dsn string, k
 			if err != nil {
 				return fmt.Errorf("unable to decode private key string for %s: %v, string was: %s", name, err, key)
 			}
-			err = p.Crypto.SetKey(name, uid, keyBytes)
+			err = p.SetKey(name, uid, keyBytes)
 			if err != nil {
 				return fmt.Errorf("unable to insert private key to protocol context: %v", err)
 			}
 		}
 
-		log.Printf("injected %d keys from configuration to keystore\n", len(keys))
-
 		// update keystore in persistent storage
 		err = p.PersistContext()
 		if err != nil {
-			return fmt.Errorf("unable to store key pairs: %v\n", err)
+			return fmt.Errorf("unable to store keys: %v", err)
 		}
 	}
 	return nil

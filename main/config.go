@@ -33,12 +33,13 @@ const (
 	DEMO_STAGE = "demo"
 	PROD_STAGE = "prod"
 
-	keyURL    = "https://key.%s.ubirch.com/api/keyService/v1/pubkey"
-	niomonURL = "https://niomon.%s.ubirch.com/"
-	verifyURL = "https://verify.%s.ubirch.com/api/upp"
+	keyURL      = "https://key.%s.ubirch.com/api/keyService/v1/pubkey"
+	identityURL = "https://identity.%s.ubirch.com/api/certs/v1/csr/register"
+	niomonURL   = "https://niomon.%s.ubirch.com/"
+	verifyURL   = "https://verify.%s.ubirch.com/api/upp"
 
-	authEnv  = "UBIRCH_AUTH_MAP" // {UUID: [key, token]}
-	authFile = "auth.json"       // {UUID: [key, token]}
+	authEnv  = "UBIRCH_AUTH_MAP" // {UUID: [key, token]} (legacy)
+	authFile = "auth.json"       // {UUID: [key, token]} (legacy)
 
 	defaultTLSCertFile = "cert.pem"
 	defaultTLSKeyFile  = "key.pem"
@@ -46,22 +47,25 @@ const (
 
 // configuration of the device
 type Config struct {
-	Devices             map[string]string `json:"devices"`      // maps UUIDs to backend auth tokens
-	Secret              string            `json:"secret"`       // secret used to encrypt the key store
-	Env                 string            `json:"env"`          // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
-	DSN                 string            `json:"DSN"`          // "data source name" for database connection
-	StaticKeys          bool              `json:"staticKeys"`   // disable dynamic key generation, defaults to 'false'
-	Keys                map[string]string `json:"keys"`         // maps UUIDs to injected keys
-	TLS                 bool              `json:"TLS"`          // enable serving HTTPS endpoints, defaults to 'false'
-	TLS_CertFile        string            `json:"TLSCertFile"`  // filename of TLS certificate file name, defaults to "cert.pem"
-	TLS_KeyFile         string            `json:"TLSKeyFile"`   // filename of TLS key file name, defaults to "key.pem"
-	CORS                bool              `json:"CORS"`         // enable CORS, defaults to false
-	CORS_AllowedOrigins []string          `json:"CORS_origins"` // list of allowed origin hosts, defaults to ["*"]
-	Debug               bool              `json:"debug"`        // enable extended debug output, defaults to 'false'
-	SecretBytes         []byte            // the decoded key store secret
-	KeyService          string            // key service URL (set automatically)
-	Niomon              string            // authentication service URL (set automatically)
-	VerifyService       string            // verification service URL (set automatically)
+	Devices          map[string]string `json:"devices"`          // maps UUIDs to backend auth tokens (mandatory)
+	Secret           string            `json:"secret"`           // secret used to encrypt the key store (mandatory)
+	Env              string            `json:"env"`              // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
+	DSN              string            `json:"DSN"`              // "data source name" for database connection
+	StaticKeys       bool              `json:"staticKeys"`       // disable dynamic key generation, defaults to 'false'
+	Keys             map[string]string `json:"keys"`             // maps UUIDs to injected private keys
+	CSR_Country      string            `json:"CSR_country"`      // subject country for public key Certificate Signing Requests
+	CSR_Organization string            `json:"CSR_organization"` // subject organization for public key Certificate Signing Requests
+	TLS              bool              `json:"TLS"`              // enable serving HTTPS endpoints, defaults to 'false'
+	TLS_CertFile     string            `json:"TLSCertFile"`      // filename of TLS certificate file name, defaults to "cert.pem"
+	TLS_KeyFile      string            `json:"TLSKeyFile"`       // filename of TLS key file name, defaults to "key.pem"
+	CORS             bool              `json:"CORS"`             // enable CORS, defaults to 'false'
+	CORS_Origins     []string          `json:"CORS_origins"`     // list of allowed origin hosts, defaults to ["*"]
+	Debug            bool              `json:"debug"`            // enable extended debug output, defaults to 'false'
+	SecretBytes      []byte            // the decoded key store secret
+	KeyService       string            // key service URL (set automatically)
+	IdentityService  string            // identity service URL (set automatically)
+	Niomon           string            // authentication service URL (set automatically)
+	VerifyService    string            // verification service URL (set automatically)
 }
 
 func (c *Config) Load(configDir string, filename string) error {
@@ -82,11 +86,16 @@ func (c *Config) Load(configDir string, filename string) error {
 		return fmt.Errorf("unable to decode base64 encoded secret (%s): %v", c.Secret, err)
 	}
 
+	if c.Debug {
+		log.SetLevel(log.DebugLevel)
+	}
+
 	_ = c.loadAuthMap(configDir)
 	err = c.checkMandatory()
 	if err != nil {
 		return err
 	}
+	c.setDefaultCSR()
 	c.setDefaultTLS(configDir)
 	c.setDefaultCORS()
 	return c.setDefaultURLs()
@@ -109,22 +118,47 @@ func (c *Config) loadFile(filename string) error {
 }
 
 func (c *Config) checkMandatory() error {
-	if c.Devices == nil || len(c.Devices) == 0 {
+	if len(c.Devices) == 0 {
 		return fmt.Errorf("There are no devices authorized to use this client.\n" +
 			"It is mandatory to set at least one device UUID and auth token in the configuration.\n" +
 			"For more information take a look at the README under 'Configuration'.")
 	} else {
 		log.Printf("%d known UUID(s)", len(c.Devices))
+		for name := range c.Devices {
+			log.Debugf(" - %s", name)
+		}
 	}
+
 	if len(c.SecretBytes) != 16 {
 		return fmt.Errorf("secret length must be 16 bytes (is %d)", len(c.SecretBytes))
 	}
 
-	if c.StaticKeys && (c.Keys == nil || len(c.Keys) == 0) {
-		return fmt.Errorf("dynamic key generation disabled but no injected signing keys found in configuration")
+	if len(c.Keys) != 0 {
+		log.Printf("%d injected key(s)", len(c.Keys))
+	}
+
+	if c.StaticKeys {
+		log.Debug("dynamic key generation disabled")
+		if len(c.Keys) == 0 {
+			return fmt.Errorf("dynamic key generation disabled but no injected signing keys found in configuration")
+		}
+	} else {
+		log.Debug("dynamic key generation enabled")
 	}
 
 	return nil
+}
+
+func (c *Config) setDefaultCSR() {
+	if c.CSR_Country == "" {
+		c.CSR_Country = "DE"
+	}
+	log.Debugf("CSR Subject Country: %s", c.CSR_Country)
+
+	if c.CSR_Organization == "" {
+		c.CSR_Organization = "ubirch GmbH"
+	}
+	log.Debugf("CSR Subject Organization: %s", c.CSR_Organization)
 }
 
 func (c *Config) setDefaultTLS(configDir string) {
@@ -143,8 +177,8 @@ func (c *Config) setDefaultTLS(configDir string) {
 
 func (c *Config) setDefaultCORS() {
 	if c.CORS {
-		if c.CORS_AllowedOrigins == nil {
-			c.CORS_AllowedOrigins = []string{"*"} // allow all origins
+		if c.CORS_Origins == nil {
+			c.CORS_Origins = []string{"*"} // allow all origins
 		}
 	}
 }
@@ -153,13 +187,6 @@ func (c *Config) setDefaultURLs() error {
 	if c.Env == "" {
 		c.Env = PROD_STAGE
 	}
-
-	if c.Niomon == "" {
-		c.Niomon = fmt.Sprintf(niomonURL, c.Env)
-	}
-
-	// now make sure the Env variable has the actual environment value that is used in the URL
-	c.Env = strings.Split(c.Niomon, ".")[1]
 
 	// assert Env variable value is a valid UBIRCH backend environment
 	if !(c.Env == DEV_STAGE || c.Env == DEMO_STAGE || c.Env == PROD_STAGE) {
@@ -174,9 +201,23 @@ func (c *Config) setDefaultURLs() error {
 		c.KeyService = strings.TrimSuffix(c.KeyService, "/mpack")
 	}
 
+	if c.IdentityService == "" {
+		c.IdentityService = fmt.Sprintf(identityURL, c.Env)
+	}
+
+	if c.Niomon == "" {
+		c.Niomon = fmt.Sprintf(niomonURL, c.Env)
+	}
+
 	if c.VerifyService == "" {
 		c.VerifyService = fmt.Sprintf(verifyURL, c.Env)
 	}
+
+	log.Debugf(" - Key Service: %s", c.KeyService)
+	log.Debugf(" - Identity Service: %s", c.IdentityService)
+	log.Debugf(" - Authentication Service: %s", c.Niomon)
+	log.Debugf(" - Verification Service: %s", c.VerifyService)
+
 	return nil
 }
 

@@ -64,10 +64,6 @@ func main() {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
 
-	if conf.Debug {
-		log.SetLevel(log.DebugLevel)
-	}
-
 	// create an ubirch protocol instance
 	p := ExtendedProtocol{}
 	p.Crypto = &ubirch.CryptoContext{
@@ -75,7 +71,6 @@ func main() {
 		Names:    map[string]uuid.UUID{},
 	}
 	p.Signatures = map[uuid.UUID][]byte{}
-	p.Certificates = map[string][]byte{}
 
 	err = p.Init(configDir, contextFile, conf.DSN, conf.Keys)
 	if err != nil {
@@ -91,13 +86,13 @@ func main() {
 	go shutdown(cancel)
 
 	// set up HTTP server
-	httpServer := HTTPServer{}
-	httpServer.Init(conf.Env)
-	if conf.TLS {
-		httpServer.SetUpTLS(conf.TLS_CertFile, conf.TLS_KeyFile)
+	httpServer := HTTPServer{
+		router:   NewRouter(),
+		certFile: conf.TLS_CertFile,
+		keyFile:  conf.TLS_KeyFile,
 	}
-	if conf.CORS && ENV != PROD_STAGE { // never enable CORS on production stage
-		httpServer.SetUpCORS(conf.CORS_AllowedOrigins)
+	if conf.CORS && conf.Env != PROD_STAGE { // never enable CORS on production stage
+		httpServer.SetUpCORS(conf.CORS_Origins)
 	}
 
 	// listen to messages to sign via http
@@ -130,7 +125,7 @@ func main() {
 
 	// start HTTP server
 	g.Go(func() error {
-		return httpServer.Serve(ctx)
+		return httpServer.Serve(ctx, conf.TLS)
 	})
 
 	//wait until all function calls from the Go method have returned

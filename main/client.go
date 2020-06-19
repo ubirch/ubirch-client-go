@@ -16,13 +16,14 @@ package main
 
 import (
 	"bytes"
-	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type KeyRegistration struct {
@@ -40,26 +41,10 @@ type SignedKeyRegistration struct {
 	Signature  string          `json:"signature"`
 }
 
-// [WIP] this is a legacy method that will be replaced by CSR handling.
-//
-// This function will get the public key from the card and create a json registration package
-// to be sent to the ubirch key service. The json structure is signed and sent to ubirch.
-func getSignedCertificate(p *ExtendedProtocol, name string) ([]byte, error) {
+// getSignedCertificate creates a self-signed JSON key certificate
+// to be sent to the identity service for public key registration
+func getSignedCertificate(p *ExtendedProtocol, uid uuid.UUID, pubKey []byte) ([]byte, error) {
 	const timeFormat = "2006-01-02T15:04:05.000Z"
-
-	// get the UUID
-	uid, err := p.Crypto.GetUUID(name)
-	if err != nil {
-		return nil, err
-	}
-
-	// get the key
-	pubKey, err := p.GetPublicKey(name)
-	if err != nil {
-		return nil, err
-	}
-
-	pub64 := base64.StdEncoding.EncodeToString(pubKey)
 
 	// put it all together
 	now := time.Now().UTC()
@@ -67,8 +52,8 @@ func getSignedCertificate(p *ExtendedProtocol, name string) ([]byte, error) {
 		Algorithm:      "ecdsa-p256v1",
 		Created:        now.Format(timeFormat),
 		HwDeviceId:     uid.String(),
-		PubKey:         pub64,
-		PubKeyId:       pub64,
+		PubKey:         base64.StdEncoding.EncodeToString(pubKey),
+		PubKeyId:       base64.StdEncoding.EncodeToString(pubKey),
 		ValidNotAfter:  now.Add(10 * 365 * 24 * time.Hour).Format(timeFormat), // valid for 10 years
 		ValidNotBefore: now.Format(timeFormat),
 	}
@@ -93,20 +78,14 @@ func getSignedCertificate(p *ExtendedProtocol, name string) ([]byte, error) {
 	return json.Marshal(cert)
 }
 
-// submit a UPP to a backend service, such as the key-service or niomon.
-// returns the response status code, the response headers, the response body and encountered errors.
-func post(upp []byte, url string, headers map[string]string) (int, map[string][]string, []byte, error) {
-	// force HTTP/1.1 as HTTP/2 will break the headers on the server
-	client := &http.Client{
-		Transport: &http.Transport{
-			TLSNextProto: make(map[string]func(authority string, c *tls.Conn) http.RoundTripper),
-		},
-	}
+// post submits a message to a backend service
+// returns the response status code, body and headers and encountered errors
+func post(url string, data []byte, headers map[string]string) (int, []byte, http.Header, error) {
+	client := &http.Client{}
 
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(upp))
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(data))
 	if err != nil {
-		log.Printf("can't make new post request: %v", err)
-		return 0, nil, nil, err
+		return 0, nil, nil, fmt.Errorf("can't make new post request: %v", err)
 	}
 
 	for k, v := range headers {
@@ -121,6 +100,52 @@ func post(upp []byte, url string, headers map[string]string) (int, map[string][]
 	//noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()
 
-	respContent, err := ioutil.ReadAll(resp.Body)
-	return resp.StatusCode, resp.Header, respContent, err
+	respBodyBytes, err := ioutil.ReadAll(resp.Body)
+	return resp.StatusCode, respBodyBytes, resp.Header, err
+}
+
+// requestPublicKeys requests a devices public keys at the identity service
+// returns a list of the retrieved public key certificates
+func requestPublicKeys(keyService string, id uuid.UUID) ([]SignedKeyRegistration, error) {
+	url := keyService + "/current/hardwareId/" + id.String()
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("unable to retrieve public key info: %v", err)
+	}
+	//noinspection GoUnhandledErrorResult
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respContent, _ := ioutil.ReadAll(resp.Body)
+		return nil, fmt.Errorf("retrieving public key info from %s failed: (%s) %s", url, resp.Status, string(respContent))
+	}
+
+	respBodyBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read response body: %v", err)
+	}
+
+	var keys []SignedKeyRegistration
+	err = json.Unmarshal(respBodyBytes, &keys)
+	if err != nil {
+		return nil, fmt.Errorf("unable to decode key registration info: %v", err)
+	}
+
+	return keys, nil
+}
+
+// isKeyRegistered sends a request to the identity service to determine
+// if a specified public key is registered for the specified UUID
+func isKeyRegistered(keyService string, id uuid.UUID, pubKey []byte) (bool, error) {
+	certs, err := requestPublicKeys(keyService, id)
+	if err != nil {
+		return false, err
+	}
+
+	for _, cert := range certs {
+		if cert.PubKeyInfo.PubKey == base64.StdEncoding.EncodeToString(pubKey) {
+			return true, nil
+		}
+	}
+	return false, nil
 }

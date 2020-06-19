@@ -19,8 +19,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var ENV string
-
 const (
 	UUIDKey  = "uuid"
 	BinType  = "application/octet-stream"
@@ -40,13 +38,14 @@ type ServerEndpoint struct {
 
 type HTTPMessage struct {
 	ID       uuid.UUID
+	Auth     []byte
 	Hash     Sha256Sum
 	Response chan HTTPResponse
 }
 
 type HTTPResponse struct {
 	Code    int
-	Header  map[string][]string
+	Headers map[string][]string
 	Content []byte
 }
 
@@ -118,10 +117,9 @@ func getHash(r *http.Request, isHash bool) (Sha256Sum, error) {
 				return Sha256Sum{}, err
 			}
 
-			// only log original data if in debug-mode and never on production stage
-			if ENV != PROD_STAGE {
-				log.Debugf("sorted compact JSON: %s", string(data))
-			}
+			// only log original data if in debug-mode
+			log.Debugf("sorted compact JSON: %s", string(data))
+
 		} else if contentType != BinType {
 			return Sha256Sum{}, fmt.Errorf("wrong content-type for original data. expected \"%s\" or \"%s\"", BinType, JSONType)
 		}
@@ -149,10 +147,10 @@ func getHash(r *http.Request, isHash bool) (Sha256Sum, error) {
 // blocks until response is received and forwards it to sender
 func forwardBackendResponse(w http.ResponseWriter, respChan chan HTTPResponse) {
 	resp := <-respChan
-	w.WriteHeader(resp.Code)
-	for k, v := range resp.Header {
+	for k, v := range resp.Headers {
 		w.Header().Set(k, v[0])
 	}
+	w.WriteHeader(resp.Code)
 	_, err := w.Write(resp.Content)
 	if err != nil {
 		log.Errorf("unable to write response: %s", err)
@@ -178,6 +176,7 @@ func (endpnt *ServerEndpoint) checkAuth(id uuid.UUID, authHeader string) error {
 
 func (endpnt *ServerEndpoint) handleRequest(w http.ResponseWriter, r *http.Request, isHash bool) {
 	var id uuid.UUID
+	var auth []byte
 	var err error
 
 	if endpnt.RequiresAuth {
@@ -191,6 +190,7 @@ func (endpnt *ServerEndpoint) handleRequest(w http.ResponseWriter, r *http.Reque
 			Error(w, err, http.StatusUnauthorized)
 			return
 		}
+		auth = []byte(XAuthToken(r))
 	}
 
 	hash, err := getHash(r, isHash)
@@ -202,8 +202,8 @@ func (endpnt *ServerEndpoint) handleRequest(w http.ResponseWriter, r *http.Reque
 	// create HTTPMessage with individual response channel for each request
 	respChan := make(chan HTTPResponse)
 
-	// submit message for singing
-	endpnt.MessageHandler <- HTTPMessage{ID: id, Hash: hash, Response: respChan}
+	// submit message for signing
+	endpnt.MessageHandler <- HTTPMessage{ID: id, Auth: auth, Hash: hash, Response: respChan}
 
 	// wait for response from ubirch backend to be forwarded
 	forwardBackendResponse(w, respChan)
@@ -213,7 +213,7 @@ func (endpnt *ServerEndpoint) handleRequestHash(w http.ResponseWriter, r *http.R
 	endpnt.handleRequest(w, r, true)
 }
 
-func (endpnt *ServerEndpoint) handleRequestOrigData(w http.ResponseWriter, r *http.Request) {
+func (endpnt *ServerEndpoint) handleRequestOriginalData(w http.ResponseWriter, r *http.Request) {
 	endpnt.handleRequest(w, r, false)
 }
 
@@ -223,24 +223,12 @@ func (endpnt *ServerEndpoint) handleOptions(writer http.ResponseWriter, request 
 
 type HTTPServer struct {
 	router   *chi.Mux
-	tls      bool
 	certFile string
 	keyFile  string
 }
 
-func (srv *HTTPServer) Init(env string) {
-	srv.router = chi.NewMux()
-	ENV = env
-}
-
-func (srv *HTTPServer) SetUpTLS(certFile string, keyFile string) {
-	srv.tls = true
-	srv.certFile = certFile
-	srv.keyFile = keyFile
-
-	log.Printf("TLS enabled")
-	log.Debugf(" - Cert: %s", srv.certFile)
-	log.Debugf(" -  Key: %s", srv.keyFile)
+func NewRouter() *chi.Mux {
+	return chi.NewMux()
 }
 
 func (srv *HTTPServer) SetUpCORS(allowedOrigins []string) {
@@ -259,14 +247,14 @@ func (srv *HTTPServer) SetUpCORS(allowedOrigins []string) {
 }
 
 func (srv *HTTPServer) AddEndpoint(endpoint ServerEndpoint) {
-	srv.router.Post(endpoint.Path, endpoint.handleRequestOrigData)
+	srv.router.Post(endpoint.Path, endpoint.handleRequestOriginalData)
 	srv.router.Post(endpoint.Path+"/hash", endpoint.handleRequestHash)
 
 	srv.router.Options(endpoint.Path, endpoint.handleOptions)
 	srv.router.Options(endpoint.Path+"/hash", endpoint.handleOptions)
 }
 
-func (srv *HTTPServer) Serve(ctx context.Context) error {
+func (srv *HTTPServer) Serve(ctx context.Context, enableTLS bool) error {
 	server := &http.Server{
 		Addr:         ":8080",
 		Handler:      srv.router,
@@ -287,7 +275,10 @@ func (srv *HTTPServer) Serve(ctx context.Context) error {
 	log.Printf("starting HTTP service")
 
 	var err error
-	if srv.tls {
+	if enableTLS {
+		log.Printf("TLS enabled")
+		log.Debugf(" - Cert: %s", srv.certFile)
+		log.Debugf(" -  Key: %s", srv.keyFile)
 		err = server.ListenAndServeTLS(srv.certFile, srv.keyFile)
 	} else {
 		err = server.ListenAndServe()
@@ -305,7 +296,7 @@ func HTTPErrorResponse(code int, message string) HTTPResponse {
 	log.Error(message)
 	return HTTPResponse{
 		Code:    code,
-		Header:  map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}},
+		Headers: map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}},
 		Content: []byte(message),
 	}
 }

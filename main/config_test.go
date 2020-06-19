@@ -7,7 +7,7 @@ import (
 )
 
 func TestConfig(t *testing.T) {
-	configBytes := []byte(`{"devices":null,"secret":"MTIzNDU2Nzg5MDU2Nzg5MA==","env":"","DSN":"","staticKeys":false,"keys":null,"TLS":false,"TLSCertFile":"","TLSKeyFile":"","CORS":false,"CORS_origins":null,"debug":false,"SecretBytes":null,"KeyService":"","Niomon":"","VerifyService":""}`)
+	configBytes := []byte(`{"devices":null,"secret":"MTIzNDU2Nzg5MDU2Nzg5MA==","env":"","DSN":"","staticKeys":false,"keys":null,"CSR_country":"","CSR_organization":"","TLS":false,"TLSCertFile":"","TLSKeyFile":"","CORS":false,"CORS_origins":null,"debug":false,"SecretBytes":null,"KeyService":"","IdentityService":"","Niomon":"","VerifyService":""}`)
 
 	config := &Config{}
 
@@ -17,7 +17,7 @@ func TestConfig(t *testing.T) {
 
 	// FIXME
 	//if !bytes.Equal(config.SecretBytes, []byte("1234567890567890")) {
-	//    t.Errorf("Failed to load secret from config")
+	//	t.Errorf("Failed to load secret from config")
 	//}
 
 	jsonBytes, err := json.Marshal(config)
