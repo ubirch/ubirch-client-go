@@ -30,5 +30,7 @@ main/ubirch-client
 main/ubirch-client-arm
 main/ubirch-client-x86
 *.bck
-*.json
+
 /venv/
+/main/config.json
+/main/test_config.json
