@@ -39,6 +39,7 @@ letters = ("a", "b", "c", "d", "e", "f", "A", "B", "C", "D", "E", "F", "ä", "ö
 hashes = []  # [(msg, hash, upp)]
 failed = {}
 max_dur = 0
+prev_sign = None
 
 
 def hash_msg(msg: dict) -> (bytes, str):
@@ -98,6 +99,13 @@ def check_signing_response(r: requests.Response, request_type: str, msg: dict, s
             print("hash (go): {}".format(r_map["hash"]))
             print("hash (py): {}".format(hash))
             return False
+
+        # check chain
+        unpacked = msgpack.unpackb(binascii.a2b_base64(r_map["upp"]))
+        global prev_sign
+        if prev_sign is not None and prev_sign != unpacked[2]:
+            print(" - - - PREVIOUS SIGNATURE MISMATCH ! - - - ")
+        prev_sign = unpacked[-1]
 
     hashes.append((msg, hash, r_map["upp"]))  # [(msg, hash, upp)]
     return True
