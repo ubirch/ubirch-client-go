@@ -54,7 +54,7 @@ func loadUPP(hashString string, verifyService string) ([]byte, int, error) {
 			if err != nil {
 				return nil, http.StatusInternalServerError, fmt.Errorf("error sending verification request: %v", err)
 			}
-			stay = resp.StatusCode != http.StatusOK
+			stay = httpFailed(resp.StatusCode)
 			if stay {
 				_ = resp.Body.Close()
 				log.Printf("Couldn't verify hash yet (%d). Retry... %d", resp.StatusCode, n)
@@ -65,7 +65,7 @@ func loadUPP(hashString string, verifyService string) ([]byte, int, error) {
 	//noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
+	if httpFailed(resp.StatusCode) {
 		return nil, resp.StatusCode, fmt.Errorf("could not (yet) retrieve certificate for hash %s from verification service (%s): %s", hashString, verifyService, resp.Status)
 	}
 
@@ -74,7 +74,7 @@ func loadUPP(hashString string, verifyService string) ([]byte, int, error) {
 	if err != nil {
 		return nil, http.StatusInternalServerError, fmt.Errorf("unable to decode verification response: %v", err)
 	}
-	return vf.UPP, http.StatusOK, nil
+	return vf.UPP, resp.StatusCode, nil
 }
 
 // verifyUPP verifies the validity of a UPP's signature. Requests public key from the key service if unknown.

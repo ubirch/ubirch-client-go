@@ -115,7 +115,7 @@ func requestPublicKeys(keyService string, id uuid.UUID) ([]SignedKeyRegistration
 	//noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
+	if httpFailed(resp.StatusCode) {
 		respContent, _ := ioutil.ReadAll(resp.Body)
 		return nil, fmt.Errorf("retrieving public key info from %s failed: (%s) %s", url, resp.Status, string(respContent))
 	}
@@ -148,4 +148,8 @@ func isKeyRegistered(keyService string, id uuid.UUID, pubKey []byte) (bool, erro
 		}
 	}
 	return false, nil
+}
+
+func httpFailed(StatusCode int) bool {
+	return !(StatusCode >= 200 && StatusCode < 300)
 }

@@ -59,7 +59,7 @@ func registerPublicKey(p *ExtendedProtocol, name string, keyService string) erro
 		if err != nil {
 			return fmt.Errorf("error sending key registration: %v", err)
 		}
-		if code != http.StatusOK {
+		if httpFailed(code) {
 			return fmt.Errorf("request to %s failed: (%d) %s", keyService, code, string(resp))
 		}
 
@@ -83,7 +83,7 @@ func submitCSR(p *ExtendedProtocol, name string, subjectCountry string, subjectO
 	if err != nil {
 		return fmt.Errorf("error sending CSR: %v", err)
 	}
-	if code != http.StatusOK {
+	if httpFailed(code) {
 		return fmt.Errorf("request to %s failed: (%d) %s", identityService, code, string(resp))
 	}
 
@@ -164,13 +164,13 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 			}
 			log.Debugf("%s: response: (%d) %s (0x%s)", name, respCode, base64.StdEncoding.EncodeToString(respBody), hex.EncodeToString(respBody))
 
-			if respCode == http.StatusOK {
-				// save last signature after UPP was successfully received in ubirch backend
-				err = p.PersistContext()
-			} else {
+			if httpFailed(respCode) {
 				log.Errorf("%s: sending UPP to %s failed: (%d) %q", name, conf.Niomon, respCode, respBody)
 				// reset last signature in protocol context if sending UPP to backend fails to ensure intact chain
 				err = p.LoadContext()
+			} else {
+				// save last signature after UPP was successfully received in ubirch backend
+				err = p.PersistContext()
 			}
 			if err != nil {
 				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
