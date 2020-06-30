@@ -27,120 +27,13 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func registerPublicKey(p *ExtendedProtocol, name string, keyService string) error {
-	// get the key
-	pubKey, err := p.GetPublicKey(name)
-	if err != nil {
-		return err
-	}
-
-	// get the UUID
-	uid, err := p.GetUUID(name)
-	if err != nil {
-		return err
-	}
-
-	// check if the key is already registered at the identity service
-	isRegistered, err := isKeyRegistered(keyService, uid, pubKey)
-	if err != nil {
-		return err
-	}
-
-	if !isRegistered {
-		log.Printf("%s: registering public key at key service: %s", name, keyService)
-
-		cert, err := getSignedCertificate(p, uid, pubKey)
-		if err != nil {
-			return fmt.Errorf("error creating public key certificate: %v", err)
-		}
-		log.Printf("%s: certificate: %s", name, cert)
-
-		code, resp, _, err := post(keyService, cert, map[string]string{"Content-Type": "application/json"})
-		if err != nil {
-			return fmt.Errorf("error sending key registration: %v", err)
-		}
-		if httpFailed(code) {
-			return fmt.Errorf("request to %s failed: (%d) %s", keyService, code, string(resp))
-		}
-
-		log.Printf("%s: key registration successful", name)
-	}
-
-	return nil
-}
-
-// submitCSR submits a X.509 Certificate Signing Request for the public key to the identity service
-func submitCSR(p *ExtendedProtocol, name string, subjectCountry string, subjectOrganization string, identityService string) error {
-	log.Printf("%s: submitting CSR to identity service: %s", name, identityService)
-
-	csr, err := p.GetCSR(name, subjectCountry, subjectOrganization)
-	if err != nil {
-		return fmt.Errorf("error creating CSR: %v", err)
-	}
-	log.Printf("%s:   CSR [der]: %s", name, hex.EncodeToString(csr))
-
-	code, resp, _, err := post(identityService, csr, map[string]string{"Content-Type": "application/octet-stream"})
-	if err != nil {
-		return fmt.Errorf("error sending CSR: %v", err)
-	}
-	if httpFailed(code) {
-		return fmt.Errorf("request to %s failed: (%d) %s", identityService, code, string(resp))
-	}
-
-	log.Printf("%s: CSR submitted: %s", name, string(resp))
-
-	return nil
-}
-
 // handle incoming messages, create, sign and send a ubirch protocol packet (UPP) to the ubirch backend
 func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtocol, conf Config) error {
-	registered := map[string]bool{}
-
 	for {
 		select {
 		case msg := <-msgHandler:
 			uid := msg.ID
 			name := uid.String()
-
-			// check if there is a known signing key for the UUID
-			if !p.PrivateKeyExists(name) {
-				if conf.StaticKeys {
-					msg.Response <- HTTPErrorResponse(http.StatusUnauthorized, fmt.Sprintf("dynamic key generation is disabled and there is no injected signing key for UUID %s", name))
-					continue
-				}
-
-				// if dynamic key generation is enabled generate new key pair
-				log.Printf("%s: generating new key pair", name)
-				err := p.GenerateKey(name, uid)
-				if err != nil {
-					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("%s: generating new key pair failed: %v", name, err))
-					continue
-				}
-
-				// store newly generated key in persistent storage
-				err = p.PersistContext()
-				if err != nil {
-					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
-					return fmt.Errorf("unable to persist new key pair for UUID %s: %v", name, err)
-				}
-			}
-
-			if _, isRegistered := registered[name]; !isRegistered {
-				// register public key at the ubirch backend
-				err := registerPublicKey(p, name, conf.KeyService)
-				if err != nil {
-					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("%s: key registration failed: %v", name, err))
-					continue
-				}
-
-				// submit a X.509 Certificate Signing Request for the public key
-				err = submitCSR(p, name, conf.CSR_Country, conf.CSR_Organization, conf.IdentityService)
-				if err != nil {
-					log.Errorf("%s: submitting CSR failed: %v", name, err)
-				} else {
-					registered[name] = true
-				}
-			}
 
 			// create a chained UPP
 			log.Printf("%s: signing hash: %s", name, base64.StdEncoding.EncodeToString(msg.Hash[:]))

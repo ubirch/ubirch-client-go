@@ -272,13 +272,15 @@ func (srv *HTTPServer) Serve(ctx context.Context, enableTLS bool) error {
 		}
 	}()
 
-	log.Printf("starting HTTP service")
-
-	var err error
 	if enableTLS {
 		log.Printf("TLS enabled")
 		log.Debugf(" - Cert: %s", srv.certFile)
 		log.Debugf(" -  Key: %s", srv.keyFile)
+	}
+	log.Printf("starting HTTP service")
+
+	var err error
+	if enableTLS {
 		err = server.ListenAndServeTLS(srv.certFile, srv.keyFile)
 	} else {
 		err = server.ListenAndServe()
