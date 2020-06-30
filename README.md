@@ -224,7 +224,7 @@ UBIRCH_DEBUG=true
 - Register at the **UBIRCH web UI**: 
     
     Depending on the UBIRCH backend environment you are using, go to
-    - `prod`: https://console.prod.ubirch.com/
+    - **`prod`: https://console.prod.ubirch.com/**
     - `demo`: https://console.demo.ubirch.com/
 - Go to **Things** (in the menu on the left) and click on `+ ADD NEW DEVICE`
 - Enter your device UUID to the **ID** field. You can also add a description for your device, if you want. Then click on `register`. 
@@ -367,7 +367,7 @@ If the client receives a JSON data package, it will generate a *sorted compact r
 ## Quick Start
 1. First, you will need a device UUID, an auth token, and a 16 byte secret:
     1. Generate a UUID. On Linux simply enter `uuidgen` in your terminal. Alternatively, you can use an online tool.
-    2. Get your auth token from the [UBIRCH web UI](https://console.demo.ubirch.com/):
+    2. Get your auth token from the [UBIRCH web UI](https://console.prod.ubirch.com/):
         - Login or register if you don't have an account yet.
         - Go to **Things** and click on `+ ADD NEW DEVICE`.
         - Enter your UUID to the **ID** field, add a description for your device and click on `register`.
@@ -382,8 +382,7 @@ If the client receives a JSON data package, it will generate a *sorted compact r
       "devices": {
         "<YOUR_UUID>": "<YOUR_AUTH_TOKEN>"
       },
-      "secret": "<YOUR_16_BYTE_SECRET(base64 encoded)>",
-      "env": "demo"
+      "secret": "<YOUR_16_BYTE_SECRET(base64 encoded)>"
     }
     ```
     - Replace `<YOUR_UUID>` with your UUID from step 1.i.
@@ -399,13 +398,15 @@ Then just enter the following two lines in your working directory:
     ```
     You should see a console output like this:
     ```
-    2020/04/14 13:40:54 UBIRCH client (v2.0.0, build=local)
-    2020/04/14 13:40:54 loading configuration from file (config.json)
-    2020/04/14 13:40:54 1 known UUID(s)
-    2020/04/14 13:40:54 UBIRCH backend "demo" environment
-    2020/04/14 13:40:54 protocol context will be saved to file (protocol.json)
-    2020/04/14 13:40:54 loaded protocol context: 0 signatures
-    2020/04/14 13:40:54 starting HTTP service
+    INFO[2020-06-30 12:16:30.977 +0200] UBIRCH client (v2.0.0, build=local)
+    INFO[2020-06-30 12:16:30.977 +0200] loading configuration from file (config.json)
+    INFO[2020-06-30 12:16:30.977 +0200] 1 known UUID(s)
+    INFO[2020-06-30 12:16:30.977 +0200] UBIRCH backend "prod" environment
+    INFO[2020-06-30 12:16:30.977 +0200] protocol context will be saved to file: protocol.json
+    INFO[2020-06-30 12:16:31.142 +0200] generating new key pair for UUID 8a70ad8b-a564-4e58-9a3b-224ac0f0153f 
+    INFO[2020-06-30 12:16:31.469 +0200] 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: registering public key at key service: https://key.prod.ubirch.com/api/keyService/v1/pubkey
+    INFO[2020-06-30 12:16:31.584 +0200] 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: submitting CSR to identity service: https://identity.prod.ubirch.com/api/certs/v1/csr/register
+    INFO[2020-06-30 12:16:32.842 +0200] starting HTTP service
     
     ```
     That means the client is running and ready!
@@ -429,11 +430,7 @@ Then just enter the following two lines in your working directory:
    
    When the client receives the request, the output should look like this:
    ```
-   2020/04/14 13:46:34 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: generating new key pair
-   2020/04/14 13:46:35 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: registering public key at key service
-   2020/04/14 13:46:35 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: CERT: {"pubKeyInfo":{"algorithm":"ecdsa-p256v1","created":"2020-04-14T22:46:35.008Z","hwDeviceId":"8a70ad8b-a564-4e58-9a3b-224ac0f0153f","pubKey":"mSmvMcuI9FeRWiSRC4NO7Xuz8YpK2QT+GWf91m4braTNtwHC3pNLJg+HjsipxcF0gX94bNycPmaEf5DFIkeslA==","pubKeyId":"mSmvMcuI9FeRWiSRC4NO7Xuz8YpK2QT+GWf91m4braTNtwHC3pNLJg+HjsipxcF0gX94bNycPmaEf5DFIkeslA==","validNotAfter":"2021-04-14T22:46:35.008Z","validNotBefore":"2020-04-14T22:46:35.008Z"},"signature":"WeJoAVJTgQD5XhO8MfFk0H9kG42taowMVAK7Jtx/H5ebU6eGmT4BixGOUroHPUoEDGlteMp39lVdeLd53YmIGw=="}
-   2020/04/14 13:46:35 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: key registration successful
-   2020/04/14 13:46:35 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: hash: Y0I9f0GrIj4V6RGh6FW4IzCLj/bQa8uMpLjYtr7OFQk=
+   INFO[2020-06-30 12:17:31.584 +0200] 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: signing hash: bTawDQO7nnB+3h55/6VyQ+Tmd1RTV9R0cFcf7CRWzQQ=
    ```
    > Take note of the hash!
    
@@ -449,70 +446,20 @@ Then just enter the following two lines in your working directory:
       "upp": "liPEEPfutp5U60IAt/7nLuSggtLEQPgwxioCe/xc+22gjjvULF32Q+zZNDosE0msmzyppKHihm2a7wb7g3VJoXg2UhpM4xS87kAapI+m+QRONig9bIkAxCBtNrANA7uecH7eHnn/pXJD5OZ3VFNX1HRwVx/sJFbNBMRAZqKMnYa7nuyfmyV1dAUxwBvXG3fdZYUxyRE+mfeC/GWDwNXE4Tga5iauFfzOaULeNcUR2msAzwcL0FObMZaNaw=="
     }
    ```
-   If you get a response code other than `200`, it means that something went wrong. You can check the error message if
-   you decode the `"response"`-UPP from the backend 
+   If you get a response code other than `200`, it means that something went wrong. To check the error message,
+   decode the `"response"`-UPP from the backend using the [MessagePack to JSON Converter](https://toolslick.com/conversion/data/messagepack-to-json).
    
 1. To stop the client, press `ctrl` + `c`.
    
 ## Verification
-It is possible to verify that the data hash was received, verified, chained and anchored by the UBIRCH backend
-- either in the [UBIRCH web UI](https://console.demo.ubirch.com/verification/graph)
-- or using the API:
-    
-    Send a POST request with the hash you wish to verify to the UBIRCH verification service:
-    ```
-    https://verify.demo.ubirch.com/api/upp/verify/anchor
-    ```
-    > e.g. `curl -d '<YOUR_HASH>' https://verify.demo.ubirch.com/api/upp/verify/anchor`
-    
-    This endpoint checks if the *UPP*, which contains the data hash has arrived correctly and was verifiable, 
-    gives information about the chain (*prev*ious UPP) as well as blockchain info on the time frame (the upper 
-    and lower bounds) when the data was received, i.e. the closest blockchain transactions before and after the 
-    data was received by the UBIRCH backend (*anchors*).
-    
-    If the verification was successful, the service will send a *200* response with a JSON formatted body like this:
-    ```json
-    {
-      "upp": "liPEEJnqh/TPxEVni9ELTBXq9V7EQGOMAcwCV4rbHGZT+A8sd2DOpRB2mdUyZSSg7wB5hYNix5CszzbhRksmDTP/mADH1EBEPnUgfXbo6Y6dbFBL6CgAxCAy+oS7kDq+fc74gcKSX1UsG0iuOx5iwkW/MyED7Df9PcRAQ9hNm3gkM5vyeIX8zwI+7D/VbsgpLV5o4oYLFo7FilA8Urj5ELQNrC0PKYKco0LoC7xNbVoIhrvOnLNZVyme3w==",
-      "prev": "liPEEJnqh/TPxEVni9ELTBXq9V7EQFMVGwqOGvuiYahX5+1E9Le/Jse778baMOWX4kPCuvTQnwzCoFOvHY09aor7Wl0Hn7h2mPg7kdJ6N2ZRGKNtXB0AxCCPcQmVZAl1b++fj5h0r17cb1+zPJS3WnjqYt+JsmrZoMRAY4wBzAJXitscZlP4Dyx3YM6lEHaZ1TJlJKDvAHmFg2LHkKzPNuFGSyYNM/+YAMfUQEQ+dSB9dujpjp1sUEvoKA==",
-      "anchors": [
-        {
-          "label": "PUBLIC_CHAIN",
-          "properties": {
-            "timestamp": "2020-04-16T22:09:17.836Z",
-            "hash": "CAGRDRTQBNNHHQONUHBMWPHMUTMCYJ9XNKJJNTHMBUZXYKEUKTERIFMNNFBKWUAMAMXERJBQQFNQWA999",
-            "public_chain": "IOTA_TESTNET_IOTA_TESTNET_NETWORK",
-            "prev_hash": "ca6d36581d1265d38d7cb69a6a410aefb5142cbd31c3004cb7bbe6ec83457d9c683eb0a2e498083699e9e6dc233356be0df6f9fb2e1810d65e71b1bd155b3580",
-            "type": "PUBLIC_CHAIN"
-          }
-        },
-        {
-          "label": "PUBLIC_CHAIN",
-          "properties": {
-            "timestamp": "2020-04-16T22:09:25.614Z",
-            "hash": "0x229d8e167a45efe8a552fff884ca2ca540d331dbd51a427107d8ac12f184dc25",
-            "public_chain": "ETHEREUM_TESTNET_RINKEBY_TESTNET_NETWORK",
-            "prev_hash": "ca6d36581d1265d38d7cb69a6a410aefb5142cbd31c3004cb7bbe6ec83457d9c683eb0a2e498083699e9e6dc233356be0df6f9fb2e1810d65e71b1bd155b3580",
-            "type": "PUBLIC_CHAIN"
-          }
-        }
-      ]
-    }
-    ```
-    > Note that the first UPP to be anchored will not have a 'previous' package to be chained to. The `"prev"` value will therefore be `null`.
-    
-    Since this endpoint is relatively slow to respond (may take up to 1-2 minutes before the anchors are verifiable),
-    you can do a quick check by sending a request with your hash to 
-    ```
-    https://verify.demo.ubirch.com/api/upp
-    ```
-    to only verify that your data hash was received by the UBIRCH backend, or to 
-    ```
-    https://verify.demo.ubirch.com/api/upp/verify
-    ```
-    which additionally checks the chain. 
-    
-    If you get a *404* response with an empty body, that means the hash could not be verified (yet).
+You should now be able to see that your UPP was received by the UBIRCH backend under 
+[Your Things](https://console.prod.ubirch.com/devices/list) in the UBIRCH web UI.
+
+To look at the anchoring of your data hash in public blockchains, go to the 
+[UBIRCH web UI verification page](https://console.prod.ubirch.com/verification/graph) 
+and enter your data hash in the search field.
+
+Note that it can take up to **10 minutes** before the anchoring in public blockchains can be verified.
 
 > More information on the services and functionalities of the UBIRCH backend you can find here: https://developer.ubirch.com/
 
