@@ -77,6 +77,12 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// generate and register keys for known devices
+	err = initDeviceKeys(&p, conf)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	// create a waitgroup that contains all asynchronous operations
 	// a cancellable context is used to stop the operations gracefully
 	ctx, cancel := context.WithCancel(context.Background())
