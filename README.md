@@ -252,7 +252,7 @@ If the */data* path is not used for either configuration file, TLS cert files, o
 the `-v $(pwd):/data` parameter can be omitted.
 
 ## Interface Description
-The UBIRCH client provides HTTP endpoints for *ubirching* both original data that will be hashed by the client,
+The UBIRCH client provides HTTP endpoints for both original data, which will be hashed by the client,
  and direct data hash injection, i.e. the SHA256 digest of the original data.
 
 | Method | Path | Content-Type | Description |
@@ -295,8 +295,7 @@ as well as the response from the UBIRCH backend, which is also a UPP:
 > and can be decoded using an online tool like [this MessagePack to JSON Converter](https://toolslick.com/conversion/data/messagepack-to-json).
 
 ### Verification endpoints
-Further, the UBIRCH client provides endpoints for verification in the same manner as the endpoints for *ubirching*
-original data and hashes.
+The UBIRCH client also provides verification endpoints for original data and hashes.
 
 | Method | Path | Content-Type | Description |
 |--------|------|--------------|-------------|
