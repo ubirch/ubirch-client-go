@@ -15,13 +15,14 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 )
 
-func registerPublicKey(p *ExtendedProtocol, uid uuid.UUID, pubKey []byte, keyService string) error {
+func registerPublicKey(p *ExtendedProtocol, uid uuid.UUID, pubKey []byte, keyService string, auth string) error {
 	log.Printf("%s: registering public key at key service: %s", uid.String(), keyService)
 
 	cert, err := getSignedCertificate(p, uid, pubKey)
@@ -30,7 +31,12 @@ func registerPublicKey(p *ExtendedProtocol, uid uuid.UUID, pubKey []byte, keySer
 	}
 	log.Debugf("%s: certificate: %s", uid.String(), cert)
 
-	code, resp, _, err := post(keyService, cert, map[string]string{"Content-Type": "application/json"})
+	code, resp, _, err := post(keyService, cert, map[string]string{
+		"content-type":         "application/json",
+		"x-ubirch-hardware-id": uid.String(),
+		"x-ubirch-auth-type":   "ubirch",
+		"x-ubirch-credential":  base64.StdEncoding.EncodeToString([]byte(auth)),
+	})
 	if err != nil {
 		return fmt.Errorf("error sending key registration: %v", err)
 	}
@@ -38,7 +44,7 @@ func registerPublicKey(p *ExtendedProtocol, uid uuid.UUID, pubKey []byte, keySer
 		return fmt.Errorf("request to %s failed: (%d) %s", keyService, code, string(resp))
 	}
 
-	log.Debugf("%s: key registration successful", uid.String())
+	log.Debugf("%s: key registration successful: (%d) %s", uid.String(), code, string(resp))
 
 	return nil
 }
@@ -61,13 +67,13 @@ func submitCSR(p *ExtendedProtocol, uid uuid.UUID, subjectCountry string, subjec
 		return fmt.Errorf("request to %s failed: (%d) %s", identityService, code, string(resp))
 	}
 
-	log.Debugf("%s: CSR submitted: %s", uid.String(), string(resp))
+	log.Debugf("%s: CSR submitted: (%d) %s", uid.String(), code, string(resp))
 
 	return nil
 }
 
 func initDeviceKeys(p *ExtendedProtocol, conf Config) error {
-	for device := range conf.Devices {
+	for device, auth := range conf.Devices {
 		// check if device name is a valid UUID
 		uid, err := uuid.Parse(device)
 		if err != nil {
@@ -109,7 +115,7 @@ func initDeviceKeys(p *ExtendedProtocol, conf Config) error {
 
 		if !isRegistered {
 			// register public key at the ubirch backend
-			err = registerPublicKey(p, uid, pubKey, conf.KeyService)
+			err = registerPublicKey(p, uid, pubKey, conf.KeyService, auth)
 			if err != nil {
 				return fmt.Errorf("key registration for UUID %s failed: %v", name, err)
 			}
