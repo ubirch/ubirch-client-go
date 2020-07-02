@@ -37,7 +37,7 @@ type ExtendedProtocol struct {
 	contextFile string
 }
 
-// INIT sets keys in crypto context and automatically updates keystore in persistent storage
+// Init sets keys in crypto context and updates keystore in persistent storage
 func (p *ExtendedProtocol) Init(configDir string, filename string, dsn string, keys map[string]string) error {
 	// check if we want to use a database as persistent storage
 	if dsn != "" {
@@ -48,9 +48,11 @@ func (p *ExtendedProtocol) Init(configDir string, filename string, dsn string, k
 		}
 		p.db = db
 		log.Printf("protocol context will be saved to database")
-	} else {
+	} else if filename != "" {
 		p.contextFile = filepath.Join(configDir, filename)
 		log.Printf("protocol context will be saved to file: %s", p.contextFile)
+	} else {
+		return fmt.Errorf("neither DSN nor filename for protocol context set")
 	}
 
 	// try to read an existing protocol context from persistent storage (keystore, last signatures, CSRs)
@@ -102,8 +104,10 @@ func (p *ExtendedProtocol) Deinit() error {
 func (p *ExtendedProtocol) PersistContext() error {
 	if p.db != nil {
 		return p.db.SetProtocolContext(p)
-	} else {
+	} else if p.contextFile != "" {
 		return p.saveFile(p.contextFile)
+	} else {
+		return fmt.Errorf("DB / file for protocol context not initialized")
 	}
 }
 
@@ -111,8 +115,10 @@ func (p *ExtendedProtocol) PersistContext() error {
 func (p *ExtendedProtocol) LoadContext() error {
 	if p.db != nil {
 		return p.db.GetProtocolContext(p)
-	} else {
+	} else if p.contextFile != "" {
 		return p.loadFile(p.contextFile)
+	} else {
+		return fmt.Errorf("DB / file for protocol context not initialized")
 	}
 }
 
