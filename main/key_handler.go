@@ -73,6 +73,11 @@ func submitCSR(p *ExtendedProtocol, uid uuid.UUID, subjectCountry string, subjec
 }
 
 func initDeviceKeys(p *ExtendedProtocol, conf Config) error {
+	err := p.LoadContext() // fails if p not initialized
+	if err != nil {
+		return fmt.Errorf("unable to load protocol context: %v", err)
+	}
+
 	for device, auth := range conf.Devices {
 		// check if device name is a valid UUID
 		uid, err := uuid.Parse(device)
@@ -125,6 +130,17 @@ func initDeviceKeys(p *ExtendedProtocol, conf Config) error {
 		err = submitCSR(p, uid, conf.CSR_Country, conf.CSR_Organization, conf.IdentityService)
 		if err != nil {
 			log.Errorf("submitting CSR for UUID %s failed: %v", name, err)
+		}
+
+		//  explicitly set prev. signature to all zeroes in protocol context if UUID does not have a prev. signature
+		// in order to be able to reset the prev. signature to all zeroes in case sending of the first UPP fails
+		if _, found := p.Signatures[uid]; !found {
+			p.Signatures[uid] = make([]byte, 64)
+
+			err = p.PersistContext()
+			if err != nil {
+				return fmt.Errorf("unable to persist protocol context: %v", err)
+			}
 		}
 	}
 	return nil
