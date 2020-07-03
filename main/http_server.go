@@ -258,8 +258,8 @@ func (srv *HTTPServer) Serve(ctx context.Context, enableTLS bool) error {
 	server := &http.Server{
 		Addr:         ":8080",
 		Handler:      srv.router,
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 30 * time.Second,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 45 * time.Second,
 		IdleTimeout:  75 * time.Second,
 	}
 
