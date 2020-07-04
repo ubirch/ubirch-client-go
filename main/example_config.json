@@ -13,6 +13,7 @@
   },
   "CSR_country": "DE",
   "CSR_organization": "ubirch GmbH",
+  "TCP_addr": ":8080",
   "TLS": true,
   "TLSCertFile": "certs/cert.pem",
   "TLSKeyFile": "certs/key.pem",

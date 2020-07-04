@@ -152,6 +152,19 @@ The values for the *Organization* and *Country* of the CSR subject can be set th
 UBIRCH_CSR_COUNTRY=<CSR Subject Country Name (2 letter code)>
 UBIRCH_CSR_ORGANIZATION=<CSR Subject Organization Name (e.g. company)>
 ```
+
+### Set TCP address
+You can specify the TCP address for the server to listen on, in the form "host:port". 
+If empty, port 8080 is used.
+
+- add the following key-value pair to your `config.json`:
+```
+  "TCP_addr": ":8080",
+```
+- or set the following environment variable:
+```
+UBIRCH_TCP_ADDR=:8080
+```
  
 ### Enable TLS (serve HTTPS)
 - Create a self-signed TLS certificate
