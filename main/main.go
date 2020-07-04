@@ -94,6 +94,8 @@ func main() {
 	// set up HTTP server
 	httpServer := HTTPServer{
 		router:   NewRouter(),
+		addr:     conf.TCP_addr,
+		TLS:      conf.TLS,
 		certFile: conf.TLS_CertFile,
 		keyFile:  conf.TLS_KeyFile,
 	}
@@ -131,7 +133,7 @@ func main() {
 
 	// start HTTP server
 	g.Go(func() error {
-		return httpServer.Serve(ctx, conf.TLS)
+		return httpServer.Serve(ctx)
 	})
 
 	//wait until all function calls from the Go method have returned

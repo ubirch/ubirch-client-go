@@ -223,6 +223,8 @@ func (endpnt *ServerEndpoint) handleOptions(writer http.ResponseWriter, request 
 
 type HTTPServer struct {
 	router   *chi.Mux
+	addr     string
+	TLS      bool
 	certFile string
 	keyFile  string
 }
@@ -254,9 +256,9 @@ func (srv *HTTPServer) AddEndpoint(endpoint ServerEndpoint) {
 	srv.router.Options(endpoint.Path+"/hash", endpoint.handleOptions)
 }
 
-func (srv *HTTPServer) Serve(ctx context.Context, enableTLS bool) error {
+func (srv *HTTPServer) Serve(ctx context.Context) error {
 	server := &http.Server{
-		Addr:         ":8080",
+		Addr:         srv.addr,
 		Handler:      srv.router,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 45 * time.Second,
@@ -272,7 +274,7 @@ func (srv *HTTPServer) Serve(ctx context.Context, enableTLS bool) error {
 		}
 	}()
 
-	if enableTLS {
+	if srv.TLS {
 		log.Printf("TLS enabled")
 		log.Debugf(" - Cert: %s", srv.certFile)
 		log.Debugf(" -  Key: %s", srv.keyFile)
@@ -280,7 +282,7 @@ func (srv *HTTPServer) Serve(ctx context.Context, enableTLS bool) error {
 	log.Printf("starting HTTP service")
 
 	var err error
-	if enableTLS {
+	if srv.TLS {
 		err = server.ListenAndServeTLS(srv.certFile, srv.keyFile)
 	} else {
 		err = server.ListenAndServe()
