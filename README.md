@@ -154,7 +154,16 @@ UBIRCH_CSR_ORGANIZATION=<CSR Subject Organization Name (e.g. company)>
 ```
 
 ### Set TCP address
-You can specify the TCP address for the server to listen on, in the form "host:port". 
+> This describes how to configure the TCP port *the client* exposes, 
+> **not the docker container**. If you are running the client in a docker container, 
+> you can configure the exposed TCP port (`<host_port>`) with the according
+> argument when calling `docker run`:
+>
+> `$ docker run -p <host_port>:8080 ubirch/ubirch-client:stable`
+>
+> See [Run Client in Docker container](#run-client-in-docker-container)
+
+You can specify the TCP address for the server to listen on, in the form `host:port`. 
 If empty, port 8080 is used.
 
 - add the following key-value pair to your `config.json`:
@@ -186,7 +195,7 @@ UBIRCH_TCP_ADDR=:8080
     UBIRCH_TLS=true
     ```
 
-By default, docker client will look for the `key.pem` and `cert.pem` files in the working directory 
+By default, client will look for the `key.pem` and `cert.pem` files in the working directory 
 (same location as the config file), but you can define a different location (relative to the working 
 directory) and/or filename by adding them to your configuration file like this:
 ```
@@ -464,14 +473,68 @@ Then just enter the following two lines in your working directory:
 1. To stop the client, press `ctrl` + `c`.
    
 ## Verification
-You should now be able to see that your UPP was received by the UBIRCH backend under 
+You should now be able to see that your UPP was received and verified by the UBIRCH backend under 
 [Your Things](https://console.prod.ubirch.com/devices/list) in the UBIRCH web UI.
 
 To look at the anchoring of your data hash in public blockchains, go to the 
 [UBIRCH web UI verification page](https://console.prod.ubirch.com/verification/graph) 
 and enter your data hash in the search field.
 
-Note that it can take up to **10 minutes** before the anchoring in public blockchains can be verified.
+It is also possible to verify the hash using the API by sending a POST request
+with the hash you wish to verify to the UBIRCH verification service:
+```
+https://verify.prod.ubirch.com/api/upp/verify/anchor
+```
+> e.g. `curl -d '<YOUR_HASH>' https://verify.demo.ubirch.com/api/upp/verify/anchor`
+
+This endpoint checks if the *UPP*, which contains the data hash has arrived correctly and was verifiable, 
+gives information about the chain (*prev*ious UPP) as well as blockchain info on the time frame (the upper 
+and lower bounds) when the data was received, i.e. the closest blockchain transactions before and after the 
+data was received by the UBIRCH backend (*anchors*).
+
+If the verification was successful, the service will send a *200* response with a JSON formatted body like this:
+```json
+{
+  "upp": "liPEEJnqh/TPxEVni9ELTBXq9V7EQGOMAcwCV4rbHGZT+A8sd2DOpRB2mdUyZSSg7wB5hYNix5CszzbhRksmDTP/mADH1EBEPnUgfXbo6Y6dbFBL6CgAxCAy+oS7kDq+fc74gcKSX1UsG0iuOx5iwkW/MyED7Df9PcRAQ9hNm3gkM5vyeIX8zwI+7D/VbsgpLV5o4oYLFo7FilA8Urj5ELQNrC0PKYKco0LoC7xNbVoIhrvOnLNZVyme3w==",
+  "prev": "liPEEJnqh/TPxEVni9ELTBXq9V7EQFMVGwqOGvuiYahX5+1E9Le/Jse778baMOWX4kPCuvTQnwzCoFOvHY09aor7Wl0Hn7h2mPg7kdJ6N2ZRGKNtXB0AxCCPcQmVZAl1b++fj5h0r17cb1+zPJS3WnjqYt+JsmrZoMRAY4wBzAJXitscZlP4Dyx3YM6lEHaZ1TJlJKDvAHmFg2LHkKzPNuFGSyYNM/+YAMfUQEQ+dSB9dujpjp1sUEvoKA==",
+  "anchors": [
+    {
+      "label": "PUBLIC_CHAIN",
+      "properties": {
+        "timestamp": "2020-04-16T22:09:17.836Z",
+        "hash": "CAGRDRTQBNNHHQONUHBMWPHMUTMCYJ9XNKJJNTHMBUZXYKEUKTERIFMNNFBKWUAMAMXERJBQQFNQWA999",
+        "public_chain": "IOTA_TESTNET_IOTA_TESTNET_NETWORK",
+        "prev_hash": "ca6d36581d1265d38d7cb69a6a410aefb5142cbd31c3004cb7bbe6ec83457d9c683eb0a2e498083699e9e6dc233356be0df6f9fb2e1810d65e71b1bd155b3580",
+        "type": "PUBLIC_CHAIN"
+      }
+    },
+    {
+      "label": "PUBLIC_CHAIN",
+      "properties": {
+        "timestamp": "2020-04-16T22:09:25.614Z",
+        "hash": "0x229d8e167a45efe8a552fff884ca2ca540d331dbd51a427107d8ac12f184dc25",
+        "public_chain": "ETHEREUM_TESTNET_RINKEBY_TESTNET_NETWORK",
+        "prev_hash": "ca6d36581d1265d38d7cb69a6a410aefb5142cbd31c3004cb7bbe6ec83457d9c683eb0a2e498083699e9e6dc233356be0df6f9fb2e1810d65e71b1bd155b3580",
+        "type": "PUBLIC_CHAIN"
+      }
+    }
+  ]
+}
+```
+> Note that the first UPP to be anchored will not have a 'previous' package to be chained to. The `"prev"` value will therefore be `null`.
+
+It can take up to **10 minutes** before the anchoring in public blockchains can be verified, 
+but there is also an endpoint for a quick check, that verifies that the hash was received by the UBIRCH backend:
+```
+https://verify.demo.ubirch.com/api/upp
+```
+... and another endpoint, which additionally checks the chain:
+```
+https://verify.demo.ubirch.com/api/upp/verify
+```
+
+A *404* response with an empty body means the hash could not be verified (yet).
+
 
 > More information on the services and functionalities of the UBIRCH backend you can find here: https://developer.ubirch.com/
 
