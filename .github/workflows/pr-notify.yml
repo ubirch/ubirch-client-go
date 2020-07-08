@@ -1,0 +1,18 @@
+name: PR-Notify
+
+on:
+  pull_request:
+    branches: [ master ]
+    
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Slack notification
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_USERNAME: Github # Optional. (defaults to webhook app)
+          SLACK_AVATAR: repository # Optional. can be (repository, sender, an URL) (defaults to webhook app avatar)
+        uses: Ilshidur/action-slack@master
+        with:
+          args: '{{ EVENT_PAYLOAD.pull_request.sender.login }} would like to to merge PR#{{ EVENT_PAYLOAD.pull_request.number }} into {{ EVENT_PAYLOAD.repository.full_name }}'
