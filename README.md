@@ -154,15 +154,6 @@ UBIRCH_CSR_ORGANIZATION=<CSR Subject Organization Name (e.g. company)>
 ```
 
 ### Set TCP address
-> This describes how to configure the TCP port *the client* exposes, 
-> **not the docker container**. If you are running the client in a docker container, 
-> you can configure the exposed TCP port (`<host_port>`) with the according
-> argument when calling `docker run`:
->
-> `$ docker run -p <host_port>:8080 ubirch/ubirch-client:stable`
->
-> See [Run Client in Docker container](#run-client-in-docker-container)
-
 You can specify the TCP address for the server to listen on, in the form `host:port`. 
 If empty, port 8080 is used.
 
@@ -174,6 +165,15 @@ If empty, port 8080 is used.
 ```
 UBIRCH_TCP_ADDR=:8080
 ```
+
+> This describes how to configure the TCP port *the client* exposes, 
+> **not the docker container**. If you are running the client in a docker container, 
+> you can configure the exposed TCP port (`<host_port>`) with the according
+> argument when starting the client with `docker run`:
+>
+> `$ docker run -p <host_port>:8080 ubirch/ubirch-client:stable`
+>
+> See [Run Client in Docker container](#run-client-in-docker-container)
  
 ### Enable TLS (serve HTTPS)
 - Create a self-signed TLS certificate
@@ -284,20 +284,40 @@ The UBIRCH client provides HTTP endpoints for both original data, which will be 
 | POST | `/<UUID>/hash` | `application/octet-stream` | hash (binary) |
 | POST | `/<UUID>/hash` | `text/plain` | hash (base64 string repr.) |
 > When receiving a JSON data package, the UBIRCH client will sort the keys alphabetically and remove insignificant
-> space characters before hashing. See [reproducibility of hashes](#reproducibility-of-hashes).
+> space characters before hashing. 
+>
+> See [reproducibility of hashes](#reproducibility-of-hashes).
 
 To access either endpoint an authentication token, which corresponds to the `UUID` used in the request,
  must be sent with the request header. Without it, the client won’t accept the request:
 
-| `X-Auth-Token:` | `ubirch backend token related to <UUID>` |
+| `X-Auth-Token` | `ubirch backend token related to <UUID>` |
 |-----------------|------------------------------------------| 
 
-> When running the client locally, it will be available under:
->
-> `localhost:8080/<UUID>`
->
-> (or `https://localhost:8080/<UUID>` if TLS is enabled)
+> See [how to acquire the ubirch backend token](#how-to-acquire-the-ubirch-backend-token).
 
+#### TCP Address
+When running the client locally, the default address is:
+    
+    localhost:8080/<UUID>
+
+(or `https://localhost:8080/<UUID>` if TLS is enabled)
+
+> See [how to set a different TCP address/port for the client](#set-tcp-address).
+
+#### Example
+Here is an example of a request to the client using `CURL`.
+
+- original data (JSON):
+
+        curl localhost:8080/<UUID> -H "X-Auth-Token: <AUTH_TOKEN>" -H "Content-Type: application/json" -d '{"id": "605b91b4-49be-4f17-93e7-f1b14384968f", "ts": 1585838578, "data": "1234567890"}'
+
+- direct data hash injection:
+
+        curl localhost:8080/<UUID>/hash -H "X-Auth-Token: <AUTH_TOKEN>" -H "Content-Type: text/plain" -d "bTawDQO7nnB+3h55/6VyQ+Tmd1RTV9R0cFcf7CRWzQQ=" -i
+
+
+#### Response
 Response codes indicate the successful delivery of the UPP to the UBIRCH backend.
  Any code other than `200` should be considered a failure. The client does not retry itself.
  A good approach to handle errors is to add a flag to the original data storage that indicates whether the
@@ -342,6 +362,13 @@ as well as the UUID of the device from which the data originated:
 }
 ```
 
+### Uniqueness of hashes
+Every anchored data hash, and therefore the data, **must be universally unique**. 
+This can be achieved by adding, for example, a UUID and timestamp to the data before hashing, i.e.:
+```json
+{"id": "605b91b4-49be-4f17-93e7-f1b14384968f", "ts": 1585838578, "data": "1234567890"}
+```
+
 ### Reproducibility of hashes
 It is essential for the hashes to be reproducible in order to use them for verification of the data at a later time.
 Since the JSON format is non-deterministic, we need to define rules for converting it to a binary representation 
@@ -381,9 +408,6 @@ If the client receives a JSON data package, it will generate a *sorted compact r
 >   "bigNum": "9007199254740993"
 > }
 > ```
-
-### Uniqueness of hashes
-[TODO](#uniqueness-of-hashes)
 
 ## Quick Start
 1. First, you will need a device UUID, an auth token, and a 16 byte secret:
