@@ -100,7 +100,7 @@ func main() {
 		keyFile:  conf.TLS_KeyFile,
 	}
 	if conf.CORS && conf.Env != PROD_STAGE { // never enable CORS on production stage
-		httpServer.SetUpCORS(conf.CORS_Origins)
+		httpServer.SetUpCORS(conf.CORS_Origins, conf.Debug)
 	}
 
 	// listen to messages to sign via http

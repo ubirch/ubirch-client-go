@@ -233,7 +233,7 @@ func NewRouter() *chi.Mux {
 	return chi.NewMux()
 }
 
-func (srv *HTTPServer) SetUpCORS(allowedOrigins []string) {
+func (srv *HTTPServer) SetUpCORS(allowedOrigins []string, debug bool) {
 	srv.router.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   allowedOrigins,
 		AllowedMethods:   []string{"POST", "OPTIONS"},
@@ -241,7 +241,7 @@ func (srv *HTTPServer) SetUpCORS(allowedOrigins []string) {
 		ExposedHeaders:   []string{"Accept", "Content-Type", "Content-Length", "X-Auth-Token"},
 		AllowCredentials: true,
 		MaxAge:           300, // Maximum value not ignored by any of major browsers
-		Debug:            true,
+		Debug:            debug,
 	}))
 
 	log.Printf("CORS enabled")
