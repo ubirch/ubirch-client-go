@@ -116,7 +116,7 @@ func requestPublicKeys(keyService string, id uuid.UUID) ([]SignedKeyRegistration
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, nil
+		return []SignedKeyRegistration{}, nil
 	}
 
 	if httpFailed(resp.StatusCode) {
