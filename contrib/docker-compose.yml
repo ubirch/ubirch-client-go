@@ -1,0 +1,12 @@
+# You can start this file with `docker-compose up -d`, inspect the logs with 
+# `docker-compose logs --tail 100 -f`, and stop the service with
+# `docker-compose down`
+version: '3.8'
+
+services:
+  client:
+    image: ubirch/ubirch-client:stable
+    volumes:
+    - ./:/data:rw
+    ports:
+    - 8080:8080
