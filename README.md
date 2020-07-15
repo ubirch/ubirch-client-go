@@ -309,13 +309,22 @@ When running the client locally, the default address is:
 Here is an example of a request to the client using `CURL`.
 
 - original data (JSON):
-
-        curl localhost:8080/<UUID> -H "X-Auth-Token: <AUTH_TOKEN>" -H "Content-Type: application/json" -d '{"id": "605b91b4-49be-4f17-93e7-f1b14384968f", "ts": 1585838578, "data": "1234567890"}'
+  ```
+  curl localhost:8080/<UUID> \
+    -H "X-Auth-Token: <AUTH_TOKEN>" \
+    -H "Content-Type: application/json" \
+    -d '{"id": "605b91b4-49be-4f17-93e7-f1b14384968f", "ts": 1585838578, "data": "1234567890"}' \
+    -i
+  ```
 
 - direct data hash injection:
-
-        curl localhost:8080/<UUID>/hash -H "X-Auth-Token: <AUTH_TOKEN>" -H "Content-Type: text/plain" -d "bTawDQO7nnB+3h55/6VyQ+Tmd1RTV9R0cFcf7CRWzQQ=" -i
-
+  ```
+  curl localhost:8080/<UUID>/hash \
+    -H "X-Auth-Token: <AUTH_TOKEN>" \
+    -H "Content-Type: text/plain" \
+    -d "bTawDQO7nnB+3h55/6VyQ+Tmd1RTV9R0cFcf7CRWzQQ=" \
+    -i
+  ```
 
 #### Response
 Response codes indicate the successful delivery of the UPP to the UBIRCH backend.
@@ -363,8 +372,10 @@ as well as the UUID of the device from which the data originated:
 ```
 
 ### Uniqueness of hashes
-Every anchored data hash, and therefore the data, **must be universally unique**. 
-This can be achieved by adding, for example, a UUID and timestamp to the data before hashing, i.e.:
+Every anchored data hash, and therefore the data, **must be unique**. 
+The UBIRCH backend will reject the request with response code `409` if the same hash has been sent previously.
+
+Uniqueness can be achieved by adding a UUID and timestamp to the data before hashing. For example:
 ```json
 {"id": "605b91b4-49be-4f17-93e7-f1b14384968f", "ts": 1585838578, "data": "1234567890"}
 ```
