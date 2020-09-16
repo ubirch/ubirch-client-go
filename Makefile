@@ -13,6 +13,9 @@ x86:
 
 arm:
 	cd main; GOOS=${GOOS} CGO_ENABLED=${CGO} GOARCH=arm64 go build ${LDFLAGS} -o ${EXECUTABLE} main
+	
+windows:
+	cd main; GOOS=windows CGO_ENABLED=${CGO} GOARCH=arm64 go build ${LDFLAGS} -o ${EXECUTABLE}.exe main
 
 docker.x86:
 	docker build --build-arg GOARCH=amd64 -t $(DOCKER_IMAGE) .
