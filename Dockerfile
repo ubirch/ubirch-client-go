@@ -7,7 +7,7 @@ RUN \
     CGO_ENABLED=0 \
     GOOS=linux \
     GOPROXY=https://proxy.golang.org,direct \
-    go build -trimpath -ldflags="-buildid= -s -w -linkmode external -extldflags -static" -o main .
+    go build -trimpath -ldflags="-buildid= -s -w" -o main .
 
 
 FROM scratch
