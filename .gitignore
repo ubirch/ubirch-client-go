@@ -25,10 +25,8 @@
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
+build/
 main/main
-main/ubirch-client
-main/ubirch-client-arm
-main/ubirch-client-x86
 *.bck
 
 /venv/

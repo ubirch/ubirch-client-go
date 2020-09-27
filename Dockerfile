@@ -1,12 +1,13 @@
-FROM golang:1.13 AS builder
+FROM golang:1.15 AS builder
 COPY . /app
 ARG GOARCH=amd64
+ARG GOARM=7
 WORKDIR /app/main
 RUN \
     CGO_ENABLED=0 \
     GOOS=linux \
     GOPROXY=https://proxy.golang.org,direct \
-    go build -o main .
+    go build -trimpath -ldflags="-buildid= -s -w" -o main .
 
 
 FROM scratch
