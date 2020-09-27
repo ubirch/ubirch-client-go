@@ -7,7 +7,7 @@ on:
     
 jobs:
   assets:
-    name: "Tagged Release"
+    name: "Generate Assets"
     runs-on: "ubuntu-latest"
     steps:
       - name: Install Go
