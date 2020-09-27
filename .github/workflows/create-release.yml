@@ -1,5 +1,7 @@
 name: Create Release
 
+# This workflow triggers, if a new tag is pushed that matches the format of
+# a release version.
 on:
   push:
     tags:
@@ -9,7 +11,6 @@ jobs:
   tagged-release:
     name: "Tagged Release"
     runs-on: "ubuntu-latest"
-
     steps:
       - name: Install Go
         uses: actions/setup-go@v2
@@ -20,7 +21,6 @@ jobs:
       - name: Build
         run: |
           make binaries
-
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
@@ -35,5 +35,8 @@ jobs:
         id: upload-release-asset 
         uses: AButler/upload-release-assets@v2.0
         with:
+          # since we trigger this event by pushing a tag, stating the
+          # release tag explicitly becomes neccessary.
+          release-tag: ${{ github.ref }}
           files: 'build/*'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
