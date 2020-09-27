@@ -3,6 +3,7 @@ name: PR-Notify
 on:
   pull_request:
     branches: [ master ]
+    types: [opened, reopened]
     
 jobs:
   notify:
