@@ -39,12 +39,15 @@ Docker Hub Address: [ubirch/ubirch-client](https://docker.hub/ubirch/ubirch-clie
 ## Building
 There are multiple make targets, to simplify the building process.
 ```shell
-make all      # will create all available artifacts
-make binaries # will create all supported binaries
-make pack     # compresses the binaries to be much smaller (requires UPX installation)
-make docker   # will create docker images for amd64 armv7 and arm64
-make images   # will stores created images as artifacts
-make clean    # will delete all artifacts
+make all       # create all available artifacts
+make binaries  # create all supported binaries
+make pack      # compresses the binaries to be much smaller (requires UPX installation)
+make docker    # create docker images for amd64 armv7 and arm64
+make dockerhub # publish a combined multi-arch image on the dockerhub
+               # takes DOCKER_TAG= to specify a tag name, and DOCKER_TAG_LATEST=(true/false)
+               # if the 'latest' tag should be updated or not.
+make images    # create images as artifacts (.tar)
+make clean     # delete all artifacts
 ```
 Compiled artifacts will be saved to the `build/` directory.
 
