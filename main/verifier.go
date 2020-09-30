@@ -158,7 +158,7 @@ func verifier(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProto
 			}
 
 			upp64 := base64.StdEncoding.EncodeToString(upp)
-			log.Debugf("%s: retrieved UPP: %s (0x%s)", hash64, upp64, hex.EncodeToString(upp))
+			log.Debugf("%s: retrieved UPP: %s", hash64, hex.EncodeToString(upp))
 
 			// verify validity of the retrieved UPP locally
 			uid, err := verifyUPP(p, upp, conf.KeyService)
