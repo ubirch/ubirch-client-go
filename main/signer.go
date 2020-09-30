@@ -43,7 +43,7 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("error creating UPP for UUID %s: %v", name, err))
 				continue
 			}
-			log.Debugf("%s: UPP: %s (0x%s)", name, base64.StdEncoding.EncodeToString(upp), hex.EncodeToString(upp))
+			log.Debugf("%s: UPP: %s", name, hex.EncodeToString(upp))
 
 			// send UPP to ubirch backend
 			respCode, respBody, respHeaders, err := post(conf.Niomon, upp, map[string]string{
@@ -55,13 +55,29 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("error sending UPP to backend: %v", err))
 				continue
 			}
-			log.Debugf("%s: response: (%d) %s (0x%s)", name, respCode, base64.StdEncoding.EncodeToString(respBody), hex.EncodeToString(respBody))
 
+			// decode the backend response
+			o, err := ubirch.DecodeChained(respBody)
+			if err != nil {
+				msg.Response <- HTTPErrorResponse(
+					http.StatusInternalServerError,
+					fmt.Sprintf("error decoding backend response: %v \n backend response was: (%d) %s",
+						err, respCode, hex.EncodeToString(respBody)),
+				)
+				continue
+			}
+
+			// todo verify backend response signature
+
+			// check if sending was successful
 			if httpFailed(respCode) {
-				log.Errorf("%s: sending UPP to %s failed: (%d) %q", name, conf.Niomon, respCode, respBody)
+				log.Errorf("%s: sending UPP to %s failed! request ID: %s, response: (%d) %s",
+					name, conf.Niomon, hex.EncodeToString(o.Payload), respCode, hex.EncodeToString(respBody))
 				// reset last signature in protocol context if sending UPP to backend fails to ensure intact chain
 				err = p.LoadContext()
 			} else {
+				log.Infof("%s: successfully sent UPP to %s. request ID: %s, response: (%d) %s",
+					name, conf.Niomon, hex.EncodeToString(o.Payload), respCode, hex.EncodeToString(respBody))
 				// save last signature after UPP was successfully received in ubirch backend
 				err = p.PersistContext()
 			}
@@ -70,7 +86,7 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 				return fmt.Errorf("unable to load/persist last signature for UUID %s: %v", name, err)
 			}
 
-			response, err := json.Marshal(map[string][]byte{"hash": msg.Hash[:], "upp": upp, "response": respBody})
+			response, err := json.Marshal(map[string][]byte{"hash": msg.Hash[:], "upp": upp, "response": respBody, "requestID": o.Payload})
 			if err != nil {
 				log.Warnf("error serializing extended response: %v", err)
 				response = respBody
