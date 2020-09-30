@@ -20,6 +20,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/google/uuid"
 	"net/http"
 
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
@@ -69,15 +70,22 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 
 			// todo verify backend response signature
 
+			// get request ID from backend response payload
+			requestID, err := uuid.FromBytes(o.Payload)
+			if err != nil {
+				log.Warnf("unable to parse backend response as UUID: %s\n backend response payload was: %s", err, o.Payload)
+				requestID = uuid.Nil
+			}
+
 			// check if sending was successful
 			if httpFailed(respCode) {
 				log.Errorf("%s: sending UPP to %s failed! request ID: %s, response: (%d) %s",
-					name, conf.Niomon, hex.EncodeToString(o.Payload), respCode, hex.EncodeToString(respBody))
+					name, conf.Niomon, requestID, respCode, hex.EncodeToString(respBody))
 				// reset last signature in protocol context if sending UPP to backend fails to ensure intact chain
 				err = p.LoadContext()
 			} else {
 				log.Infof("%s: successfully sent UPP to %s. request ID: %s, response: (%d) %s",
-					name, conf.Niomon, hex.EncodeToString(o.Payload), respCode, hex.EncodeToString(respBody))
+					name, conf.Niomon, requestID, respCode, hex.EncodeToString(respBody))
 				// save last signature after UPP was successfully received in ubirch backend
 				err = p.PersistContext()
 			}
@@ -86,7 +94,12 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 				return fmt.Errorf("unable to load/persist last signature for UUID %s: %v", name, err)
 			}
 
-			response, err := json.Marshal(map[string][]byte{"hash": msg.Hash[:], "upp": upp, "response": respBody, "requestID": o.Payload})
+			response, err := json.Marshal(map[string]string{
+				"hash":      base64.StdEncoding.EncodeToString(msg.Hash[:]),
+				"requestID": requestID.String(),
+				"response":  hex.EncodeToString(respBody),
+				"upp":       hex.EncodeToString(upp),
+			})
 			if err != nil {
 				log.Warnf("error serializing extended response: %v", err)
 				response = respBody
