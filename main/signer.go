@@ -95,8 +95,8 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 			response, err := json.Marshal(map[string]string{
 				"hash":      base64.StdEncoding.EncodeToString(msg.Hash[:]),
 				"requestID": requestID.String(),
-				"response":  hex.EncodeToString(respBody),
-				"upp":       hex.EncodeToString(upp),
+				"response":  base64.StdEncoding.EncodeToString(respBody),
+				"upp":       base64.StdEncoding.EncodeToString(upp),
 			})
 			if err != nil {
 				log.Warnf("error serializing extended response: %v", err)
