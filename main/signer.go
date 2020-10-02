@@ -58,7 +58,7 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 			}
 
 			// decode the backend response
-			o, err := ubirch.DecodeChained(respBody)
+			respUPP, err := ubirch.Decode(respBody)
 			if err != nil {
 				msg.Response <- HTTPErrorResponse(
 					http.StatusInternalServerError,
@@ -71,9 +71,9 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 			// todo verify backend response signature
 
 			// get request ID from backend response payload
-			requestID, err := uuid.FromBytes(o.Payload)
+			requestID, err := uuid.FromBytes(respUPP.GetPayload())
 			if err != nil {
-				log.Warnf("unable to parse backend response as UUID: %s\n backend response payload was: %s", err, o.Payload)
+				log.Warnf("unable to parse backend response as UUID: %s\n backend response payload was: %s", err, respUPP.GetPayload())
 				requestID = uuid.Nil
 			}
 
