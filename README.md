@@ -15,6 +15,15 @@ The UBIRCH client stores its signing keys and the signature of the last UPP pers
  after a restart.
 
 ![UBIRCH client](images/ubirch_client.png)
+ 
+ ---
+ **WARNING**
+ 
+Per default, the client creates a file `protocol.json` in the working directory, where it stores the encrypted
+signing keys and last signatures for chaining. **Do not delete this file** as our backend will not accept new key
+registrations once a device already has a registered key.
+ 
+ ---
 
 ## Dockerized UBIRCH client
 The UBIRCH client is provided as a docker image that can be configured and run on any system that can run docker (Intel/AMD64 or ARM64 architecture).
