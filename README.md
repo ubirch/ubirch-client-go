@@ -19,7 +19,7 @@ The UBIRCH client stores its signing keys and the signature of the last UPP pers
 ## Dockerized UBIRCH client
 The UBIRCH client is provided as a docker image that can be configured and run on any system that can run docker (Intel/AMD64 or ARM64 architecture).
  
-Docker Hub Address: [ubirch/ubirch-client](https://docker.hub/ubirch/ubirch-client:stable) (multi-architecture image)
+Docker Hub Address: [ubirch/ubirch-client](https://hub.docker.com/r/ubirch/ubirch-client) (multi-architecture image)
 
 [Jump to Quick Start](#quick-start)
 
@@ -51,8 +51,10 @@ make clean     # delete all artifacts
 ```
 Compiled artifacts will be saved to the `build/` directory.
 
+```shell script
 make dockerhub DOCKER_TAG=v1.0.0 # will tag a multi-arch image with the selected tag and upload it
                                  # to the dockerhub.
+```
 
 ## Configuration
 The client may be configured using a configuration file (`config.json`) or by using environment variables
