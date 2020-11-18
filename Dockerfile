@@ -1,13 +1,16 @@
-FROM golang:1.15 AS builder
+ARG GOVERSION=1.15
+FROM golang:$GOVERSION-alpine AS builder
 COPY . /app
 ARG GOARCH=amd64
 ARG GOARM=7
+ARG VERSION=devbuild
+ARG REVISION=0000000
 WORKDIR /app/main
 RUN \
     CGO_ENABLED=0 \
     GOOS=linux \
     GOPROXY=https://proxy.golang.org,direct \
-    go build -trimpath -ldflags="-buildid= -s -w" -o main .
+    go build -trimpath -ldflags "-buildid= -s -w -X main.Version=$VERSION -X main.Revision=$REVISION" -o main .
 
 
 FROM scratch
