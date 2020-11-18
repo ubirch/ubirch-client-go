@@ -144,6 +144,22 @@ publish:
 		$(IMAGE_REPO):$(IMAGE_TAG) $(IMAGE_REPO):$(IMAGE_TAG)-386
 #	Finally we push it, creating a new multi-arch tag on the dockerhub.
 	$(DOCKER) manifest push $(IMAGE_REPO):$(IMAGE_TAG)
+	
+
+tag-stable:
+#   As we have no way of copying this manifest, we need to do it all
+#   over again.
+	$(DOCKER) manifest create $(DOCKER_IMAGE):stable \
+		$(DOCKER_IMAGE):$(IMAGE_TAG)-amd64 \
+		$(DOCKER_IMAGE):$(IMAGE_TAG)-arm32v7 \
+		$(DOCKER_IMAGE):$(IMAGE_TAG)-arm64v8
+	$(DOCKER) manifest annotate --os=linux --arch=amd64 \
+		$(DOCKER_IMAGE):latest $(DOCKER_IMAGE):$(IMAGE_TAG)-amd64
+	$(DOCKER) manifest annotate --os=linux --arch=arm --variant=v7 \
+		$(DOCKER_IMAGE):latest $(DOCKER_IMAGE):$(IMAGE_TAG)-arm32v7
+	$(DOCKER) manifest annotate --os=linux --arch=arm64  --variant=v8 \
+		$(DOCKER_IMAGE):latest $(DOCKER_IMAGE):$(IMAGE_TAG)-arm64v8
+	$(DOCKER) manifest push $(DOCKER_IMAGE):stable
 
 .PHONY: publish-branch
 publish-branch: IMAGE_TAG=$(CURRENT_BRANCH)
