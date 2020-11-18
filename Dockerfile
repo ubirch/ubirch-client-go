@@ -1,4 +1,5 @@
-FROM golang:1.15 AS builder
+ARG GOVERSION=1.15
+FROM golang:$GOVERSION-alpine AS builder
 COPY . /app
 ARG GOARCH=amd64
 ARG GOARM=7
