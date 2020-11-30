@@ -57,24 +57,23 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 				continue
 			}
 
+			var requestID uuid.UUID
+
 			// decode the backend response
 			respUPP, err := ubirch.Decode(respBody)
 			if err != nil {
-				msg.Response <- HTTPErrorResponse(
-					http.StatusInternalServerError,
-					fmt.Sprintf("error decoding backend response: %v \n backend response was: (%d) %s",
-						err, respCode, hex.EncodeToString(respBody)),
-				)
-				continue
-			}
+				log.Warnf("unable to decode backend response: %v\n backend response was: (%d) %q",
+					err, respCode, respBody)
+			} else {
 
-			// todo verify backend response signature
+				// todo verify backend response signature
 
-			// get request ID from backend response payload
-			requestID, err := uuid.FromBytes(respUPP.GetPayload())
-			if err != nil {
-				log.Warnf("unable to parse backend response as UUID: %s\n backend response payload was: %s", err, respUPP.GetPayload())
-				requestID = uuid.Nil
+				// get request ID from backend response payload
+				requestID, err = uuid.FromBytes(respUPP.GetPayload())
+				if err != nil {
+					log.Warnf("unable to parse backend response payload as request ID: %v\n backend response payload was: %q",
+						err, respUPP.GetPayload())
+				}
 			}
 
 			// check if sending was successful
@@ -83,7 +82,7 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 				// reset last signature in protocol context if sending UPP to backend fails to ensure intact chain
 				err = p.LoadContext()
 			} else {
-				log.Infof("%s: successfully sent UPP to %s. request ID: %s", name, conf.Niomon, requestID)
+				log.Infof("%s: UPP sent to %s. request ID: %s", name, conf.Niomon, requestID)
 				// save last signature after UPP was successfully received in ubirch backend
 				err = p.PersistContext()
 			}
