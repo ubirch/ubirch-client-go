@@ -369,14 +369,15 @@ Response codes indicate the successful delivery of the UPP to the UBIRCH backend
  A good approach to handle errors is to add a flag to the original data storage that indicates whether the
  UBIRCH blockchain anchoring was successful and retry at a later point if necessary.
  
-The response body contains either an error message, or a JSON map with the anchored data hash, 
+The client's response can be either an error message, or a JSON map with the anchored data hash, 
 the UPP, which contains that data hash and was sent to the UBIRCH backend, 
-as well as the response from the UBIRCH backend, which is also a UPP:
+the ID of the request, as well as the response from the UBIRCH backend, which is also a UPP:
 ```json
 {
   "hash": "<the base64 encoded data hash>",
   "upp": "<the base64 encoded UPP containing the data hash that was sent to the ubirch backend by the client>",
-  "response": "<the base64 encoded backend response (UPP)>"
+  "requestID": "<the base64 encoded request ID>",
+  "response": "<the base64 encoded backend response>"
 }
 ```
 > UPPs (such as the backend response) are [MessagePack](https://github.com/msgpack/msgpack/blob/master/spec.md) formatted
@@ -535,6 +536,7 @@ Then just enter the following two lines in your working directory:
    ```json
     {
       "hash": "bTawDQO7nnB+3h55/6VyQ+Tmd1RTV9R0cFcf7CRWzQQ=",
+      "requestID": "7fZH8yVcT0apq4Pnu5sdVw==",
       "response": "liPEEJ08eP8i80RBpdGFxjbUhv/EQPgwxioCe/xc+22gjjvULF32Q+zZNDosE0msmzyppKHihm2a7wb7g3VJoXg2UhpM4xS87kAapI+m+QRONig9bIkAgadtZXNzYWdlv3lvdXIgcmVxdWVzdCBoYXMgYmVlbiBzdWJtaXR0ZWTEQP/3P6UH0G8qY5t9bdSjroKVI4N5KScCHKJ9xsoHhesLLv9dCgdD0UoGvc/Mg9x0PGHKVoxKBwPs1v95+M+EQQQ=",
       "upp": "liPEEPfutp5U60IAt/7nLuSggtLEQPgwxioCe/xc+22gjjvULF32Q+zZNDosE0msmzyppKHihm2a7wb7g3VJoXg2UhpM4xS87kAapI+m+QRONig9bIkAxCBtNrANA7uecH7eHnn/pXJD5OZ3VFNX1HRwVx/sJFbNBMRAZqKMnYa7nuyfmyV1dAUxwBvXG3fdZYUxyRE+mfeC/GWDwNXE4Tga5iauFfzOaULeNcUR2msAzwcL0FObMZaNaw=="
     }
