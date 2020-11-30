@@ -91,11 +91,11 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 				return fmt.Errorf("unable to load/persist last signature for UUID %s: %v", name, err)
 			}
 
-			response, err := json.Marshal(map[string]string{
-				"hash":      base64.StdEncoding.EncodeToString(msg.Hash[:]),
-				"requestID": requestID.String(),
-				"response":  base64.StdEncoding.EncodeToString(respBody),
-				"upp":       base64.StdEncoding.EncodeToString(upp),
+			response, err := json.Marshal(map[string][]byte{
+				"hash":      msg.Hash[:],
+				"upp":       upp,
+				"requestID": requestID[:],
+				"response":  respBody,
 			})
 			if err != nil {
 				log.Warnf("error serializing extended response: %v", err)
