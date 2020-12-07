@@ -56,6 +56,7 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("error sending UPP to backend: %v", err))
 				continue
 			}
+			log.Debugf("%s: response: (%d) %s", name, respCode, hex.EncodeToString(respBody))
 
 			var requestID uuid.UUID
 
@@ -78,11 +79,11 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 
 			// check if sending was successful
 			if httpFailed(respCode) {
-				log.Errorf("%s: sending UPP to %s failed! (%d) request ID: %s", name, conf.Niomon, respCode, requestID)
+				log.Errorf("%s: sending UPP to %s failed: (%d) %q", name, conf.Niomon, respCode, respBody)
 				// reset last signature in protocol context if sending UPP to backend fails to ensure intact chain
 				err = p.LoadContext()
 			} else {
-				log.Infof("%s: UPP sent to %s. request ID: %s", name, conf.Niomon, requestID)
+				log.Infof("%s: UPP sent to %s (request ID: %s)", name, conf.Niomon, requestID)
 				// save last signature after UPP was successfully received in ubirch backend
 				err = p.PersistContext()
 			}
