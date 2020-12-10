@@ -58,7 +58,7 @@ build:
 	$(MAKE) build -C main
 
 .PHONY: pack
-build:
+pack:
 	$(MAKE) pack -C main
 
 .PHONY: test
