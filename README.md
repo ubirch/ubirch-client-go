@@ -61,22 +61,21 @@ $ docker pull ubirch/ubirch-client:v1.0.2
 There are multiple make targets, to simplify the building process.
 
 ```shell
+make           # default target: build
 make all       # create all available artifacts
-make binaries  # create all supported binaries
+make build     # create all supported binaries
 make pack      # compresses the binaries to be much smaller (requires UPX installation)
-make docker    # create docker images for amd64 armv7 and arm64
-make dockerhub # publish a combined multi-arch image on the dockerhub
-               # takes DOCKER_TAG= to specify a tag name, and DOCKER_TAG_LATEST=(true/false)
-               # if the 'latest' tag should be updated or not.
-make images    # create images as artifacts (.tar)
+make image     # create docker image
+make publish   # builds images for amd64 armv7 and arm64, publishes under versioned tag
+               # takes IMAGE_TAG= to specify a different tag name
 make clean     # delete all artifacts
 ```
 
 Compiled artifacts will be saved to the `build/` directory.
 
 ```shell script
-make dockerhub DOCKER_TAG=v1.0.0 # will tag a multi-arch image with the selected tag and upload it
-                                 # to the dockerhub.
+make publish IMAGE_TAG=stable # will tag a multi-arch image with the selected tag and upload it
+                              # to the dockerhub.
 ```
 
 ## Configuration
