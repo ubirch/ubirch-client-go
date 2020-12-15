@@ -23,5 +23,5 @@ jobs:
         id: upload-release-asset 
         uses: AButler/upload-release-assets@v2.0
         with:
-          files: 'build/*'
+          files: 'main/build/*'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
