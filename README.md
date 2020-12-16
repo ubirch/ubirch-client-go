@@ -15,14 +15,14 @@ The UBIRCH client stores its signing keys and the signature of the last UPP pers
 a restart.
 
 ![UBIRCH client](images/ubirch_client.png)
- 
+
 ---
 **WARNING**
 
 Per default, the client creates a file `protocol.json` in the working directory, where it stores the encrypted signing
 keys and last signatures for chaining. **Do not delete this file** as our backend will not accept new key registrations
 once a device already has a registered key.
- 
+
 ---
 
 ## Dockerized UBIRCH client
@@ -37,7 +37,7 @@ the [releases](https://github.com/ubirch/ubirch-client-go/releases/latest)
 and pull it from Docker Hub using the latest release tag, i.e.:
 
 ```console
-$ docker pull ubirch/ubirch-client:v1.0.2
+docker pull ubirch/ubirch-client:v1.0.2
 ```
 
 [Jump to Quick Start](#quick-start)
@@ -47,8 +47,8 @@ $ docker pull ubirch/ubirch-client:v1.0.2
 - System based on Intel/AMD64 or ARM
 - Docker installation
 - Space to store last used signatures and key material, either:
-    - disk space, mounted into the docker pod, or
-    - as SQL database
+  - disk space, mounted into the docker pod, or
+  - as SQL database
 - Possibility to send a HTTP request to UBIRCH.com domains
 - A unique identifier (UUID) registered with the UBIRCH console
 - A corresponding authentication token (acquired via UBIRCH console)
@@ -61,22 +61,21 @@ $ docker pull ubirch/ubirch-client:v1.0.2
 There are multiple make targets, to simplify the building process.
 
 ```shell
+make           # default target: build
 make all       # create all available artifacts
-make binaries  # create all supported binaries
+make build     # create all supported binaries
 make pack      # compresses the binaries to be much smaller (requires UPX installation)
-make docker    # create docker images for amd64 armv7 and arm64
-make dockerhub # publish a combined multi-arch image on the dockerhub
-               # takes DOCKER_TAG= to specify a tag name, and DOCKER_TAG_LATEST=(true/false)
-               # if the 'latest' tag should be updated or not.
-make images    # create images as artifacts (.tar)
+make image     # create docker image
+make publish   # builds images for amd64 armv7 and arm64, publishes under versioned tag
+               # takes IMAGE_TAG= to specify a different tag name
 make clean     # delete all artifacts
 ```
 
 Compiled artifacts will be saved to the `build/` directory.
 
-```shell script
-make dockerhub DOCKER_TAG=v1.0.0 # will tag a multi-arch image with the selected tag and upload it
-                                 # to the dockerhub.
+```shell
+make publish IMAGE_TAG=stable # will tag a multi-arch image with the selected tag and upload it
+                              # to the dockerhub.
 ```
 
 ## Configuration
@@ -117,7 +116,7 @@ The only two mandatory configurations are
 
 ### Environment Based Configuration
 
-```
+```shell
 UBIRCH_DEVICES=<UUID>:<ubirch backend auth token>
 UBIRCH_SECRET=<16 byte secret used to encrypt the key store (base64 encoded)>
 ```
@@ -138,13 +137,13 @@ To switch to the `demo` backend environment
 
 - add the following key-value pair to your `config.json`:
 
-```
+```json
   "env": "demo"
 ```
 
 - or set the following environment variable:
 
-```
+```shell
 UBIRCH_ENV=demo
 ```
 
@@ -160,13 +159,13 @@ configuration.
 
 - add the following key-value pair to your `config.json`:
 
-```
+```json
   "DSN": "<data source name for database>"
 ```
 
 - or set the following environment variable:
 
-```
+```shell
 UBIRCH_DSN=<data source name for database>
 ```
 
@@ -181,14 +180,14 @@ key.
 
 - add the following key-value pairs to your `config.json`:
 
-```
-  "staticKeys": <boolean, defaults to ‘false’>,
+```json
+  "staticKeys": true,
   "keys": {"<UUID>": "<ecdsa-prime256v1 private key (base64 encoded)>"}
 ```
 
 - or set the following environment variables:
 
-```
+```shell
 UBIRCH_STATICKEYS=<boolean, defaults to ‘false’>
 UBIRCH_KEYS=<UUID>:<ecdsa-prime256v1 private key (base64 encoded)>
 ```
@@ -196,7 +195,7 @@ UBIRCH_KEYS=<UUID>:<ecdsa-prime256v1 private key (base64 encoded)>
 > ECDSA signing keys (prime256v1) can be generated on the command line using openssl:
 
 ```console
-$ openssl ecparam -genkey -name prime256v1 -noout | openssl ec -text -noout | grep priv -A 3 | tail -n +2 | tr -d ': ' | xxd -r -p | base64
+openssl ecparam -genkey -name prime256v1 -noout | openssl ec -text -noout | grep priv -A 3 | tail -n +2 | tr -d ': ' | xxd -r -p | base64
 ```
 
 *Either way (dynamically generated or injected) the client will register the public key at the UBIRCH key service and
@@ -210,14 +209,14 @@ Country* of the CSR subject can be set through the configuration.
 
 - add the following key-value pairs to your `config.json`:
 
-```
+```json
   "CSR_country": "<CSR Subject Country Name (2 letter code)>",
   "CSR_organization": "<CSR Subject Organization Name (e.g. company)>"
 ```
 
 - or set the following environment variables:
 
-```
+```shell
 UBIRCH_CSR_COUNTRY=<CSR Subject Country Name (2 letter code)>
 UBIRCH_CSR_ORGANIZATION=<CSR Subject Organization Name (e.g. company)>
 ```
@@ -228,13 +227,13 @@ You can specify the TCP address for the server to listen on, in the form `host:p
 
 - add the following key-value pair to your `config.json`:
 
-```
+```json
   "TCP_addr": ":8080",
 ```
 
 - or set the following environment variable:
 
-```
+```shell
 UBIRCH_TCP_ADDR=:8080
 ```
 
@@ -254,17 +253,17 @@ UBIRCH_TCP_ADDR=:8080
   In order to serve HTTPS endpoints, you can run the following command to create a self-signed certificate with openssl.
   With this command it will be valid for ten years.
     ```console
-    $ openssl req -x509 -newkey rsa:4096 -keyout key.pem -nodes -out cert.pem -days 3650
-    ``` 
+    openssl req -x509 -newkey rsa:4096 -keyout key.pem -nodes -out cert.pem -days 3650
+    ```
 
 - Enable TLS in configuration
 
   To serve HTTPS requests to the UBIRCH client service, add the following key-value pair to your `config.json`:
-    ```
+    ```json
       "TLS": true
     ```
   ...or set the following environment variable:
-    ```
+    ```shell
     UBIRCH_TLS=true
     ```
 
@@ -272,14 +271,14 @@ By default, client will look for the `key.pem` and `cert.pem` files in the worki
 (same location as the config file), but you can define a different location (relative to the working directory) and/or
 filename by adding them to your configuration file like this:
 
-```
+```json
   "TLSCertFile": "<path/to/TLS-cert-filename>",
   "TLSKeyFile": "<path/to/TLS-key-filename>"
 ```
 
 ...or if you are using environment based configuration:
 
-```
+```shell
 UBIRCH_TLS_CERTFILE=certs/cert.pem
 UBIRCH_TLS_KEYFILE=certs/key.pem
 ```
@@ -293,14 +292,14 @@ and will be ignored on production stage.**
 To enable CORS and configure a list of *allowed origins*, i.e. origins a cross-domain request can be executed from, add
 the following key-value pair to your `config.json`:
 
-```
+```json
   "CORS": true,
   "CORS_origins": ["<allowed origin>"]
 ```
 
 or set the following environment variable:
 
-```
+```shell
 UBIRCH_CORS=true
 UBIRCH_CORS_ORIGINS=<allowed origin>
 ```
@@ -317,13 +316,13 @@ which means, **all** origins will be allowed.
 To set the logging level to `debug` and so enable extended debug output add the following key-value pair to
 your `config.json`:
 
-```
+```json
   "debug": true
 ```
 
 or set the following environment variable:
 
-```
+```shell
 UBIRCH_DEBUG=true
 ```
 
@@ -332,8 +331,8 @@ UBIRCH_DEBUG=true
 - Register at the **UBIRCH web UI**:
 
   Depending on the UBIRCH backend environment you are using, go to
-    - **`prod`: https://console.prod.ubirch.com/**
-    - `demo`: https://console.demo.ubirch.com/
+  - `prod`: [https://console.prod.ubirch.com/](https://console.prod.ubirch.com/)
+  - `demo`: [https://console.demo.ubirch.com/](https://console.demo.ubirch.com/)
 - Go to **Things** (in the menu on the left) and click on `+ ADD NEW DEVICE`
 - Enter your device UUID to the **ID** field. You can also add a description for your device, if you want. Then click
   on `register`.
@@ -345,8 +344,8 @@ UBIRCH_DEBUG=true
 To start the multi-arch Docker image on any system, run:
 
 ```console
-$ docker pull ubirch/ubirch-client:v1.0.2
-$ docker run -v $(pwd):/data -p <host_port>:8080 ubirch/ubirch-client:v1.0.2
+docker pull ubirch/ubirch-client:v1.0.2
+docker run -v $(pwd):/data -p <host_port>:8080 ubirch/ubirch-client:v1.0.2
 ```
 
 > replace `<host_port>` with the desired TCP network port on the host (e.g. `-p 8080:8080`)
@@ -383,26 +382,26 @@ To access either endpoint an authentication token, which corresponds to the `UUI
 with the request header. Without it, the client won’t accept the request:
 
 | `X-Auth-Token` | `ubirch backend token related to <UUID>` |
-|-----------------|------------------------------------------| 
+|-----------------|------------------------------------------|
 
 > See [how to acquire the ubirch backend token](#how-to-acquire-the-ubirch-backend-token).
 
-#### TCP Address
+### TCP Address
 
 When running the client locally, the default address is:
-
-    localhost:8080/<UUID>
-
-(or `https://localhost:8080/<UUID>` if TLS is enabled)
+```fundamental
+http://localhost:8080/<UUID>
+```
+(or `https://localhost:8080/<UUID>`, if TLS is enabled)
 
 > See [how to set a different TCP address/port for the client](#set-tcp-address).
 
-#### Example
+**Example:**
 
 Here is an example of a request to the client using `CURL`.
 
 - original data (JSON):
-  ```
+  ```console
   curl localhost:8080/<UUID> \
     -H "X-Auth-Token: <AUTH_TOKEN>" \
     -H "Content-Type: application/json" \
@@ -411,7 +410,7 @@ Here is an example of a request to the client using `CURL`.
   ```
 
 - direct data hash injection:
-  ```
+  ```console
   curl localhost:8080/<UUID>/hash \
     -H "X-Auth-Token: <AUTH_TOKEN>" \
     -H "Content-Type: text/plain" \
@@ -419,7 +418,7 @@ Here is an example of a request to the client using `CURL`.
     -i
   ```
 
-#### Response
+**Response:**
 
 Response codes indicate the successful delivery of the UPP to the UBIRCH backend. Any code other than `200` should be
 considered a failure. The client does not retry itself. A good approach to handle errors is to add a flag to the
@@ -495,7 +494,7 @@ If the client receives a JSON data package, it will generate a *sorted compact r
 i.e. it will first create a string representation of the JSON formatted data where the keys are in alphabetical order
 and insignificant space characters were elided.
 
-##### Example:
+**Example:**
 
 - JSON data package:
     ```json
@@ -509,11 +508,11 @@ and insignificant space characters were elided.
     }
     ```
 - sorted compact rendering (string):
-    ```
+    ```json
     {"data":{"H":"65","T":"26.250"},"id":"605b91b4-49be-4f17-93e7-f1b14384968f","ts":1585838578}
     ```
 - SHA256 digest (base64):
-    ```
+    ```fundamental
     uVXpb1vR8UlQnow/FoIcNbvcJ5bY1r2B+DZwe8AYSkE=
     ```
 
@@ -558,21 +557,20 @@ and insignificant space characters were elided.
 1. To run the dockerized UBIRCH client, you will need to have [Docker](https://docs.docker.com/) installed on your
    computer. Then just enter the following two lines in your working directory:
     ```console
-    $ docker pull ubirch/ubirch-client:stable
-    $ docker run -v $(pwd):/data -p 8080:8080 ubirch/ubirch-client:stable
+    docker pull ubirch/ubirch-client:stable
+    docker run -v $(pwd):/data -p 8080:8080 ubirch/ubirch-client:stable
     ```
    You should see a console output like this:
-    ```
+    ```console
     INFO[2020-06-30 12:16:30.977 +0200] UBIRCH client (v2.0.0, build=local)
     INFO[2020-06-30 12:16:30.977 +0200] loading configuration from file (config.json)
     INFO[2020-06-30 12:16:30.977 +0200] 1 known UUID(s)
     INFO[2020-06-30 12:16:30.977 +0200] UBIRCH backend "prod" environment
     INFO[2020-06-30 12:16:30.977 +0200] protocol context will be saved to file: protocol.json
-    INFO[2020-06-30 12:16:31.142 +0200] generating new key pair for UUID 8a70ad8b-a564-4e58-9a3b-224ac0f0153f 
+    INFO[2020-06-30 12:16:31.142 +0200] generating new key pair for UUID 8a70ad8b-a564-4e58-9a3b-224ac0f0153f
     INFO[2020-06-30 12:16:31.469 +0200] 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: registering public key at key service: https://key.prod.ubirch.com/api/keyService/v1/pubkey
     INFO[2020-06-30 12:16:31.584 +0200] 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: submitting CSR to identity service: https://identity.prod.ubirch.com/api/certs/v1/csr/register
     INFO[2020-06-30 12:16:32.842 +0200] starting HTTP service
-    
     ```
    That means the client is running and ready!
 
@@ -589,13 +587,13 @@ and insignificant space characters were elided.
    package!**
 
    Here is an example of how a request to the client would look like using `CURL`:
-   ```
+   ```console
    curl -H "X-Auth-Token: <YOUR_AUTH_TOKEN>" -H "Content-Type: application/json" -d '{"id": "605b91b4-49be-4f17-93e7-f1b14384968f", "ts": 1585838578, "data": "1234567890"}' localhost:8080/<YOUR_UUID> -i -s
    ```
    > Insert `<YOUR_AUTH_TOKEN>` and `<YOUR_UUID>` and a request body with your own unique content to ensure a unique hash!
 
    When the client receives the request, the output should look like this:
-   ```
+   ```console
    INFO[2020-06-30 12:17:31.584 +0200] 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: signing hash: bTawDQO7nnB+3h55/6VyQ+Tmd1RTV9R0cFcf7CRWzQQ=
    ```
    > Take note of the hash!
@@ -631,7 +629,7 @@ and enter your data hash in the search field.
 It is also possible to verify the hash using the API by sending a POST request with the hash you wish to verify to the
 UBIRCH verification service:
 
-```
+```fundamental
 https://verify.prod.ubirch.com/api/upp/verify/anchor
 ```
 
@@ -678,24 +676,24 @@ If the verification was successful, the service will send a *200* response with 
 It can take up to **10 minutes** before the anchoring in public blockchains can be verified, but there is also an
 endpoint for a quick check, that verifies that the hash was received by the UBIRCH backend:
 
-```
+```fundamental
 https://verify.demo.ubirch.com/api/upp
 ```
 
 ... and another endpoint, which additionally checks the chain:
 
-```
+```fundamental
 https://verify.demo.ubirch.com/api/upp/verify
 ```
 
 A *404* response with an empty body means the hash could not be verified (yet).
 
 
-> More information on the services and functionalities of the UBIRCH backend you can find here: https://developer.ubirch.com/
+> You can find more information on the services and functionalities of the UBIRCH backend in [the developer documentation](https://developer.ubirch.com/).
 
 ## Copyright
 
-```
+```fundamental
 Copyright (c) 2019-2020 ubirch GmbH
 
 Licensed under the Apache License, Version 2.0 (the "License");

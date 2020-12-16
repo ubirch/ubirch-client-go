@@ -54,26 +54,12 @@ lint:
 	@$(DOCKER) run --rm -v $(THISDIR):/app:ro -w /app $(GO_LINTER_IMAGE) golangci-lint run
 
 .PHONY: build
-build: binaries
+build:
+	$(MAKE) build -C main
 
-binaries: build/bin/$(NAME).linux_amd64
-binaries: build/bin/$(NAME).linux_arm
-binaries: build/bin/$(NAME).linux_arm64
-binaries: build/bin/$(NAME).linux_386
-binaries: build/bin/$(NAME).windows_amd64.exe
-build/bin/$(NAME).linux_amd64: build
-	CGO=0 GOOS=linux GOARCH=amd64 $(GO_BUILD) -o $@ .
-build/bin/$(NAME).linux_arm: build
-	CGO=0 GOOS=linux GOARCH=arm GOARM=7 $(GO_BUILD) -o $@ .
-build/bin/$(NAME).linux_arm64: build
-	CGO=0 GOOS=linux GOARCH=arm64 $(GO_BUILD) -o $@ .
-build/bin/$(NAME).linux_386: build
-	CGO=0 GOOS=linux GOARCH=386 $(GO_BUILD) -o $@ .
-build/bin/$(NAME).windows_amd64.exe: build
-	CGO=0 GOOS=windows GOARCH=amd64 $(GO_BUILD) -o $@ .
-
-pack: binaries
-	$(UPX) build/bin/*
+.PHONY: pack
+pack:
+	$(MAKE) pack -C main
 
 .PHONY: test
 test:
@@ -85,7 +71,7 @@ image:
 	$(DOCKER) build -t $(IMAGE_REPO):$(IMAGE_TAG) \
 		--build-arg="VERSION=$(VERSION)" \
 		--build-arg="REVISION=$(VERSION)" \
-		--build-arg="GOVERSION=$(REVISION)" \
+		--build-arg="GOVERSION=$(GO_VERSION)" \
 		--label="org.opencontainers.image.title=$(NAME)" \
 		--label="org.opencontainers.image.created=$(NOW)" \
 		--label="org.opencontainers.image.source=$(SRC_URL)" \
@@ -105,6 +91,8 @@ publish:
 		$(DOCKER) build -t "$(IMAGE_REPO):$(IMAGE_TAG)-$${arch}" \
 			--build-arg="GOARCH=$${arch}" \
 			--build-arg="VERSION=$(VERSION)" \
+			--build-arg="REVISION=$(VERSION)" \
+			--build-arg="GOVERSION=$(GO_VERSION)" \
 			--label="org.opencontainers.image.title=$(NAME)" \
 			--label="org.opencontainers.image.created=$(NOW)" \
 			--label="org.opencontainers.image.source=$(SRC_URL)" \
@@ -149,17 +137,17 @@ publish:
 tag-stable:
 #   As we have no way of copying this manifest, we need to do it all
 #   over again.
-	$(DOCKER) manifest create $(DOCKER_IMAGE):stable \
-		$(DOCKER_IMAGE):$(IMAGE_TAG)-amd64 \
-		$(DOCKER_IMAGE):$(IMAGE_TAG)-arm32v7 \
-		$(DOCKER_IMAGE):$(IMAGE_TAG)-arm64v8
+	$(DOCKER) manifest create $(IMAGE_REPO):stable \
+		$(IMAGE_REPO):$(IMAGE_TAG)-amd64 \
+		$(IMAGE_REPO):$(IMAGE_TAG)-arm32v7 \
+		$(IMAGE_REPO):$(IMAGE_TAG)-arm64v8
 	$(DOCKER) manifest annotate --os=linux --arch=amd64 \
-		$(DOCKER_IMAGE):latest $(DOCKER_IMAGE):$(IMAGE_TAG)-amd64
+		$(IMAGE_REPO):latest $(IMAGE_REPO):$(IMAGE_TAG)-amd64
 	$(DOCKER) manifest annotate --os=linux --arch=arm --variant=v7 \
-		$(DOCKER_IMAGE):latest $(DOCKER_IMAGE):$(IMAGE_TAG)-arm32v7
+		$(IMAGE_REPO):latest $(IMAGE_REPO):$(IMAGE_TAG)-arm32v7
 	$(DOCKER) manifest annotate --os=linux --arch=arm64  --variant=v8 \
-		$(DOCKER_IMAGE):latest $(DOCKER_IMAGE):$(IMAGE_TAG)-arm64v8
-	$(DOCKER) manifest push $(DOCKER_IMAGE):stable
+		$(IMAGE_REPO):latest $(IMAGE_REPO):$(IMAGE_TAG)-arm64v8
+	$(DOCKER) manifest push $(IMAGE_REPO):stable
 
 .PHONY: publish-branch
 publish-branch: IMAGE_TAG=$(CURRENT_BRANCH)
