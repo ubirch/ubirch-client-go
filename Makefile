@@ -155,6 +155,7 @@ publish-branch: publish
 
 .PHONY: clean
 clean:
+	$(MAKE) clean -C main
 	rm -rf build/
 	$(DOCKER) image rm $(IMAGE_REPO):$(IMAGE_TAG) | true
 	@for arch in $(IMAGE_ARCHS) ; do \
