@@ -15,6 +15,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/hex"
@@ -80,16 +81,28 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 			// check if sending was successful
 			if httpFailed(respCode) {
 				log.Errorf("%s: sending UPP to %s failed: (%d) %q", name, conf.Niomon, respCode, respBody)
+
 				// reset last signature in protocol context if sending UPP to backend fails to ensure intact chain
 				err = p.LoadContext()
-			} else {
+				if err != nil {
+					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
+					return fmt.Errorf("unable to load last signature for UUID %s: %v", name, err)
+				}
+			} else { // success
 				log.Infof("%s: UPP sent to %s (request ID: %s)", name, conf.Niomon, requestID)
+
 				// save last signature after UPP was successfully received in ubirch backend
 				err = p.PersistContext()
-			}
-			if err != nil {
-				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
-				return fmt.Errorf("unable to load/persist last signature for UUID %s: %v", name, err)
+				if err != nil {
+					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
+					return fmt.Errorf("unable to persist last signature for UUID %s: %v", name, err)
+				}
+
+				// verify chain
+				if !bytes.Equal(respUPP.GetPrevSignature(), p.Signatures[uid]) {
+					log.Errorf("backend response not chained to sent UPP: previous signature does not match signature of sent UPP")
+					// todo handle signature mismatch
+				}
 			}
 
 			response, err := json.Marshal(map[string][]byte{
