@@ -37,7 +37,7 @@ the [releases](https://github.com/ubirch/ubirch-client-go/releases/latest)
 and pull it from Docker Hub using the latest release tag, i.e.:
 
 ```console
-$ docker pull ubirch/ubirch-client:v1.1.1
+$ docker pull ubirch/ubirch-client:v1.0.2
 ```
 
 [Jump to Quick Start](#quick-start)
@@ -345,8 +345,8 @@ UBIRCH_DEBUG=true
 To start the multi-arch Docker image on any system, run:
 
 ```console
-$ docker pull ubirch/ubirch-client:v1.1.1
-$ docker run -v $(pwd):/data -p <host_port>:8080 ubirch/ubirch-client:v1.1.1
+$ docker pull ubirch/ubirch-client:v1.0.2
+$ docker run -v $(pwd):/data -p <host_port>:8080 ubirch/ubirch-client:v1.0.2
 ```
 
 > replace `<host_port>` with the desired TCP network port on the host (e.g. `-p 8080:8080`)
