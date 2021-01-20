@@ -70,9 +70,9 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 				// todo verify backend response signature
 
 				// get request ID from backend response payload
-				requestID, err = uuid.FromBytes(respUPP.GetPayload())
+				requestID, err = uuid.FromBytes(respUPP.GetPayload()[:16])
 				if err != nil {
-					log.Warnf("unable to parse backend response payload as request ID: %v\n backend response payload was: %q",
+					log.Warnf("unable to get request ID from backend response payload: %v\n backend response payload was: %q",
 						err, respUPP.GetPayload())
 				}
 			}
