@@ -112,8 +112,13 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 
 				log.Infof("%s: UPP sent to %s (request ID: %s)", name, conf.Niomon, requestID)
 
+
 				// save last signature after UPP was successfully received in ubirch backend
 				err = p.PersistContext()
+				if err != nil {
+					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
+					return fmt.Errorf("unable to persist last signature for UUID %s: %v", name, err)
+				}
 				if err != nil {
 					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
 					return fmt.Errorf("unable to persist last signature for UUID %s: %v", name, err)
