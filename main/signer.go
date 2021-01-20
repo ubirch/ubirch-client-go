@@ -59,30 +59,16 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 			}
 			log.Debugf("%s: response: (%d) %s", name, respCode, hex.EncodeToString(respBody))
 
-			// decode the backend response and verify its validity
-			var isRespDecodable bool
-			var isRespChainedUPP bool
 			var requestID uuid.UUID
 
+			// decode the backend response
 			respUPP, err := ubirch.Decode(respBody)
 			if err != nil {
 				log.Warnf("unable to decode backend response: %v\n backend response was: (%d) %q",
 					err, respCode, respBody)
 			} else {
-				isRespDecodable = true
 
-				// TODO verify backend response signature
-
-				// verify that backend response previous signature matches signature of request UPP
-				isRespChainedUPP = respUPP.GetVersion() == ubirch.Chained
-				if isRespChainedUPP {
-					if !bytes.Equal(p.Signatures[uid], respUPP.GetPrevSignature()) {
-						msg.Response <- HTTPErrorResponse(
-							http.StatusBadGateway,
-							fmt.Sprintf("backend response not chained to sent UPP: previous signature does not match signature of request UPP\n"+
-								" backend response was: (%d) %s", respCode, base64.StdEncoding.EncodeToString(respBody)))
-					}
-				}
+				// todo verify backend response signature
 
 				// get request ID from backend response payload
 				requestID, err = uuid.FromBytes(respUPP.GetPayload()[:16])
@@ -92,7 +78,7 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 				}
 			}
 
-			// check if request was successful
+			// check if sending was successful
 			if httpFailed(respCode) {
 				log.Errorf("%s: sending UPP to %s failed: (%d) %q", name, conf.Niomon, respCode, respBody)
 
@@ -102,16 +88,8 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
 					return fmt.Errorf("unable to load last signature for UUID %s: %v", name, err)
 				}
-			} else {
-				if !isRespDecodable || !isRespChainedUPP {
-					msg.Response <- HTTPErrorResponse(
-						http.StatusBadGateway,
-						fmt.Sprintf("backend responded with success status code but response is not verifiable\n"+
-							" backend response was: (%d) %s", respCode, base64.StdEncoding.EncodeToString(respBody)))
-				}
-
+			} else { // success
 				log.Infof("%s: UPP sent to %s (request ID: %s)", name, conf.Niomon, requestID)
-
 
 				// save last signature after UPP was successfully received in ubirch backend
 				err = p.PersistContext()
@@ -119,9 +97,11 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
 					return fmt.Errorf("unable to persist last signature for UUID %s: %v", name, err)
 				}
-				if err != nil {
-					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
-					return fmt.Errorf("unable to persist last signature for UUID %s: %v", name, err)
+
+				// verify chain
+				if !bytes.Equal(respUPP.GetPrevSignature(), p.Signatures[uid]) {
+					log.Errorf("backend response not chained to sent UPP: previous signature does not match signature of request UPP")
+					// todo handle signature mismatch
 				}
 			}
 
