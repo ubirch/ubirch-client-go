@@ -99,9 +99,11 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 				}
 
 				// verify chain
-				if !bytes.Equal(respUPP.GetPrevSignature(), p.Signatures[uid]) {
-					log.Errorf("backend response not chained to sent UPP: previous signature does not match signature of request UPP")
-					// todo handle signature mismatch
+				if !bytes.Equal(p.Signatures[uid], respUPP.GetPrevSignature()) {
+					msg.Response <- HTTPErrorResponse(
+						http.StatusBadGateway,
+						fmt.Sprintf("backend response not chained to sent UPP: previous signature does not match signature of request UPP\n"+
+							" backend response was: (%d) %s", respCode, base64.StdEncoding.EncodeToString(respBody)))
 				}
 			}
 
