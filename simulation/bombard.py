@@ -17,7 +17,7 @@ num = 10
 uuid = sys.argv[1]
 auth = sys.argv[2]
 
-data_json_type = "JSON data"
+data_json_type = "  JSON data"
 data_bin_type = "binary data"
 hash_bin_type = "binary hash"
 hash_b64_type = "base64 hash"
@@ -116,12 +116,14 @@ def send_signing_request(request_type: str):
 
     if request_type == data_json_type:
         url, header, data = sign_data_url, json_header, json.dumps(msg)
-    if request_type == data_bin_type:
+    elif request_type == data_bin_type:
         url, header, data = sign_data_url, bin_header, serialized
-    if request_type == hash_bin_type:
+    elif request_type == hash_bin_type:
         url, header, data = sign_hash_url, bin_header, binascii.a2b_base64(hash)
-    if request_type == hash_b64_type:
+    elif request_type == hash_b64_type:
         url, header, data = sign_hash_url, txt_header, hash
+    else:
+        raise Exception("unknown request type: " + request_type)
 
     r = send_request(url=url, headers={**auth_header, **header}, data=data)
     if not check_signing_response(r, request_type, msg, serialized, hash):
@@ -150,13 +152,15 @@ def check_verification_response(r: requests.Response, request_type: str, msg: di
 def send_verification_request(request_type: str, msg: dict, hash: str, upp: str):
     if request_type == data_json_type:
         url, header, data = vrfy_data_url, json_header, json.dumps(msg)
-    if request_type == data_bin_type:
+    elif request_type == data_bin_type:
         url, header, data = vrfy_data_url, bin_header, json.dumps(msg, separators=(',', ':'), sort_keys=True,
                                                                   ensure_ascii=False).encode()
-    if request_type == hash_bin_type:
+    elif request_type == hash_bin_type:
         url, header, data = vrfy_hash_url, bin_header, binascii.a2b_base64(hash)
-    if request_type == hash_b64_type:
+    elif request_type == hash_b64_type:
         url, header, data = vrfy_hash_url, txt_header, hash
+    else:
+        raise Exception("unknown request type: " + request_type)
 
     r = send_request(url=url, headers=header, data=data)
     if not check_verification_response(r, request_type, msg, hash, upp):
@@ -178,20 +182,18 @@ while i < num:
             print("{} of {} {} signing requests failed.".format(failed[t], i, t))
 
 print(" max. signing duration: {} sec".format(max_dur))
-max_dur = 0
+max_dur = 0  # reset timer
+for t in types:  # reset fail counter
+    failed[t] = 0
 
 print("\nverifying {} hashes...".format(len(hashes)))
-i = 0
-for t in types:
-    failed[t] = 0
-for msg, hash, upp in hashes:
-    i += 1
+for i, (msg, hash, upp) in enumerate(hashes):
 
     for t in types:
         send_verification_request(t, msg, hash, upp)
 
-    if i % 10 == 0:
+    if (i + 1) % 10 == 0:
         for t in types:
-            print("{} of {} {} verification requests failed.".format(failed[t], i, t))
+            print("{} of {} {} verification requests failed.".format(failed[t], i + 1, t))
 
 print(" max. verification duration: {} sec".format(max_dur))
