@@ -104,13 +104,13 @@ func (c *Config) Load(configDir string, filename string) error {
 
 // loadEnv reads the configuration from environment variables
 func (c *Config) loadEnv() error {
-	log.Print("loading configuration from environment variables")
+	log.Infof("loading configuration from environment variables")
 	return envconfig.Process("ubirch", c)
 }
 
 // LoadFile reads the configuration from a json file
 func (c *Config) loadFile(filename string) error {
-	log.Printf("loading configuration from file (%s)", filename)
+	log.Infof("loading configuration from file: %s", filename)
 	contextBytes, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return err
@@ -124,7 +124,7 @@ func (c *Config) checkMandatory() error {
 			"It is mandatory to set at least one device UUID and auth token in the configuration.\n" +
 			"For more information take a look at the README under 'Configuration'.")
 	} else {
-		log.Printf("%d known UUID(s)", len(c.Devices))
+		log.Infof("%d known UUID(s)", len(c.Devices))
 		for name := range c.Devices {
 			log.Debugf(" - %s", name)
 		}
@@ -135,7 +135,7 @@ func (c *Config) checkMandatory() error {
 	}
 
 	if len(c.Keys) != 0 {
-		log.Printf("%d injected key(s)", len(c.Keys))
+		log.Infof("%d injected key(s)", len(c.Keys))
 	}
 
 	if c.StaticKeys {
@@ -198,7 +198,7 @@ func (c *Config) setDefaultURLs() error {
 		return fmt.Errorf("invalid UBIRCH backend environment: \"%s\"", c.Env)
 	}
 
-	log.Printf("UBIRCH backend \"%s\" environment", c.Env)
+	log.Infof("UBIRCH backend \"%s\" environment", c.Env)
 
 	if c.KeyService == "" {
 		c.KeyService = fmt.Sprintf(keyURL, c.Env)
