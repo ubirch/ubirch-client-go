@@ -74,7 +74,7 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 				// TODO verify backend response signature
 
 				// verify that backend response previous signature matches signature of request UPP
-				_, isRespChainedUPP = respUPP.(*ubirch.ChainedUPP)
+				isRespChainedUPP = respUPP.GetVersion() == ubirch.Chained
 				if isRespChainedUPP {
 					if !bytes.Equal(p.Signatures[uid], respUPP.GetPrevSignature()) {
 						msg.Response <- HTTPErrorResponse(
