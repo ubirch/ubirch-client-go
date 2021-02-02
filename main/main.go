@@ -83,6 +83,12 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// insert backend public keys into keystore for verification
+	err = initBackendKeys(&p)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	// create a waitgroup that contains all asynchronous operations
 	// a cancellable context is used to stop the operations gracefully
 	ctx, cancel := context.WithCancel(context.Background())

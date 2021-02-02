@@ -15,12 +15,51 @@
 package main
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 )
+
+const (
+	devName      = "dev"
+	devUUID      = "9d3c78ff-22f3-4441-a5d1-85c636d486ff"
+	devPublicKey = "LnU8BkvGcZQPy5gWVUL+PHA0DP9dU61H8DBO8hZvTyI7lXIlG1/oruVMT7gS2nlZDK9QG+ugkRt/zTrdLrAYDA=="
+)
+
+func initBackendKeys(p *ExtendedProtocol) error {
+	names := []string{devName}
+	uuids := []string{devUUID}
+	pkeys := []string{devPublicKey}
+
+	for i, env := range names {
+		uid, err := uuid.Parse(uuids[i])
+		if err != nil {
+			return err
+		}
+		pkey, err := base64.StdEncoding.DecodeString(pkeys[i])
+		if err != nil {
+			return err
+		}
+		err = injectVerificationKey(p, env, uid, pkey)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func injectVerificationKey(p *ExtendedProtocol, name string, uid uuid.UUID, pubKey []byte) error {
+	storedKey, err := p.GetPublicKey(name)
+	if err != nil || !bytes.Equal(storedKey, pubKey) {
+		log.Debugf("injecting / updating verification key \"%s\": %s", name, base64.StdEncoding.EncodeToString(pubKey))
+		return p.SetPublicKey(name, uid, pubKey)
+	}
+	log.Debugf("found verification key \"%s\": %s", name, base64.StdEncoding.EncodeToString(storedKey))
+	return nil
+}
 
 func registerPublicKey(p *ExtendedProtocol, uid uuid.UUID, pubKey []byte, keyService string, auth string) error {
 	log.Printf("%s: registering public key at key service: %s", uid.String(), keyService)
