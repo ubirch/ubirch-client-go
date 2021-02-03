@@ -31,14 +31,7 @@ The UBIRCH client is provided as a multi-architecture docker image that can be c
 run docker (Intel/AMD64 or ARM64 architecture).
 
 Docker Hub Address: [ubirch/ubirch-client](https://hub.docker.com/r/ubirch/ubirch-client)
-
-To get the latest multi-architecture image, check
-the [releases](https://github.com/ubirch/ubirch-client-go/releases/latest)
-and pull it from Docker Hub using the latest release tag, i.e.:
-
-```console
-docker pull ubirch/ubirch-client:v1.0.2
-```
+> See how to [run client in Docker container](#run-client-in-docker-container)
 
 [Jump to Quick Start](#quick-start)
 
@@ -242,7 +235,7 @@ UBIRCH_TCP_ADDR=:8080
 > you can configure the exposed TCP port (`<host_port>`) with the according
 > argument when starting the client with `docker run`:
 >
-> `$ docker run -p <host_port>:8080 ubirch/ubirch-client:stable`
+> `$ docker run -p <host_port>:8080 ubirch/ubirch-client:vx.x.x`
 >
 > See [Run Client in Docker container](#run-client-in-docker-container)
 
@@ -331,8 +324,8 @@ UBIRCH_DEBUG=true
 - Register at the **UBIRCH web UI**:
 
   Depending on the UBIRCH backend environment you are using, go to
-  - `prod`: [https://console.prod.ubirch.com/](https://console.prod.ubirch.com/)
-  - `demo`: [https://console.demo.ubirch.com/](https://console.demo.ubirch.com/)
+    - `prod`: [https://console.prod.ubirch.com/](https://console.prod.ubirch.com/)
+    - `demo`: [https://console.demo.ubirch.com/](https://console.demo.ubirch.com/)
 - Go to **Things** (in the menu on the left) and click on `+ ADD NEW DEVICE`
 - Enter your device UUID to the **ID** field. You can also add a description for your device, if you want. Then click
   on `register`.
@@ -341,11 +334,18 @@ UBIRCH_DEBUG=true
 
 ## Run Client in Docker container
 
+To get the latest multi-architecture image, check
+the [releases](https://github.com/ubirch/ubirch-client-go/releases/latest)
+and pull the latest release from Docker Hub using the release tag, e.g.:
+
+```console
+docker pull ubirch/ubirch-client:v1.1.2
+```
+
 To start the multi-arch Docker image on any system, run:
 
 ```console
-docker pull ubirch/ubirch-client:v1.0.2
-docker run -v $(pwd):/data -p <host_port>:8080 ubirch/ubirch-client:v1.0.2
+docker run -v $(pwd):/data -p <host_port>:8080 ubirch/ubirch-client:v1.1.2
 ```
 
 > replace `<host_port>` with the desired TCP network port on the host (e.g. `-p 8080:8080`)
@@ -557,8 +557,8 @@ and insignificant space characters were elided.
 1. To run the dockerized UBIRCH client, you will need to have [Docker](https://docs.docker.com/) installed on your
    computer. Then just enter the following two lines in your working directory:
     ```console
-    docker pull ubirch/ubirch-client:stable
-    docker run -v $(pwd):/data -p 8080:8080 ubirch/ubirch-client:stable
+    docker pull ubirch/ubirch-client:v1.1.2
+    docker run -v $(pwd):/data -p 8080:8080 ubirch/ubirch-client:v1.1.2
     ```
    You should see a console output like this:
     ```console
