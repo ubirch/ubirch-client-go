@@ -62,6 +62,7 @@ type Config struct {
 	CORS             bool              `json:"CORS"`             // enable CORS, defaults to 'false'
 	CORS_Origins     []string          `json:"CORS_origins"`     // list of allowed origin hosts, defaults to ["*"]
 	Debug            bool              `json:"debug"`            // enable extended debug output, defaults to 'false'
+	LogTextFormat    bool              `json:"logTextFormat"`    // log in text format for better human readability, default format is JSON
 	SecretBytes      []byte            // the decoded key store secret
 	KeyService       string            // key service URL (set automatically)
 	IdentityService  string            // identity service URL (set automatically)
@@ -89,6 +90,9 @@ func (c *Config) Load(configDir string, filename string) error {
 
 	if c.Debug {
 		log.SetLevel(log.DebugLevel)
+	}
+	if c.LogTextFormat {
+		log.SetFormatter(&log.TextFormatter{FullTimestamp: true, TimestampFormat: "2006-01-02 15:04:05.000 -0700"})
 	}
 
 	_ = c.loadAuthMap(configDir)
