@@ -122,7 +122,8 @@ All other configuration parameters have default values, but can be configured as
 
 The `env` configuration refers to the UBIRCH backend environment. The default value is `prod`, which is the production
 environment. For development, the environment may be set to `demo`, which is a test system that works like the
-production environment, but stores data only in a blockchain test net.
+production environment, but stores data only in a blockchain test net. __However, we suggest using `prod` in general as demo
+may not always be available__.
 
 > Note that the UUIDs must be registered at the according UBIRCH backend environment.
 
@@ -633,7 +634,7 @@ UBIRCH verification service:
 https://verify.prod.ubirch.com/api/upp/verify/anchor
 ```
 
-> e.g. `curl -d '<YOUR_HASH>' https://verify.demo.ubirch.com/api/upp/verify/anchor`
+> e.g. `curl -d '<YOUR_HASH>' https://verify.prod.ubirch.com/api/upp/verify/anchor`
 
 This endpoint checks if the *UPP*, which contains the data hash has arrived correctly and was verifiable, gives
 information about the chain (*prev*ious UPP) as well as blockchain info on the time frame (the upper and lower bounds)
@@ -677,13 +678,13 @@ It can take up to **10 minutes** before the anchoring in public blockchains can 
 endpoint for a quick check, that verifies that the hash was received by the UBIRCH backend:
 
 ```fundamental
-https://verify.demo.ubirch.com/api/upp
+https://verify.prod.ubirch.com/api/upp
 ```
 
 ... and another endpoint, which additionally checks the chain:
 
 ```fundamental
-https://verify.demo.ubirch.com/api/upp/verify
+https://verify.prod.ubirch.com/api/upp/verify
 ```
 
 A *404* response with an empty body means the hash could not be verified (yet).
