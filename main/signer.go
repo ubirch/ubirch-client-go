@@ -91,9 +91,9 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 							http.StatusBadGateway,
 							fmt.Sprintf("%s: backend response not chained to sent UPP: previous signature does not match signature of request UPP\n"+
 								" backend response was: (%d) %s", name, respCode, base64.StdEncoding.EncodeToString(respBody)))
-					} else {
-						log.Debugf("%s: backend response chain verified", name)
+						continue
 					}
+					log.Debugf("%s: backend response chain verified", name)
 				}
 
 				// get request ID from backend response payload
@@ -120,6 +120,7 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 						http.StatusBadGateway,
 						fmt.Sprintf("backend responded with success status code but response is not verifiable\n"+
 							" backend response was: (%d) %s", respCode, base64.StdEncoding.EncodeToString(respBody)))
+					continue
 				}
 
 				log.Debugf("%s: UPP successfully sent to %s", name, conf.Niomon)
