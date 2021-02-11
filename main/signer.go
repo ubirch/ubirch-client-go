@@ -42,8 +42,11 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 
 			upp, err := p.SignHash(name, msg.Hash[:], ubirch.Chained)
 			if err != nil {
-				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("error creating UPP for UUID %s: %v", name, err))
-				continue
+				msg.Response <- HTTPErrorResponse(
+					http.StatusInternalServerError,
+					fmt.Sprintf("error creating UPP for UUID %s: %v", name, err),
+				)
+				continue // todo persist or discard signature?
 			}
 			log.Debugf("%s: UPP: %s", name, hex.EncodeToString(upp))
 
@@ -54,44 +57,55 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 				"x-ubirch-credential":  base64.StdEncoding.EncodeToString(msg.Auth),
 			})
 			if err != nil {
-				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("unable to send request to UBIRCH Authentication Service: %v", err))
-				continue
+				msg.Response <- HTTPErrorResponse(
+					http.StatusInternalServerError,
+					fmt.Sprintf("unable to send request to UBIRCH Authentication Service: %v", err),
+				)
+				continue // todo persist or discard signature?
 			}
 			log.Debugf("%s: response: (%d) %s", name, respCode, hex.EncodeToString(respBody))
 
-			// decode the backend response and verify its validity
+			// verify backend response signature
+			verified, err := p.Verify(conf.Env, respBody)
+			if err != nil {
+				msg.Response <- HTTPErrorResponse(
+					http.StatusBadGateway,
+					fmt.Sprintf("%s: backend response signature could not be verified: %v\n"+
+						" backend response was: (%d) %s", name, err, respCode, hex.EncodeToString(respBody)),
+				)
+				continue // todo persist or discard signature?
+			} else if !verified {
+				msg.Response <- HTTPErrorResponse(
+					http.StatusBadGateway,
+					fmt.Sprintf("%s: backend response signature verification failed\n"+
+						" backend response was: (%d) %s", name, respCode, hex.EncodeToString(respBody)),
+				)
+				continue // todo persist or discard signature?
+			}
+			log.Debugf("%s: backend response signature verified", name)
+
+			// decode the backend response
 			var isRespDecodable bool
 			var isRespChainedUPP bool
 			var requestID uuid.UUID
 
 			respUPP, err := ubirch.Decode(respBody)
 			if err != nil {
-				log.Warnf("%s: unable to decode backend response: %v\n backend response was: (%d) %q",
-					name, err, respCode, respBody)
+				log.Warnf("%s: unable to decode backend response: %v\n backend response was: (%d) %s",
+					name, err, respCode, hex.EncodeToString(respBody))
 			} else {
 				isRespDecodable = true
-
-				// verify backend response signature
-				verified, err := p.Verify(conf.Env, respBody)
-				if err != nil {
-					// todo handle
-					log.Errorf("%s: backend response signature verification failed: %v", name, err)
-				} else if !verified {
-					// todo handle
-					log.Errorf("%s: backend response signature could not be verified", name)
-				} else {
-					log.Debugf("%s: backend response signature verified", name)
-				}
+				isRespChainedUPP = respUPP.GetVersion() == ubirch.Chained
 
 				// verify that backend response previous signature matches signature of request UPP
-				isRespChainedUPP = respUPP.GetVersion() == ubirch.Chained
 				if isRespChainedUPP {
 					if !bytes.Equal(p.Signatures[uid], respUPP.GetPrevSignature()) {
 						msg.Response <- HTTPErrorResponse(
 							http.StatusBadGateway,
 							fmt.Sprintf("%s: backend response not chained to sent UPP: previous signature does not match signature of request UPP\n"+
-								" backend response was: (%d) %s", name, respCode, base64.StdEncoding.EncodeToString(respBody)))
-						continue
+								" backend response was: (%d) %s", name, respCode, hex.EncodeToString(respBody)),
+						)
+						continue // todo persist or discard signature?
 					}
 					log.Debugf("%s: backend response chain verified", name)
 				}
@@ -119,8 +133,9 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 					msg.Response <- HTTPErrorResponse(
 						http.StatusBadGateway,
 						fmt.Sprintf("backend responded with success status code but response is not verifiable\n"+
-							" backend response was: (%d) %s", respCode, base64.StdEncoding.EncodeToString(respBody)))
-					continue
+							" backend response was: (%d) %s", respCode, hex.EncodeToString(respBody)),
+					)
+					continue // todo persist or discard signature?
 				}
 
 				log.Debugf("%s: UPP successfully sent to %s", name, conf.Niomon)
