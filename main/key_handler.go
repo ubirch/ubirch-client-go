@@ -24,15 +24,21 @@ import (
 )
 
 const (
-	devName      = "dev"
-	devUUID      = "9d3c78ff-22f3-4441-a5d1-85c636d486ff"
-	devPublicKey = "LnU8BkvGcZQPy5gWVUL+PHA0DP9dU61H8DBO8hZvTyI7lXIlG1/oruVMT7gS2nlZDK9QG+ugkRt/zTrdLrAYDA=="
+	devName    = "dev"
+	devUUID    = "9d3c78ff-22f3-4441-a5d1-85c636d486ff"
+	devPubKey  = "LnU8BkvGcZQPy5gWVUL+PHA0DP9dU61H8DBO8hZvTyI7lXIlG1/oruVMT7gS2nlZDK9QG+ugkRt/zTrdLrAYDA=="
+	demoName   = "demo"
+	demoUUID   = "07104235-1892-4020-9042-00003c94b60b"
+	demoPubKey = "xm+iIomBRjR3QdvLJrGE1OBs3bAf8EI49FfgBriRk36n4RUYX+0smrYK8tZkl6Lhrt9lzjiUGrXGijRoVE+UjA=="
+	prodName   = "prod"
+	prodUUID   = "10b2e1a4-56b3-4fff-9ada-cc8c20f93016"
+	prodPubKey = "pJdYoJN0N3QTFMBVjZVQie1hhgumQVTy2kX9I7kXjSyoIl40EOa9MX24SBAABBV7xV2IFi1KWMnC1aLOIvOQjQ=="
 )
 
 func initBackendKeys(p *ExtendedProtocol) error {
-	names := []string{devName}
-	uuids := []string{devUUID}
-	pkeys := []string{devPublicKey}
+	names := []string{devName, demoName, prodName}
+	uuids := []string{devUUID, demoUUID, prodUUID}
+	pkeys := []string{devPubKey, demoPubKey, prodPubKey}
 
 	for i, env := range names {
 		uid, err := uuid.Parse(uuids[i])
