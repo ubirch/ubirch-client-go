@@ -44,9 +44,15 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 			if err != nil {
 				msg.Response <- HTTPErrorResponse(
 					http.StatusInternalServerError,
-					fmt.Sprintf("error creating UPP for UUID %s: %v", name, err),
+					fmt.Sprintf("%s: error creating UPP: %v", name, err),
 				)
-				continue // todo persist or discard signature?
+				// discard signature
+				err = p.LoadContext()
+				if err != nil {
+					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
+					return fmt.Errorf("unable to load last signature for UUID %s: %v", name, err)
+				}
+				continue
 			}
 			log.Debugf("%s: UPP: %s", name, hex.EncodeToString(upp))
 
@@ -59,9 +65,15 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 			if err != nil {
 				msg.Response <- HTTPErrorResponse(
 					http.StatusInternalServerError,
-					fmt.Sprintf("unable to send request to UBIRCH Authentication Service: %v", err),
+					fmt.Sprintf("%s: unable to send request to UBIRCH Authentication Service: %v", name, err),
 				)
-				continue // todo persist or discard signature?
+				// discard signature
+				err = p.LoadContext()
+				if err != nil {
+					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
+					return fmt.Errorf("unable to load last signature for UUID %s: %v", name, err)
+				}
+				continue
 			}
 			log.Debugf("%s: response: (%d) %s", name, respCode, hex.EncodeToString(respBody))
 
@@ -69,18 +81,30 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 			verified, err := p.Verify(conf.Env, respBody)
 			if err != nil {
 				msg.Response <- HTTPErrorResponse(
-					http.StatusBadGateway,
+					http.StatusInternalServerError,
 					fmt.Sprintf("%s: backend response signature could not be verified: %v\n"+
 						" backend response was: (%d) %s", name, err, respCode, hex.EncodeToString(respBody)),
 				)
-				continue // todo persist or discard signature?
+				// discard signature
+				err = p.LoadContext()
+				if err != nil {
+					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
+					return fmt.Errorf("unable to load last signature for UUID %s: %v", name, err)
+				}
+				continue
 			} else if !verified {
 				msg.Response <- HTTPErrorResponse(
 					http.StatusBadGateway,
 					fmt.Sprintf("%s: backend response signature verification failed\n"+
 						" backend response was: (%d) %s", name, respCode, hex.EncodeToString(respBody)),
 				)
-				continue // todo persist or discard signature?
+				// discard signature
+				err = p.LoadContext()
+				if err != nil {
+					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
+					return fmt.Errorf("unable to load last signature for UUID %s: %v", name, err)
+				}
+				continue
 			}
 			log.Debugf("%s: backend response signature verified", name)
 
@@ -105,7 +129,13 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 							fmt.Sprintf("%s: backend response not chained to sent UPP: previous signature does not match signature of request UPP\n"+
 								" backend response was: (%d) %s", name, respCode, hex.EncodeToString(respBody)),
 						)
-						continue // todo persist or discard signature?
+						// discard signature
+						err = p.LoadContext()
+						if err != nil {
+							msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
+							return fmt.Errorf("unable to load last signature for UUID %s: %v", name, err)
+						}
+						continue
 					}
 					log.Debugf("%s: backend response chain verified", name)
 				}
@@ -132,10 +162,16 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 				if !isRespDecodable || !isRespChainedUPP {
 					msg.Response <- HTTPErrorResponse(
 						http.StatusBadGateway,
-						fmt.Sprintf("backend responded with success status code but response is not verifiable\n"+
-							" backend response was: (%d) %s", respCode, hex.EncodeToString(respBody)),
+						fmt.Sprintf("%s: backend responded with success status code but response is not verifiable\n"+
+							" backend response was: (%d) %s", name, respCode, hex.EncodeToString(respBody)),
 					)
-					continue // todo persist or discard signature?
+					// discard signature
+					err = p.LoadContext()
+					if err != nil {
+						msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
+						return fmt.Errorf("unable to load last signature for UUID %s: %v", name, err)
+					}
+					continue
 				}
 
 				log.Debugf("%s: UPP successfully sent to %s", name, conf.Niomon)
