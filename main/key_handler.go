@@ -36,20 +36,31 @@ const (
 )
 
 func initBackendKeys(p *ExtendedProtocol) error {
-	names := []string{devName, demoName, prodName}
-	uuids := []string{devUUID, demoUUID, prodUUID}
-	pkeys := []string{devPubKey, demoPubKey, prodPubKey}
+	identities := map[string]map[string]string{
+		devName: {
+			"UUID":   devUUID,
+			"pubKey": devPubKey,
+		},
+		demoName: {
+			"UUID":   demoUUID,
+			"pubKey": demoPubKey,
+		},
+		prodName: {
+			"UUID":   prodUUID,
+			"pubKey": prodPubKey,
+		},
+	}
 
-	for i, env := range names {
-		uid, err := uuid.Parse(uuids[i])
+	for name, m := range identities {
+		uid, err := uuid.Parse(m["UUID"])
 		if err != nil {
 			return err
 		}
-		pkey, err := base64.StdEncoding.DecodeString(pkeys[i])
+		pkey, err := base64.StdEncoding.DecodeString(m["pubKey"])
 		if err != nil {
 			return err
 		}
-		err = injectVerificationKey(p, env, uid, pkey)
+		err = injectVerificationKey(p, name, uid, pkey)
 		if err != nil {
 			return err
 		}
