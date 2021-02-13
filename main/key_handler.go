@@ -35,32 +35,29 @@ const (
 	prodPubKey = "pJdYoJN0N3QTFMBVjZVQie1hhgumQVTy2kX9I7kXjSyoIl40EOa9MX24SBAABBV7xV2IFi1KWMnC1aLOIvOQjQ=="
 )
 
+type identity struct {
+	Name   string
+	UUID   string
+	PubKey string
+}
+
 func initBackendKeys(p *ExtendedProtocol) error {
-	identities := map[string]map[string]string{
-		devName: {
-			"UUID":   devUUID,
-			"pubKey": devPubKey,
-		},
-		demoName: {
-			"UUID":   demoUUID,
-			"pubKey": demoPubKey,
-		},
-		prodName: {
-			"UUID":   prodUUID,
-			"pubKey": prodPubKey,
-		},
+	serverIdentities := []identity{
+		{Name: devName, UUID: devUUID, PubKey: devPubKey},
+		{Name: demoName, UUID: demoUUID, PubKey: demoPubKey},
+		{Name: prodName, UUID: prodUUID, PubKey: prodPubKey},
 	}
 
-	for name, m := range identities {
-		uid, err := uuid.Parse(m["UUID"])
+	for _, server := range serverIdentities {
+		uid, err := uuid.Parse(server.UUID)
 		if err != nil {
 			return err
 		}
-		pkey, err := base64.StdEncoding.DecodeString(m["pubKey"])
+		pkey, err := base64.StdEncoding.DecodeString(server.PubKey)
 		if err != nil {
 			return err
 		}
-		err = injectVerificationKey(p, name, uid, pkey)
+		err = injectVerificationKey(p, server.Name, uid, pkey)
 		if err != nil {
 			return err
 		}
@@ -72,7 +69,11 @@ func injectVerificationKey(p *ExtendedProtocol, name string, uid uuid.UUID, pubK
 	storedKey, err := p.GetPublicKey(name)
 	if err != nil || !bytes.Equal(storedKey, pubKey) {
 		log.Debugf("injecting / updating verification key \"%s\": %s", name, base64.StdEncoding.EncodeToString(pubKey))
-		return p.SetPublicKey(name, uid, pubKey)
+		err = p.SetPublicKey(name, uid, pubKey)
+		if err != nil {
+			return err
+		}
+		return p.PersistContext()
 	}
 	log.Debugf("found verification key \"%s\": %s", name, base64.StdEncoding.EncodeToString(storedKey))
 	return nil
