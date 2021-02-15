@@ -30,8 +30,16 @@ import (
 
 const (
 	DEV_STAGE  = "dev"
-	DEMO_STAGE = "demo"
-	PROD_STAGE = "prod"
+	DEV_UUID   = "9d3c78ff-22f3-4441-a5d1-85c636d486ff"
+	DEV_PUBKEY = "LnU8BkvGcZQPy5gWVUL+PHA0DP9dU61H8DBO8hZvTyI7lXIlG1/oruVMT7gS2nlZDK9QG+ugkRt/zTrdLrAYDA=="
+
+	DEMO_STAGE  = "demo"
+	DEMO_UUID   = "07104235-1892-4020-9042-00003c94b60b"
+	DEMO_PUBKEY = "xm+iIomBRjR3QdvLJrGE1OBs3bAf8EI49FfgBriRk36n4RUYX+0smrYK8tZkl6Lhrt9lzjiUGrXGijRoVE+UjA=="
+
+	PROD_STAGE  = "prod"
+	PROD_UUID   = "10b2e1a4-56b3-4fff-9ada-cc8c20f93016"
+	PROD_PUBKEY = "pJdYoJN0N3QTFMBVjZVQie1hhgumQVTy2kX9I7kXjSyoIl40EOa9MX24SBAABBV7xV2IFi1KWMnC1aLOIvOQjQ=="
 
 	keyURL      = "https://key.%s.ubirch.com/api/keyService/v1/pubkey"
 	identityURL = "https://identity.%s.ubirch.com/api/certs/v1/csr/register"
@@ -50,6 +58,7 @@ type Config struct {
 	Devices          map[string]string `json:"devices"`          // maps UUIDs to backend auth tokens (mandatory)
 	Secret           string            `json:"secret"`           // secret used to encrypt the key store (mandatory)
 	Env              string            `json:"env"`              // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
+	ServerIdentity   identity          `json:"serverIdentity"`   // UUID and public keys of the backend for response signature verification
 	DSN              string            `json:"DSN"`              // "data source name" for database connection
 	StaticKeys       bool              `json:"staticKeys"`       // disable dynamic key generation, defaults to 'false'
 	Keys             map[string]string `json:"keys"`             // maps UUIDs to injected private keys
@@ -63,11 +72,27 @@ type Config struct {
 	CORS_Origins     []string          `json:"CORS_origins"`     // list of allowed origin hosts, defaults to ["*"]
 	Debug            bool              `json:"debug"`            // enable extended debug output, defaults to 'false'
 	LogTextFormat    bool              `json:"logTextFormat"`    // log in text format for better human readability, default format is JSON
-	SecretBytes      []byte            // the decoded key store secret
+	SecretBytes      []byte            // the decoded key store secret (set automatically)
 	KeyService       string            // key service URL (set automatically)
 	IdentityService  string            // identity service URL (set automatically)
 	Niomon           string            // authentication service URL (set automatically)
 	VerifyService    string            // verification service URL (set automatically)
+}
+
+type identity struct {
+	UUID   string
+	PubKey pubkey
+}
+
+type pubkey struct {
+	ECDSA string
+	EDDSA string
+}
+
+var defaultServerIdentities = map[string]identity{ // todo add EDDSA keys
+	DEV_STAGE:  {UUID: DEV_UUID, PubKey: pubkey{ECDSA: DEV_PUBKEY}},
+	DEMO_STAGE: {UUID: DEMO_UUID, PubKey: pubkey{ECDSA: DEMO_PUBKEY}},
+	PROD_STAGE: {UUID: PROD_UUID, PubKey: pubkey{ECDSA: PROD_PUBKEY}},
 }
 
 func (c *Config) Load(configDir string, filename string) error {
@@ -226,6 +251,14 @@ func (c *Config) setDefaultURLs() error {
 	log.Debugf(" - Identity Service: %s", c.IdentityService)
 	log.Debugf(" - Authentication Service: %s", c.Niomon)
 	log.Debugf(" - Verification Service: %s", c.VerifyService)
+
+	if c.ServerIdentity == (identity{}) {
+		log.Debugf("setting default server identity")
+
+		c.ServerIdentity.UUID = defaultServerIdentities[c.Env].UUID
+		c.ServerIdentity.PubKey.ECDSA = defaultServerIdentities[c.Env].PubKey.ECDSA
+		c.ServerIdentity.PubKey.EDDSA = defaultServerIdentities[c.Env].PubKey.EDDSA
+	}
 
 	return nil
 }

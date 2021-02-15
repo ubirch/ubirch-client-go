@@ -84,7 +84,7 @@ func main() {
 	}
 
 	// insert backend public keys into keystore for verification
-	err = initBackendKeys(&p)
+	err = initBackendKey(&p, conf.Env, conf.ServerIdentity)
 	if err != nil {
 		log.Fatal(err)
 	}

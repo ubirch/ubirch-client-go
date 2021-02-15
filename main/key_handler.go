@@ -23,46 +23,16 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const (
-	devName    = "dev"
-	devUUID    = "9d3c78ff-22f3-4441-a5d1-85c636d486ff"
-	devPubKey  = "LnU8BkvGcZQPy5gWVUL+PHA0DP9dU61H8DBO8hZvTyI7lXIlG1/oruVMT7gS2nlZDK9QG+ugkRt/zTrdLrAYDA=="
-	demoName   = "demo"
-	demoUUID   = "07104235-1892-4020-9042-00003c94b60b"
-	demoPubKey = "xm+iIomBRjR3QdvLJrGE1OBs3bAf8EI49FfgBriRk36n4RUYX+0smrYK8tZkl6Lhrt9lzjiUGrXGijRoVE+UjA=="
-	prodName   = "prod"
-	prodUUID   = "10b2e1a4-56b3-4fff-9ada-cc8c20f93016"
-	prodPubKey = "pJdYoJN0N3QTFMBVjZVQie1hhgumQVTy2kX9I7kXjSyoIl40EOa9MX24SBAABBV7xV2IFi1KWMnC1aLOIvOQjQ=="
-)
-
-type identity struct {
-	Name   string
-	UUID   string
-	PubKey string
-}
-
-func initBackendKeys(p *ExtendedProtocol) error {
-	serverIdentities := []identity{
-		{Name: devName, UUID: devUUID, PubKey: devPubKey},
-		{Name: demoName, UUID: demoUUID, PubKey: demoPubKey},
-		{Name: prodName, UUID: prodUUID, PubKey: prodPubKey},
+func initBackendKey(p *ExtendedProtocol, name string, id identity) error {
+	uid, err := uuid.Parse(id.UUID)
+	if err != nil {
+		return err
 	}
-
-	for _, server := range serverIdentities {
-		uid, err := uuid.Parse(server.UUID)
-		if err != nil {
-			return err
-		}
-		pkey, err := base64.StdEncoding.DecodeString(server.PubKey)
-		if err != nil {
-			return err
-		}
-		err = injectVerificationKey(p, server.Name, uid, pkey)
-		if err != nil {
-			return err
-		}
+	pkey, err := base64.StdEncoding.DecodeString(id.PubKey.ECDSA)
+	if err != nil {
+		return err
 	}
-	return nil
+	return injectVerificationKey(p, name, uid, pkey)
 }
 
 func injectVerificationKey(p *ExtendedProtocol, name string, uid uuid.UUID, pubKey []byte) error {
