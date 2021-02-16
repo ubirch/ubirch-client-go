@@ -83,8 +83,8 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// insert backend public keys into keystore for verification
-	err = initBackendKey(&p, conf.Env, conf.ServerIdentity)
+	// insert backend public key into keystore for verification of server responses
+	err = setPublicKey(&p, conf.Env, conf.ServerIdentity.UUID, conf.ServerIdentity.PubKey.ECDSA)
 	if err != nil {
 		log.Fatal(err)
 	}

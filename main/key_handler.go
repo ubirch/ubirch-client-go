@@ -15,7 +15,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -23,30 +22,24 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func initBackendKey(p *ExtendedProtocol, name string, id identity) error {
-	uid, err := uuid.Parse(id.UUID)
+func setPublicKey(p *ExtendedProtocol, name string, id string, pubKey_64 string) error {
+	uid, err := uuid.Parse(id)
 	if err != nil {
 		return err
 	}
-	pkey, err := base64.StdEncoding.DecodeString(id.PubKey.ECDSA)
-	if err != nil {
-		return err
-	}
-	return injectVerificationKey(p, name, uid, pkey)
-}
 
-func injectVerificationKey(p *ExtendedProtocol, name string, uid uuid.UUID, pubKey []byte) error {
-	storedKey, err := p.GetPublicKey(name)
-	if err != nil || !bytes.Equal(storedKey, pubKey) {
-		log.Debugf("injecting / updating verification key \"%s\": %s", name, base64.StdEncoding.EncodeToString(pubKey))
-		err = p.SetPublicKey(name, uid, pubKey)
-		if err != nil {
-			return err
-		}
-		return p.PersistContext()
+	pkey, err := base64.StdEncoding.DecodeString(pubKey_64)
+	if err != nil {
+		return err
 	}
-	log.Debugf("found verification key \"%s\": %s", name, base64.StdEncoding.EncodeToString(storedKey))
-	return nil
+
+	log.Debugf("setting verification key \"%s\": %s", name, base64.StdEncoding.EncodeToString(pkey))
+	err = p.SetPublicKey(name, uid, pkey)
+	if err != nil {
+		return err
+	}
+
+	return p.PersistContext()
 }
 
 func registerPublicKey(p *ExtendedProtocol, uid uuid.UUID, pubKey []byte, keyService string, auth string) error {
