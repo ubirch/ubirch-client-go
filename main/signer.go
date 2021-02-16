@@ -15,7 +15,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/hex"
@@ -110,7 +109,6 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 
 			// decode the backend response
 			var isRespDecodable bool
-			var isRespChainedUPP bool
 			var requestID uuid.UUID
 
 			respUPP, err := ubirch.Decode(respBody)
@@ -119,26 +117,6 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 					name, err, respCode, hex.EncodeToString(respBody))
 			} else {
 				isRespDecodable = true
-				isRespChainedUPP = respUPP.GetVersion() == ubirch.Chained
-
-				// verify that backend response previous signature matches signature of request UPP
-				if isRespChainedUPP {
-					if !bytes.Equal(p.Signatures[uid], respUPP.GetPrevSignature()) {
-						msg.Response <- HTTPErrorResponse(
-							http.StatusBadGateway,
-							fmt.Sprintf("%s: backend response not chained to sent UPP: previous signature does not match signature of request UPP\n"+
-								" backend response was: (%d) %s", name, respCode, hex.EncodeToString(respBody)),
-						)
-						// discard signature
-						err = p.LoadContext()
-						if err != nil {
-							msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
-							return fmt.Errorf("unable to load last signature for UUID %s: %v", name, err)
-						}
-						continue
-					}
-					log.Debugf("%s: backend response chain verified", name)
-				}
 
 				// get request ID from backend response payload
 				requestID, err = uuid.FromBytes(respUPP.GetPayload()[:16])
@@ -159,7 +137,7 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 					return fmt.Errorf("unable to load last signature for UUID %s: %v", name, err)
 				}
 			} else {
-				if !isRespDecodable || !isRespChainedUPP {
+				if !isRespDecodable {
 					msg.Response <- HTTPErrorResponse(
 						http.StatusBadGateway,
 						fmt.Sprintf("%s: backend responded with success status code but response is not verifiable\n"+
