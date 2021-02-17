@@ -40,7 +40,7 @@ func anchorHash(p *ExtendedProtocol, name string, hash []byte, auth []byte, conf
 	// create a chained UPP
 	upp, err := p.SignHash(name, hash, ubirch.Chained)
 	if err != nil {
-		errMsg := fmt.Sprintf("%s: could not create UBIRCH Protocol Package: %v", name, err)
+		errMsg := fmt.Sprintf("could not create UBIRCH Protocol Package: %v", err)
 		return HTTPErrorResponse(http.StatusInternalServerError, ""), fmt.Errorf(errMsg)
 	}
 	log.Debugf("%s: UPP: %s", name, hex.EncodeToString(upp))
@@ -48,7 +48,7 @@ func anchorHash(p *ExtendedProtocol, name string, hash []byte, auth []byte, conf
 	// send UPP to ubirch backend
 	respCode, respBody, respHeaders, err := post(conf.Niomon, upp, niomonHeaders(name, auth))
 	if err != nil {
-		errMsg := fmt.Sprintf("%s: could not send request to UBIRCH Authentication Service: %v", name, err)
+		errMsg := fmt.Sprintf("could not send request to UBIRCH Authentication Service: %v", err)
 		return HTTPErrorResponse(http.StatusInternalServerError, ""), fmt.Errorf(errMsg)
 	}
 	log.Debugf("%s: backend response: (%d) %s", name, respCode, hex.EncodeToString(respBody))
@@ -56,12 +56,12 @@ func anchorHash(p *ExtendedProtocol, name string, hash []byte, auth []byte, conf
 	// verify backend response signature
 	verified, err := p.Verify(conf.Env, respBody)
 	if err != nil {
-		errMsg := fmt.Sprintf("%s: could not verify backend response signature: %v\n"+
-			" backend response: (%d) %q", name, err, respCode, respBody)
+		errMsg := fmt.Sprintf("could not verify backend response signature: %v\n"+
+			" backend response: (%d) %q", err, respCode, respBody)
 		return HTTPErrorResponse(http.StatusInternalServerError, ""), fmt.Errorf(errMsg)
 	} else if !verified {
-		errMsg := fmt.Sprintf("%s: backend response signature verification failed\n"+
-			" backend response: (%d) %s", name, respCode, hex.EncodeToString(respBody))
+		errMsg := fmt.Sprintf("backend response signature verification failed\n"+
+			" backend response: (%d) %s", respCode, hex.EncodeToString(respBody))
 		return HTTPErrorResponse(http.StatusBadGateway, errMsg), fmt.Errorf(errMsg)
 	}
 	log.Debugf("%s: backend response signature verified", name)
@@ -69,8 +69,8 @@ func anchorHash(p *ExtendedProtocol, name string, hash []byte, auth []byte, conf
 	// decode the backend response
 	respUPP, err := ubirch.Decode(respBody)
 	if err != nil {
-		errMsg := fmt.Sprintf("%s: could not decode backend response: %v\n"+
-			" backend response: (%d) %q", name, err, respCode, respBody)
+		errMsg := fmt.Sprintf("could not decode backend response: %v\n"+
+			" backend response: (%d) %q", err, respCode, respBody)
 		return HTTPErrorResponse(http.StatusBadGateway, errMsg), fmt.Errorf(errMsg)
 	}
 
@@ -86,7 +86,8 @@ func anchorHash(p *ExtendedProtocol, name string, hash []byte, auth []byte, conf
 	// check if request was successful
 	var httpFailedError error
 	if httpFailed(respCode) {
-		httpFailedError = fmt.Errorf("%s: request to %s failed: (%d) %q", name, conf.Niomon, respCode, respBody)
+		httpFailedError = fmt.Errorf("request to UBIRCH Authentication Service (%s) failed\n"+
+			" backend response: (%d) %s", conf.Niomon, respCode, hex.EncodeToString(respBody))
 	}
 
 	response, err := json.Marshal(map[string][]byte{
@@ -111,14 +112,13 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 	for {
 		select {
 		case msg := <-msgHandler:
-			uid := msg.ID
-			name := uid.String()
+			name := msg.ID.String()
 
 			log.Printf("%s: signing hash: %s", name, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
 			resp, err := anchorHash(p, name, msg.Hash[:], msg.Auth, conf)
 			if err != nil {
-				log.Error(err)
+				log.Errorf("%s: %v", name, err)
 
 				// reset last signature in protocol context if sending UPP to backend fails to ensure intact chain
 				err = p.LoadContext()
