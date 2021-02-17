@@ -100,7 +100,7 @@ func main() {
 	// set up HTTP server
 	httpServer := HTTPServer{
 		router:   NewRouter(),
-		addr:     conf.TCPaddr,
+		addr:     conf.TCP_addr,
 		TLS:      conf.TLS,
 		certFile: conf.TLS_CertFile,
 		keyFile:  conf.TLS_KeyFile,

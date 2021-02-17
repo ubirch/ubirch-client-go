@@ -7,7 +7,7 @@ import (
 )
 
 func TestConfig(t *testing.T) {
-	configBytes := []byte(`{"devices":null,"secret":"MTIzNDU2Nzg5MDU2Nzg5MA==","env":"","serverIdentity":{"UUID":"","PubKey":{"ECDSA":"","EdDSA":""}},"DSN":"","staticKeys":false,"keys":null,"CSR_country":"","CSR_organization":"","TCPaddr":"","TLS":false,"TLSCertFile":"","TLSKeyFile":"","CORS":false,"CORS_origins":null,"debug":false,"logTextFormat":false,"SecretBytes":null,"KeyService":"","IdentityService":"","Niomon":"","VerifyService":""}`)
+	configBytes := []byte(`{"devices":null,"secret":"MTIzNDU2Nzg5MDU2Nzg5MA==","env":"","serverIdentity":{"UUID":"","PubKey":{"ECDSA":"","EdDSA":""}},"DSN":"","staticKeys":false,"keys":null,"CSR_country":"","CSR_organization":"","TCP_addr":"","TLS":false,"TLSCertFile":"","TLSKeyFile":"","CORS":false,"CORS_origins":null,"debug":false,"logTextFormat":false,"SecretBytes":null,"KeyService":"","IdentityService":"","Niomon":"","VerifyService":""}`)
 
 	config := &Config{}
 

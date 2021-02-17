@@ -279,7 +279,7 @@ func (srv *HTTPServer) Serve(ctx context.Context) error {
 		log.Debugf(" - Cert: %s", srv.certFile)
 		log.Debugf(" -  Key: %s", srv.keyFile)
 	}
-	log.Printf("starting HTTP service (TCP address %s)", srv.addr)
+	log.Printf("starting HTTP service")
 
 	var err error
 	if srv.TLS {
