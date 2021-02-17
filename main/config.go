@@ -69,7 +69,7 @@ type Config struct {
 	Keys             map[string]string `json:"keys"`             // maps UUIDs to injected private keys
 	CSR_Country      string            `json:"CSR_country"`      // subject country for public key Certificate Signing Requests
 	CSR_Organization string            `json:"CSR_organization"` // subject organization for public key Certificate Signing Requests
-	TCPaddr          string            `json:"TCP_addr"`         // the TCP address for the server to listen on, in the form "host:port", defaults to ":8080"
+	TCP_addr         string            `json:"TCP_addr"`         // the TCP address for the server to listen on, in the form "host:port", defaults to ":8080"
 	TLS              bool              `json:"TLS"`              // enable serving HTTPS endpoints, defaults to 'false'
 	TLS_CertFile     string            `json:"TLSCertFile"`      // filename of TLS certificate file name, defaults to "cert.pem"
 	TLS_KeyFile      string            `json:"TLSKeyFile"`       // filename of TLS key file name, defaults to "key.pem"
@@ -211,8 +211,8 @@ func (c *Config) setDefaultCSR() {
 }
 
 func (c *Config) setDefaultTLS(configDir string) {
-	if c.TCPaddr == "" {
-		c.TCPaddr = ":8080"
+	if c.TCP_addr == "" {
+		c.TCP_addr = ":8080"
 	}
 
 	if c.TLS {
