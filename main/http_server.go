@@ -297,7 +297,6 @@ func HTTPErrorResponse(code int, message string) HTTPResponse {
 	if message == "" {
 		message = http.StatusText(code)
 	}
-	log.Error(message)
 	return HTTPResponse{
 		Code:    code,
 		Headers: map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}},
