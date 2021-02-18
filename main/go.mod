@@ -13,3 +13,5 @@ require (
 	github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.2.1
 	golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a
 )
+
+replace github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.2.1 => ../../ubirch-protocol-go/ubirch

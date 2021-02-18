@@ -74,6 +74,20 @@ func anchorHash(p *ExtendedProtocol, name string, hash []byte, auth []byte, conf
 		return HTTPErrorResponse(http.StatusBadGateway, errMsg), fmt.Errorf(errMsg)
 	}
 
+	// verify that backend response previous signature matches signature of request UPP
+	if respUPP.GetVersion() == ubirch.Chained {
+		chainOK, err := ubirch.CheckChain(upp, respBody)
+		if !chainOK {
+			if err != nil {
+				log.Errorf("could not verify backend response chain: %v", err)
+			}
+			errMsg := fmt.Sprintf("backend response chain check failed\n"+
+				" backend response: (%d) %s", respCode, hex.EncodeToString(respBody))
+			return HTTPErrorResponse(http.StatusBadGateway, errMsg), fmt.Errorf(errMsg)
+		}
+		log.Debugf("%s: backend response chain verified", name)
+	}
+
 	// get request ID from backend response payload
 	requestID, err := uuid.FromBytes(respUPP.GetPayload()[:16])
 	if err != nil {
