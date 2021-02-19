@@ -13,7 +13,7 @@ if len(sys.argv) < 3:
     print("python3 ./bombard.py <UUID> <AUTH_TOKEN>")
     sys.exit()
 
-num = 50
+number_of_requests_per_type = 50
 uuid = sys.argv[1]
 auth = sys.argv[2]
 
@@ -177,8 +177,8 @@ def send_verification_request(request_type: str, msg: dict, serialized: bytes, h
     return send_request(url=url, headers=header, data=data)
 
 
-print("\nsigning {} messages...\n".format(num * len(types)))
-for i in range(num):
+print("\nsigning {} messages...\n".format(number_of_requests_per_type * len(types)))
+for i in range(number_of_requests_per_type):
     for t in types:
         msg = get_random_json_message()
         serialized = serialize_msg(msg)
