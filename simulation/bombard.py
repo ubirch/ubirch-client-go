@@ -65,7 +65,7 @@ def to_64(hash_bytes: bytes) -> str:
 
 
 # generates a random JSON message
-def get_random_jsom_message() -> dict:
+def get_random_json_message() -> dict:
     msg = {
         "id": uuid,
         "ts": int(time.time()),
@@ -180,7 +180,7 @@ def send_verification_request(request_type: str, msg: dict, serialized: bytes, h
 print("\nsigning {} messages...\n".format(num * len(types)))
 for i in range(num):
     for t in types:
-        msg = get_random_jsom_message()
+        msg = get_random_json_message()
         serialized = serialize_msg(msg)
         hash_64 = to_64(hash_bytes(serialized))
         r = send_signing_request(t, msg, serialized, hash_64)
