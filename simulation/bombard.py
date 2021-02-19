@@ -1,9 +1,9 @@
-import binascii
 import hashlib
 import json
-import secrets
+import random
 import sys
 import time
+from binascii import a2b_base64, b2a_base64
 
 import msgpack
 import requests
@@ -13,11 +13,11 @@ if len(sys.argv) < 3:
     print("python3 ./bombard.py <UUID> <AUTH_TOKEN>")
     sys.exit()
 
-num = 10
+num = 50
 uuid = sys.argv[1]
 auth = sys.argv[2]
 
-data_json_type = "JSON data"
+data_json_type = "  JSON data"
 data_bin_type = "binary data"
 hash_bin_type = "binary hash"
 hash_b64_type = "base64 hash"
@@ -35,41 +35,56 @@ bin_header = {'Content-Type': 'application/octet-stream'}
 txt_header = {'Content-Type': 'text/plain'}
 json_header = {'Content-Type': 'application/json'}
 
-letters = ("a", "b", "c", "d", "e", "f", "A", "B", "C", "D", "E", "F", "ä", "ö", "ü", "Ä", "Ö", "Ü")
-hashes = []  # [(msg, hash, upp)]
-failed = {}
-max_dur = 0
+symbols = ("a", "b", "c", "d", "e", "f", "A", "B", "C", "D", "E", "F",
+           "ä", "ë", "ï", "ö", "ü", "ÿ", "Ä", "Ë", "Ï", "Ö", "Ü", "Ÿ",
+           "`", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=",
+           "[", "]", ";", "'", "#", ",", ".", "/", "\\",
+           "¬", "!", '''"''', "£", "$", "%", "^", "*", "(", ")", "_", "+",
+           "{", "}", ":", "@", "~", "?", " |",
+           "&", "<", ">", "&#8482",
+           "®", "™", "U+2122", "%20", "\\n", "", "\
+")
+hashes = []  # [(msg, serialized, hash, upp)]
 prev_sign = None
+max_dur = 0
+failed = {}  # init fail counter
+for t in types:
+    failed[t] = 0
 
 
-def hash_msg(msg: dict) -> (bytes, str):
-    serialized = json.dumps(msg, separators=(',', ':'), sort_keys=True, ensure_ascii=False).encode()
-    msg_hash = hashlib.sha256(serialized).digest()
-    return serialized, binascii.b2a_base64(msg_hash).decode().rstrip('\n')
+def serialize_msg(msg: dict) -> bytes:
+    return json.dumps(msg, separators=(',', ':'), sort_keys=True, ensure_ascii=False).encode()
 
 
-# generates random JSON message and returns msg_str, serialized, msg_hash
-def get_message() -> (dict, bytes, str):
+def hash_bytes(serialized: bytes) -> bytes:
+    return hashlib.sha256(serialized).digest()
+
+
+def to_64(hash_bytes: bytes) -> str:
+    return b2a_base64(hash_bytes).decode().rstrip('\n')
+
+
+# generates a random JSON message
+def get_random_jsom_message() -> dict:
     msg = {
         "id": uuid,
         "ts": int(time.time()),
-        "big": secrets.randbits(53),
-        "tpl": (secrets.randbits(32), secrets.randbits(8), secrets.randbits(16), secrets.randbits(4)),
-        "lst": [
-            secrets.choice(letters),
-            secrets.choice(letters),
-            secrets.choice(letters),
-            secrets.choice(letters)
-        ],
+        "big": random.getrandbits(53),
+        "tpl": (random.getrandbits(32), "".join(random.choices(symbols, k=4)),
+                random.getrandbits(8), "".join(random.choices(symbols, k=8)),
+                random.getrandbits(16), "".join(random.choices(symbols, k=2)),
+                random.getrandbits(4), "".join(random.choices(symbols, k=16))
+                ),
+        "lst": random.choices(symbols, k=8),
         "map": {
-            secrets.choice(letters): secrets.randbits(4),
-            secrets.choice(letters): secrets.randbits(16),
-            secrets.choice(letters): secrets.randbits(8),
-            secrets.choice(letters): secrets.randbits(32)
-        }
+            random.choice(symbols): random.getrandbits(4),
+            random.choice(symbols): random.getrandbits(16),
+            random.choice(symbols): random.getrandbits(8),
+            random.choice(symbols): random.getrandbits(32)
+        },
+        "str": "".join(random.choices(symbols, k=128))
     }
-    serialized, msg_hash = hash_msg(msg)
-    return msg, serialized, msg_hash
+    return msg
 
 
 def send_request(url: str, headers: dict, data: str or bytes) -> requests.Response:
@@ -81,59 +96,59 @@ def send_request(url: str, headers: dict, data: str or bytes) -> requests.Respon
     return r
 
 
-def check_signing_response(r: requests.Response, request_type: str, msg: dict, serialized: bytes, hash: str) -> bool:
+def check_signing_response(r: requests.Response, request_type: str, msg: dict, serialized: bytes, hash_64: str) -> bool:
     try:
         r_map = json.loads(r.text)
     except Exception:
-        print("client returned error: ({}) {}".format(r.status_code, r.text))
+        print("client returned error: ({}) {}\n".format(r.status_code, r.text))
         return False
 
     if r.status_code != 200:
-        print("{} signing request failed! {}: ".format(request_type, r.status_code))
-        print(msgpack.unpackb(binascii.a2b_base64(r_map["response"]), raw=False)[-2])
+        print("signing request failed! {}: ".format(r.status_code))
+        print(msgpack.unpackb(a2b_base64(r_map["response"]), raw=False)[-2])
         return False
     else:
-        if r_map["hash"] != hash:
-            print(" - - - HASH MISMATCH ! - - - ")
-            print("sorted compact json (py): {}".format(serialized.decode()))
+        if r_map["hash"] != hash_64:
+            print("- - - HASH MISMATCH: {}".format(request_type))
+            print("original: {}".format(json.dumps(msg, ensure_ascii=False)))
+            print("rendered: {}".format(serialized.decode()))
             print("hash (go): {}".format(r_map["hash"]))
-            print("hash (py): {}".format(hash))
-            return False
+            print("hash (py): {}\n".format(hash_64))
 
         # check chain
-        unpacked = msgpack.unpackb(binascii.a2b_base64(r_map["upp"]))
+        unpacked = msgpack.unpackb(a2b_base64(r_map["upp"]))
         global prev_sign
         if prev_sign is not None and prev_sign != unpacked[2]:
-            print(" - - - PREVIOUS SIGNATURE MISMATCH ! - - - ")
+            print(" - - - PREVIOUS SIGNATURE MISMATCH ! - - - \n")
         prev_sign = unpacked[-1]
 
-    hashes.append((msg, hash, r_map["upp"]))  # [(msg, hash, upp)]
+    hashes.append((msg, serialized, hash_64, r_map["upp"]))  # [(msg, serialized, hash, upp)]
     return True
 
 
-def send_signing_request(request_type: str):
-    msg, serialized, hash = get_message()
-
+def send_signing_request(request_type: str, msg: dict, serialized: bytes, hash_64: str) -> requests.Response:
     if request_type == data_json_type:
         url, header, data = sign_data_url, json_header, json.dumps(msg)
-    if request_type == data_bin_type:
+    elif request_type == data_bin_type:
         url, header, data = sign_data_url, bin_header, serialized
-    if request_type == hash_bin_type:
-        url, header, data = sign_hash_url, bin_header, binascii.a2b_base64(hash)
-    if request_type == hash_b64_type:
-        url, header, data = sign_hash_url, txt_header, hash
+    elif request_type == hash_bin_type:
+        url, header, data = sign_hash_url, bin_header, a2b_base64(hash_64)
+    elif request_type == hash_b64_type:
+        url, header, data = sign_hash_url, txt_header, hash_64
+    else:
+        raise Exception("unknown request type: " + request_type)
 
-    r = send_request(url=url, headers={**auth_header, **header}, data=data)
-    if not check_signing_response(r, request_type, msg, serialized, hash):
-        failed[request_type] += 1
+    return send_request(url=url, headers={**auth_header, **header}, data=data)
 
 
-def check_verification_response(r: requests.Response, request_type: str, msg: dict, hash: str, upp: str) -> bool:
+def check_verification_response(r: requests.Response, request_type: str, msg: dict, serialized: bytes, hash_64: str,
+                                upp: str) -> bool:
     if r.status_code != 200:
-        print("NOT VERIFIED: ({})".format(request_type))
-        print("json: {}".format(repr(msg)))
-        print("hash: {}".format(hash))
-        print("response: ({}) {}".format(r.status_code, r.text))
+        print(" - - - VERIFICATION FAIL: {}".format(request_type))
+        print("original: {}".format(repr(msg)))
+        print("rendered: {}".format(serialized.decode()))
+        print("hash: {}".format(hash_64))
+        print("response: ({}) {}\n".format(r.status_code, r.text))
         return False
     else:
         r_map = json.loads(r.text)
@@ -141,57 +156,59 @@ def check_verification_response(r: requests.Response, request_type: str, msg: di
         if upp != r_map["upp"]:
             print(" - - - UPP MISMATCH ! - - - ")
             print("UPP from signing resp.: {}".format(upp))
-            print("UPP from verification resp.: {}".format(r_map["upp"]))
+            print("UPP from verification resp.: {}\n".format(r_map["upp"]))
             return False
 
     return True
 
 
-def send_verification_request(request_type: str, msg: dict, hash: str, upp: str):
+def send_verification_request(request_type: str, msg: dict, serialized: bytes, hash_64: str) -> requests.Response:
     if request_type == data_json_type:
         url, header, data = vrfy_data_url, json_header, json.dumps(msg)
-    if request_type == data_bin_type:
-        url, header, data = vrfy_data_url, bin_header, json.dumps(msg, separators=(',', ':'), sort_keys=True,
-                                                                  ensure_ascii=False).encode()
-    if request_type == hash_bin_type:
-        url, header, data = vrfy_hash_url, bin_header, binascii.a2b_base64(hash)
-    if request_type == hash_b64_type:
-        url, header, data = vrfy_hash_url, txt_header, hash
+    elif request_type == data_bin_type:
+        url, header, data = vrfy_data_url, bin_header, serialized
+    elif request_type == hash_bin_type:
+        url, header, data = vrfy_hash_url, bin_header, a2b_base64(hash_64)
+    elif request_type == hash_b64_type:
+        url, header, data = vrfy_hash_url, txt_header, hash_64
+    else:
+        raise Exception("unknown request type: " + request_type)
 
-    r = send_request(url=url, headers=header, data=data)
-    if not check_verification_response(r, request_type, msg, hash, upp):
-        failed[request_type] += 1
+    return send_request(url=url, headers=header, data=data)
 
 
-print("\nsigning {} messages...".format(num * len(types)))
-i = 0
-for t in types:
+print("\nsigning {} messages...\n".format(num * len(types)))
+for i in range(num):
+    for t in types:
+        msg = get_random_jsom_message()
+        serialized = serialize_msg(msg)
+        hash_64 = to_64(hash_bytes(serialized))
+        r = send_signing_request(t, msg, serialized, hash_64)
+        if not check_signing_response(r, t, msg, serialized, hash_64):
+            failed[t] += 1
+
+    if (i + 1) % 10 == 0 and i != 0:
+        for t in types:
+            print("{:3} of {} {} signing requests failed.".format(failed[t], (i + 1), t))
+        print()
+
+print(" max. signing duration: {} sec\n".format(max_dur))
+
+max_dur = 0  # reset timer
+for t in types:  # reset fail counter
     failed[t] = 0
-while i < num:
-    i += 1
+
+print("verifying {} hashes...\n".format(len(hashes)))
+for i, (msg, serialized, hash_64, upp) in enumerate(hashes):
 
     for t in types:
-        send_signing_request(t)
+        r = send_verification_request(t, msg, serialized, hash_64)
+        if not check_verification_response(r, t, msg, serialized, hash_64, upp):
+            failed[t] += 1
 
-    if i % 10 == 0 and i != 0:
+    if (i + 1) % 10 == 0:
         for t in types:
-            print("{} of {} {} signing requests failed.".format(failed[t], i, t))
+            print("{:3} of {} {} verification requests failed.".format(failed[t], (i + 1), t))
+        print()
 
-print(" max. signing duration: {} sec".format(max_dur))
-max_dur = 0
-
-print("\nverifying {} hashes...".format(len(hashes)))
-i = 0
-for t in types:
-    failed[t] = 0
-for msg, hash, upp in hashes:
-    i += 1
-
-    for t in types:
-        send_verification_request(t, msg, hash, upp)
-
-    if i % 10 == 0:
-        for t in types:
-            print("{} of {} {} verification requests failed.".format(failed[t], i, t))
-
-print(" max. verification duration: {} sec".format(max_dur))
+print(" max. verification duration: {} sec\n".format(max_dur))
