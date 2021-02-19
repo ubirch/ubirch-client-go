@@ -6,8 +6,10 @@ import (
 	"testing"
 )
 
+const expectedConfig = `{"devices":null,"secret":"MTIzNDU2Nzg5MDU2Nzg5MA==","env":"","DSN":"","staticKeys":false,"keys":null,"CSR_country":"","CSR_organization":"","TCP_addr":"","TLS":false,"TLSCertFile":"","TLSKeyFile":"","CORS":false,"CORS_origins":null,"debug":false,"logTextFormat":false,"SecretBytes":null,"KeyService":"","IdentityService":"","Niomon":"","VerifyService":""}`
+
 func TestConfig(t *testing.T) {
-	configBytes := []byte(`{"devices":null,"secret":"MTIzNDU2Nzg5MDU2Nzg5MA==","env":"","serverIdentity":{"UUID":"","PubKey":{"ECDSA":"","EdDSA":""}},"DSN":"","staticKeys":false,"keys":null,"CSR_country":"","CSR_organization":"","TCP_addr":"","TLS":false,"TLSCertFile":"","TLSKeyFile":"","CORS":false,"CORS_origins":null,"debug":false,"logTextFormat":false,"SecretBytes":null,"KeyService":"","IdentityService":"","Niomon":"","VerifyService":""}`)
+	configBytes := []byte(expectedConfig)
 
 	config := &Config{}
 
@@ -26,6 +28,8 @@ func TestConfig(t *testing.T) {
 	}
 
 	if !bytes.Equal(configBytes, jsonBytes) {
-		t.Errorf("Failed to serialize config to json: got %s expected %s", jsonBytes, configBytes)
+		t.Errorf("Failed to serialize config to json:\n"+
+			"- expected: %s\n"+
+			"-      got: %s", configBytes, jsonBytes)
 	}
 }
