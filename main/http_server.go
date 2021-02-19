@@ -76,6 +76,14 @@ func getUUID(r *http.Request) (uuid.UUID, error) {
 	return id, nil
 }
 
+func JSONMarshal(v interface{}) ([]byte, error) {
+	buffer := &bytes.Buffer{}
+	encoder := json.NewEncoder(buffer)
+	encoder.SetEscapeHTML(false)
+	err := encoder.Encode(v)
+	return buffer.Bytes(), err
+}
+
 func getSortedCompactJSON(data []byte) ([]byte, error) {
 	var reqDump interface{}
 	var sortedCompactJson bytes.Buffer
@@ -86,7 +94,7 @@ func getSortedCompactJSON(data []byte) ([]byte, error) {
 		return nil, fmt.Errorf("unable to parse request body: %v", err)
 	}
 	// json.Marshal sorts the keys
-	sortedJson, err := json.Marshal(reqDump)
+	sortedJson, err := JSONMarshal(reqDump)
 	if err != nil {
 		return nil, fmt.Errorf("unable to serialize json object: %v", err)
 	}
