@@ -61,7 +61,7 @@ def hash_bytes(serialized: bytes) -> bytes:
 
 
 def to_64(hash_bytes: bytes) -> str:
-    return b2a_base64(hash_bytes).decode().rstrip('\n')
+    return b2a_base64(hash_bytes, newline=False).decode()
 
 
 # generates a random JSON message
