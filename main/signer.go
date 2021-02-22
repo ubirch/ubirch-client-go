@@ -57,11 +57,15 @@ func anchorHash(p *ExtendedProtocol, name string, hash []byte, auth []byte, conf
 	verified, err := p.Verify(conf.Env, respBody)
 	if err != nil {
 		errMsg := fmt.Sprintf("could not verify backend response signature: %v\n"+
-			" backend response: (%d) %q", err, respCode, respBody)
+			" request UPP: %s\n"+
+			" backend response: (%d) %s [%q]",
+			err, hex.EncodeToString(upp), respCode, hex.EncodeToString(respBody), respBody)
 		return HTTPErrorResponse(http.StatusInternalServerError, ""), fmt.Errorf(errMsg)
 	} else if !verified {
 		errMsg := fmt.Sprintf("backend response signature verification failed\n"+
-			" backend response: (%d) %s", respCode, hex.EncodeToString(respBody))
+			" request UPP: %s\n"+
+			" backend response: (%d) %s [%q]",
+			hex.EncodeToString(upp), respCode, hex.EncodeToString(respBody), respBody)
 		return HTTPErrorResponse(http.StatusBadGateway, errMsg), fmt.Errorf(errMsg)
 	}
 	log.Debugf("%s: backend response signature verified", name)
@@ -70,7 +74,9 @@ func anchorHash(p *ExtendedProtocol, name string, hash []byte, auth []byte, conf
 	respUPP, err := ubirch.Decode(respBody)
 	if err != nil {
 		errMsg := fmt.Sprintf("could not decode backend response: %v\n"+
-			" backend response: (%d) %q", err, respCode, respBody)
+			" request UPP: %s\n"+
+			" backend response: (%d) %s [%q]",
+			err, hex.EncodeToString(upp), respCode, hex.EncodeToString(respBody), respBody)
 		return HTTPErrorResponse(http.StatusBadGateway, errMsg), fmt.Errorf(errMsg)
 	}
 
@@ -87,7 +93,9 @@ func anchorHash(p *ExtendedProtocol, name string, hash []byte, auth []byte, conf
 	var httpFailedError error
 	if httpFailed(respCode) {
 		httpFailedError = fmt.Errorf("request to UBIRCH Authentication Service (%s) failed\n"+
-			" backend response: (%d) %s", conf.Niomon, respCode, hex.EncodeToString(respBody))
+			" request UPP: %s\n"+
+			" backend response: (%d) %s",
+			conf.Niomon, hex.EncodeToString(upp), respCode, hex.EncodeToString(respBody))
 	} else {
 		// verify that backend response previous signature matches signature of request UPP
 		chainOK, err := ubirch.CheckChain(upp, respBody)
@@ -96,7 +104,9 @@ func anchorHash(p *ExtendedProtocol, name string, hash []byte, auth []byte, conf
 				log.Errorf("could not verify backend response chain: %v", err)
 			}
 			errMsg := fmt.Sprintf("backend response chain check failed\n"+
-				" backend response: (%d) %s", respCode, hex.EncodeToString(respBody))
+				" request UPP: %s\n"+
+				" backend response: (%d) %s",
+				hex.EncodeToString(upp), respCode, hex.EncodeToString(respBody))
 			return HTTPErrorResponse(http.StatusBadGateway, errMsg), fmt.Errorf(errMsg)
 		}
 		log.Debugf("%s: backend response chain verified", name)
