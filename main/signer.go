@@ -112,11 +112,11 @@ func anchorHash(p *ExtendedProtocol, name string, hash []byte, auth []byte, conf
 		log.Debugf("%s: backend response chain verified", name)
 	}
 
-	response, err := json.Marshal(map[string][]byte{
-		"hash":      hash,
-		"upp":       upp,
-		"requestID": requestID[:],
-		"response":  respBody,
+	response, err := json.Marshal(map[string]string{
+		"hash":      base64.StdEncoding.EncodeToString(hash),
+		"upp":       hex.EncodeToString(upp),
+		"requestID": requestID.String(),
+		"response":  hex.EncodeToString(respBody),
 	})
 	if err != nil {
 		log.Warnf("error serializing extended response: %v", err)
