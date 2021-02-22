@@ -1,6 +1,6 @@
 import hashlib
 import json
-import secrets
+import random
 import sys
 import time
 from binascii import a2b_base64, b2a_base64
@@ -13,7 +13,7 @@ if len(sys.argv) < 3:
     print("python3 ./bombard.py <UUID> <AUTH_TOKEN>")
     sys.exit()
 
-num = 50
+number_of_requests_per_type = 50
 uuid = sys.argv[1]
 auth = sys.argv[2]
 
@@ -61,28 +61,28 @@ def hash_bytes(serialized: bytes) -> bytes:
 
 
 def to_64(hash_bytes: bytes) -> str:
-    return b2a_base64(hash_bytes).decode().rstrip('\n')
+    return b2a_base64(hash_bytes, newline=False).decode()
 
 
 # generates a random JSON message
-def get_random_jsom_message() -> dict:
+def get_random_json_message() -> dict:
     msg = {
         "id": uuid,
         "ts": int(time.time()),
-        "big": secrets.randbits(53),
-        "tpl": (secrets.randbits(32), secrets.randbits(8), secrets.randbits(16), secrets.randbits(4)),
-        "lst": [
-            secrets.choice(symbols),
-            secrets.choice(symbols),
-            secrets.choice(symbols),
-            secrets.choice(symbols)
-        ],
+        "big": random.getrandbits(53),
+        "tpl": (random.getrandbits(32), "".join(random.choices(symbols, k=4)),
+                random.getrandbits(8), "".join(random.choices(symbols, k=8)),
+                random.getrandbits(16), "".join(random.choices(symbols, k=2)),
+                random.getrandbits(4), "".join(random.choices(symbols, k=16))
+                ),
+        "lst": random.choices(symbols, k=8),
         "map": {
-            secrets.choice(symbols): secrets.randbits(4),
-            secrets.choice(symbols): secrets.randbits(16),
-            secrets.choice(symbols): secrets.randbits(8),
-            secrets.choice(symbols): secrets.randbits(32)
-        }
+            random.choice(symbols): random.getrandbits(4),
+            random.choice(symbols): random.getrandbits(16),
+            random.choice(symbols): random.getrandbits(8),
+            random.choice(symbols): random.getrandbits(32)
+        },
+        "str": "".join(random.choices(symbols, k=128))
     }
     return msg
 
@@ -110,7 +110,7 @@ def check_signing_response(r: requests.Response, request_type: str, msg: dict, s
     else:
         if r_map["hash"] != hash_64:
             print("- - - HASH MISMATCH: {}".format(request_type))
-            print("original: {}".format(repr(msg)))
+            print("original: {}".format(json.dumps(msg, ensure_ascii=False)))
             print("rendered: {}".format(serialized.decode()))
             print("hash (go): {}".format(r_map["hash"]))
             print("hash (py): {}\n".format(hash_64))
@@ -177,10 +177,10 @@ def send_verification_request(request_type: str, msg: dict, serialized: bytes, h
     return send_request(url=url, headers=header, data=data)
 
 
-print("\nsigning {} messages...\n".format(num * len(types)))
-for i in range(num):
+print("\nsigning {} messages...\n".format(number_of_requests_per_type * len(types)))
+for i in range(number_of_requests_per_type):
     for t in types:
-        msg = get_random_jsom_message()
+        msg = get_random_json_message()
         serialized = serialize_msg(msg)
         hash_64 = to_64(hash_bytes(serialized))
         r = send_signing_request(t, msg, serialized, hash_64)
