@@ -157,18 +157,18 @@ func verifier(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProto
 				continue
 			}
 
-			upp64 := base64.StdEncoding.EncodeToString(upp)
-			log.Debugf("%s: retrieved UPP: %s", hash64, hex.EncodeToString(upp))
+			upp_hex := hex.EncodeToString(upp)
+			log.Debugf("%s: retrieved UPP: %s", hash64, upp_hex)
 
 			// verify validity of the retrieved UPP locally
 			uid, err := verifyUPP(p, upp, conf.KeyService)
 			if err != nil {
-				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("verification of UPP %s failed! %v", upp64, err))
+				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("verification of UPP %s failed! %v", upp_hex, err))
 				continue
 			}
 
 			headers := map[string][]string{"Content-Type": {"application/json"}}
-			response, err := json.Marshal(map[string]string{"uuid": uid.String(), "hash": hash64, "upp": upp64})
+			response, err := json.Marshal(map[string]string{"uuid": uid.String(), "hash": hash64, "upp": upp_hex})
 			if err != nil {
 				log.Warnf("error serializing extended response: %s", err)
 				headers = map[string][]string{"Content-Type": {"application/octet-stream"}}
