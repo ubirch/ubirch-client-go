@@ -45,7 +45,7 @@ type HTTPMessage struct {
 
 type HTTPResponse struct {
 	Code    int
-	Headers map[string][]string
+	Headers http.Header
 	Content []byte
 }
 
@@ -291,15 +291,4 @@ func (srv *HTTPServer) Serve(ctx context.Context) error {
 		return fmt.Errorf("error starting HTTP service: %v", err)
 	}
 	return nil
-}
-
-func HTTPErrorResponse(code int, message string) HTTPResponse {
-	if message == "" {
-		message = http.StatusText(code)
-	}
-	return HTTPResponse{
-		Code:    code,
-		Headers: map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}},
-		Content: []byte(message),
-	}
 }

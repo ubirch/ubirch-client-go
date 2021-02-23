@@ -153,7 +153,7 @@ func verifier(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProto
 			// retrieve corresponding UPP from the ubirch backend
 			upp, code, err := loadUPP(hash64, conf.VerifyService)
 			if err != nil {
-				msg.Response <- HTTPErrorResponse(code, fmt.Sprintf("verification of hash %s failed! %v", hash64, err))
+				msg.Response <- errorResponse(code, fmt.Sprintf("verification of hash %s failed! %v", hash64, err))
 				continue
 			}
 
@@ -163,7 +163,7 @@ func verifier(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProto
 			// verify validity of the retrieved UPP locally
 			uid, err := verifyUPP(p, upp, conf.KeyService)
 			if err != nil {
-				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("verification of UPP %s failed! %v", upp_hex, err))
+				msg.Response <- errorResponse(http.StatusInternalServerError, fmt.Sprintf("verification of UPP %s failed! %v", upp_hex, err))
 				continue
 			}
 
