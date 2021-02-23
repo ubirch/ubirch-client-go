@@ -55,17 +55,13 @@ func anchorHash(p *ExtendedProtocol, name string, hash []byte, auth []byte, conf
 
 	// verify backend response signature
 	verified, err := p.Verify(conf.Env, respBody)
-	if err != nil {
-		errMsg := fmt.Sprintf("could not verify backend response signature: %v\n"+
-			" request UPP: %s\n"+
-			" backend response: (%d) %s [%q]",
-			err, hex.EncodeToString(upp), respCode, hex.EncodeToString(respBody), respBody)
-		return HTTPErrorResponse(http.StatusInternalServerError, ""), fmt.Errorf(errMsg)
-	} else if !verified {
+	if !verified {
+		if err != nil {
+			log.Errorf("could not verify backend response signature: %v", err)
+		}
 		errMsg := fmt.Sprintf("backend response signature verification failed\n"+
-			" request UPP: %s\n"+
-			" backend response: (%d) %s [%q]",
-			hex.EncodeToString(upp), respCode, hex.EncodeToString(respBody), respBody)
+			" backend response: (%d) %q [%s]",
+			respCode, respBody, hex.EncodeToString(respBody))
 		return HTTPErrorResponse(http.StatusBadGateway, errMsg), fmt.Errorf(errMsg)
 	}
 	log.Debugf("%s: backend response signature verified", name)
@@ -75,8 +71,8 @@ func anchorHash(p *ExtendedProtocol, name string, hash []byte, auth []byte, conf
 	if err != nil {
 		errMsg := fmt.Sprintf("could not decode backend response: %v\n"+
 			" request UPP: %s\n"+
-			" backend response: (%d) %s [%q]",
-			err, hex.EncodeToString(upp), respCode, hex.EncodeToString(respBody), respBody)
+			" backend response: (%d) %q [%s]",
+			err, hex.EncodeToString(upp), respCode, respBody, hex.EncodeToString(respBody))
 		return HTTPErrorResponse(http.StatusBadGateway, errMsg), fmt.Errorf(errMsg)
 	}
 
@@ -103,10 +99,9 @@ func anchorHash(p *ExtendedProtocol, name string, hash []byte, auth []byte, conf
 			if err != nil {
 				log.Errorf("could not verify backend response chain: %v", err)
 			}
-			errMsg := fmt.Sprintf("backend response chain check failed\n"+
-				" request UPP: %s\n"+
-				" backend response: (%d) %s",
-				hex.EncodeToString(upp), respCode, hex.EncodeToString(respBody))
+			errMsg := "backend response chain check failed\n" +
+				fmt.Sprintf(" request UPP: %s\n", hex.EncodeToString(upp)) +
+				fmt.Sprintf(" backend response: (%d) %s", respCode, hex.EncodeToString(respBody))
 			return HTTPErrorResponse(http.StatusBadGateway, errMsg), fmt.Errorf(errMsg)
 		}
 		log.Debugf("%s: backend response chain verified", name)
