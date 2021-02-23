@@ -99,9 +99,10 @@ func anchorHash(p *ExtendedProtocol, name string, hash []byte, auth []byte, conf
 			if err != nil {
 				log.Errorf("could not verify backend response chain: %v", err)
 			}
-			errMsg := "backend response chain check failed\n" +
-				fmt.Sprintf(" request UPP: %s\n", hex.EncodeToString(upp)) +
-				fmt.Sprintf(" backend response: (%d) %s", respCode, hex.EncodeToString(respBody))
+			errMsg := fmt.Sprintf("backend response chain check failed\n"+
+				" request UPP: %s\n"+
+				" backend response: (%d) %s",
+				hex.EncodeToString(upp), respCode, hex.EncodeToString(respBody))
 			return HTTPErrorResponse(http.StatusBadGateway, errMsg), fmt.Errorf(errMsg)
 		}
 		log.Debugf("%s: backend response chain verified", name)
