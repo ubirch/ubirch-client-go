@@ -146,16 +146,18 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 
 			log.Printf("%s: signing hash: %s", name, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
+			// buffer last signature in case sending UPP to backend fails
+			prevSign, found := p.Signatures[msg.ID]
+			if !found {
+				prevSign = make([]byte, 64)
+			}
+
 			resp, err := handleSigningRequest(p, name, msg.Hash[:], msg.Auth)
 			if err != nil {
 				log.Errorf("%s: %v", name, err)
 
 				// reset last signature in protocol context if sending UPP to backend fails to ensure intact chain
-				err = p.LoadContext()
-				if err != nil {
-					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
-					return fmt.Errorf("unable to load last signature for UUID %s: %v", name, err)
-				}
+				p.Signatures[msg.ID] = prevSign
 			} else {
 				// persist last signature after UPP was successfully received in ubirch backend
 				err = p.PersistContext()
