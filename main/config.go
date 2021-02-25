@@ -125,12 +125,12 @@ func (c *Config) Load(configDir string, filename string) error {
 		log.SetFormatter(&log.TextFormatter{FullTimestamp: true, TimestampFormat: "2006-01-02 15:04:05.000 -0700"})
 	}
 
-	err = c.loadDeviceIdentitiesFile(configDir)
+	err = c.loadAuthMap(configDir) // legacy
 	if err != nil {
 		return err
 	}
 
-	err = c.loadAuthMap(configDir) // legacy
+	err = c.loadDeviceIdentitiesFile(configDir)
 	if err != nil {
 		return err
 	}
