@@ -82,9 +82,14 @@ func initDeviceKeys(p *ExtendedProtocol, conf Config) error {
 		// check if device name is a valid UUID
 		uid, err := uuid.Parse(device)
 		if err != nil {
-			return fmt.Errorf("unable to parse device name \"%s\" as UUID: %s", device, err)
+			return fmt.Errorf("invalid device name \"%s\" (not a UUID): %s", device, err)
 		}
 		name := uid.String()
+
+		// make sure device has an auth token
+		if auth == "" {
+			return fmt.Errorf("no auth token found for device \"%s\"", device)
+		}
 
 		// check if there is a known signing key for the UUID
 		if !p.PrivateKeyExists(name) {

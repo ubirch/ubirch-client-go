@@ -41,6 +41,8 @@ const (
 	authEnv  = "UBIRCH_AUTH_MAP" // {UUID: [key, token]} (legacy)
 	authFile = "auth.json"       // {UUID: [key, token]} (legacy)
 
+	identitiesFile = "identities.json" // [{ "uuid": "<uuid>", "password": "<auth>" }]
+
 	defaultTLSCertFile = "cert.pem"
 	defaultTLSKeyFile  = "key.pem"
 )
@@ -95,11 +97,22 @@ func (c *Config) Load(configDir string, filename string) error {
 		log.SetFormatter(&log.TextFormatter{FullTimestamp: true, TimestampFormat: "2006-01-02 15:04:05.000 -0700"})
 	}
 
-	_ = c.loadAuthMap(configDir)
+	err = c.loadAuthMap(configDir) // legacy
+	if err != nil {
+		return err
+	}
+
+	err = c.loadDeviceIdentitiesFile(configDir)
+	if err != nil {
+		return err
+	}
+
 	err = c.checkMandatory()
 	if err != nil {
 		return err
 	}
+
+	// set defaults
 	c.setDefaultCSR()
 	c.setDefaultTLS(configDir)
 	c.setDefaultCORS()
@@ -115,11 +128,14 @@ func (c *Config) loadEnv() error {
 // LoadFile reads the configuration from a json file
 func (c *Config) loadFile(filename string) error {
 	log.Infof("loading configuration from file: %s", filename)
-	contextBytes, err := ioutil.ReadFile(filename)
+
+	fileHandle, err := os.Open(filename)
 	if err != nil {
 		return err
 	}
-	return json.Unmarshal(contextBytes, c)
+	defer fileHandle.Close()
+
+	return json.NewDecoder(fileHandle).Decode(c)
 }
 
 func (c *Config) checkMandatory() error {
@@ -230,7 +246,39 @@ func (c *Config) setDefaultURLs() error {
 	return nil
 }
 
-// loadAuthMap loads the auth map from the environment
+// loadDeviceIdentitiesFile loads device identities from the identities JSON file.
+// Returns without error if file does not exist.
+func (c *Config) loadDeviceIdentitiesFile(configDir string) error {
+	// if file does not exist, return right away
+	if _, err := os.Stat(identitiesFile); os.IsNotExist(err) {
+		return nil
+	}
+
+	fileHandle, err := os.Open(filepath.Join(configDir, identitiesFile))
+	if err != nil {
+		return err
+	}
+	defer fileHandle.Close()
+
+	var identities []map[string]string
+	err = json.NewDecoder(fileHandle).Decode(&identities)
+	if err != nil {
+		return err
+	}
+
+	if c.Devices == nil {
+		c.Devices = make(map[string]string)
+	}
+
+	for _, identity := range identities {
+		c.Devices[identity["uuid"]] = identity["password"]
+	}
+
+	return nil
+}
+
+// loadAuthMap loads the auth map from the environment >> legacy <<
+// Returns without error if neither env variable nor file exists.
 func (c *Config) loadAuthMap(configDir string) error {
 	var err error
 	var authMapBytes []byte
@@ -239,6 +287,10 @@ func (c *Config) loadAuthMap(configDir string) error {
 	if authMap != "" {
 		authMapBytes = []byte(authMap)
 	} else {
+		// if file does not exist, return
+		if _, err := os.Stat(authFile); os.IsNotExist(err) {
+			return nil
+		}
 		authMapBytes, err = ioutil.ReadFile(filepath.Join(configDir, authFile))
 		if err != nil {
 			return err
