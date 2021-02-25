@@ -15,6 +15,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/hex"
@@ -47,6 +48,7 @@ func handleSigningRequest(p *ExtendedProtocol, name string, hash []byte, auth []
 	// decode the backend response UPP and get request ID from payload
 	respUPP, _ := ubirch.Decode(backendResp.Content)
 	requestID, _ := uuid.FromBytes(respUPP.GetPayload()[:16])
+	log.Infof("%s: request ID: %s", name, requestID)
 
 	// check if request was successful
 	var httpFailedError error
@@ -63,12 +65,14 @@ func anchorHash(p *ExtendedProtocol, name string, hash []byte, auth []byte) (upp
 	if err != nil {
 		return nil, HTTPResponse{}, fmt.Errorf("could not create UBIRCH Protocol Package: %v", err)
 	}
+	log.Debugf("%s: UPP: %s", name, hex.EncodeToString(upp))
 
 	// send UPP to ubirch backend
 	respCode, respBody, respHeaders, err := post(serviceURL, upp, niomonHeaders(name, auth))
 	if err != nil {
 		return nil, HTTPResponse{}, fmt.Errorf("could not send request to UBIRCH Authentication Service: %v", err)
 	}
+	log.Debugf("%s: backend response: (%d) %s", name, respCode, hex.EncodeToString(respBody))
 
 	return upp, HTTPResponse{
 		Code:    respCode,
@@ -77,7 +81,24 @@ func anchorHash(p *ExtendedProtocol, name string, hash []byte, auth []byte) (upp
 	}, nil
 }
 
+func hasUPPHeaders(data []byte) bool {
+	var (
+		signedUPPHeader  = []byte{0x95, 0x22}
+		chainedUPPHeader = []byte{0x96, 0x23}
+	)
+
+	if bytes.HasPrefix(data, signedUPPHeader) || bytes.HasPrefix(data, chainedUPPHeader) {
+		return true
+	}
+	return false
+}
+
 func verifyBackendResponse(p *ExtendedProtocol, respBody []byte, respCode int, requUPP []byte) error {
+	// check if backend response can be a UPP
+	if !hasUPPHeaders(respBody) {
+		return fmt.Errorf("invalid backend response: (%d) %q", respCode, respBody)
+	}
+
 	// verify backend response signature
 	if verified, err := p.Verify(env, respBody); !verified {
 		if err != nil {
@@ -144,7 +165,7 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 		case msg := <-msgHandler:
 			name := msg.ID.String()
 
-			log.Printf("%s: signing hash: %s", name, base64.StdEncoding.EncodeToString(msg.Hash[:]))
+			log.Printf("%s: hash: %s", name, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
 			// buffer last signature in case sending UPP to backend fails
 			prevSign, found := p.Signatures[msg.ID]
