@@ -128,11 +128,14 @@ func (c *Config) loadEnv() error {
 // LoadFile reads the configuration from a json file
 func (c *Config) loadFile(filename string) error {
 	log.Infof("loading configuration from file: %s", filename)
-	contextBytes, err := ioutil.ReadFile(filename)
+
+	fileHandle, err := os.Open(filename)
 	if err != nil {
 		return err
 	}
-	return json.Unmarshal(contextBytes, c)
+	defer fileHandle.Close()
+
+	return json.NewDecoder(fileHandle).Decode(c)
 }
 
 func (c *Config) checkMandatory() error {
@@ -251,13 +254,14 @@ func (c *Config) loadDeviceIdentitiesFile(configDir string) error {
 		return nil
 	}
 
-	identitiesBytes, err := ioutil.ReadFile(filepath.Join(configDir, identitiesFile))
+	fileHandle, err := os.Open(filepath.Join(configDir, identitiesFile))
 	if err != nil {
 		return err
 	}
+	defer fileHandle.Close()
 
-	var buffer []map[string]string
-	err = json.Unmarshal(identitiesBytes, &buffer)
+	var identities []map[string]string
+	err = json.NewDecoder(fileHandle).Decode(&identities)
 	if err != nil {
 		return err
 	}
@@ -266,7 +270,7 @@ func (c *Config) loadDeviceIdentitiesFile(configDir string) error {
 		c.Devices = make(map[string]string)
 	}
 
-	for _, identity := range buffer {
+	for _, identity := range identities {
 		c.Devices[identity["uuid"]] = identity["password"]
 	}
 
