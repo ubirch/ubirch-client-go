@@ -82,7 +82,7 @@ func initDeviceKeys(p *ExtendedProtocol, conf Config) error {
 		// check if device name is a valid UUID
 		uid, err := uuid.Parse(device)
 		if err != nil {
-			return fmt.Errorf("unable to parse device name \"%s\" as UUID: %s", device, err)
+			return fmt.Errorf("invalid device name \"%s\" (not a UUID): %s", device, err)
 		}
 		name := uid.String()
 
