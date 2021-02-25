@@ -126,7 +126,8 @@ def check_signing_response(r: requests.Response, request_type: str, msg: dict, s
     return True
 
 
-def send_signing_request(request_type: str, msg: dict, serialized: bytes, hash_64: str) -> requests.Response:
+def send_signing_request(request_type: str, msg: dict, serialized: bytes, hash_64: str,
+                         fail: bool) -> requests.Response:
     if request_type == data_json_type:
         url, header, data = sign_data_url, json_header, json.dumps(msg)
     elif request_type == data_bin_type:
@@ -137,6 +138,10 @@ def send_signing_request(request_type: str, msg: dict, serialized: bytes, hash_6
         url, header, data = sign_hash_url, txt_header, hash_64
     else:
         raise Exception("unknown request type: " + request_type)
+
+    if fail:
+        print("SENDING REQUEST SUPPOSED TO FAIL")
+        return send_request(url=url, headers=header, data=data)
 
     return send_request(url=url, headers={**auth_header, **header}, data=data)
 
@@ -177,13 +182,14 @@ def send_verification_request(request_type: str, msg: dict, serialized: bytes, h
     return send_request(url=url, headers=header, data=data)
 
 
+fail = False
 print("\nsigning {} messages...\n".format(number_of_requests_per_type * len(types)))
 for i in range(number_of_requests_per_type):
     for t in types:
         msg = get_random_json_message()
         serialized = serialize_msg(msg)
         hash_64 = to_64(hash_bytes(serialized))
-        r = send_signing_request(t, msg, serialized, hash_64)
+        r = send_signing_request(t, msg, serialized, hash_64, fail)
         if not check_signing_response(r, t, msg, serialized, hash_64):
             failed[t] += 1
 
@@ -191,6 +197,9 @@ for i in range(number_of_requests_per_type):
         for t in types:
             print("{:3} of {} {} signing requests failed.".format(failed[t], (i + 1), t))
         print()
+        fail = True
+    else:
+        fail = False
 
 print(" max. signing duration: {} sec\n".format(max_dur))
 
