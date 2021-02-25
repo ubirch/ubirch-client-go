@@ -52,7 +52,7 @@ const (
 	authEnv  = "UBIRCH_AUTH_MAP" // {UUID: [key, token]} (legacy)
 	authFile = "auth.json"       // {UUID: [key, token]} (legacy)
 
-	identitiesFile = "identities.json" // [{ "uuid": "e26713ef-1223-42a9-81c5-43d36ec163a3", "password": "<pw>" }]
+	identitiesFile = "identities.json" // [{ "uuid": "<uuid>", "password": "<auth>" }]
 
 	defaultTLSCertFile = "cert.pem"
 	defaultTLSKeyFile  = "key.pem"
@@ -276,11 +276,6 @@ func (c *Config) setDefaultURLs() error {
 
 	return nil
 }
-
-// loadAuthMap loads the auth map from the environment
-func (c *Config) loadAuthMap(configDir string) error {
-	var err error
-	var authMapBytes []byte
 
 // loadDeviceIdentitiesFile loads device identities from the identities JSON file.
 // Returns without error if file does not exist.
