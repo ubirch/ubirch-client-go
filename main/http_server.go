@@ -268,9 +268,9 @@ func (srv *HTTPServer) Serve(ctx context.Context) error {
 	server := &http.Server{
 		Addr:         srv.addr,
 		Handler:      srv.router,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 45 * time.Second,
-		IdleTimeout:  75 * time.Second,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 75 * time.Second,
+		IdleTimeout:  90 * time.Second,
 	}
 
 	go func() {
