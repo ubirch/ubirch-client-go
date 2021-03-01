@@ -200,8 +200,8 @@ func errorResponse(code int, message string) HTTPResponse {
 func extendedResponse(resp HTTPResponse, hash []byte, upp []byte, requestID uuid.UUID) HTTPResponse {
 	extendedResp, err := json.Marshal(map[string]string{
 		"hash":      base64.StdEncoding.EncodeToString(hash),
-		"upp":       hex.EncodeToString(upp),
-		"response":  hex.EncodeToString(resp.Content),
+		"upp":       base64.StdEncoding.EncodeToString(upp),
+		"response":  base64.StdEncoding.EncodeToString(resp.Content),
 		"requestID": requestID.String(),
 	})
 	if err != nil {
