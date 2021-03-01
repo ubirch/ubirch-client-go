@@ -55,6 +55,7 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 			}
 
 			resp, err := handleSigningRequest(p, name, msg.Hash[:], msg.Auth)
+			msg.Response <- resp
 			if err != nil {
 				log.Errorf("%s: %v", name, err)
 
@@ -69,7 +70,6 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 						err, name, base64.StdEncoding.EncodeToString(p.Signatures[msg.ID]))
 				}
 			}
-			msg.Response <- resp
 
 		case <-ctx.Done():
 			log.Println("finishing signer")
