@@ -23,20 +23,21 @@ import (
 )
 
 func setPublicKey(p *ExtendedProtocol, name string, id string, pubKey_64 string) error {
+	log.Debugf("setting verification key \"%s\": %s", name, pubKey_64)
+
 	uid, err := uuid.Parse(id)
 	if err != nil {
-		return err
+		return fmt.Errorf("invalid UUID for verification key \"%s\": %v", name, err)
 	}
 
 	pkey, err := base64.StdEncoding.DecodeString(pubKey_64)
 	if err != nil {
-		return err
+		return fmt.Errorf("decoding verification key \"%s\" failed: %v", name, err)
 	}
 
-	log.Debugf("setting verification key \"%s\": %s", name, base64.StdEncoding.EncodeToString(pkey))
 	err = p.SetPublicKey(name, uid, pkey)
 	if err != nil {
-		return err
+		return fmt.Errorf("setting verification key \"%s\" failed: %v", name, err)
 	}
 
 	return p.PersistContext()
