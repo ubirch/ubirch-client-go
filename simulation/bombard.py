@@ -3,7 +3,7 @@ import json
 import random
 import sys
 import time
-from binascii import a2b_base64, b2a_base64, unhexlify
+from binascii import a2b_base64, b2a_base64
 
 import msgpack
 import requests
@@ -116,7 +116,7 @@ def check_signing_response(r: requests.Response, request_type: str, msg: dict, s
             print("hash (py): {}\n".format(hash_64))
 
         # check chain
-        unpacked = msgpack.unpackb(unhexlify(r_map["upp"]))
+        unpacked = msgpack.unpackb(a2b_base64(r_map["upp"]))
         global prev_sign
         if prev_sign is not None and prev_sign != unpacked[2]:
             print(" - - - PREVIOUS SIGNATURE MISMATCH ! - - - \n")
