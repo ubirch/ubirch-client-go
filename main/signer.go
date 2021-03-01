@@ -65,7 +65,8 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 				err = p.PersistContext()
 				if err != nil {
 					msg.Response <- errorResponse(http.StatusInternalServerError, "")
-					return fmt.Errorf("unable to persist last signature for UUID %s: %v", name, err)
+					return fmt.Errorf("unable to persist last signature: %v [\"%s\": \"%s\"]",
+						err, name, base64.StdEncoding.EncodeToString(p.Signatures[msg.ID]))
 				}
 			}
 			msg.Response <- resp
@@ -103,7 +104,7 @@ func handleSigningRequest(p *ExtendedProtocol, name string, hash []byte, auth []
 	// check if request was successful
 	var httpFailedError error
 	if httpFailed(backendResp.Code) {
-		httpFailedError = fmt.Errorf("request to UBIRCH Authentication Service (%s) failed", serviceURL)
+		httpFailedError = fmt.Errorf("request to UBIRCH Authentication Service (%s) was unsuccessful", serviceURL)
 	}
 
 	return extendedResponse(backendResp, hash, upp, requestID), httpFailedError
