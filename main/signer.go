@@ -29,6 +29,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const lenRequestID = 16
+
 var (
 	env              string
 	serviceURL       string
@@ -85,15 +87,18 @@ func handleSigningRequest(p *ExtendedProtocol, name string, hash []byte, auth []
 	}
 
 	// verify validity of the backend response
-	err = verifyBackendResponse(p, backendResp.Content, backendResp.Code, upp)
+	respUPP, err := verifyBackendResponse(p, backendResp.Content, backendResp.Code, upp)
 	if err != nil {
 		return errorResponse(http.StatusBadGateway, err.Error()), err
 	}
 
-	// decode the backend response UPP and get request ID from payload
-	respUPP, _ := ubirch.Decode(backendResp.Content)
-	requestID, _ := uuid.FromBytes(respUPP.GetPayload()[:16])
-	log.Infof("%s: request ID: %s", name, requestID)
+	// get request ID from backend response
+	requestID, err := getRequestID(respUPP)
+	if err != nil {
+		log.Errorf("could not get request ID from backend response: %v", err)
+	} else {
+		log.Infof("%s: request ID: %s", name, requestID)
+	}
 
 	// check if request was successful
 	var httpFailedError error
@@ -134,10 +139,10 @@ func niomonHeaders(name string, auth []byte) map[string]string {
 	}
 }
 
-func verifyBackendResponse(p *ExtendedProtocol, respBody []byte, respCode int, requUPP []byte) error {
+func verifyBackendResponse(p *ExtendedProtocol, respBody []byte, respCode int, requUPP []byte) (ubirch.UPP, error) {
 	// check if backend response can be a UPP
 	if !hasUPPHeaders(respBody) {
-		return fmt.Errorf("invalid backend response: (%d) %q", respCode, respBody)
+		return nil, fmt.Errorf("invalid backend response: (%d) %q", respCode, respBody)
 	}
 
 	// verify backend response signature
@@ -145,7 +150,14 @@ func verifyBackendResponse(p *ExtendedProtocol, respBody []byte, respCode int, r
 		if err != nil {
 			log.Errorf("could not verify backend response signature: %v", err)
 		}
-		return fmt.Errorf("backend response signature verification failed")
+		return nil, fmt.Errorf("backend response signature verification failed")
+	}
+
+	// decode the backend response UPP
+	respUPP, err := ubirch.Decode(respBody)
+	if err != nil {
+		log.Errorf("decoding backend response failed: %v", err)
+		return nil, fmt.Errorf("invalid backend response UPP")
 	}
 
 	// verify that backend response previous signature matches signature of request UPP
@@ -154,14 +166,23 @@ func verifyBackendResponse(p *ExtendedProtocol, respBody []byte, respCode int, r
 			if err != nil {
 				log.Errorf("could not verify backend response chain: %v", err)
 			}
-			return fmt.Errorf("backend response chain check failed")
+			return nil, fmt.Errorf("backend response chain check failed")
 		}
 	}
-	return nil
+
+	return respUPP, nil
 }
 
 func hasUPPHeaders(data []byte) bool {
 	return bytes.HasPrefix(data, signedUPPHeader) || bytes.HasPrefix(data, chainedUPPHeader)
+}
+
+func getRequestID(respUPP ubirch.UPP) (uuid.UUID, error) {
+	respPayload := respUPP.GetPayload()
+	if len(respPayload) < lenRequestID {
+		return uuid.Nil, fmt.Errorf("response payload does not contain request ID: %q", respPayload)
+	}
+	return uuid.FromBytes(respPayload[:lenRequestID])
 }
 
 func errorResponse(code int, message string) HTTPResponse {
@@ -179,8 +200,8 @@ func extendedResponse(resp HTTPResponse, hash []byte, upp []byte, requestID uuid
 	extendedResp, err := json.Marshal(map[string]string{
 		"hash":      base64.StdEncoding.EncodeToString(hash),
 		"upp":       hex.EncodeToString(upp),
-		"requestID": requestID.String(),
 		"response":  hex.EncodeToString(resp.Content),
+		"requestID": requestID.String(),
 	})
 	if err != nil {
 		log.Warnf("error serializing extended response: %v", err)
