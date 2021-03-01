@@ -81,26 +81,37 @@ func getSignedCertificate(p *ExtendedProtocol, uid uuid.UUID, pubKey []byte) ([]
 // post submits a message to a backend service
 // returns the response status code, body and headers and encountered errors
 func post(url string, data []byte, headers map[string]string) (int, []byte, http.Header, error) {
+	start := time.Now()
 	client := &http.Client{}
+	timeTrack(start, "   post(): &http.Client")
 
+	start = time.Now()
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(data))
+	timeTrack(start, "   post(): NewRequest")
 	if err != nil {
 		return 0, nil, nil, fmt.Errorf("can't make new post request: %v", err)
 	}
-
+	start = time.Now()
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
+	timeTrack(start, "   post(): Set")
 
+	start = time.Now()
 	resp, err := client.Do(req)
 	if err != nil {
 		return 0, nil, nil, err
 	}
+	timeTrack(start, "   post(): Do")
 
 	//noinspection GoUnhandledErrorResult
+	start = time.Now()
 	defer resp.Body.Close()
+	timeTrack(start, "   post(): Close")
 
+	start = time.Now()
 	respBodyBytes, err := ioutil.ReadAll(resp.Body)
+	timeTrack(start, "   post(): ReadAll")
 	return resp.StatusCode, respBodyBytes, resp.Header, err
 }
 

@@ -20,26 +20,39 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/google/uuid"
 	"net/http"
 
+	"github.com/google/uuid"
+
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
+
+	"time"
 
 	log "github.com/sirupsen/logrus"
 )
 
+func timeTrack(start time.Time, name string) {
+	elapsed := time.Since(start)
+	log.Printf("%s took %s", name, elapsed)
+}
+
 // handle incoming messages, create, sign and send a ubirch protocol packet (UPP) to the ubirch backend
 func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtocol, conf Config) error {
+	start := time.Now()
+	start_total := start
 	for {
 		select {
 		case msg := <-msgHandler:
+			start_total = time.Now()
 			uid := msg.ID
 			name := uid.String()
 
 			// create a chained UPP
 			log.Printf("%s: signing hash: %s", name, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
+			start = time.Now()
 			upp, err := p.SignHash(name, msg.Hash[:], ubirch.Chained)
+			timeTrack(start, "SignHash")
 			if err != nil {
 				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("error creating UPP for UUID %s: %v", name, err))
 				continue
@@ -47,11 +60,13 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 			log.Debugf("%s: UPP: %s", name, hex.EncodeToString(upp))
 
 			// send UPP to ubirch backend
+			start = time.Now()
 			respCode, respBody, respHeaders, err := post(conf.Niomon, upp, map[string]string{
 				"x-ubirch-hardware-id": name,
 				"x-ubirch-auth-type":   "ubirch",
 				"x-ubirch-credential":  base64.StdEncoding.EncodeToString(msg.Auth),
 			})
+			timeTrack(start, "post")
 			if err != nil {
 				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("error sending UPP to backend: %v", err))
 				continue
@@ -61,7 +76,9 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 			var requestID uuid.UUID
 
 			// decode the backend response
+			start = time.Now()
 			respUPP, err := ubirch.Decode(respBody)
+			timeTrack(start, "decode")
 			if err != nil {
 				log.Warnf("unable to decode backend response: %v\n backend response was: (%d) %q",
 					err, respCode, respBody)
@@ -106,6 +123,8 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 				respHeaders.Set("Content-Type", "application/json")
 			}
 			msg.Response <- HTTPResponse{Code: respCode, Headers: respHeaders, Content: response}
+
+			timeTrack(start_total, "total_handler")
 
 		case <-ctx.Done():
 			log.Println("finishing signer")

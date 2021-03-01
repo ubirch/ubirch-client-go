@@ -7,15 +7,16 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"flag"
-	log "github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	insecuremathrand "math/rand"
 	"net/http"
 	"os"
 	"strconv"
 	"testing"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 //Flags used for skipping tests which need a reachable running client
