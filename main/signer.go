@@ -104,7 +104,7 @@ func handleSigningRequest(p *ExtendedProtocol, name string, hash []byte, auth []
 	// check if request was successful
 	var httpFailedError error
 	if httpFailed(backendResp.Code) {
-		httpFailedError = fmt.Errorf("request to UBIRCH Authentication Service (%s) was unsuccessful", serviceURL)
+		httpFailedError = fmt.Errorf("request to UBIRCH Authentication Service failed with response status code: %d", backendResp.Code)
 	}
 
 	return extendedResponse(hash, requestUPP, backendResp, requestID), httpFailedError
@@ -126,7 +126,7 @@ func anchorHash(p *ExtendedProtocol, name string, hash []byte, auth []byte) (ubi
 	// send UPP to ubirch backend
 	resp, err := post(serviceURL, uppBytes, niomonHeaders(name, auth))
 	if err != nil {
-		return nil, HTTPResponse{}, fmt.Errorf("could not send request to UBIRCH Authentication Service: %v", err)
+		return nil, HTTPResponse{}, fmt.Errorf("sending request to UBIRCH Authentication Service failed: %v", err)
 	}
 	log.Debugf("%s: backend response: (%d) %s", name, resp.Code, hex.EncodeToString(resp.Content))
 
