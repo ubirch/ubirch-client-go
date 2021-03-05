@@ -82,19 +82,19 @@ func handleSigningRequest(p *ExtendedProtocol, name string, hash []byte, auth []
 	log.Infof("%s: hash: %s", name, base64.StdEncoding.EncodeToString(hash))
 
 	// send a UPP containing the hash to UBIRCH authentication service
-	requestUPP, backendResp, err := anchorHash(p, name, hash, auth)
+	requestUPPStruct, backendResp, err := anchorHash(p, name, hash, auth)
 	if err != nil {
 		return errorResponse(http.StatusInternalServerError, ""), err
 	}
 
 	// verify validity of the backend response
-	responseUPP, err := verifyBackendResponse(p, requestUPP, backendResp)
+	responseUPPStruct, err := verifyBackendResponse(p, requestUPPStruct, backendResp)
 	if err != nil {
 		return errorResponse(http.StatusBadGateway, err.Error()), err
 	}
 
 	// get request ID from backend response
-	requestID, err := getRequestID(responseUPP)
+	requestID, err := getRequestID(responseUPPStruct)
 	if err != nil {
 		log.Errorf("could not get request ID from backend response: %v", err)
 	} else {
@@ -107,7 +107,7 @@ func handleSigningRequest(p *ExtendedProtocol, name string, hash []byte, auth []
 		httpFailedError = fmt.Errorf("request to UBIRCH Authentication Service failed with response status code: %d", backendResp.Code)
 	}
 
-	return extendedResponse(hash, requestUPP, backendResp, requestID), httpFailedError
+	return extendedResponse(hash, requestUPPStruct, backendResp, requestID), httpFailedError
 }
 
 func anchorHash(p *ExtendedProtocol, name string, hash []byte, auth []byte) (ubirch.UPP, HTTPResponse, error) {
@@ -118,7 +118,7 @@ func anchorHash(p *ExtendedProtocol, name string, hash []byte, auth []byte) (ubi
 	}
 	log.Debugf("%s: UPP: %s", name, hex.EncodeToString(uppBytes))
 
-	upp, err := ubirch.Decode(uppBytes)
+	uppStruct, err := ubirch.Decode(uppBytes)
 	if err != nil {
 		return nil, HTTPResponse{}, fmt.Errorf("could not decode created UBIRCH Protocol Package: %v", err)
 	}
@@ -130,7 +130,7 @@ func anchorHash(p *ExtendedProtocol, name string, hash []byte, auth []byte) (ubi
 	}
 	log.Debugf("%s: backend response: (%d) %s", name, resp.Code, hex.EncodeToString(resp.Content))
 
-	return upp, resp, nil
+	return uppStruct, resp, nil
 }
 
 func niomonHeaders(name string, auth []byte) map[string]string {
@@ -141,8 +141,8 @@ func niomonHeaders(name string, auth []byte) map[string]string {
 	}
 }
 
-func verifyBackendResponse(p *ExtendedProtocol, requUPP ubirch.UPP, backendResp HTTPResponse) (ubirch.UPP, error) {
-	// check if backend response can be a UPP
+func verifyBackendResponse(p *ExtendedProtocol, requUPPStruct ubirch.UPP, backendResp HTTPResponse) (ubirch.UPP, error) {
+	// check if backend response is a UPP or something else, like an error message string, for example "Timeout"
 	if !hasUPPHeaders(backendResp.Content) {
 		return nil, fmt.Errorf("invalid backend response: (%d) %q", backendResp.Code, backendResp.Content)
 	}
@@ -156,7 +156,7 @@ func verifyBackendResponse(p *ExtendedProtocol, requUPP ubirch.UPP, backendResp 
 	}
 
 	// decode the backend response UPP
-	respUPP, err := ubirch.Decode(backendResp.Content)
+	respUPPStruct, err := ubirch.Decode(backendResp.Content)
 	if err != nil {
 		log.Errorf("decoding backend response failed: %v", err)
 		return nil, fmt.Errorf("invalid backend response UPP")
@@ -164,7 +164,7 @@ func verifyBackendResponse(p *ExtendedProtocol, requUPP ubirch.UPP, backendResp 
 
 	// verify that backend response previous signature matches signature of request UPP
 	if httpSuccess(backendResp.Code) {
-		if chainOK, err := ubirch.CheckChainLink(requUPP, respUPP); !chainOK {
+		if chainOK, err := ubirch.CheckChainLink(requUPPStruct, respUPPStruct); !chainOK {
 			if err != nil {
 				log.Errorf("could not verify backend response chain: %v", err)
 			}
@@ -172,7 +172,7 @@ func verifyBackendResponse(p *ExtendedProtocol, requUPP ubirch.UPP, backendResp 
 		}
 	}
 
-	return respUPP, nil
+	return respUPPStruct, nil
 }
 
 func hasUPPHeaders(data []byte) bool {
@@ -198,8 +198,8 @@ func errorResponse(code int, message string) HTTPResponse {
 	}
 }
 
-func extendedResponse(hash []byte, upp ubirch.UPP, resp HTTPResponse, requestID uuid.UUID) HTTPResponse {
-	uppBytes, _ := ubirch.Encode(upp)
+func extendedResponse(hash []byte, uppStruct ubirch.UPP, resp HTTPResponse, requestID uuid.UUID) HTTPResponse {
+	uppBytes, _ := ubirch.Encode(uppStruct)
 	extendedResp, err := json.Marshal(map[string]string{
 		"hash":      base64.StdEncoding.EncodeToString(hash),
 		"upp":       base64.StdEncoding.EncodeToString(uppBytes),
