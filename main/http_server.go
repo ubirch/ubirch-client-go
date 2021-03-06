@@ -44,9 +44,9 @@ type HTTPMessage struct {
 }
 
 type HTTPResponse struct {
-	Code    int         `json:"statusCode"`
-	Headers http.Header `json:"headers"`
-	Content []byte      `json:"content"`
+	StatusCode int         `json:"statusCode"`
+	Headers    http.Header `json:"headers"`
+	Content    []byte      `json:"content"`
 }
 
 // wrapper for http.Error that additionally logs the error message to std.Output
@@ -150,7 +150,7 @@ func forwardBackendResponse(w http.ResponseWriter, respChan chan HTTPResponse) {
 	for k, v := range resp.Headers {
 		w.Header().Set(k, v[0])
 	}
-	w.WriteHeader(resp.Code)
+	w.WriteHeader(resp.StatusCode)
 	_, err := w.Write(resp.Content)
 	if err != nil {
 		log.Errorf("unable to write response: %s", err)
