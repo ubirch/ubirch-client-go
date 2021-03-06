@@ -65,7 +65,7 @@ func verifier(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProto
 
 			resp := handleVerificationRequest(p, msg.Hash[:])
 			msg.Response <- resp
-			if httpFailed(resp.Code) {
+			if httpFailed(resp.StatusCode) {
 				log.Errorf("%s", string(resp.Content))
 			}
 
@@ -223,8 +223,8 @@ func getVerificationResponse(respCode int, hash []byte, upp []byte, name string,
 	}
 
 	return HTTPResponse{
-		Code:    respCode,
-		Headers: http.Header{"Content-Type": {"application/json"}},
-		Content: verificationResp,
+		StatusCode: respCode,
+		Headers:    http.Header{"Content-Type": {"application/json"}},
+		Content:    verificationResp,
 	}
 }
