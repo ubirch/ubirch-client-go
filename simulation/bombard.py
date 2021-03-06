@@ -105,7 +105,7 @@ def check_signing_response(r: requests.Response, request_type: str, msg: dict, s
 
     if r.status_code != 200:
         print("signing request failed: {} ".format(r.status_code))
-        print("requestID: {}".format(r_map["requestID"]))
+        print("requestID: {}\n".format(r_map["requestID"]))
         return False
     else:
         if r_map["hash"] != hash_64:
