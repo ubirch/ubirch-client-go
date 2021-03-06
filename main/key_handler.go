@@ -61,10 +61,10 @@ func registerPublicKey(p *ExtendedProtocol, uid uuid.UUID, pubKey []byte, keySer
 	if err != nil {
 		return fmt.Errorf("error sending key registration: %v", err)
 	}
-	if httpFailed(resp.Code) {
-		return fmt.Errorf("request to %s failed: (%d) %q", keyService, resp.Code, resp.Content)
+	if httpFailed(resp.StatusCode) {
+		return fmt.Errorf("request to %s failed: (%d) %q", keyService, resp.StatusCode, resp.Content)
 	}
-	log.Debugf("%s: key registration successful: (%d) %s", uid.String(), resp.Code, string(resp.Content))
+	log.Debugf("%s: key registration successful: (%d) %s", uid.String(), resp.StatusCode, string(resp.Content))
 	return nil
 }
 
@@ -82,10 +82,10 @@ func submitCSR(p *ExtendedProtocol, uid uuid.UUID, subjectCountry string, subjec
 	if err != nil {
 		return fmt.Errorf("error sending CSR: %v", err)
 	}
-	if httpFailed(resp.Code) {
-		return fmt.Errorf("request to %s failed: (%d) %q", identityService, resp.Code, resp.Content)
+	if httpFailed(resp.StatusCode) {
+		return fmt.Errorf("request to %s failed: (%d) %q", identityService, resp.StatusCode, resp.Content)
 	}
-	log.Debugf("%s: CSR submitted: (%d) %s", uid.String(), resp.Code, string(resp.Content))
+	log.Debugf("%s: CSR submitted: (%d) %s", uid.String(), resp.StatusCode, string(resp.Content))
 	return nil
 }
 

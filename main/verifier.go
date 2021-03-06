@@ -174,7 +174,7 @@ func verifier(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProto
 				headers = map[string][]string{"Content-Type": {"application/octet-stream"}}
 				response = upp
 			}
-			msg.Response <- HTTPResponse{Code: code, Headers: headers, Content: response}
+			msg.Response <- HTTPResponse{StatusCode: code, Headers: headers, Content: response}
 
 		case <-ctx.Done():
 			log.Println("finishing verifier")

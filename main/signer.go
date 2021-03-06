@@ -64,7 +64,7 @@ func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtoco
 
 			resp := handleSigningRequest(p, name, msg.Hash[:], msg.Auth)
 			msg.Response <- resp
-			if httpFailed(resp.Code) {
+			if httpFailed(resp.StatusCode) {
 				log.Errorf("%s: %s", name, string(resp.Content))
 
 				// reset previous signature in protocol context to ensure intact chain
@@ -109,7 +109,7 @@ func handleSigningRequest(p *ExtendedProtocol, name string, hash []byte, auth []
 		log.Infof("%s: request ID: %s", name, requestID)
 	}
 
-	return getSigningResponse(backendResp.Code, requestUPPStruct, backendResp, requestID, "")
+	return getSigningResponse(backendResp.StatusCode, requestUPPStruct, backendResp, requestID, "")
 }
 
 func anchorHash(p *ExtendedProtocol, name string, hash []byte, auth []byte) (ubirch.UPP, HTTPResponse, error) {
@@ -130,7 +130,7 @@ func anchorHash(p *ExtendedProtocol, name string, hash []byte, auth []byte) (ubi
 	if err != nil {
 		return nil, HTTPResponse{}, fmt.Errorf("sending request to UBIRCH Authentication Service failed: %v", err)
 	}
-	log.Debugf("%s: backend response: (%d) %s", name, resp.Code, hex.EncodeToString(resp.Content))
+	log.Debugf("%s: backend response: (%d) %s", name, resp.StatusCode, hex.EncodeToString(resp.Content))
 
 	return uppStruct, resp, nil
 }
@@ -146,7 +146,7 @@ func niomonHeaders(name string, auth []byte) map[string]string {
 func verifyBackendResponse(p *ExtendedProtocol, requUPPStruct ubirch.UPP, backendResp HTTPResponse) (ubirch.UPP, error) {
 	// check if backend response is a UPP or something else, like an error message string, for example "Timeout"
 	if !hasUPPHeaders(backendResp.Content) {
-		return nil, fmt.Errorf("unexpected backend response: (%d) %q", backendResp.Code, backendResp.Content)
+		return nil, fmt.Errorf("unexpected backend response: (%d) %q", backendResp.StatusCode, backendResp.Content)
 	}
 
 	// verify backend response signature
@@ -165,7 +165,7 @@ func verifyBackendResponse(p *ExtendedProtocol, requUPPStruct ubirch.UPP, backen
 	}
 
 	// verify that backend response previous signature matches signature of request UPP
-	if httpSuccess(backendResp.Code) {
+	if httpSuccess(backendResp.StatusCode) {
 		if chainOK, err := ubirch.CheckChainLink(requUPPStruct, respUPPStruct); !chainOK {
 			if err != nil {
 				log.Errorf("could not verify backend response chain: %v", err)
@@ -198,9 +198,9 @@ func errorResponse(code int, message string) HTTPResponse {
 		message = http.StatusText(code)
 	}
 	return HTTPResponse{
-		Code:    code,
-		Headers: http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
-		Content: []byte(message),
+		StatusCode: code,
+		Headers:    http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
+		Content:    []byte(message),
 	}
 }
 
@@ -222,8 +222,8 @@ func getSigningResponse(respCode int, uppStruct ubirch.UPP, backendResp HTTPResp
 	}
 
 	return HTTPResponse{
-		Code:    respCode,
-		Headers: http.Header{"Content-Type": {"application/json"}},
-		Content: signingResp,
+		StatusCode: respCode,
+		Headers:    http.Header{"Content-Type": {"application/json"}},
+		Content:    signingResp,
 	}
 }
