@@ -44,9 +44,9 @@ type HTTPMessage struct {
 }
 
 type HTTPResponse struct {
-	Code    int
-	Headers http.Header
-	Content []byte
+	Code    int         `json:"statusCode"`
+	Headers http.Header `json:"headers"`
+	Content []byte      `json:"content"`
 }
 
 // wrapper for http.Error that additionally logs the error message to std.Output
@@ -217,7 +217,7 @@ func (endpnt *ServerEndpoint) handleRequestOriginalData(w http.ResponseWriter, r
 	endpnt.handleRequest(w, r, false)
 }
 
-func (endpnt *ServerEndpoint) handleOptions(writer http.ResponseWriter, request *http.Request) {
+func (endpnt *ServerEndpoint) handleOptions(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
