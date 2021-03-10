@@ -92,7 +92,7 @@ func verifyUPP(p *ExtendedProtocol, upp []byte, keyService string) (uuid.UUID, e
 	}
 	log.Debugf("verifying validity of UPP signature using pubkey %s of identity %s", base64.StdEncoding.EncodeToString(pubkey), name)
 
-	verified, err := p.Verify(name, upp, ubirch.Chained)
+	verified, err := p.Verify(name, upp)
 	if err != nil {
 		return id, err
 	}
