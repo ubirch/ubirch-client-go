@@ -44,9 +44,9 @@ type HTTPMessage struct {
 }
 
 type HTTPResponse struct {
-	Code    int
-	Headers map[string][]string
-	Content []byte
+	Code    int         `json:"statusCode"`
+	Headers http.Header `json:"headers"`
+	Content []byte      `json:"content"`
 }
 
 // wrapper for http.Error that additionally logs the error message to std.Output
@@ -318,7 +318,7 @@ func HTTPErrorResponse(code int, message string) HTTPResponse {
 	log.Error(message)
 	return HTTPResponse{
 		Code:    code,
-		Headers: map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}},
+		Headers: http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
 		Content: []byte(message),
 	}
 }
