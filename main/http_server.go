@@ -30,34 +30,87 @@ const (
 type Sha256Sum [HashLen]byte
 
 type ServerEndpoint struct {
-	Path    string
-	Service Service
-}
-
-type Service interface {
-	handleRequest(w http.ResponseWriter, r *http.Request, isHash bool)
-}
-
-type AnchoringService struct {
-	Signer
-	AuthTokens map[string]string
-}
-
-type VerificationService struct {
-	Verifier
+	Path         string
+	Service      Service
+	RequiresAuth bool
+	AuthTokens   map[string]string
 }
 
 type HTTPMessage struct {
-	ID       uuid.UUID
-	Auth     []byte
-	Hash     Sha256Sum
-	Response chan HTTPResponse
+	ID        uuid.UUID
+	Auth      []byte
+	Hash      Sha256Sum
+	Operation operation
+	Response  chan HTTPResponse
 }
 
 type HTTPResponse struct {
 	Code    int         `json:"statusCode"`
 	Headers http.Header `json:"headers"`
 	Content []byte      `json:"content"`
+}
+
+type Service interface {
+	handleRequest(w http.ResponseWriter, msg HTTPMessage)
+}
+
+type AnchoringService struct {
+	Signer
+}
+
+type DeletingService struct {
+	Signer
+}
+
+type EnablingService struct {
+	Signer
+}
+
+type DisablingService struct {
+	Signer
+}
+
+type VerificationService struct {
+	Verifier
+}
+
+func (service *AnchoringService) handleRequest(w http.ResponseWriter, msg HTTPMessage) {
+	msg.Operation = anchorHash
+
+	// create HTTPMessage with individual response channel for each request
+	msg.Response = make(chan HTTPResponse)
+
+	// submit message for signing
+	service.MessageHandler <- msg
+
+	// wait for response from ubirch backend to be forwarded
+	sendResponseChannel(w, msg.Response)
+}
+
+func (service *DeletingService) handleRequest(w http.ResponseWriter, msg HTTPMessage) {
+	msg.Operation = deleteHash
+
+	resp := service.handleSigningRequest(msg)
+	sendResponse(w, resp)
+}
+
+func (service *EnablingService) handleRequest(w http.ResponseWriter, msg HTTPMessage) {
+	msg.Operation = enableHash
+
+	resp := service.handleSigningRequest(msg)
+	sendResponse(w, resp)
+}
+
+func (service *DisablingService) handleRequest(w http.ResponseWriter, msg HTTPMessage) {
+	msg.Operation = disableHash
+
+	resp := service.handleSigningRequest(msg)
+	sendResponse(w, resp)
+}
+
+func (service *VerificationService) handleRequest(w http.ResponseWriter, msg HTTPMessage) {
+	resp := service.verifyHash(msg.Hash[:])
+	sendResponse(w, resp)
 }
 
 // wrapper for http.Error that additionally logs the error message to std.Output
@@ -189,9 +242,9 @@ func sendResponse(w http.ResponseWriter, resp HTTPResponse) {
 
 // check if auth token from request header is correct.
 // Returns error if UUID is unknown or auth token does not match.
-func (service *AnchoringService) checkAuth(r *http.Request, id uuid.UUID) ([]byte, error) {
+func (endpnt *ServerEndpoint) checkAuth(r *http.Request, id uuid.UUID) ([]byte, error) {
 	// check if UUID is known
-	idAuthToken, exists := service.AuthTokens[id.String()]
+	idAuthToken, exists := endpnt.AuthTokens[id.String()]
 	if !exists || idAuthToken == "" {
 		return nil, fmt.Errorf("unknown UUID \"%s\"", id)
 	}
@@ -205,55 +258,45 @@ func (service *AnchoringService) checkAuth(r *http.Request, id uuid.UUID) ([]byt
 	return []byte(headerAuthToken), nil
 }
 
-func (service *AnchoringService) handleRequest(w http.ResponseWriter, r *http.Request, isHash bool) {
-	var msg HTTPMessage
-	var err error
-
-	msg.ID, err = getUUID(r)
-	if err != nil {
-		Error(w, err, http.StatusNotFound)
-		return
-	}
-
-	msg.Auth, err = service.checkAuth(r, msg.ID)
-	if err != nil {
-		Error(w, err, http.StatusUnauthorized)
-		return
+func (endpnt *ServerEndpoint) getMsgFromRequest(w http.ResponseWriter, r *http.Request, isHash bool) (msg HTTPMessage, err error) {
+	if endpnt.RequiresAuth {
+		msg.ID, err = getUUID(r)
+		if err != nil {
+			Error(w, err, http.StatusNotFound)
+			return msg, err
+		}
+		msg.Auth, err = endpnt.checkAuth(r, msg.ID)
+		if err != nil {
+			Error(w, err, http.StatusUnauthorized)
+			return msg, err
+		}
 	}
 
 	msg.Hash, err = getHash(r, isHash)
 	if err != nil {
 		Error(w, err, http.StatusBadRequest)
-		return
+		return msg, err
 	}
 
-	// create HTTPMessage with individual response channel for each request
-	msg.Response = make(chan HTTPResponse)
-
-	// submit message for signing
-	service.MessageHandler <- msg
-
-	// wait for response from ubirch backend to be forwarded
-	sendResponseChannel(w, msg.Response)
-}
-
-func (service *VerificationService) handleRequest(w http.ResponseWriter, r *http.Request, isHash bool) {
-	hash, err := getHash(r, isHash)
-	if err != nil {
-		Error(w, err, http.StatusBadRequest)
-		return
-	}
-
-	resp := service.verifyHash(hash[:])
-	sendResponse(w, resp)
+	return msg, nil
 }
 
 func (endpnt *ServerEndpoint) handleRequestHash(w http.ResponseWriter, r *http.Request) {
-	endpnt.Service.handleRequest(w, r, true)
+	msg, err := endpnt.getMsgFromRequest(w, r, true)
+	if err != nil {
+		return
+	}
+
+	endpnt.Service.handleRequest(w, msg)
 }
 
 func (endpnt *ServerEndpoint) handleRequestOriginalData(w http.ResponseWriter, r *http.Request) {
-	endpnt.Service.handleRequest(w, r, false)
+	msg, err := endpnt.getMsgFromRequest(w, r, false)
+	if err != nil {
+		return
+	}
+
+	endpnt.Service.handleRequest(w, msg)
 }
 
 func (endpnt *ServerEndpoint) handleOptions(w http.ResponseWriter, r *http.Request) {

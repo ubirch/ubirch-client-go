@@ -117,11 +117,34 @@ func main() {
 
 	// set up anchoring endpoint
 	httpServer.AddEndpoint(ServerEndpoint{
-		Path: fmt.Sprintf("/{%s}", UUIDKey),
-		Service: &AnchoringService{
-			Signer:     s,
-			AuthTokens: conf.Devices,
-		},
+		Path:         fmt.Sprintf("/{%s}", UUIDKey),
+		Service:      &AnchoringService{s},
+		RequiresAuth: true,
+		AuthTokens:   conf.Devices,
+	})
+
+	// set up deleting endpoint
+	httpServer.AddEndpoint(ServerEndpoint{
+		Path:         fmt.Sprintf("/{%s}/delete", UUIDKey),
+		Service:      &DeletingService{s},
+		RequiresAuth: true,
+		AuthTokens:   conf.Devices,
+	})
+
+	// set up enabling endpoint
+	httpServer.AddEndpoint(ServerEndpoint{
+		Path:         fmt.Sprintf("/{%s}/enable", UUIDKey),
+		Service:      &EnablingService{s},
+		RequiresAuth: true,
+		AuthTokens:   conf.Devices,
+	})
+
+	// set up disabling endpoint
+	httpServer.AddEndpoint(ServerEndpoint{
+		Path:         fmt.Sprintf("/{%s}/disable", UUIDKey),
+		Service:      &DisablingService{s},
+		RequiresAuth: true,
+		AuthTokens:   conf.Devices,
 	})
 
 	// set up verification endpoint
@@ -133,10 +156,8 @@ func main() {
 	}
 
 	httpServer.AddEndpoint(ServerEndpoint{
-		Path: "/verify",
-		Service: &VerificationService{
-			Verifier: v,
-		},
+		Path:    "/verify",
+		Service: &VerificationService{v},
 	})
 
 	// start HTTP server
