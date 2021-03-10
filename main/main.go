@@ -103,32 +103,40 @@ func main() {
 		httpServer.SetUpCORS(conf.CORS_Origins, conf.Debug)
 	}
 
-	// listen to messages to sign via http
-	httpSrvSign := ServerEndpoint{
-		Path:           fmt.Sprintf("/{%s}", UUIDKey),
+	// set up signer
+	s := Signer{
+		protocol:       &p,
+		env:            conf.Env,
+		authServiceURL: conf.Niomon,
 		MessageHandler: make(chan HTTPMessage, 100),
-		RequiresAuth:   true,
-		AuthTokens:     conf.Devices,
 	}
-	httpServer.AddEndpoint(httpSrvSign)
 
-	// listen to messages to verify via http
-	httpSrvVerify := ServerEndpoint{
-		Path:           "/verify",
-		MessageHandler: make(chan HTTPMessage, 100),
-		RequiresAuth:   false,
-		AuthTokens:     nil,
-	}
-	httpServer.AddEndpoint(httpSrvVerify)
-
-	// start signer
 	g.Go(func() error {
-		return signer(ctx, httpSrvSign.MessageHandler, &p, conf)
+		return signer(ctx, &s)
 	})
 
-	// start verifier
-	g.Go(func() error {
-		return verifier(ctx, httpSrvVerify.MessageHandler, &p, conf)
+	// set up anchoring endpoint
+	httpServer.AddEndpoint(ServerEndpoint{
+		Path: fmt.Sprintf("/{%s}", UUIDKey),
+		Service: &AnchoringService{
+			Signer:     s,
+			AuthTokens: conf.Devices,
+		},
+	})
+
+	// set up verification endpoint
+	v := Verifier{
+		protocol:                      &p,
+		verifyServiceURL:              conf.VerifyService,
+		keyServiceURL:                 conf.KeyService,
+		verifyFromKnownIdentitiesOnly: false,
+	}
+
+	httpServer.AddEndpoint(ServerEndpoint{
+		Path: "/verify",
+		Service: &VerificationService{
+			Verifier: v,
+		},
 	})
 
 	// start HTTP server
@@ -137,12 +145,12 @@ func main() {
 	})
 
 	//wait until all function calls from the Go method have returned
-	if err = waitUntilDone(g, p); err != nil {
+	if err = waitUntilDone(g, &p); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func waitUntilDone(g *errgroup.Group, p ExtendedProtocol) error {
+func waitUntilDone(g *errgroup.Group, p *ExtendedProtocol) error {
 	groupErr := g.Wait()
 
 	if err := p.Deinit(); err != nil {

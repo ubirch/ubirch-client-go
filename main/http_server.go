@@ -30,10 +30,21 @@ const (
 type Sha256Sum [HashLen]byte
 
 type ServerEndpoint struct {
-	Path           string
-	MessageHandler chan HTTPMessage
-	RequiresAuth   bool
-	AuthTokens     map[string]string
+	Path    string
+	Service Service
+}
+
+type Service interface {
+	handleRequest(w http.ResponseWriter, r *http.Request, isHash bool)
+}
+
+type AnchoringService struct {
+	Signer
+	AuthTokens map[string]string
+}
+
+type VerificationService struct {
+	Verifier
 }
 
 type HTTPMessage struct {
@@ -178,9 +189,9 @@ func sendResponse(w http.ResponseWriter, resp HTTPResponse) {
 
 // check if auth token from request header is correct.
 // Returns error if UUID is unknown or auth token does not match.
-func (endpnt *ServerEndpoint) checkAuth(r *http.Request, id uuid.UUID) ([]byte, error) {
+func (service *AnchoringService) checkAuth(r *http.Request, id uuid.UUID) ([]byte, error) {
 	// check if UUID is known
-	idAuthToken, exists := endpnt.AuthTokens[id.String()]
+	idAuthToken, exists := service.AuthTokens[id.String()]
 	if !exists || idAuthToken == "" {
 		return nil, fmt.Errorf("unknown UUID \"%s\"", id)
 	}
@@ -194,21 +205,20 @@ func (endpnt *ServerEndpoint) checkAuth(r *http.Request, id uuid.UUID) ([]byte, 
 	return []byte(headerAuthToken), nil
 }
 
-func (endpnt *ServerEndpoint) handleRequest(w http.ResponseWriter, r *http.Request, isHash bool) {
+func (service *AnchoringService) handleRequest(w http.ResponseWriter, r *http.Request, isHash bool) {
 	var msg HTTPMessage
 	var err error
 
-	if endpnt.RequiresAuth {
-		msg.ID, err = getUUID(r)
-		if err != nil {
-			Error(w, err, http.StatusNotFound)
-			return
-		}
-		msg.Auth, err = endpnt.checkAuth(r, msg.ID)
-		if err != nil {
-			Error(w, err, http.StatusUnauthorized)
-			return
-		}
+	msg.ID, err = getUUID(r)
+	if err != nil {
+		Error(w, err, http.StatusNotFound)
+		return
+	}
+
+	msg.Auth, err = service.checkAuth(r, msg.ID)
+	if err != nil {
+		Error(w, err, http.StatusUnauthorized)
+		return
 	}
 
 	msg.Hash, err = getHash(r, isHash)
@@ -221,21 +231,32 @@ func (endpnt *ServerEndpoint) handleRequest(w http.ResponseWriter, r *http.Reque
 	msg.Response = make(chan HTTPResponse)
 
 	// submit message for signing
-	endpnt.MessageHandler <- msg
+	service.MessageHandler <- msg
 
 	// wait for response from ubirch backend to be forwarded
 	sendResponseChannel(w, msg.Response)
 }
 
+func (service *VerificationService) handleRequest(w http.ResponseWriter, r *http.Request, isHash bool) {
+	hash, err := getHash(r, isHash)
+	if err != nil {
+		Error(w, err, http.StatusBadRequest)
+		return
+	}
+
+	resp := service.verifyHash(hash[:])
+	sendResponse(w, resp)
+}
+
 func (endpnt *ServerEndpoint) handleRequestHash(w http.ResponseWriter, r *http.Request) {
-	endpnt.handleRequest(w, r, true)
+	endpnt.Service.handleRequest(w, r, true)
 }
 
 func (endpnt *ServerEndpoint) handleRequestOriginalData(w http.ResponseWriter, r *http.Request) {
-	endpnt.handleRequest(w, r, false)
+	endpnt.Service.handleRequest(w, r, false)
 }
 
-func (endpnt *ServerEndpoint) handleOptions(writer http.ResponseWriter, request *http.Request) {
+func (endpnt *ServerEndpoint) handleOptions(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
