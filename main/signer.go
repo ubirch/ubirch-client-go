@@ -28,7 +28,16 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const lenRequestID = 16
+type operation ubirch.Hint
+
+const (
+	anchorHash  = operation(ubirch.Binary)
+	deleteHash  = operation(ubirch.Delete)
+	enableHash  = operation(ubirch.Enable)
+	disableHash = operation(ubirch.Disable)
+
+	lenRequestID = 16
+)
 
 type signingResponse struct {
 	Error     string       `json:"error,omitempty"`
@@ -87,7 +96,22 @@ func (s *Signer) handleSigningRequest(msg HTTPMessage) HTTPResponse {
 	auth := msg.Auth
 
 	// create and sign a UPP containing the hash
-	upp, err := s.anchorHash(name, hash)
+	var upp []byte
+	var err error
+
+	switch msg.Operation {
+	case anchorHash:
+		upp, err = s.anchorHash(name, hash)
+	case deleteHash:
+		upp, err = s.deleteHash(name, hash)
+	case enableHash:
+		upp, err = s.enableHash(name, hash)
+	case disableHash:
+		upp, err = s.disableHash(name, hash)
+	default:
+		err = fmt.Errorf("unsupported operation: 0x%02x", msg.Operation)
+	}
+
 	if err != nil {
 		log.Errorf("%s: %s", name, fmt.Errorf("could not create UBIRCH Protocol Package: %v", err))
 		return HTTPErrorResponse(http.StatusInternalServerError, "")
@@ -123,6 +147,24 @@ func (s *Signer) anchorHash(name string, hash []byte) ([]byte, error) {
 	log.Infof("%s: anchoring hash: %s", name, base64.StdEncoding.EncodeToString(hash))
 
 	return s.protocol.SignHash(name, hash, ubirch.Chained)
+}
+
+func (s *Signer) deleteHash(name string, hash []byte) ([]byte, error) {
+	log.Infof("%s: deleting hash: %s", name, base64.StdEncoding.EncodeToString(hash))
+
+	return s.protocol.SignHashExtended(name, hash, ubirch.Signed, ubirch.Delete)
+}
+
+func (s *Signer) enableHash(name string, hash []byte) ([]byte, error) {
+	log.Infof("%s: enabling hash: %s", name, base64.StdEncoding.EncodeToString(hash))
+
+	return s.protocol.SignHashExtended(name, hash, ubirch.Signed, ubirch.Enable)
+}
+
+func (s *Signer) disableHash(name string, hash []byte) ([]byte, error) {
+	log.Infof("%s: disabling hash: %s", name, base64.StdEncoding.EncodeToString(hash))
+
+	return s.protocol.SignHashExtended(name, hash, ubirch.Signed, ubirch.Disable)
 }
 
 func niomonHeaders(name string, auth []byte) map[string]string {
