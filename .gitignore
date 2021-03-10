@@ -31,4 +31,6 @@ main/main
 
 /venv/
 /main/config.json
+/main/protocol.json
+/main/identities.json
 /main/test_config.json
