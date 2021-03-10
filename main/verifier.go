@@ -222,7 +222,6 @@ func getVerificationResponse(respCode int, hash []byte, upp []byte, name string,
 		log.Warnf("error serializing response: %v", err)
 	}
 
-
 	return HTTPResponse{
 		StatusCode: respCode,
 		Headers:    http.Header{"Content-Type": {"application/json"}},
