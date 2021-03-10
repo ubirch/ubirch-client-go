@@ -28,19 +28,20 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type operation ubirch.Hint
+type operation string
 
 const (
-	anchorHash  = operation(ubirch.Binary)
-	deleteHash  = operation(ubirch.Delete)
-	enableHash  = operation(ubirch.Enable)
-	disableHash = operation(ubirch.Disable)
+	anchorHash  operation = "anchor"
+	deleteHash  operation = "delete"
+	enableHash  operation = "enable"
+	disableHash operation = "disable"
 
 	lenRequestID = 16
 )
 
 type signingResponse struct {
 	Error     string       `json:"error,omitempty"`
+	Operation operation    `json:"operation,omitempty"`
 	Hash      []byte       `json:"hash,omitempty"`
 	UPP       []byte       `json:"upp,omitempty"`
 	Response  HTTPResponse `json:"response,omitempty"`
@@ -140,7 +141,7 @@ func (s *Signer) handleSigningRequest(msg HTTPMessage) HTTPResponse {
 		}
 	}
 
-	return getSigningResponse(backendResp.Code, hash, upp, backendResp, requestID, "")
+	return getSigningResponse(backendResp.Code, msg, upp, backendResp, requestID, "")
 }
 
 func (s *Signer) anchorHash(name string, hash []byte) ([]byte, error) {
@@ -187,17 +188,13 @@ func getRequestID(respUPP ubirch.UPP) (string, error) {
 	return requestID.String(), nil
 }
 
-func getSigningResponse(respCode int, hash []byte, uppBytes []byte, backendResp HTTPResponse, requestID string, errMsg string) HTTPResponse {
-	uppStruct, err := ubirch.Decode(uppBytes)
-	if err != nil {
-		log.Warnf("error decoding UPP: %v", err)
-	}
-
+func getSigningResponse(respCode int, msg HTTPMessage, uppBytes []byte, backendResp HTTPResponse, requestID string, errMsg string) HTTPResponse {
 	signingResp, err := json.Marshal(signingResponse{
-		Hash:      hash,
+		Hash:      msg.Hash[:],
 		UPP:       uppBytes,
 		Response:  backendResp,
 		RequestID: requestID,
+		Operation: msg.Operation,
 		Error:     errMsg,
 	})
 	if err != nil {
@@ -205,7 +202,7 @@ func getSigningResponse(respCode int, hash []byte, uppBytes []byte, backendResp 
 	}
 
 	if httpFailed(respCode) {
-		log.Errorf("%s: %s", uppStruct.GetUuid(), string(signingResp))
+		log.Errorf("%s: %s", msg.ID, string(signingResp))
 	}
 
 	return HTTPResponse{
