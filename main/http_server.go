@@ -374,15 +374,3 @@ func (srv *HTTPServer) Serve(ctx context.Context) error {
 	}
 	return nil
 }
-
-func HTTPErrorResponse(code int, message string) HTTPResponse {
-	if message == "" {
-		message = http.StatusText(code)
-	}
-	log.Error(message)
-	return HTTPResponse{
-		StatusCode: code,
-		Headers:    http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
-		Content:    []byte(message),
-	}
-}

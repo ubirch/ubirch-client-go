@@ -60,7 +60,7 @@ func (v *Verifier) verifyHash(hash []byte) HTTPResponse {
 	code, upp, err := v.loadUPP(hash)
 	if err != nil {
 		log.Error(err)
-		return HTTPErrorResponse(code, err.Error())
+		return getErrorResponse(code, err.Error())
 	}
 	log.Debugf("retrieved UPP %s", hex.EncodeToString(upp))
 

@@ -78,7 +78,7 @@ func signer(ctx context.Context, s *Signer) error {
 				// persist last signature after UPP was successfully received in ubirch backend
 				err := s.protocol.PersistContext()
 				if err != nil {
-					msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
+					msg.Response <- getErrorResponse(http.StatusInternalServerError, "")
 					return fmt.Errorf("unable to persist last signature: %v [\"%s\": \"%s\"]",
 						err, msg.ID.String(), base64.StdEncoding.EncodeToString(s.protocol.Signatures[msg.ID]))
 				}
@@ -115,7 +115,7 @@ func (s *Signer) handleSigningRequest(msg HTTPMessage) HTTPResponse {
 
 	if err != nil {
 		log.Errorf("%s: %s", name, fmt.Errorf("could not create UBIRCH Protocol Package: %v", err))
-		return HTTPErrorResponse(http.StatusInternalServerError, "")
+		return getErrorResponse(http.StatusInternalServerError, "")
 	}
 	log.Debugf("%s: UPP: %s", name, hex.EncodeToString(upp))
 
@@ -123,7 +123,7 @@ func (s *Signer) handleSigningRequest(msg HTTPMessage) HTTPResponse {
 	backendResp, err := post(s.authServiceURL, upp, niomonHeaders(name, auth))
 	if err != nil {
 		log.Errorf("%s: %s", name, fmt.Errorf("sending request to UBIRCH Authentication Service failed: %v", err))
-		return HTTPErrorResponse(http.StatusInternalServerError, "")
+		return getErrorResponse(http.StatusInternalServerError, "")
 	}
 	log.Debugf("%s: backend response: (%d) %s", name, backendResp.StatusCode, hex.EncodeToString(backendResp.Content))
 
@@ -186,6 +186,18 @@ func getRequestID(respUPP ubirch.UPP) (string, error) {
 		return "n/a", err
 	}
 	return requestID.String(), nil
+}
+
+func getErrorResponse(code int, message string) HTTPResponse {
+	if message == "" {
+		message = http.StatusText(code)
+	}
+	log.Error(message)
+	return HTTPResponse{
+		StatusCode: code,
+		Headers:    http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
+		Content:    []byte(message),
+	}
 }
 
 func getSigningResponse(respCode int, msg HTTPMessage, uppBytes []byte, backendResp HTTPResponse, requestID string, errMsg string) HTTPResponse {
