@@ -69,7 +69,7 @@ func signer(ctx context.Context, s *Signer) error {
 
 			resp := s.handleSigningRequest(msg)
 			msg.Response <- resp
-			if httpFailed(resp.Code) {
+			if httpFailed(resp.StatusCode) {
 				log.Errorf("%s: %s", msg.ID, string(resp.Content))
 
 				// reset previous signature in protocol context to ensure intact chain
@@ -125,13 +125,13 @@ func (s *Signer) handleSigningRequest(msg HTTPMessage) HTTPResponse {
 		log.Errorf("%s: %s", name, fmt.Errorf("sending request to UBIRCH Authentication Service failed: %v", err))
 		return HTTPErrorResponse(http.StatusInternalServerError, "")
 	}
-	log.Debugf("%s: backend response: (%d) %s", name, backendResp.Code, hex.EncodeToString(backendResp.Content))
+	log.Debugf("%s: backend response: (%d) %s", name, backendResp.StatusCode, hex.EncodeToString(backendResp.Content))
 
 	// decode the backend response UPP and get request ID
 	var requestID string
 	responseUPPStruct, err := ubirch.Decode(backendResp.Content)
 	if err != nil {
-		log.Warnf("decoding backend response failed: %v, backend response: (%d) %q", err, backendResp.Code, backendResp.Content)
+		log.Warnf("decoding backend response failed: %v, backend response: (%d) %q", err, backendResp.StatusCode, backendResp.Content)
 	} else {
 		requestID, err = getRequestID(responseUPPStruct)
 		if err != nil {
@@ -141,7 +141,7 @@ func (s *Signer) handleSigningRequest(msg HTTPMessage) HTTPResponse {
 		}
 	}
 
-	return getSigningResponse(backendResp.Code, msg, upp, backendResp, requestID, "")
+	return getSigningResponse(backendResp.StatusCode, msg, upp, backendResp, requestID, "")
 }
 
 func (s *Signer) anchorHash(name string, hash []byte) ([]byte, error) {
@@ -206,8 +206,8 @@ func getSigningResponse(respCode int, msg HTTPMessage, uppBytes []byte, backendR
 	}
 
 	return HTTPResponse{
-		Code:    respCode,
-		Headers: http.Header{"Content-Type": {"application/json"}},
-		Content: signingResp,
+		StatusCode: respCode,
+		Headers:    http.Header{"Content-Type": {"application/json"}},
+		Content:    signingResp,
 	}
 }

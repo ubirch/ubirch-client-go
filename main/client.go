@@ -102,9 +102,9 @@ func post(url string, data []byte, headers map[string]string) (HTTPResponse, err
 
 	respBodyBytes, err := ioutil.ReadAll(resp.Body)
 	return HTTPResponse{
-		Code:    resp.StatusCode,
-		Headers: resp.Header,
-		Content: respBodyBytes,
+		StatusCode: resp.StatusCode,
+		Headers:    resp.Header,
+		Content:    respBodyBytes,
 	}, err
 }
 

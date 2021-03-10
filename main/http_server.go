@@ -45,9 +45,9 @@ type HTTPMessage struct {
 }
 
 type HTTPResponse struct {
-	Code    int         `json:"statusCode"`
-	Headers http.Header `json:"headers"`
-	Content []byte      `json:"content"`
+	StatusCode int         `json:"statusCode"`
+	Headers    http.Header `json:"headers"`
+	Content    []byte      `json:"content"`
 }
 
 type Service interface {
@@ -233,7 +233,7 @@ func sendResponse(w http.ResponseWriter, resp HTTPResponse) {
 	for k, v := range resp.Headers {
 		w.Header().Set(k, v[0])
 	}
-	w.WriteHeader(resp.Code)
+	w.WriteHeader(resp.StatusCode)
 	_, err := w.Write(resp.Content)
 	if err != nil {
 		log.Errorf("unable to write response: %s", err)
@@ -381,8 +381,8 @@ func HTTPErrorResponse(code int, message string) HTTPResponse {
 	}
 	log.Error(message)
 	return HTTPResponse{
-		Code:    code,
-		Headers: http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
-		Content: []byte(message),
+		StatusCode: code,
+		Headers:    http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
+		Content:    []byte(message),
 	}
 }
