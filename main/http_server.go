@@ -21,11 +21,12 @@ import (
 )
 
 const (
-	UUIDKey  = "uuid"
-	BinType  = "application/octet-stream"
-	TextType = "text/plain"
-	JSONType = "application/json"
-	HashLen  = 32
+	UUIDKey      = "uuid"
+	OperationKey = "operation"
+	BinType      = "application/octet-stream"
+	TextType     = "text/plain"
+	JSONType     = "application/json"
+	HashLen      = 32
 )
 
 type Sha256Sum [HashLen]byte
@@ -59,15 +60,7 @@ type AnchoringService struct {
 	Signer
 }
 
-type DeletingService struct {
-	Signer
-}
-
-type EnablingService struct {
-	Signer
-}
-
-type DisablingService struct {
+type HashOperationsService struct {
 	Signer
 }
 
@@ -88,23 +81,7 @@ func (service *AnchoringService) handleRequest(w http.ResponseWriter, msg HTTPMe
 	sendResponseChannel(w, msg.Response)
 }
 
-func (service *DeletingService) handleRequest(w http.ResponseWriter, msg HTTPMessage) {
-	msg.Operation = deleteHash
-
-	resp := service.handleSigningRequest(msg)
-	sendResponse(w, resp)
-}
-
-func (service *EnablingService) handleRequest(w http.ResponseWriter, msg HTTPMessage) {
-	msg.Operation = enableHash
-
-	resp := service.handleSigningRequest(msg)
-	sendResponse(w, resp)
-}
-
-func (service *DisablingService) handleRequest(w http.ResponseWriter, msg HTTPMessage) {
-	msg.Operation = disableHash
-
+func (service *HashOperationsService) handleRequest(w http.ResponseWriter, msg HTTPMessage) {
 	resp := service.handleSigningRequest(msg)
 	sendResponse(w, resp)
 }
@@ -259,6 +236,11 @@ func (endpnt *ServerEndpoint) checkAuth(r *http.Request, id uuid.UUID) ([]byte, 
 }
 
 func (endpnt *ServerEndpoint) getMsgFromRequest(w http.ResponseWriter, r *http.Request, isHash bool) (msg HTTPMessage, err error) {
+	opParam := chi.URLParam(r, OperationKey)
+	// todo check validity of operation
+	log.Debugf("OPERATION: _%s_", opParam)
+	msg.Operation = operation(opParam)
+
 	if endpnt.RequiresAuth {
 		msg.ID, err = getUUID(r)
 		if err != nil {

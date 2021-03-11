@@ -123,26 +123,10 @@ func main() {
 		AuthTokens:   conf.Devices,
 	})
 
-	// set up deleting endpoint
+	// set up endpoint for hash operations
 	httpServer.AddEndpoint(ServerEndpoint{
-		Path:         fmt.Sprintf("/{%s}/delete", UUIDKey),
-		Service:      &DeletingService{s},
-		RequiresAuth: true,
-		AuthTokens:   conf.Devices,
-	})
-
-	// set up enabling endpoint
-	httpServer.AddEndpoint(ServerEndpoint{
-		Path:         fmt.Sprintf("/{%s}/enable", UUIDKey),
-		Service:      &EnablingService{s},
-		RequiresAuth: true,
-		AuthTokens:   conf.Devices,
-	})
-
-	// set up disabling endpoint
-	httpServer.AddEndpoint(ServerEndpoint{
-		Path:         fmt.Sprintf("/{%s}/disable", UUIDKey),
-		Service:      &DisablingService{s},
+		Path:         fmt.Sprintf("/{%s}/{%s}", UUIDKey, OperationKey),
+		Service:      &HashOperationsService{s},
 		RequiresAuth: true,
 		AuthTokens:   conf.Devices,
 	})
