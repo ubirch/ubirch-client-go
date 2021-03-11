@@ -107,45 +107,25 @@ func XAuthToken(r *http.Request) string {
 	return r.Header.Get("X-Auth-Token")
 }
 
-// get UUID from request URL
+// get UUID parameter from request URL
 func getUUID(r *http.Request) (uuid.UUID, error) {
-	urlParam := chi.URLParam(r, UUIDKey)
-	id, err := uuid.Parse(urlParam)
+	uuidParam := chi.URLParam(r, UUIDKey)
+	id, err := uuid.Parse(uuidParam)
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("unable to parse \"%s\" as UUID: %s", urlParam, err)
+		return uuid.Nil, fmt.Errorf("unable to parse \"%s\" into a UUID: %s", uuidParam, err)
 	}
 	return id, nil
 }
 
-func JSONMarshal(v interface{}) ([]byte, error) {
-	buffer := &bytes.Buffer{}
-	encoder := json.NewEncoder(buffer)
-	encoder.SetEscapeHTML(false)
-	err := encoder.Encode(v)
-	return buffer.Bytes(), err
-}
-
-func getSortedCompactJSON(data []byte) ([]byte, error) {
-	var reqDump interface{}
-	var sortedCompactJson bytes.Buffer
-
-	// json.Unmarshal returns an error if data is not valid JSON
-	err := json.Unmarshal(data, &reqDump)
-	if err != nil {
-		return nil, fmt.Errorf("unable to parse request body: %v", err)
+// get operation parameter from request URL
+func getOperation(r *http.Request) (operation, error) {
+	opParam := chi.URLParam(r, OperationKey)
+	switch operation(opParam) {
+	case deleteHash, enableHash, disableHash, "":
+		return operation(opParam), nil
+	default:
+		return "", fmt.Errorf("unsupported operation \"%s\"", opParam)
 	}
-	// json.Marshal sorts the keys
-	sortedJson, err := JSONMarshal(reqDump)
-	if err != nil {
-		return nil, fmt.Errorf("unable to serialize json object: %v", err)
-	}
-	// remove spaces and newlines
-	err = json.Compact(&sortedCompactJson, sortedJson)
-	if err != nil {
-		return nil, fmt.Errorf("unable to compact json object: %v", err)
-	}
-
-	return sortedCompactJson.Bytes(), nil
 }
 
 func getHash(r *http.Request, isHash bool) (Sha256Sum, error) {
@@ -199,6 +179,37 @@ func getHashFromHashRequest(r *http.Request, data []byte) (hash Sha256Sum, err e
 	return hash, nil
 }
 
+func JSONMarshal(v interface{}) ([]byte, error) {
+	buffer := &bytes.Buffer{}
+	encoder := json.NewEncoder(buffer)
+	encoder.SetEscapeHTML(false)
+	err := encoder.Encode(v)
+	return buffer.Bytes(), err
+}
+
+func getSortedCompactJSON(data []byte) ([]byte, error) {
+	var reqDump interface{}
+	var sortedCompactJson bytes.Buffer
+
+	// json.Unmarshal returns an error if data is not valid JSON
+	err := json.Unmarshal(data, &reqDump)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse request body: %v", err)
+	}
+	// json.Marshal sorts the keys
+	sortedJson, err := JSONMarshal(reqDump)
+	if err != nil {
+		return nil, fmt.Errorf("unable to serialize json object: %v", err)
+	}
+	// remove spaces and newlines
+	err = json.Compact(&sortedCompactJson, sortedJson)
+	if err != nil {
+		return nil, fmt.Errorf("unable to compact json object: %v", err)
+	}
+
+	return sortedCompactJson.Bytes(), nil
+}
+
 // blocks until response is received and forwards it to sender
 func sendResponseChannel(w http.ResponseWriter, respChan chan HTTPResponse) {
 	resp := <-respChan
@@ -236,11 +247,6 @@ func (endpnt *ServerEndpoint) checkAuth(r *http.Request, id uuid.UUID) ([]byte, 
 }
 
 func (endpnt *ServerEndpoint) getMsgFromRequest(w http.ResponseWriter, r *http.Request, isHash bool) (msg HTTPMessage, err error) {
-	opParam := chi.URLParam(r, OperationKey)
-	// todo check validity of operation
-	log.Debugf("OPERATION: _%s_", opParam)
-	msg.Operation = operation(opParam)
-
 	if endpnt.RequiresAuth {
 		msg.ID, err = getUUID(r)
 		if err != nil {
@@ -252,6 +258,12 @@ func (endpnt *ServerEndpoint) getMsgFromRequest(w http.ResponseWriter, r *http.R
 			Error(w, err, http.StatusUnauthorized)
 			return msg, err
 		}
+	}
+
+	msg.Operation, err = getOperation(r)
+	if err != nil {
+		Error(w, err, http.StatusNotFound)
+		return msg, err
 	}
 
 	msg.Hash, err = getHash(r, isHash)
