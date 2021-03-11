@@ -53,7 +53,6 @@ type Signer struct {
 	env            string
 	authServiceURL string
 	MessageHandler chan HTTPMessage
-	AuthTokens     map[string]string
 }
 
 // handle incoming messages, create, sign and send a ubirch protocol packet (UPP) to the ubirch backend
