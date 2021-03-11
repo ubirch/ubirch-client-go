@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"path"
 	"strings"
 	"time"
 
@@ -136,7 +137,6 @@ func getUUID(r *http.Request) (uuid.UUID, error) {
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("unable to parse \"%s\" as UUID: %s", urlParam, err)
 	}
-
 	return id, nil
 }
 
@@ -331,11 +331,13 @@ func (srv *HTTPServer) SetUpCORS(allowedOrigins []string, debug bool) {
 }
 
 func (srv *HTTPServer) AddEndpoint(endpoint ServerEndpoint) {
+	hashEndpointPath := path.Join(endpoint.Path + "/hash")
+
 	srv.router.Post(endpoint.Path, endpoint.handleRequestOriginalData)
-	srv.router.Post(endpoint.Path+"/hash", endpoint.handleRequestHash)
+	srv.router.Post(hashEndpointPath, endpoint.handleRequestHash)
 
 	srv.router.Options(endpoint.Path, endpoint.handleOptions)
-	srv.router.Options(endpoint.Path+"/hash", endpoint.handleOptions)
+	srv.router.Options(hashEndpointPath, endpoint.handleOptions)
 }
 
 func (srv *HTTPServer) Serve(ctx context.Context) error {
