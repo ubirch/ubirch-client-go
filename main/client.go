@@ -81,7 +81,7 @@ func getSignedCertificate(p *ExtendedProtocol, uid uuid.UUID, pubKey []byte) ([]
 // post submits a message to a backend service
 // returns the response status code, body and headers and encountered errors
 func post(url string, data []byte, headers map[string]string) (HTTPResponse, error) {
-	client := &http.Client{Timeout: 120 * time.Second}
+	client := &http.Client{Timeout: 60 * time.Second}
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(data))
 	if err != nil {
