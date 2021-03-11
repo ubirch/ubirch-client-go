@@ -69,8 +69,6 @@ func signer(ctx context.Context, s *Signer) error {
 			resp := s.handleSigningRequest(msg)
 			msg.Response <- resp
 			if httpFailed(resp.StatusCode) {
-				log.Errorf("%s: %s", msg.ID, string(resp.Content))
-
 				// reset previous signature in protocol context to ensure intact chain
 				s.protocol.Signatures[msg.ID] = prevSign
 			} else {
@@ -109,7 +107,7 @@ func (s *Signer) handleSigningRequest(msg HTTPMessage) HTTPResponse {
 	case disableHash:
 		upp, err = s.disableHash(name, hash)
 	default:
-		err = fmt.Errorf("unsupported operation: 0x%02x", msg.Operation)
+		err = fmt.Errorf("unsupported operation: %s", msg.Operation)
 	}
 
 	if err != nil {
