@@ -77,7 +77,7 @@ func signer(ctx context.Context, s *Signer) error {
 				// persist last signature after UPP was successfully received in ubirch backend
 				err := s.protocol.PersistContext()
 				if err != nil {
-					msg.Response <- getErrorResponse(http.StatusInternalServerError, "")
+					msg.Response <- errorResponse(http.StatusInternalServerError, "")
 					return fmt.Errorf("unable to persist last signature: %v [\"%s\": \"%s\"]",
 						err, msg.ID.String(), base64.StdEncoding.EncodeToString(s.protocol.Signatures[msg.ID]))
 				}
@@ -114,7 +114,7 @@ func (s *Signer) handleSigningRequest(msg HTTPMessage) HTTPResponse {
 
 	if err != nil {
 		log.Errorf("%s: %s", name, fmt.Errorf("could not create UBIRCH Protocol Package: %v", err))
-		return getErrorResponse(http.StatusInternalServerError, "")
+		return errorResponse(http.StatusInternalServerError, "")
 	}
 	log.Debugf("%s: UPP: %s", name, hex.EncodeToString(upp))
 
@@ -122,7 +122,7 @@ func (s *Signer) handleSigningRequest(msg HTTPMessage) HTTPResponse {
 	backendResp, err := post(s.authServiceURL, upp, niomonHeaders(name, auth))
 	if err != nil {
 		log.Errorf("%s: %s", name, fmt.Errorf("sending request to UBIRCH Authentication Service failed: %v", err))
-		return getErrorResponse(http.StatusInternalServerError, "")
+		return errorResponse(http.StatusInternalServerError, "")
 	}
 	log.Debugf("%s: backend response: (%d) %s", name, backendResp.StatusCode, hex.EncodeToString(backendResp.Content))
 
@@ -187,7 +187,7 @@ func getRequestID(respUPP ubirch.UPP) (string, error) {
 	return requestID.String(), nil
 }
 
-func getErrorResponse(code int, message string) HTTPResponse {
+func errorResponse(code int, message string) HTTPResponse {
 	if message == "" {
 		message = http.StatusText(code)
 	}
@@ -199,10 +199,10 @@ func getErrorResponse(code int, message string) HTTPResponse {
 	}
 }
 
-func getSigningResponse(respCode int, msg HTTPMessage, uppBytes []byte, backendResp HTTPResponse, requestID string, errMsg string) HTTPResponse {
+func getSigningResponse(respCode int, msg HTTPMessage, upp []byte, backendResp HTTPResponse, requestID string, errMsg string) HTTPResponse {
 	signingResp, err := json.Marshal(signingResponse{
 		Hash:      msg.Hash[:],
-		UPP:       uppBytes,
+		UPP:       upp,
 		Response:  backendResp,
 		RequestID: requestID,
 		Operation: msg.Operation,

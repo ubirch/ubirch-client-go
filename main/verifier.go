@@ -60,7 +60,7 @@ func (v *Verifier) verifyHash(hash []byte) HTTPResponse {
 	code, upp, err := v.loadUPP(hash)
 	if err != nil {
 		log.Error(err)
-		return getErrorResponse(code, err.Error())
+		return errorResponse(code, err.Error())
 	}
 	log.Debugf("retrieved UPP %s", hex.EncodeToString(upp))
 
@@ -188,10 +188,10 @@ func (v *Verifier) loadPublicKey(name string, id uuid.UUID) ([]byte, error) {
 	return pubkey, nil
 }
 
-func getVerificationResponse(respCode int, hash []byte, uppBytes []byte, name string, pkey []byte, errMsg string) HTTPResponse {
+func getVerificationResponse(respCode int, hash []byte, upp []byte, name string, pkey []byte, errMsg string) HTTPResponse {
 	verificationResp, err := json.Marshal(verificationResponse{
 		Hash:   hash,
-		UPP:    uppBytes,
+		UPP:    upp,
 		UUID:   name,
 		PubKey: pkey,
 		Error:  errMsg,
