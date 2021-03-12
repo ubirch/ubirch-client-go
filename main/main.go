@@ -120,7 +120,7 @@ func main() {
 	httpServer.AddEndpoint(ServerEndpoint{
 		Path: fmt.Sprintf("/{%s}", UUIDKey),
 		Service: &AnchoringService{
-			Signer:     s,
+			Signer:     &s,
 			AuthTokens: conf.Devices,
 		},
 	})
@@ -129,7 +129,7 @@ func main() {
 	httpServer.AddEndpoint(ServerEndpoint{
 		Path: fmt.Sprintf("/{%s}/{%s}", UUIDKey, OperationKey),
 		Service: &UpdateOperationService{
-			Signer:     s,
+			Signer:     &s,
 			AuthTokens: conf.Devices,
 		},
 	})
@@ -138,7 +138,7 @@ func main() {
 	httpServer.AddEndpoint(ServerEndpoint{
 		Path: "/verify",
 		Service: &VerificationService{
-			Verifier{
+			Verifier: &Verifier{
 				protocol:                      &p,
 				verifyServiceURL:              conf.VerifyService,
 				keyServiceURL:                 conf.KeyService,
