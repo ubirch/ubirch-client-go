@@ -103,7 +103,7 @@ func main() {
 		httpServer.SetUpCORS(conf.CORS_Origins, conf.Debug)
 	}
 
-	// set up signer
+	// initialize signer
 	s := Signer{
 		protocol:       &p,
 		env:            conf.Env,
@@ -111,33 +111,40 @@ func main() {
 		MessageHandler: make(chan HTTPRequest, 100),
 	}
 
+	// start sequential signing routine
 	g.Go(func() error {
 		return signer(ctx, &s)
 	})
 
-	// set up anchoring endpoint
+	// set up endpoint for hash anchoring
 	httpServer.AddEndpoint(ServerEndpoint{
-		Path:    fmt.Sprintf("/{%s}", UUIDKey),
-		Service: &AnchoringService{Signer: s, AuthTokens: conf.Devices},
+		Path: fmt.Sprintf("/{%s}", UUIDKey),
+		Service: &AnchoringService{
+			Signer:     s,
+			AuthTokens: conf.Devices,
+		},
 	})
 
-	// set up endpoint for hash operations
+	// set up endpoint for hash update operations
 	httpServer.AddEndpoint(ServerEndpoint{
-		Path:    fmt.Sprintf("/{%s}/{%s}", UUIDKey, OperationKey),
-		Service: &UpdateOperationService{Signer: s, AuthTokens: conf.Devices},
+		Path: fmt.Sprintf("/{%s}/{%s}", UUIDKey, OperationKey),
+		Service: &UpdateOperationService{
+			Signer:     s,
+			AuthTokens: conf.Devices,
+		},
 	})
 
-	// set up verification endpoint
-	v := Verifier{
-		protocol:                      &p,
-		verifyServiceURL:              conf.VerifyService,
-		keyServiceURL:                 conf.KeyService,
-		verifyFromKnownIdentitiesOnly: false,
-	}
-
+	// set up endpoint for hash verification
 	httpServer.AddEndpoint(ServerEndpoint{
-		Path:    "/verify",
-		Service: &VerificationService{v},
+		Path: "/verify",
+		Service: &VerificationService{
+			Verifier{
+				protocol:                      &p,
+				verifyServiceURL:              conf.VerifyService,
+				keyServiceURL:                 conf.KeyService,
+				verifyFromKnownIdentitiesOnly: false, // todo add to config
+			},
+		},
 	})
 
 	// start HTTP server
