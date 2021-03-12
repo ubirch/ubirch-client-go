@@ -53,7 +53,7 @@ type HTTPResponse struct {
 }
 
 type Service interface {
-	handleRequest(w http.ResponseWriter, msg HTTPMessage)
+	handleRequest(w http.ResponseWriter, r *http.Request, msg HTTPMessage)
 }
 
 type AnchoringService struct {
@@ -68,7 +68,7 @@ type VerificationService struct {
 	Verifier
 }
 
-func (service *AnchoringService) handleRequest(w http.ResponseWriter, msg HTTPMessage) {
+func (service *AnchoringService) handleRequest(w http.ResponseWriter, r *http.Request, msg HTTPMessage) {
 	msg.Operation = anchorHash
 
 	// create HTTPMessage with individual response channel for each request
@@ -81,12 +81,19 @@ func (service *AnchoringService) handleRequest(w http.ResponseWriter, msg HTTPMe
 	sendResponseChannel(w, msg.Response)
 }
 
-func (service *HashOperationsService) handleRequest(w http.ResponseWriter, msg HTTPMessage) {
+func (service *HashOperationsService) handleRequest(w http.ResponseWriter, r *http.Request, msg HTTPMessage) {
+	var err error
+	msg.Operation, err = getOperation(r)
+	if err != nil {
+		Error(w, err, http.StatusNotFound)
+		return
+	}
+
 	resp := service.handleSigningRequest(msg)
 	sendResponse(w, resp)
 }
 
-func (service *VerificationService) handleRequest(w http.ResponseWriter, msg HTTPMessage) {
+func (service *VerificationService) handleRequest(w http.ResponseWriter, r *http.Request, msg HTTPMessage) {
 	resp := service.verifyHash(msg.Hash[:])
 	sendResponse(w, resp)
 }
@@ -121,7 +128,7 @@ func getUUID(r *http.Request) (uuid.UUID, error) {
 func getOperation(r *http.Request) (operation, error) {
 	opParam := chi.URLParam(r, OperationKey)
 	switch operation(opParam) {
-	case deleteHash, enableHash, disableHash, "":
+	case deleteHash, enableHash, disableHash:
 		return operation(opParam), nil
 	default:
 		return "", fmt.Errorf("unsupported operation \"%s\"", opParam)
@@ -260,12 +267,6 @@ func (endpnt *ServerEndpoint) getMsgFromRequest(w http.ResponseWriter, r *http.R
 		}
 	}
 
-	msg.Operation, err = getOperation(r)
-	if err != nil {
-		Error(w, err, http.StatusNotFound)
-		return msg, err
-	}
-
 	msg.Hash, err = getHash(r, isHash)
 	if err != nil {
 		Error(w, err, http.StatusBadRequest)
@@ -281,7 +282,7 @@ func (endpnt *ServerEndpoint) handleRequestHash(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	endpnt.Service.handleRequest(w, msg)
+	endpnt.Service.handleRequest(w, r, msg)
 }
 
 func (endpnt *ServerEndpoint) handleRequestOriginalData(w http.ResponseWriter, r *http.Request) {
@@ -290,7 +291,7 @@ func (endpnt *ServerEndpoint) handleRequestOriginalData(w http.ResponseWriter, r
 		return
 	}
 
-	endpnt.Service.handleRequest(w, msg)
+	endpnt.Service.handleRequest(w, r, msg)
 }
 
 func (endpnt *ServerEndpoint) handleOptions(w http.ResponseWriter, r *http.Request) {
