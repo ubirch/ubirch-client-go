@@ -84,13 +84,16 @@ The client will first look if the `UBIRCH_SECRET` env variable exists and load t
 variables in that case. If the `UBIRCH_SECRET` env variable is not set or empty, and the `config.json`-file exists in
 the working directory, the configuration will be loaded from the file. If neither exist, the client will abort and exit.
 
-The only two mandatory configurations are
+The only mandatory configurations are
 
-- the `devices`-map, which maps device UUIDs to their authentication token
-  > - A UUID can be generated in a Linux/macOS terminal with the `uuidgen` command
-  > - See [how to acquire the authentication token](#how-to-acquire-the-ubirch-backend-token)
-- the 16 byte base64 encoded `secret`, which is used to encrypt the key store.
-  > Quickly generate a random 16 byte base64 encoded secret in a Linux/macOS terminal with `head -c 16 /dev/urandom | base64`
+1. the `devices`-map, which maps device UUIDs to their authentication token
+
+> - A UUID can be generated in a Linux/macOS terminal with the `uuidgen` command
+> - See [here](#how-to-acquire-the-ubirch-backend-token) how to acquire the authentication token
+
+2. the 16 byte base64 encoded `secret`, which is used to encrypt the key store
+
+> Quickly generate a random 16 byte base64 encoded secret in a Linux/macOS terminal with `head -c 16 /dev/urandom | base64`
 
 ### File Based Configuration
 
@@ -105,7 +108,10 @@ The only two mandatory configurations are
 }
 ```
 
-(See [example_config.json](main/example_config.json) for an example.)
+> See [example_config.json](main/example_config.json) as an example for file-based configuration.
+
+Besides the `devices`-map, the device UUIDs and their corresponding authentication tokens can be set through a file
+"`identities.json`". See example: [example_identities.json](main/example_identities.json)
 
 ### Environment Based Configuration
 
@@ -114,7 +120,7 @@ UBIRCH_DEVICES=<UUID>:<ubirch backend auth token>
 UBIRCH_SECRET=<16 byte secret used to encrypt the key store (base64 encoded)>
 ```
 
-(See [example.env](main/example.env) for an example.)
+> See [example.env](main/example.env) as an example for environment-based configuration.
 
 All other configuration parameters have default values, but can be configured as follows.
 
@@ -125,7 +131,8 @@ environment. For development, the environment may be set to `demo`, which is a t
 production environment, but stores data only in a blockchain test net. __However, we suggest using `prod` in general as demo
 may not always be available__.
 
-> Note that the UUIDs must be registered at the according UBIRCH backend environment.
+> Note that the UUIDs must be registered at the according UBIRCH backend environment,
+> i.e. https://console.demo.ubirch.com/.
 
 To switch to the `demo` backend environment
 
