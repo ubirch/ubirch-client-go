@@ -107,11 +107,11 @@ func (s *Signer) handleSigningRequest(msg HTTPRequest) HTTPResponse {
 	case disableHash:
 		upp, err = s.disableHash(name, hash)
 	default:
-		err = fmt.Errorf("unsupported operation: %s", msg.Operation)
+		err = fmt.Errorf("unsupported operation: \"%s\"", msg.Operation)
 	}
 
 	if err != nil {
-		log.Errorf("%s: %s", name, fmt.Errorf("could not create UBIRCH Protocol Package: %v", err))
+		log.Errorf("%s: could not create UBIRCH Protocol Package: %v", name, err)
 		return errorResponse(http.StatusInternalServerError, "")
 	}
 	log.Debugf("%s: UPP: %s", name, hex.EncodeToString(upp))
@@ -119,7 +119,7 @@ func (s *Signer) handleSigningRequest(msg HTTPRequest) HTTPResponse {
 	// send UPP to ubirch backend
 	backendResp, err := post(s.authServiceURL, upp, niomonHeaders(name, auth))
 	if err != nil {
-		log.Errorf("%s: %s", name, fmt.Errorf("sending request to UBIRCH Authentication Service failed: %v", err))
+		log.Errorf("%s: sending request to UBIRCH Authentication Service failed: %v", name, err)
 		return errorResponse(http.StatusInternalServerError, "")
 	}
 	log.Debugf("%s: backend response: (%d) %s", name, backendResp.StatusCode, hex.EncodeToString(backendResp.Content))
