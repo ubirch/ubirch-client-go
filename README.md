@@ -87,10 +87,10 @@ the working directory, the configuration will be loaded from the file. If neithe
 The only two mandatory configurations are
 
 - the `devices`-map, which maps device UUIDs to their authentication token
-  > - A UUID can be generated in a Linux terminal with the `uuidgen` command
+  > - A UUID can be generated in a Linux/macOS terminal with the `uuidgen` command
   > - See [how to acquire the authentication token](#how-to-acquire-the-ubirch-backend-token)
 - the 16 byte base64 encoded `secret`, which is used to encrypt the key store.
-  > Quickly generate a random 16 byte base64 encoded secret in a Linux terminal with `head -c 16 /dev/urandom | base64`
+  > Quickly generate a random 16 byte base64 encoded secret in a Linux/macOS terminal with `head -c 16 /dev/urandom | base64`
 
 ### File Based Configuration
 
@@ -322,16 +322,13 @@ UBIRCH_DEBUG=true
 
 ### How to acquire the ubirch backend token
 
-- Register at the **UBIRCH web UI**:
-
-  Depending on the UBIRCH backend environment you are using, go to
-    - `prod`: [https://console.prod.ubirch.com/](https://console.prod.ubirch.com/)
-    - `demo`: [https://console.demo.ubirch.com/](https://console.demo.ubirch.com/)
+- Create an account at the [**UBIRCH web UI**](https://console.prod.ubirch.com/) and log in
 - Go to **Things** (in the menu on the left) and click on `+ ADD NEW DEVICE`
-- Enter your device UUID to the **ID** field. You can also add a description for your device, if you want. Then click
-  on `register`.
-- Your device should now show up under **Your Things**-overview. Click on it and copy the "password" (which looks like a
-  UUID) as the ubirch backend token.
+- Enter your UUID to the **ID** field. You can also add a description if you want. Then click on `register`.
+- Your UUID should now show up under the **Your Things**-overview. Click on it and copy the "password" (which looks like
+  a UUID) from the `apiConfig`. This is the UBIRCH backend token needed for the configuration of the client.
+
+[Jump back to Configuration](#configuration)
 
 ## Run Client in Docker container
 
