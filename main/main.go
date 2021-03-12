@@ -117,18 +117,14 @@ func main() {
 
 	// set up anchoring endpoint
 	httpServer.AddEndpoint(ServerEndpoint{
-		Path:         fmt.Sprintf("/{%s}", UUIDKey),
-		Service:      &AnchoringService{s},
-		RequiresAuth: true,
-		AuthTokens:   conf.Devices,
+		Path:    fmt.Sprintf("/{%s}", UUIDKey),
+		Service: &AnchoringService{Signer: s, AuthTokens: conf.Devices},
 	})
 
 	// set up endpoint for hash operations
 	httpServer.AddEndpoint(ServerEndpoint{
-		Path:         fmt.Sprintf("/{%s}/{%s}", UUIDKey, OperationKey),
-		Service:      &HashOperationsService{s},
-		RequiresAuth: true,
-		AuthTokens:   conf.Devices,
+		Path:    fmt.Sprintf("/{%s}/{%s}", UUIDKey, OperationKey),
+		Service: &UpdateOperationService{Signer: s, AuthTokens: conf.Devices},
 	})
 
 	// set up verification endpoint
