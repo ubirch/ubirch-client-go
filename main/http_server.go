@@ -23,6 +23,7 @@ import (
 const (
 	UUIDKey      = "uuid"
 	OperationKey = "operation"
+	HashEndpoint = "/hash"
 	BinType      = "application/octet-stream"
 	TextType     = "text/plain"
 	JSONType     = "application/json"
@@ -101,17 +102,17 @@ func (service *VerificationService) handleRequest(w http.ResponseWriter, r *http
 // wrapper for http.Error that additionally logs the error message to std.Output
 func Error(w http.ResponseWriter, err error, code int) {
 	log.Error(err)
-	http.Error(w, fmt.Sprint(err), code)
+	http.Error(w, err.Error(), code)
 }
 
-// helper function to get "Content-Type" from headers
-func ContentType(r *http.Request) string {
-	return strings.ToLower(r.Header.Get("Content-Type"))
+// helper function to get "Content-Type" from request headers
+func ContentType(header http.Header) string {
+	return strings.ToLower(header.Get("Content-Type"))
 }
 
-// helper function to get "X-Auth-Token" from headers
-func XAuthToken(r *http.Request) string {
-	return r.Header.Get("X-Auth-Token")
+// helper function to get "X-Auth-Token" from request headers
+func AuthToken(header http.Header) string {
+	return header.Get("X-Auth-Token")
 }
 
 // get UUID parameter from request URL
@@ -135,21 +136,22 @@ func getOperation(r *http.Request) (operation, error) {
 	}
 }
 
-func getHash(r *http.Request, isHash bool) (Sha256Sum, error) {
+func getHash(r *http.Request) (Sha256Sum, error) {
 	data, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return Sha256Sum{}, fmt.Errorf("unable to read request body: %v", err)
 	}
 
-	if !isHash { // request contains original data
-		return getHashFromDataRequest(r, data)
-	} else { // request contains hash
+	isHashRequest := strings.HasSuffix(r.URL.Path, HashEndpoint)
+	if isHashRequest { // request contains hash
 		return getHashFromHashRequest(r, data)
+	} else { // request contains original data
+		return getHashFromDataRequest(r, data)
 	}
 }
 
 func getHashFromDataRequest(r *http.Request, data []byte) (hash Sha256Sum, err error) {
-	switch ContentType(r) {
+	switch ContentType(r.Header) {
 	case JSONType:
 		data, err = getSortedCompactJSON(data)
 		if err != nil {
@@ -167,7 +169,7 @@ func getHashFromDataRequest(r *http.Request, data []byte) (hash Sha256Sum, err e
 }
 
 func getHashFromHashRequest(r *http.Request, data []byte) (hash Sha256Sum, err error) {
-	switch ContentType(r) {
+	switch ContentType(r.Header) {
 	case TextType:
 		data, err = base64.StdEncoding.DecodeString(string(data))
 		if err != nil {
@@ -245,7 +247,7 @@ func (endpnt *ServerEndpoint) checkAuth(r *http.Request, id uuid.UUID) ([]byte, 
 	}
 
 	// check auth token from request header
-	headerAuthToken := XAuthToken(r)
+	headerAuthToken := AuthToken(r.Header)
 	if idAuthToken != headerAuthToken {
 		return nil, fmt.Errorf("invalid auth token")
 	}
@@ -253,7 +255,7 @@ func (endpnt *ServerEndpoint) checkAuth(r *http.Request, id uuid.UUID) ([]byte, 
 	return []byte(headerAuthToken), nil
 }
 
-func (endpnt *ServerEndpoint) getMsgFromRequest(w http.ResponseWriter, r *http.Request, isHash bool) (msg HTTPMessage, err error) {
+func (endpnt *ServerEndpoint) getMsgFromRequest(w http.ResponseWriter, r *http.Request) (msg HTTPMessage, err error) {
 	if endpnt.RequiresAuth {
 		msg.ID, err = getUUID(r)
 		if err != nil {
@@ -267,7 +269,7 @@ func (endpnt *ServerEndpoint) getMsgFromRequest(w http.ResponseWriter, r *http.R
 		}
 	}
 
-	msg.Hash, err = getHash(r, isHash)
+	msg.Hash, err = getHash(r)
 	if err != nil {
 		Error(w, err, http.StatusBadRequest)
 		return msg, err
@@ -276,17 +278,8 @@ func (endpnt *ServerEndpoint) getMsgFromRequest(w http.ResponseWriter, r *http.R
 	return msg, nil
 }
 
-func (endpnt *ServerEndpoint) handleRequestHash(w http.ResponseWriter, r *http.Request) {
-	msg, err := endpnt.getMsgFromRequest(w, r, true)
-	if err != nil {
-		return
-	}
-
-	endpnt.Service.handleRequest(w, r, msg)
-}
-
-func (endpnt *ServerEndpoint) handleRequestOriginalData(w http.ResponseWriter, r *http.Request) {
-	msg, err := endpnt.getMsgFromRequest(w, r, false)
+func (endpnt *ServerEndpoint) handleRequest(w http.ResponseWriter, r *http.Request) {
+	msg, err := endpnt.getMsgFromRequest(w, r)
 	if err != nil {
 		return
 	}
@@ -326,10 +319,10 @@ func (srv *HTTPServer) SetUpCORS(allowedOrigins []string, debug bool) {
 }
 
 func (srv *HTTPServer) AddEndpoint(endpoint ServerEndpoint) {
-	hashEndpointPath := path.Join(endpoint.Path + "/hash")
+	hashEndpointPath := path.Join(endpoint.Path + HashEndpoint)
 
-	srv.router.Post(endpoint.Path, endpoint.handleRequestOriginalData)
-	srv.router.Post(hashEndpointPath, endpoint.handleRequestHash)
+	srv.router.Post(endpoint.Path, endpoint.handleRequest)
+	srv.router.Post(hashEndpointPath, endpoint.handleRequest)
 
 	srv.router.Options(endpoint.Path, endpoint.handleOptions)
 	srv.router.Options(hashEndpointPath, endpoint.handleOptions)
