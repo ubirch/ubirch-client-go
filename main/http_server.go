@@ -39,7 +39,7 @@ type ServerEndpoint struct {
 	AuthTokens   map[string]string
 }
 
-type HTTPMessage struct {
+type HTTPRequest struct {
 	ID        uuid.UUID
 	Auth      []byte
 	Hash      Sha256Sum
@@ -54,7 +54,7 @@ type HTTPResponse struct {
 }
 
 type Service interface {
-	handleRequest(w http.ResponseWriter, r *http.Request, msg HTTPMessage)
+	handleRequest(w http.ResponseWriter, r *http.Request, msg HTTPRequest)
 }
 
 type AnchoringService struct {
@@ -69,10 +69,10 @@ type VerificationService struct {
 	Verifier
 }
 
-func (service *AnchoringService) handleRequest(w http.ResponseWriter, r *http.Request, msg HTTPMessage) {
+func (service *AnchoringService) handleRequest(w http.ResponseWriter, r *http.Request, msg HTTPRequest) {
 	msg.Operation = anchorHash
 
-	// create HTTPMessage with individual response channel for each request
+	// create HTTPRequest with individual response channel for each request
 	msg.Response = make(chan HTTPResponse)
 
 	// submit message for signing
@@ -82,7 +82,7 @@ func (service *AnchoringService) handleRequest(w http.ResponseWriter, r *http.Re
 	sendResponseChannel(w, msg.Response)
 }
 
-func (service *HashOperationsService) handleRequest(w http.ResponseWriter, r *http.Request, msg HTTPMessage) {
+func (service *HashOperationsService) handleRequest(w http.ResponseWriter, r *http.Request, msg HTTPRequest) {
 	var err error
 	msg.Operation, err = getOperation(r)
 	if err != nil {
@@ -94,7 +94,7 @@ func (service *HashOperationsService) handleRequest(w http.ResponseWriter, r *ht
 	sendResponse(w, resp)
 }
 
-func (service *VerificationService) handleRequest(w http.ResponseWriter, r *http.Request, msg HTTPMessage) {
+func (service *VerificationService) handleRequest(w http.ResponseWriter, r *http.Request, msg HTTPRequest) {
 	resp := service.verifyHash(msg.Hash[:])
 	sendResponse(w, resp)
 }
@@ -255,7 +255,7 @@ func (endpnt *ServerEndpoint) checkAuth(r *http.Request, id uuid.UUID) ([]byte, 
 	return []byte(headerAuthToken), nil
 }
 
-func (endpnt *ServerEndpoint) getMsgFromRequest(w http.ResponseWriter, r *http.Request) (msg HTTPMessage, err error) {
+func (endpnt *ServerEndpoint) getMsgFromRequest(w http.ResponseWriter, r *http.Request) (msg HTTPRequest, err error) {
 	if endpnt.RequiresAuth {
 		msg.ID, err = getUUID(r)
 		if err != nil {

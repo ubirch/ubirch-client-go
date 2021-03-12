@@ -52,7 +52,7 @@ type Signer struct {
 	protocol       *ExtendedProtocol
 	env            string
 	authServiceURL string
-	MessageHandler chan HTTPMessage
+	MessageHandler chan HTTPRequest
 }
 
 // handle incoming messages, create, sign and send a ubirch protocol packet (UPP) to the ubirch backend
@@ -88,7 +88,7 @@ func signer(ctx context.Context, s *Signer) error {
 	}
 }
 
-func (s *Signer) handleSigningRequest(msg HTTPMessage) HTTPResponse {
+func (s *Signer) handleSigningRequest(msg HTTPRequest) HTTPResponse {
 	name := msg.ID.String()
 	hash := msg.Hash[:]
 	auth := msg.Auth
@@ -197,7 +197,7 @@ func errorResponse(code int, message string) HTTPResponse {
 	}
 }
 
-func getSigningResponse(respCode int, msg HTTPMessage, upp []byte, backendResp HTTPResponse, requestID string, errMsg string) HTTPResponse {
+func getSigningResponse(respCode int, msg HTTPRequest, upp []byte, backendResp HTTPResponse, requestID string, errMsg string) HTTPResponse {
 	signingResp, err := json.Marshal(signingResponse{
 		Hash:      msg.Hash[:],
 		UPP:       upp,
