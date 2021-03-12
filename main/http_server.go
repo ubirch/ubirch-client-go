@@ -120,7 +120,7 @@ func getUUID(r *http.Request) (uuid.UUID, error) {
 	uuidParam := chi.URLParam(r, UUIDKey)
 	id, err := uuid.Parse(uuidParam)
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("unable to parse \"%s\" into a UUID: %s", uuidParam, err)
+		return uuid.Nil, fmt.Errorf("invalid UUID: \"%s\": %v", uuidParam, err)
 	}
 	return id, nil
 }
@@ -132,7 +132,8 @@ func getOperation(r *http.Request) (operation, error) {
 	case deleteHash, enableHash, disableHash:
 		return operation(opParam), nil
 	default:
-		return "", fmt.Errorf("unsupported operation \"%s\"", opParam)
+		return "", fmt.Errorf("invalid update operation: "+
+			"expected (\"%s\" | \"%s\" | \"%s\"), got \"%s\"", deleteHash, enableHash, disableHash, opParam)
 	}
 }
 
@@ -161,7 +162,8 @@ func getHashFromDataRequest(r *http.Request, data []byte) (hash Sha256Sum, err e
 		log.Debugf("sorted compact JSON: %s", string(data))
 	case BinType:
 	default:
-		return Sha256Sum{}, fmt.Errorf("wrong content-type for original data. expected \"%s\" or \"%s\"", BinType, JSONType)
+		return Sha256Sum{}, fmt.Errorf("invalid content-type for original data: "+
+			"expected (\"%s\" | \"%s\")", BinType, JSONType)
 	}
 
 	// hash original data
@@ -177,11 +179,13 @@ func getHashFromHashRequest(r *http.Request, data []byte) (hash Sha256Sum, err e
 		}
 	case BinType:
 	default:
-		return Sha256Sum{}, fmt.Errorf("wrong content-type for hash. expected \"%s\" or \"%s\"", BinType, TextType)
+		return Sha256Sum{}, fmt.Errorf("invalid content-type for hash: "+
+			"expected (\"%s\" | \"%s\")", BinType, TextType)
 	}
 
 	if len(data) != HashLen {
-		return Sha256Sum{}, fmt.Errorf("invalid hash size. expected %d bytes, got %d bytes (%s)", HashLen, len(data), data)
+		return Sha256Sum{}, fmt.Errorf("invalid hash size: "+
+			"expected %d bytes, got %d bytes", HashLen, len(data))
 	}
 
 	copy(hash[:], data)
@@ -243,7 +247,7 @@ func (endpnt *ServerEndpoint) checkAuth(r *http.Request, id uuid.UUID) ([]byte, 
 	// check if UUID is known
 	idAuthToken, exists := endpnt.AuthTokens[id.String()]
 	if !exists || idAuthToken == "" {
-		return nil, fmt.Errorf("unknown UUID \"%s\"", id)
+		return nil, fmt.Errorf("unknown UUID: \"%s\"", id.String())
 	}
 
 	// check auth token from request header
