@@ -194,11 +194,11 @@ func checkAuth(r *http.Request, id uuid.UUID, authTokens map[string]string) ([]b
 func getOperation(r *http.Request) (operation, error) {
 	opParam := chi.URLParam(r, OperationKey)
 	switch operation(opParam) {
-	case deleteHash, enableHash, disableHash:
+	case disableHash, enableHash, deleteHash:
 		return operation(opParam), nil
 	default:
 		return "", fmt.Errorf("invalid update operation: "+
-			"expected (\"%s\" | \"%s\" | \"%s\"), got \"%s\"", deleteHash, enableHash, disableHash, opParam)
+			"expected (\"%s\" | \"%s\" | \"%s\"), got \"%s\"", disableHash, enableHash, deleteHash, opParam)
 	}
 }
 
