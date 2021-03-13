@@ -75,7 +75,6 @@ func signer(ctx context.Context, s *Signer) error {
 				// persist last signature after UPP was successfully received in ubirch backend
 				err := s.protocol.PersistContext()
 				if err != nil {
-					msg.Response <- errorResponse(http.StatusInternalServerError, "")
 					return fmt.Errorf("unable to persist last signature: %v [\"%s\": \"%s\"]",
 						err, msg.ID.String(), base64.StdEncoding.EncodeToString(s.protocol.Signatures[msg.ID]))
 				}
