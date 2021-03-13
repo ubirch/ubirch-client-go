@@ -117,7 +117,7 @@ func (s *Signer) handleSigningRequest(msg HTTPRequest) HTTPResponse {
 	log.Debugf("%s: UPP: %s", name, hex.EncodeToString(upp))
 
 	// send UPP to ubirch backend
-	backendResp, err := post(s.authServiceURL, upp, niomonHeaders(name, auth))
+	backendResp, err := post(s.authServiceURL, upp, niomonHeader(name, auth))
 	if err != nil {
 		log.Errorf("%s: sending request to UBIRCH Authentication Service failed: %v", name, err)
 		return errorResponse(http.StatusInternalServerError, "")
@@ -165,7 +165,7 @@ func (s *Signer) deleteHash(name string, hash []byte) ([]byte, error) {
 	return s.protocol.SignHashExtended(name, hash, ubirch.Signed, ubirch.Delete)
 }
 
-func niomonHeaders(name string, auth []byte) map[string]string {
+func niomonHeader(name string, auth []byte) map[string]string {
 	return map[string]string{
 		"x-ubirch-hardware-id": name,
 		"x-ubirch-auth-type":   "ubirch",
@@ -192,7 +192,7 @@ func errorResponse(code int, message string) HTTPResponse {
 	log.Error(message)
 	return HTTPResponse{
 		StatusCode: code,
-		Headers:    http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
+		Header:     http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
 		Content:    []byte(message),
 	}
 }
@@ -216,7 +216,7 @@ func getSigningResponse(respCode int, msg HTTPRequest, upp []byte, backendResp H
 
 	return HTTPResponse{
 		StatusCode: respCode,
-		Headers:    http.Header{"Content-Type": {"application/json"}},
+		Header:     http.Header{"Content-Type": {"application/json"}},
 		Content:    signingResp,
 	}
 }

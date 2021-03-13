@@ -47,7 +47,7 @@ type HTTPRequest struct {
 
 type HTTPResponse struct {
 	StatusCode int         `json:"statusCode"`
-	Headers    http.Header `json:"headers"`
+	Header     http.Header `json:"header"`
 	Content    []byte      `json:"content"`
 }
 
@@ -152,12 +152,12 @@ func Error(w http.ResponseWriter, err error, code int) {
 	http.Error(w, err.Error(), code)
 }
 
-// helper function to get "Content-Type" from request headers
+// helper function to get "Content-Type" from request header
 func ContentType(header http.Header) string {
 	return strings.ToLower(header.Get("Content-Type"))
 }
 
-// helper function to get "X-Auth-Token" from request headers
+// helper function to get "X-Auth-Token" from request header
 func AuthToken(header http.Header) string {
 	return header.Get("X-Auth-Token")
 }
@@ -297,7 +297,7 @@ func sendResponseChannel(w http.ResponseWriter, respChan chan HTTPResponse) {
 
 // forwards response to sender
 func sendResponse(w http.ResponseWriter, resp HTTPResponse) {
-	for k, v := range resp.Headers {
+	for k, v := range resp.Header {
 		w.Header().Set(k, v[0])
 	}
 	w.WriteHeader(resp.StatusCode)

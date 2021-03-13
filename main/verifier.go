@@ -205,7 +205,7 @@ func getVerificationResponse(respCode int, hash []byte, upp []byte, name string,
 
 	return HTTPResponse{
 		StatusCode: respCode,
-		Headers:    http.Header{"Content-Type": {"application/json"}},
+		Header:     http.Header{"Content-Type": {"application/json"}},
 		Content:    verificationResp,
 	}
 }
