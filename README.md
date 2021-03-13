@@ -386,12 +386,35 @@ hash injection, i.e. the SHA256 digest of the original data.
 > See [reproducibility of hashes](#reproducibility-of-hashes).
 
 To access either endpoint, an authentication token, which corresponds to the `UUID` used in the request, must be sent
-with the request header. Without it, the client won’t accept the request:
+with the request header. Without it, the client won’t accept the request.
 
-| `X-Auth-Token` | `ubirch backend token related to <UUID>` |
-|-----------------|------------------------------------------|
+| Request Header | Description |
+|----------------|------------------------------------------|
+| `X-Auth-Token` | UBIRCH backend token related to `<UUID>` |
 
 > See [how to acquire the ubirch backend token](#how-to-acquire-the-ubirch-backend-token).
+
+### Update Operations
+
+Besides achoring, the client can request hash update operations from the UBIRCH backend, i.e. `disable`, `enable`
+and `delete`.
+
+Just like for anchoring, the UBIRCH client provides HTTP endpoints for original data and direct data hash injection.
+
+| Update Operation | Path (original data)| Path (hash) |
+|------------------|---------------------|-------------|
+| disable | `/<UUID>/disable` | `/<UUID>/disable/hash` |
+| enable  | `/<UUID>/enable`  | `/<UUID>/enable/hash`  |
+| delete  | `/<UUID>/delete`  | `/<UUID>/delete/hash`  |
+
+These Endpoints also require the use of the `X-Auth-Token` request header.
+
+| Request Header | Description |
+|----------------|------------------------------------------|
+| `X-Auth-Token` | UBIRCH backend token related to `<UUID>` |
+
+Hash update requests to the UBIRCH backend must come from the same UUID that anchored said hash and be signed by the
+same private key that signed the anchoring request.
 
 ### TCP Address
 
