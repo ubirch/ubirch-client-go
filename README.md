@@ -110,7 +110,7 @@ The only mandatory configurations are
 
 > See [example_config.json](main/example_config.json) as an example for file-based configuration.
 
-Besides the `devices`-map, the device UUIDs and their corresponding authentication tokens can be set through a file
+Besides the `devices`-map, the device UUIDs and their corresponding authentication tokens can also be set through a file
 "`identities.json`". See example: [example_identities.json](main/example_identities.json)
 
 ### Environment Based Configuration
@@ -368,6 +368,8 @@ the `-v $(pwd):/data` parameter can be omitted.
 
 ## Interface Description
 
+### Anchoring
+
 The UBIRCH client provides HTTP endpoints for both original data, which will be hashed by the client, and direct data
 hash injection, i.e. the SHA256 digest of the original data.
 
@@ -383,7 +385,7 @@ hash injection, i.e. the SHA256 digest of the original data.
 >
 > See [reproducibility of hashes](#reproducibility-of-hashes).
 
-To access either endpoint an authentication token, which corresponds to the `UUID` used in the request, must be sent
+To access either endpoint, an authentication token, which corresponds to the `UUID` used in the request, must be sent
 with the request header. Without it, the client won’t accept the request:
 
 | `X-Auth-Token` | `ubirch backend token related to <UUID>` |
@@ -394,9 +396,11 @@ with the request header. Without it, the client won’t accept the request:
 ### TCP Address
 
 When running the client locally, the default address is:
+
 ```fundamental
 http://localhost:8080/<UUID>
 ```
+
 (or `https://localhost:8080/<UUID>`, if TLS is enabled)
 
 > See [how to set a different TCP address/port for the client](#set-tcp-address).
@@ -430,28 +434,32 @@ considered a failure. The client does not retry itself. A good approach to handl
 original data storage that indicates whether the UBIRCH blockchain anchoring was successful and retry at a later point
 if necessary.
 
-The client's response can be either an error message, or a JSON map with the carried out operation, the data hash, the
-UPP, which contains that data hash and was sent to the UBIRCH backend, the response from the UBIRCH backend, as well as
-a unique requestID:
+The response body consists of either an error message, or a JSON map with
+
+- the carried out operation,
+- the data hash,
+- the UPP, which contains that data hash and was sent to the UBIRCH backend by the client,
+- the response from the UBIRCH backend,
+- the unique request ID
 
 ```json
 {
   "operation": "(anchor | delete | enable | disable)",
-  "hash": "<the base64 encoded data hash>",
-  "upp": "<the base64 encoded UPP containing the data hash that was sent to the ubirch backend by the client>",
+  "hash": "<base64 encoded data hash>",
+  "upp": "<base64 encoded UPP which was sent to the UBIRCH backend>",
   "response": {
-    "statusCode": "<the backend response status code>",
-    "headers": {<map with the backend response headers>},
-    "content": "<the base64 encoded backend response content>"
+    "statusCode": <backend response status code (int)>,
+    "headers": {<backend response headers (map[string][]string)>},
+    "content": "<base64 encoded backend response content>"
   },
-  "requestID": "<the request ID (standard hex string representation)>"
+  "requestID": "<request ID (standard hex string representation)>"
 }
 ```
 
 > UPPs (such as the backend response content) are [MessagePack](https://github.com/msgpack/msgpack/blob/master/spec.md) formatted
 > and can be decoded using an online tool like [this MessagePack to JSON Converter](https://toolslick.com/conversion/data/messagepack-to-json).
 
-### Verification endpoints
+### Verification
 
 The UBIRCH client also provides verification endpoints for original data and hashes.
 
@@ -467,16 +475,19 @@ There is no authentication token necessary to access the verification endpoints.
 A `200` response code indicates the successful verification of the data in the UBIRCH backend as well as a local
 verification of the validity of the retrieved UPP.
 
-The response body contains either an error message, or a JSON map with the requested data hash, the UPP, which contains
-that data hash and was retrieved from the UBIRCH backend, as well as the UUID of the device from which the data
-originated:
+The response body consists of either an error message, or a JSON map with
+
+- the requested data hash,
+- the UPP, which contains that data hash and was retrieved from the UBIRCH backend by the client,
+- the UUID of the device from which the data originated,
+- the public key of that device, which was used to verify the signature of the retrieved UPP
 
 ```json
 {
-  "hash": "<the base64 encoded requested data hash>",
-  "upp": "<the base64 encoded UPP containing the requested data hash that was retrieved from the ubirch backend by the client>",
-  "uuid": "<the standard hex string representation of the device UUID>",
-  "pubKey": "<the public key used for verification of the retrieved UPP>"
+  "hash": "<base64 encoded requested data hash>",
+  "upp": "<base64 encoded UPP which was retrieved from the UBIRCH backend",
+  "uuid": "<standard hex string representation of the device UUID>",
+  "pubKey": "<base64 encoded public key used for signature verification>"
 }
 ```
 
