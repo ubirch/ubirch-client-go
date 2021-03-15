@@ -128,8 +128,8 @@ All other configuration parameters have default values, but can be configured as
 
 The `env` configuration refers to the UBIRCH backend environment. The default value is `prod`, which is the production
 environment. For development, the environment may be set to `demo`, which is a test system that works like the
-production environment, but stores data only in a blockchain test net. __However, we suggest using `prod` in general as demo
-may not always be available__.
+production environment, but stores data only in a blockchain test net. __However, we suggest using `prod` in general as
+`demo` may not always be available__.
 
 > Note that the UUIDs must be registered at the according UBIRCH backend environment,
 > i.e. https://console.demo.ubirch.com/.
@@ -137,16 +137,13 @@ may not always be available__.
 To switch to the `demo` backend environment
 
 - add the following key-value pair to your `config.json`:
-
-```json
-  "env": "demo"
-```
-
+    ```json
+      "env": "demo"
+    ```
 - or set the following environment variable:
-
-```shell
-UBIRCH_ENV=demo
-```
+    ```shell
+    UBIRCH_ENV=demo
+    ```
 
 ### Use a SQL database to store the protocol context
 
@@ -159,16 +156,13 @@ If you want to use a SQL database instead of a local file, make sure to apply th
 configuration.
 
 - add the following key-value pair to your `config.json`:
-
-```json
-  "DSN": "<data source name for database>"
-```
-
+    ```json
+      "DSN": "<data source name for database>"
+    ```
 - or set the following environment variable:
-
-```shell
-UBIRCH_DSN=<data source name for database>
-```
+    ```shell
+    UBIRCH_DSN=<data source name for database>
+    ```
 
 ### Inject signing keys
 
@@ -180,27 +174,24 @@ Instead of having the client generate keys dynamically it is possible to inject 
 key.
 
 - add the following key-value pairs to your `config.json`:
-
-```json
-  "staticKeys": true,
-  "keys": {"<UUID>": "<ecdsa-prime256v1 private key (base64 encoded)>"}
-```
-
+    ```json
+      "staticKeys": true,
+      "keys": {"<UUID>": "<ecdsa-prime256v1 private key (base64 encoded)>"}
+    ```
 - or set the following environment variables:
+    ```shell
+    UBIRCH_STATICKEYS=<boolean, defaults to ‘false’>
+    UBIRCH_KEYS=<UUID>:<ecdsa-prime256v1 private key (base64 encoded)>
+    ```
 
-```shell
-UBIRCH_STATICKEYS=<boolean, defaults to ‘false’>
-UBIRCH_KEYS=<UUID>:<ecdsa-prime256v1 private key (base64 encoded)>
-```
-
-> ECDSA signing keys (prime256v1) can be generated on the command line using openssl:
+ECDSA signing keys (prime256v1) can be generated on the command line using openssl:
 
 ```console
 openssl ecparam -genkey -name prime256v1 -noout | openssl ec -text -noout | grep priv -A 3 | tail -n +2 | tr -d ': ' | xxd -r -p | base64
 ```
 
-*Either way (dynamically generated or injected) the client will register the public key at the UBIRCH key service and
-store the keys persistently in the encrypted keystore.*
+*The client will register dynamically generated as well as injected public keys at the UBIRCH key service and store the
+keys persistently in the encrypted keystore.*
 
 ### X.509 Certificate Signing Requests
 
@@ -209,80 +200,75 @@ Common Name* of the CSR subject is the UUID associated with the public key. The 
 Country* of the CSR subject can be set through the configuration.
 
 - add the following key-value pairs to your `config.json`:
-
-```json
-  "CSR_country": "<CSR Subject Country Name (2 letter code)>",
-  "CSR_organization": "<CSR Subject Organization Name (e.g. company)>"
-```
-
+    ```json
+      "CSR_country": "<CSR Subject Country Name (2 letter code)>",
+      "CSR_organization": "<CSR Subject Organization Name (e.g. company)>"
+    ```
 - or set the following environment variables:
-
-```shell
-UBIRCH_CSR_COUNTRY=<CSR Subject Country Name (2 letter code)>
-UBIRCH_CSR_ORGANIZATION=<CSR Subject Organization Name (e.g. company)>
-```
+    ```shell
+    UBIRCH_CSR_COUNTRY=<CSR Subject Country Name (2 letter code)>
+    UBIRCH_CSR_ORGANIZATION=<CSR Subject Organization Name (e.g. company)>
+    ```
 
 ### Set TCP address
 
 You can specify the TCP address for the server to listen on, in the form `host:port`. If empty, port 8080 is used.
 
 - add the following key-value pair to your `config.json`:
-
-```json
-  "TCP_addr": ":8080",
-```
-
+    ```json
+      "TCP_addr": ":8080",
+    ```
 - or set the following environment variable:
-
-```shell
-UBIRCH_TCP_ADDR=:8080
-```
+    ```shell
+    UBIRCH_TCP_ADDR=:8080
+    ```
 
 > This describes how to configure the TCP port *the client* exposes,
 > **not the docker container**. If you are running the client in a docker container,
 > you can configure the exposed TCP port (`<host_port>`) with the according
 > argument when starting the client with `docker run`:
 >
-> `$ docker run -p <host_port>:8080 ubirch/ubirch-client:vx.x.x`
+> `docker run -p <host_port>:8080 ubirch/ubirch-client:vx.x.x`
 >
 > See [Run Client in Docker container](#run-client-in-docker-container)
 
 ### Enable TLS (serve HTTPS)
 
-- Create a self-signed TLS certificate
+1. Create a self-signed TLS certificate
 
-  In order to serve HTTPS endpoints, you can run the following command to create a self-signed certificate with openssl.
-  With this command it will be valid for ten years.
+   In order to serve HTTPS endpoints, you can run the following command to create a self-signed certificate with
+   openssl. With this command it will be valid for ten years.
     ```console
     openssl req -x509 -newkey rsa:4096 -keyout key.pem -nodes -out cert.pem -days 3650
     ```
 
-- Enable TLS in configuration
+2. Enable TLS in configuration
 
-  To serve HTTPS requests to the UBIRCH client service, add the following key-value pair to your `config.json`:
-    ```json
-      "TLS": true
-    ```
-  ...or set the following environment variable:
-    ```shell
-    UBIRCH_TLS=true
-    ```
+    - add the following key-value pair to your `config.json`:
+        ```json
+          "TLS": true
+        ```
+    - or set the following environment variable:
+        ```shell
+        UBIRCH_TLS=true
+         ```
 
-By default, client will look for the `key.pem` and `cert.pem` files in the working directory
-(same location as the config file), but you can define a different location (relative to the working directory) and/or
-filename by adding them to your configuration file like this:
+3. Set path and filename (optional)
 
-```json
-  "TLSCertFile": "<path/to/TLS-cert-filename>",
-  "TLSKeyFile": "<path/to/TLS-key-filename>"
-```
+   By default, client will look for the `key.pem` and `cert.pem` files in the working directory
+   (same location as the config file), but it is possible to define a different location (relative to the working
+   directory) and/or filename by adding them to your configuration file.
 
-...or if you are using environment based configuration:
-
-```shell
-UBIRCH_TLS_CERTFILE=certs/cert.pem
-UBIRCH_TLS_KEYFILE=certs/key.pem
-```
+    - add the following key-value pairs to your `config.json`:
+        ```json
+          "TLSCertFile": "<path/to/TLS-cert-filename>",
+          "TLSKeyFile": "<path/to/TLS-key-filename>"
+        ```
+    - or set the following environment variables:
+        ```shell
+        UBIRCH_TLS_CERTFILE=certs/cert.pem
+        UBIRCH_TLS_KEYFILE=certs/key.pem
+        ```
 
 ### Enable Cross Origin Resource Sharing (CORS)
 
@@ -290,20 +276,18 @@ UBIRCH_TLS_KEYFILE=certs/key.pem
 and will be ignored on production stage.**
 > [See how to set the UBIRCH backend environment](#set-the-ubirch-backend-environment)
 
-To enable CORS and configure a list of *allowed origins*, i.e. origins a cross-domain request can be executed from, add
-the following key-value pair to your `config.json`:
+To enable CORS and configure a list of *allowed origins*, i.e. origins a cross-domain request can be executed from,
 
-```json
-  "CORS": true,
-  "CORS_origins": ["<allowed origin>"]
-```
-
-or set the following environment variable:
-
-```shell
-UBIRCH_CORS=true
-UBIRCH_CORS_ORIGINS=<allowed origin>
-```
+- add the following key-value pairs to your `config.json`:
+    ```json
+      "CORS": true,
+      "CORS_origins": ["<allowed origin>"]
+    ```
+- or set the following environment variables:
+    ```shell
+    UBIRCH_CORS=true
+    UBIRCH_CORS_ORIGINS=<allowed origin>
+    ```
 
 An origin may contain a wildcard (`*`) to replace 0 or more characters (e.g.: `http://*.domain.com`). Only one wildcard
 can be used per origin.
@@ -314,18 +298,29 @@ which means, **all** origins will be allowed.
 
 ### Extended Debug Output
 
-To set the logging level to `debug` and so enable extended debug output add the following key-value pair to
-your `config.json`:
+To set the logging level to `debug` and so enable extended debug output,
 
-```json
-  "debug": true
-```
+- add the following key-value pair to your `config.json`:
+    ```json
+      "debug": true
+    ```
+- or set the following environment variable:
+    ```shell
+    UBIRCH_DEBUG=true
+    ```
 
-or set the following environment variable:
+### Log Format
 
-```shell
-UBIRCH_DEBUG=true
-```
+By default, the log of the client is in JSON format. To change it to a (more human-eye-friendly) text format,
+
+- add the following key-value pairs to your `config.json`:
+    ```json
+      "logTextFormat": true
+    ```
+- or set the following environment variables:
+    ```shell
+    UBIRCH_LOGTEXTFORMAT=true
+    ```
 
 ### How to acquire the ubirch backend token
 
