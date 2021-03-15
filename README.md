@@ -464,6 +464,7 @@ The response body consists of either an error message, or a JSON map with
 - the UPP, which contains that data hash and was sent to the UBIRCH backend by the client,
 - the response from the UBIRCH backend,
 - the unique request ID
+- *possibly:* a description of an occurred error (**the `error`-key is only present in case an error occurred**)
 
 ```json
 {
@@ -475,7 +476,8 @@ The response body consists of either an error message, or a JSON map with
     "headers": {<backend response headers (map[string][]string)>},
     "content": "<base64 encoded backend response content>"
   },
-  "requestID": "<request ID (standard hex string representation)>"
+  "requestID": "<request ID (standard hex string representation)>",
+  "error": "error message"
 }
 ```
 
@@ -504,13 +506,15 @@ The response body consists of either an error message, or a JSON map with
 - the UPP, which contains that data hash and was retrieved from the UBIRCH backend by the client,
 - the UUID of the device from which the data originated,
 - the public key of that device, which was used to verify the signature of the retrieved UPP
+- *possibly:* a description of an occurred error (**the `error`-key is only present in case an error occurred**)
 
 ```json
 {
   "hash": "<base64 encoded requested data hash>",
   "upp": "<base64 encoded UPP which was retrieved from the UBIRCH backend",
   "uuid": "<standard hex string representation of the device UUID>",
-  "pubKey": "<base64 encoded public key used for signature verification>"
+  "pubKey": "<base64 encoded public key used for signature verification>",
+  "error": "error message"
 }
 ```
 
