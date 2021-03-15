@@ -359,19 +359,23 @@ func (srv *HTTPServer) Serve(ctx context.Context) error {
 
 	go func() {
 		<-ctx.Done()
-		log.Printf("shutting down http server")
+		log.Debug("shutting down HTTP server")
 		server.SetKeepAlivesEnabled(false) // disallow clients to create new long-running conns
-		if err := server.Shutdown(ctx); err != nil {
-			log.Warnf("Failed to gracefully shut down server: %s", err)
+
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			log.Warnf("failed to gracefully shut down server: %s", err)
 		}
 	}()
 
 	if srv.TLS {
-		log.Printf("TLS enabled")
+		log.Info("TLS enabled")
 		log.Debugf(" - Cert: %s", srv.certFile)
 		log.Debugf(" -  Key: %s", srv.keyFile)
 	}
-	log.Printf("starting HTTP service")
+	log.Infof("starting HTTP server")
 
 	var err error
 	if srv.TLS {
@@ -380,7 +384,7 @@ func (srv *HTTPServer) Serve(ctx context.Context) error {
 		err = server.ListenAndServe()
 	}
 	if err != nil && err != http.ErrServerClosed {
-		return fmt.Errorf("error starting HTTP service: %v", err)
+		return fmt.Errorf("error starting HTTP server: %v", err)
 	}
 	return nil
 }
