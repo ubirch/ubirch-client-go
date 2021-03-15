@@ -466,14 +466,14 @@ The response body consists of either an error message, or a JSON map with
 - the unique request ID
 - *possibly:* a description of an occurred error (**the `error`-key is only present in case an error occurred**)
 
-```json
+```fundamental
 {
   "operation": "(anchor | delete | enable | disable)",
   "hash": "<base64 encoded data hash>",
   "upp": "<base64 encoded UPP which was sent to the UBIRCH backend>",
   "response": {
     "statusCode": <backend response status code (int)>,
-    "headers": {<backend response headers (map[string][]string)>},
+    "header": {<backend response header (map[string][]string)>},
     "content": "<base64 encoded backend response content>"
   },
   "requestID": "<request ID (standard hex string representation)>",
@@ -663,7 +663,7 @@ and insignificant space characters were elided.
         "upp": "liPEEFCxpbuDzUJRtnSzxxoFj8PEQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAxCAINS+04gGednyKb9RdCfkb+rkQr2XYGrL4fIyBLM9mgMRAIVlhgxobRl7ApJerXUyJ5cBxBJJ7gwPUN9AKgKJWxAxkWMWufRp8jW9Ha79s5hYbNp9+bn94cMflWyAyyjy4Ew==",
         "response": {
             "statusCode": 200,
-            "headers": {
+            "header": {
                 "Content-Length": [
                     "187"
                 ],
