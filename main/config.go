@@ -65,7 +65,7 @@ type Config struct {
 	CORS_Origins     []string          `json:"CORS_origins"`     // list of allowed origin hosts, defaults to ["*"]
 	Debug            bool              `json:"debug"`            // enable extended debug output, defaults to 'false'
 	LogTextFormat    bool              `json:"logTextFormat"`    // log in text format for better human readability, default format is JSON
-	SecretBytes      []byte            // the decoded key store secret
+	SecretBytes      []byte            // the decoded key store secret (set automatically)
 	KeyService       string            // key service URL (set automatically)
 	IdentityService  string            // identity service URL (set automatically)
 	Niomon           string            // authentication service URL (set automatically)

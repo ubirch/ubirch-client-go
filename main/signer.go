@@ -28,88 +28,186 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+type operation string
+
+const (
+	anchorHash  operation = "anchor"
+	disableHash operation = "disable"
+	enableHash  operation = "enable"
+	deleteHash  operation = "delete"
+
+	lenRequestID = 16
+)
+
+type signingResponse struct {
+	Error     string       `json:"error,omitempty"`
+	Operation operation    `json:"operation,omitempty"`
+	Hash      []byte       `json:"hash,omitempty"`
+	UPP       []byte       `json:"upp,omitempty"`
+	Response  HTTPResponse `json:"response,omitempty"`
+	RequestID string       `json:"requestID,omitempty"`
+}
+
+type Signer struct {
+	protocol       *ExtendedProtocol
+	env            string
+	authServiceURL string
+	MessageHandler chan HTTPRequest
+}
+
 // handle incoming messages, create, sign and send a ubirch protocol packet (UPP) to the ubirch backend
-func signer(ctx context.Context, msgHandler chan HTTPMessage, p *ExtendedProtocol, conf Config) error {
+func signer(ctx context.Context, s *Signer) error {
 	for {
 		select {
-		case msg := <-msgHandler:
-			uid := msg.ID
-			name := uid.String()
-
-			// create a chained UPP
-			log.Printf("%s: signing hash: %s", name, base64.StdEncoding.EncodeToString(msg.Hash[:]))
-
-			upp, err := p.SignHash(name, msg.Hash[:], ubirch.Chained)
-			if err != nil {
-				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("error creating UPP for UUID %s: %v", name, err))
-				continue
+		case msg := <-s.MessageHandler:
+			// buffer last previous signature to be able to reset it in case sending UPP to backend fails
+			prevSign, found := s.protocol.Signatures[msg.ID]
+			if !found {
+				prevSign = make([]byte, 64)
 			}
-			log.Debugf("%s: UPP: %s", name, hex.EncodeToString(upp))
 
-			// send UPP to ubirch backend
-			respCode, respBody, respHeaders, err := post(conf.Niomon, upp, map[string]string{
-				"x-ubirch-hardware-id": name,
-				"x-ubirch-auth-type":   "ubirch",
-				"x-ubirch-credential":  base64.StdEncoding.EncodeToString(msg.Auth),
-			})
-			if err != nil {
-				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, fmt.Sprintf("error sending UPP to backend: %v", err))
-				continue
-			}
-			log.Debugf("%s: response: (%d) %s", name, respCode, hex.EncodeToString(respBody))
-
-			var requestID uuid.UUID
-
-			// decode the backend response
-			respUPP, err := ubirch.Decode(respBody)
-			if err != nil {
-				log.Warnf("unable to decode backend response: %v\n backend response was: (%d) %q",
-					err, respCode, respBody)
+			resp := s.handleSigningRequest(msg)
+			msg.Response <- resp
+			if httpFailed(resp.StatusCode) {
+				// reset previous signature in protocol context to ensure intact chain
+				s.protocol.Signatures[msg.ID] = prevSign
 			} else {
-
-				// todo verify backend response signature
-
-				// get request ID from backend response payload
-				requestID, err = uuid.FromBytes(respUPP.GetPayload()[:16])
+				// persist last signature after UPP was successfully received in ubirch backend
+				err := s.protocol.PersistContext()
 				if err != nil {
-					log.Warnf("unable to get request ID from backend response payload: %v\n backend response payload was: %q",
-						err, respUPP.GetPayload())
+					return fmt.Errorf("unable to persist last signature: %v [\"%s\": \"%s\"]",
+						err, msg.ID.String(), base64.StdEncoding.EncodeToString(s.protocol.Signatures[msg.ID]))
 				}
 			}
 
-			// check if sending was successful
-			if httpFailed(respCode) {
-				log.Errorf("%s: sending UPP to %s failed: (%d) %q", name, conf.Niomon, respCode, respBody)
-				// reset last signature in protocol context if sending UPP to backend fails to ensure intact chain
-				err = p.LoadContext()
-			} else {
-				log.Infof("%s: UPP sent to %s (request ID: %s)", name, conf.Niomon, requestID)
-				// save last signature after UPP was successfully received in ubirch backend
-				err = p.PersistContext()
-			}
-			if err != nil {
-				msg.Response <- HTTPErrorResponse(http.StatusInternalServerError, "")
-				return fmt.Errorf("unable to load/persist last signature for UUID %s: %v", name, err)
-			}
-
-			response, err := json.Marshal(map[string][]byte{
-				"hash":      msg.Hash[:],
-				"upp":       upp,
-				"requestID": requestID[:],
-				"response":  respBody,
-			})
-			if err != nil {
-				log.Warnf("error serializing extended response: %v", err)
-				response = respBody
-			} else {
-				respHeaders.Del("Content-Length")
-				respHeaders.Set("Content-Type", "application/json")
-			}
-			msg.Response <- HTTPResponse{Code: respCode, Headers: respHeaders, Content: response}
-
 		case <-ctx.Done():
-			log.Println("finishing signer")
+			log.Debug("shutting down signer")
 			return nil
 		}
+	}
+}
+
+func (s *Signer) handleSigningRequest(msg HTTPRequest) HTTPResponse {
+	name := msg.ID.String()
+	hash := msg.Hash[:]
+	auth := msg.Auth
+
+	// create and sign a UPP containing the hash
+	var upp []byte
+	var err error
+
+	switch msg.Operation {
+	case anchorHash:
+		upp, err = s.anchorHash(name, hash)
+	case disableHash:
+		upp, err = s.disableHash(name, hash)
+	case enableHash:
+		upp, err = s.enableHash(name, hash)
+	case deleteHash:
+		upp, err = s.deleteHash(name, hash)
+	default:
+		err = fmt.Errorf("unsupported operation: \"%s\"", msg.Operation)
+	}
+
+	if err != nil {
+		log.Errorf("%s: could not create UBIRCH Protocol Package: %v", name, err)
+		return errorResponse(http.StatusInternalServerError, "")
+	}
+	log.Debugf("%s: UPP: %s", name, hex.EncodeToString(upp))
+
+	// send UPP to ubirch backend
+	backendResp, err := post(s.authServiceURL, upp, ubirchHeader(msg.ID, auth))
+	if err != nil {
+		log.Errorf("%s: sending request to UBIRCH Authentication Service failed: %v", name, err)
+		return errorResponse(http.StatusInternalServerError, "")
+	}
+	log.Debugf("%s: backend response: (%d) %s", name, backendResp.StatusCode, hex.EncodeToString(backendResp.Content))
+
+	// decode the backend response UPP and get request ID
+	var requestID string
+	responseUPPStruct, err := ubirch.Decode(backendResp.Content)
+	if err != nil {
+		log.Warnf("decoding backend response failed: %v, backend response: (%d) %q", err, backendResp.StatusCode, backendResp.Content)
+	} else {
+		requestID, err = getRequestID(responseUPPStruct)
+		if err != nil {
+			log.Warnf("could not get request ID from backend response: %v", err)
+		} else {
+			log.Infof("%s: request ID: %s", name, requestID)
+		}
+	}
+
+	return getSigningResponse(backendResp.StatusCode, msg, upp, backendResp, requestID, "")
+}
+
+func (s *Signer) anchorHash(name string, hash []byte) ([]byte, error) {
+	log.Infof("%s: anchoring hash: %s", name, base64.StdEncoding.EncodeToString(hash))
+
+	return s.protocol.SignHash(name, hash, ubirch.Chained)
+}
+
+func (s *Signer) disableHash(name string, hash []byte) ([]byte, error) {
+	log.Infof("%s: disabling hash: %s", name, base64.StdEncoding.EncodeToString(hash))
+
+	return s.protocol.SignHashExtended(name, hash, ubirch.Signed, ubirch.Disable)
+}
+
+func (s *Signer) enableHash(name string, hash []byte) ([]byte, error) {
+	log.Infof("%s: enabling hash: %s", name, base64.StdEncoding.EncodeToString(hash))
+
+	return s.protocol.SignHashExtended(name, hash, ubirch.Signed, ubirch.Enable)
+}
+
+func (s *Signer) deleteHash(name string, hash []byte) ([]byte, error) {
+	log.Infof("%s: deleting hash: %s", name, base64.StdEncoding.EncodeToString(hash))
+
+	return s.protocol.SignHashExtended(name, hash, ubirch.Signed, ubirch.Delete)
+}
+
+func getRequestID(respUPP ubirch.UPP) (string, error) {
+	respPayload := respUPP.GetPayload()
+	if len(respPayload) < lenRequestID {
+		return "n/a", fmt.Errorf("response payload does not contain request ID: %q", respPayload)
+	}
+	requestID, err := uuid.FromBytes(respPayload[:lenRequestID])
+	if err != nil {
+		return "n/a", err
+	}
+	return requestID.String(), nil
+}
+
+func errorResponse(code int, message string) HTTPResponse {
+	if message == "" {
+		message = http.StatusText(code)
+	}
+	log.Error(message)
+	return HTTPResponse{
+		StatusCode: code,
+		Header:     http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
+		Content:    []byte(message),
+	}
+}
+
+func getSigningResponse(respCode int, msg HTTPRequest, upp []byte, backendResp HTTPResponse, requestID string, errMsg string) HTTPResponse {
+	signingResp, err := json.Marshal(signingResponse{
+		Hash:      msg.Hash[:],
+		UPP:       upp,
+		Response:  backendResp,
+		RequestID: requestID,
+		Operation: msg.Operation,
+		Error:     errMsg,
+	})
+	if err != nil {
+		log.Warnf("error serializing signing response: %v", err)
+	}
+
+	if httpFailed(respCode) {
+		log.Errorf("%s: %s", msg.ID, string(signingResp))
+	}
+
+	return HTTPResponse{
+		StatusCode: respCode,
+		Header:     http.Header{"Content-Type": {"application/json"}},
+		Content:    signingResp,
 	}
 }

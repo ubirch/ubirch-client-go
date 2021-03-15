@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"path"
 	"strings"
 	"time"
 
@@ -20,68 +21,241 @@ import (
 )
 
 const (
-	UUIDKey  = "uuid"
-	BinType  = "application/octet-stream"
-	TextType = "text/plain"
-	JSONType = "application/json"
-	HashLen  = 32
+	UUIDKey      = "uuid"
+	OperationKey = "operation"
+	HashEndpoint = "/hash"
+	BinType      = "application/octet-stream"
+	TextType     = "text/plain"
+	JSONType     = "application/json"
+	HashLen      = 32
 )
 
 type Sha256Sum [HashLen]byte
 
 type ServerEndpoint struct {
-	Path           string
-	MessageHandler chan HTTPMessage
-	RequiresAuth   bool
-	AuthTokens     map[string]string
+	Path string
+	Service
 }
 
-type HTTPMessage struct {
-	ID       uuid.UUID
-	Auth     []byte
-	Hash     Sha256Sum
-	Response chan HTTPResponse
+type HTTPRequest struct {
+	ID        uuid.UUID
+	Auth      string
+	Hash      Sha256Sum
+	Operation operation
+	Response  chan HTTPResponse
 }
 
 type HTTPResponse struct {
-	Code    int
-	Headers map[string][]string
-	Content []byte
+	StatusCode int         `json:"statusCode"`
+	Header     http.Header `json:"header"`
+	Content    []byte      `json:"content"`
+}
+
+type Service interface {
+	handleRequest(w http.ResponseWriter, r *http.Request)
+}
+
+type AnchoringService struct {
+	*Signer
+	AuthTokens map[string]string
+}
+
+type UpdateOperationService struct {
+	*Signer
+	AuthTokens map[string]string
+}
+
+type VerificationService struct {
+	*Verifier
+}
+
+func (service *AnchoringService) handleRequest(w http.ResponseWriter, r *http.Request) {
+	var msg HTTPRequest
+	var err error
+
+	msg.ID, err = getUUID(r)
+	if err != nil {
+		Error(w, err, http.StatusNotFound)
+		return
+	}
+
+	msg.Auth, err = checkAuth(r, msg.ID, service.AuthTokens)
+	if err != nil {
+		Error(w, err, http.StatusUnauthorized)
+		return
+	}
+
+	msg.Operation = anchorHash
+
+	msg.Hash, err = getHash(r)
+	if err != nil {
+		Error(w, err, http.StatusBadRequest)
+		return
+	}
+
+	// create HTTPRequest with individual response channel for each request
+	msg.Response = make(chan HTTPResponse)
+
+	// submit message for signing
+	service.MessageHandler <- msg
+
+	// wait for response from ubirch backend to be forwarded
+	sendResponseChannel(w, msg.Response)
+}
+
+func (service *UpdateOperationService) handleRequest(w http.ResponseWriter, r *http.Request) {
+	var msg HTTPRequest
+	var err error
+
+	msg.ID, err = getUUID(r)
+	if err != nil {
+		Error(w, err, http.StatusNotFound)
+		return
+	}
+
+	msg.Auth, err = checkAuth(r, msg.ID, service.AuthTokens)
+	if err != nil {
+		Error(w, err, http.StatusUnauthorized)
+		return
+	}
+
+	msg.Operation, err = getOperation(r)
+	if err != nil {
+		Error(w, err, http.StatusNotFound)
+		return
+	}
+
+	msg.Hash, err = getHash(r)
+	if err != nil {
+		Error(w, err, http.StatusBadRequest)
+		return
+	}
+
+	resp := service.handleSigningRequest(msg)
+	sendResponse(w, resp)
+}
+
+func (service *VerificationService) handleRequest(w http.ResponseWriter, r *http.Request) {
+	hash, err := getHash(r)
+	if err != nil {
+		Error(w, err, http.StatusBadRequest)
+		return
+	}
+
+	resp := service.verifyHash(hash[:])
+	sendResponse(w, resp)
 }
 
 // wrapper for http.Error that additionally logs the error message to std.Output
 func Error(w http.ResponseWriter, err error, code int) {
 	log.Error(err)
-	http.Error(w, fmt.Sprint(err), code)
+	http.Error(w, err.Error(), code)
 }
 
-// helper function to get "Content-Type" from headers
-func ContentType(r *http.Request) string {
-	return strings.ToLower(r.Header.Get("Content-Type"))
+// helper function to get "Content-Type" from request header
+func ContentType(header http.Header) string {
+	return strings.ToLower(header.Get("Content-Type"))
 }
 
-// helper function to get "X-Auth-Token" from headers
-func XAuthToken(r *http.Request) string {
-	return r.Header.Get("X-Auth-Token")
+// helper function to get "X-Auth-Token" from request header
+func AuthToken(header http.Header) string {
+	return header.Get("X-Auth-Token")
 }
 
-// get UUID from request URL
+// getUUID returns the UUID parameter from the request URL
 func getUUID(r *http.Request) (uuid.UUID, error) {
-	urlParam := chi.URLParam(r, UUIDKey)
-	id, err := uuid.Parse(urlParam)
+	uuidParam := chi.URLParam(r, UUIDKey)
+	id, err := uuid.Parse(uuidParam)
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("unable to parse \"%s\" as UUID: %s", urlParam, err)
+		return uuid.Nil, fmt.Errorf("invalid UUID: \"%s\": %v", uuidParam, err)
 	}
-
 	return id, nil
 }
 
-func JSONMarshal(v interface{}) ([]byte, error) {
-	buffer := &bytes.Buffer{}
-	encoder := json.NewEncoder(buffer)
-	encoder.SetEscapeHTML(false)
-	err := encoder.Encode(v)
-	return buffer.Bytes(), err
+// checkAuth checks the auth token from the request header and returns it if valid
+// Returns error if UUID is unknown or auth token is invalid
+func checkAuth(r *http.Request, id uuid.UUID, authTokens map[string]string) (string, error) {
+	// check if UUID is known
+	idAuthToken, exists := authTokens[id.String()]
+	if !exists || idAuthToken == "" {
+		return "", fmt.Errorf("unknown UUID: \"%s\"", id.String())
+	}
+
+	// check auth token from request header
+	headerAuthToken := AuthToken(r.Header)
+	if idAuthToken != headerAuthToken {
+		return "", fmt.Errorf("invalid auth token")
+	}
+
+	return headerAuthToken, nil
+}
+
+// getOperation returns the operation parameter from the request URL
+func getOperation(r *http.Request) (operation, error) {
+	opParam := chi.URLParam(r, OperationKey)
+	switch operation(opParam) {
+	case disableHash, enableHash, deleteHash:
+		return operation(opParam), nil
+	default:
+		return "", fmt.Errorf("invalid update operation: "+
+			"expected (\"%s\" | \"%s\" | \"%s\"), got \"%s\"", disableHash, enableHash, deleteHash, opParam)
+	}
+}
+
+// getHash returns the hash from the request body
+func getHash(r *http.Request) (Sha256Sum, error) {
+	data, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return Sha256Sum{}, fmt.Errorf("unable to read request body: %v", err)
+	}
+
+	isHashRequest := strings.HasSuffix(r.URL.Path, HashEndpoint)
+	if isHashRequest { // request contains hash
+		return getHashFromHashRequest(r, data)
+	} else { // request contains original data
+		return getHashFromDataRequest(r, data)
+	}
+}
+
+func getHashFromDataRequest(r *http.Request, data []byte) (hash Sha256Sum, err error) {
+	switch ContentType(r.Header) {
+	case JSONType:
+		data, err = getSortedCompactJSON(data)
+		if err != nil {
+			return Sha256Sum{}, err
+		}
+		// only log original data if in debug-mode
+		log.Debugf("sorted compact JSON: %s", string(data))
+	case BinType:
+	default:
+		return Sha256Sum{}, fmt.Errorf("invalid content-type for original data: "+
+			"expected (\"%s\" | \"%s\")", BinType, JSONType)
+	}
+
+	// hash original data
+	return sha256.Sum256(data), nil
+}
+
+func getHashFromHashRequest(r *http.Request, data []byte) (hash Sha256Sum, err error) {
+	switch ContentType(r.Header) {
+	case TextType:
+		data, err = base64.StdEncoding.DecodeString(string(data))
+		if err != nil {
+			return Sha256Sum{}, fmt.Errorf("decoding base64 encoded hash failed: %v (%s)", err, string(data))
+		}
+	case BinType:
+	default:
+		return Sha256Sum{}, fmt.Errorf("invalid content-type for hash: "+
+			"expected (\"%s\" | \"%s\")", BinType, TextType)
+	}
+
+	if len(data) != HashLen {
+		return Sha256Sum{}, fmt.Errorf("invalid hash size: "+
+			"expected %d bytes, got %d bytes", HashLen, len(data))
+	}
+
+	copy(hash[:], data)
+	return hash, nil
 }
 
 func getSortedCompactJSON(data []byte) ([]byte, error) {
@@ -107,125 +281,33 @@ func getSortedCompactJSON(data []byte) ([]byte, error) {
 	return sortedCompactJson.Bytes(), nil
 }
 
-func getHash(r *http.Request, isHash bool) (Sha256Sum, error) {
-	var hash Sha256Sum
-
-	// read request body
-	data, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		return Sha256Sum{}, fmt.Errorf("unable to read request body: %v", err)
-	}
-
-	contentType := ContentType(r)
-	if !isHash { // request contains original data
-		if contentType == JSONType {
-			// generate a sorted compact rendering of the json formatted request body
-			data, err = getSortedCompactJSON(data)
-			if err != nil {
-				return Sha256Sum{}, err
-			}
-
-			// only log original data if in debug-mode
-			log.Debugf("sorted compact JSON: %s", string(data))
-
-		} else if contentType != BinType {
-			return Sha256Sum{}, fmt.Errorf("wrong content-type for original data. expected \"%s\" or \"%s\"", BinType, JSONType)
-		}
-
-		hash = sha256.Sum256(data)
-	} else { // request contains hash
-		if contentType == TextType {
-			data, err = base64.StdEncoding.DecodeString(string(data))
-			if err != nil {
-				return Sha256Sum{}, fmt.Errorf("decoding base64 encoded hash failed: %v (%s)", err, string(data))
-			}
-		} else if contentType != BinType {
-			return Sha256Sum{}, fmt.Errorf("wrong content-type for hash. expected \"%s\" or \"%s\"", BinType, TextType)
-		}
-
-		if len(data) != HashLen {
-			return Sha256Sum{}, fmt.Errorf("invalid hash size. expected %d bytes, got %d bytes (%s)", HashLen, len(data), data)
-		}
-		copy(hash[:], data)
-	}
-
-	return hash, err
+func JSONMarshal(v interface{}) ([]byte, error) {
+	buffer := &bytes.Buffer{}
+	encoder := json.NewEncoder(buffer)
+	encoder.SetEscapeHTML(false)
+	err := encoder.Encode(v)
+	return buffer.Bytes(), err
 }
 
 // blocks until response is received and forwards it to sender
-func forwardBackendResponse(w http.ResponseWriter, respChan chan HTTPResponse) {
+func sendResponseChannel(w http.ResponseWriter, respChan chan HTTPResponse) {
 	resp := <-respChan
-	for k, v := range resp.Headers {
+	sendResponse(w, resp)
+}
+
+// forwards response to sender
+func sendResponse(w http.ResponseWriter, resp HTTPResponse) {
+	for k, v := range resp.Header {
 		w.Header().Set(k, v[0])
 	}
-	w.WriteHeader(resp.Code)
+	w.WriteHeader(resp.StatusCode)
 	_, err := w.Write(resp.Content)
 	if err != nil {
 		log.Errorf("unable to write response: %s", err)
 	}
 }
 
-// check if auth token from request header is correct.
-// Returns error if UUID is unknown or auth token does not match.
-func (endpnt *ServerEndpoint) checkAuth(id uuid.UUID, authHeader string) error {
-	// check if UUID is known
-	idAuthToken, exists := endpnt.AuthTokens[id.String()]
-	if !exists {
-		return fmt.Errorf("unknown UUID \"%s\"", id.String())
-	}
-
-	// check auth token
-	if authHeader != idAuthToken {
-		return fmt.Errorf("invalid auth token")
-	}
-
-	return nil
-}
-
-func (endpnt *ServerEndpoint) handleRequest(w http.ResponseWriter, r *http.Request, isHash bool) {
-	var id uuid.UUID
-	var auth []byte
-	var err error
-
-	if endpnt.RequiresAuth {
-		id, err = getUUID(r)
-		if err != nil {
-			Error(w, err, http.StatusNotFound)
-			return
-		}
-		err = endpnt.checkAuth(id, XAuthToken(r))
-		if err != nil {
-			Error(w, err, http.StatusUnauthorized)
-			return
-		}
-		auth = []byte(XAuthToken(r))
-	}
-
-	hash, err := getHash(r, isHash)
-	if err != nil {
-		Error(w, err, http.StatusBadRequest)
-		return
-	}
-
-	// create HTTPMessage with individual response channel for each request
-	respChan := make(chan HTTPResponse)
-
-	// submit message for signing
-	endpnt.MessageHandler <- HTTPMessage{ID: id, Auth: auth, Hash: hash, Response: respChan}
-
-	// wait for response from ubirch backend to be forwarded
-	forwardBackendResponse(w, respChan)
-}
-
-func (endpnt *ServerEndpoint) handleRequestHash(w http.ResponseWriter, r *http.Request) {
-	endpnt.handleRequest(w, r, true)
-}
-
-func (endpnt *ServerEndpoint) handleRequestOriginalData(w http.ResponseWriter, r *http.Request) {
-	endpnt.handleRequest(w, r, false)
-}
-
-func (endpnt *ServerEndpoint) handleOptions(writer http.ResponseWriter, request *http.Request) {
+func (*ServerEndpoint) handleOptions(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
@@ -257,20 +339,22 @@ func (srv *HTTPServer) SetUpCORS(allowedOrigins []string, debug bool) {
 }
 
 func (srv *HTTPServer) AddEndpoint(endpoint ServerEndpoint) {
-	srv.router.Post(endpoint.Path, endpoint.handleRequestOriginalData)
-	srv.router.Post(endpoint.Path+"/hash", endpoint.handleRequestHash)
+	hashEndpointPath := path.Join(endpoint.Path + HashEndpoint)
+
+	srv.router.Post(endpoint.Path, endpoint.handleRequest)
+	srv.router.Post(hashEndpointPath, endpoint.handleRequest)
 
 	srv.router.Options(endpoint.Path, endpoint.handleOptions)
-	srv.router.Options(endpoint.Path+"/hash", endpoint.handleOptions)
+	srv.router.Options(hashEndpointPath, endpoint.handleOptions)
 }
 
 func (srv *HTTPServer) Serve(ctx context.Context) error {
 	server := &http.Server{
 		Addr:         srv.addr,
 		Handler:      srv.router,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 75 * time.Second,
-		IdleTimeout:  90 * time.Second,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 90 * time.Second,
+		IdleTimeout:  120 * time.Second,
 	}
 
 	go func() {
@@ -299,16 +383,4 @@ func (srv *HTTPServer) Serve(ctx context.Context) error {
 		return fmt.Errorf("error starting HTTP service: %v", err)
 	}
 	return nil
-}
-
-func HTTPErrorResponse(code int, message string) HTTPResponse {
-	if message == "" {
-		message = http.StatusText(code)
-	}
-	log.Error(message)
-	return HTTPResponse{
-		Code:    code,
-		Headers: map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}},
-		Content: []byte(message),
-	}
 }

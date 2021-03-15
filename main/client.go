@@ -78,30 +78,42 @@ func getSignedCertificate(p *ExtendedProtocol, uid uuid.UUID, pubKey []byte) ([]
 	return json.Marshal(cert)
 }
 
+func ubirchHeader(uid uuid.UUID, auth string) map[string]string {
+	return map[string]string{
+		"x-ubirch-hardware-id": uid.String(),
+		"x-ubirch-auth-type":   "ubirch",
+		"x-ubirch-credential":  base64.StdEncoding.EncodeToString([]byte(auth)),
+	}
+}
+
 // post submits a message to a backend service
-// returns the response status code, body and headers and encountered errors
-func post(url string, data []byte, headers map[string]string) (int, []byte, http.Header, error) {
-	client := &http.Client{}
+// returns the response or encountered errors
+func post(url string, data []byte, header map[string]string) (HTTPResponse, error) {
+	client := &http.Client{Timeout: 60 * time.Second}
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(data))
 	if err != nil {
-		return 0, nil, nil, fmt.Errorf("can't make new post request: %v", err)
+		return HTTPResponse{}, fmt.Errorf("can't make new post request: %v", err)
 	}
 
-	for k, v := range headers {
+	for k, v := range header {
 		req.Header.Set(k, v)
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return 0, nil, nil, err
+		return HTTPResponse{}, err
 	}
 
 	//noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()
 
 	respBodyBytes, err := ioutil.ReadAll(resp.Body)
-	return resp.StatusCode, respBodyBytes, resp.Header, err
+	return HTTPResponse{
+		StatusCode: resp.StatusCode,
+		Header:     resp.Header,
+		Content:    respBodyBytes,
+	}, err
 }
 
 // requestPublicKeys requests a devices public keys at the identity service

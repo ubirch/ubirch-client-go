@@ -84,13 +84,16 @@ The client will first look if the `UBIRCH_SECRET` env variable exists and load t
 variables in that case. If the `UBIRCH_SECRET` env variable is not set or empty, and the `config.json`-file exists in
 the working directory, the configuration will be loaded from the file. If neither exist, the client will abort and exit.
 
-The only two mandatory configurations are
+The only mandatory configurations are
 
-- the `devices`-map, which maps device UUIDs to their authentication token
-  > - A UUID can be generated in a Linux terminal with the `uuidgen` command
-  > - See [how to acquire the authentication token](#how-to-acquire-the-ubirch-backend-token)
-- the 16 byte base64 encoded `secret`, which is used to encrypt the key store.
-  > Quickly generate a random 16 byte base64 encoded secret in a Linux terminal with `head -c 16 /dev/urandom | base64`
+1. the `devices`-map, which maps device UUIDs to their authentication token
+
+> - A UUID can be generated in a Linux/macOS terminal with the `uuidgen` command
+> - See [here](#how-to-acquire-the-ubirch-backend-token) how to acquire the authentication token
+
+2. the 16 byte base64 encoded `secret`, which is used to encrypt the key store
+
+> Quickly generate a random 16 byte base64 encoded secret in a Linux/macOS terminal with `head -c 16 /dev/urandom | base64`
 
 ### File Based Configuration
 
@@ -105,7 +108,10 @@ The only two mandatory configurations are
 }
 ```
 
-(See [example_config.json](main/example_config.json) for an example.)
+> See [example_config.json](main/example_config.json) as an example for file-based configuration.
+
+Besides the `devices`-map, the device UUIDs and their corresponding authentication tokens can also be set through a file
+"`identities.json`". See example: [example_identities.json](main/example_identities.json)
 
 ### Environment Based Configuration
 
@@ -114,7 +120,7 @@ UBIRCH_DEVICES=<UUID>:<ubirch backend auth token>
 UBIRCH_SECRET=<16 byte secret used to encrypt the key store (base64 encoded)>
 ```
 
-(See [example.env](main/example.env) for an example.)
+> See [example.env](main/example.env) as an example for environment-based configuration.
 
 All other configuration parameters have default values, but can be configured as follows.
 
@@ -125,7 +131,8 @@ environment. For development, the environment may be set to `demo`, which is a t
 production environment, but stores data only in a blockchain test net. __However, we suggest using `prod` in general as demo
 may not always be available__.
 
-> Note that the UUIDs must be registered at the according UBIRCH backend environment.
+> Note that the UUIDs must be registered at the according UBIRCH backend environment,
+> i.e. https://console.demo.ubirch.com/.
 
 To switch to the `demo` backend environment
 
@@ -322,16 +329,13 @@ UBIRCH_DEBUG=true
 
 ### How to acquire the ubirch backend token
 
-- Register at the **UBIRCH web UI**:
-
-  Depending on the UBIRCH backend environment you are using, go to
-    - `prod`: [https://console.prod.ubirch.com/](https://console.prod.ubirch.com/)
-    - `demo`: [https://console.demo.ubirch.com/](https://console.demo.ubirch.com/)
+- Create an account at the [**UBIRCH web UI**](https://console.prod.ubirch.com/) and log in
 - Go to **Things** (in the menu on the left) and click on `+ ADD NEW DEVICE`
-- Enter your device UUID to the **ID** field. You can also add a description for your device, if you want. Then click
-  on `register`.
-- Your device should now show up under **Your Things**-overview. Click on it and copy the "password" (which looks like a
-  UUID) as the ubirch backend token.
+- Enter your UUID to the **ID** field. You can also add a description if you want. Then click on `register`.
+- Your UUID should now show up under the **Your Things**-overview. Click on it and copy the "password" (which looks like
+  a UUID) from the `apiConfig`. This is the UBIRCH backend token needed for the configuration of the client.
+
+[Jump back to Configuration](#configuration)
 
 ## Run Client in Docker container
 
@@ -364,6 +368,8 @@ the `-v $(pwd):/data` parameter can be omitted.
 
 ## Interface Description
 
+### Anchoring
+
 The UBIRCH client provides HTTP endpoints for both original data, which will be hashed by the client, and direct data
 hash injection, i.e. the SHA256 digest of the original data.
 
@@ -379,20 +385,45 @@ hash injection, i.e. the SHA256 digest of the original data.
 >
 > See [reproducibility of hashes](#reproducibility-of-hashes).
 
-To access either endpoint an authentication token, which corresponds to the `UUID` used in the request, must be sent
-with the request header. Without it, the client won’t accept the request:
+To access either endpoint, an authentication token, which corresponds to the `UUID` used in the request, must be sent
+with the request header. Without it, the client won’t accept the request.
 
-| `X-Auth-Token` | `ubirch backend token related to <UUID>` |
-|-----------------|------------------------------------------|
+| Request Header | Description |
+|----------------|------------------------------------------|
+| `X-Auth-Token` | UBIRCH backend token related to `<UUID>` |
 
 > See [how to acquire the ubirch backend token](#how-to-acquire-the-ubirch-backend-token).
+
+### Update Operations
+
+Besides achoring, the client can request hash update operations from the UBIRCH backend, i.e. `disable`, `enable`
+and `delete`.
+
+Just like for anchoring, the UBIRCH client provides HTTP endpoints for original data and direct data hash injection.
+
+| Update Operation | Path (original data)| Path (hash) |
+|------------------|---------------------|-------------|
+| disable | `/<UUID>/disable` | `/<UUID>/disable/hash` |
+| enable  | `/<UUID>/enable`  | `/<UUID>/enable/hash`  |
+| delete  | `/<UUID>/delete`  | `/<UUID>/delete/hash`  |
+
+These Endpoints also require the use of the `X-Auth-Token` request header.
+
+| Request Header | Description |
+|----------------|------------------------------------------|
+| `X-Auth-Token` | UBIRCH backend token related to `<UUID>` |
+
+Hash update requests to the UBIRCH backend must come from the same UUID that anchored said hash and be signed by the
+same private key that signed the anchoring request.
 
 ### TCP Address
 
 When running the client locally, the default address is:
+
 ```fundamental
 http://localhost:8080/<UUID>
 ```
+
 (or `https://localhost:8080/<UUID>`, if TLS is enabled)
 
 > See [how to set a different TCP address/port for the client](#set-tcp-address).
@@ -426,23 +457,34 @@ considered a failure. The client does not retry itself. A good approach to handl
 original data storage that indicates whether the UBIRCH blockchain anchoring was successful and retry at a later point
 if necessary.
 
-The client's response can be either an error message, or a JSON map with the anchored data hash, the UPP, which contains
-that data hash and was sent to the UBIRCH backend, the ID of the request, as well as the response from the UBIRCH
-backend, which is also a UPP:
+The response body consists of either an error message, or a JSON map with
+
+- the carried out operation,
+- the data hash,
+- the UPP, which contains that data hash and was sent to the UBIRCH backend by the client,
+- the response from the UBIRCH backend,
+- the unique request ID
+- *possibly:* a description of an occurred error (**the `error`-key is only present in case an error occurred**)
 
 ```json
 {
-  "hash": "<the base64 encoded data hash>",
-  "upp": "<the base64 encoded UPP containing the data hash that was sent to the ubirch backend by the client>",
-  "requestID": "<the base64 encoded request ID>",
-  "response": "<the base64 encoded backend response>"
+  "operation": "(anchor | delete | enable | disable)",
+  "hash": "<base64 encoded data hash>",
+  "upp": "<base64 encoded UPP which was sent to the UBIRCH backend>",
+  "response": {
+    "statusCode": <backend response status code (int)>,
+    "headers": {<backend response headers (map[string][]string)>},
+    "content": "<base64 encoded backend response content>"
+  },
+  "requestID": "<request ID (standard hex string representation)>",
+  "error": "error message"
 }
 ```
 
-> UPPs (such as the backend response) are [MessagePack](https://github.com/msgpack/msgpack/blob/master/spec.md) formatted
+> UPPs (such as the backend response content) are [MessagePack](https://github.com/msgpack/msgpack/blob/master/spec.md) formatted
 > and can be decoded using an online tool like [this MessagePack to JSON Converter](https://toolslick.com/conversion/data/messagepack-to-json).
 
-### Verification endpoints
+### Verification
 
 The UBIRCH client also provides verification endpoints for original data and hashes.
 
@@ -458,15 +500,21 @@ There is no authentication token necessary to access the verification endpoints.
 A `200` response code indicates the successful verification of the data in the UBIRCH backend as well as a local
 verification of the validity of the retrieved UPP.
 
-The response body contains either an error message, or a JSON map with the requested data hash, the UPP, which contains
-that data hash and was retrieved from the UBIRCH backend, as well as the UUID of the device from which the data
-originated:
+The response body consists of either an error message, or a JSON map with
+
+- the requested data hash,
+- the UPP, which contains that data hash and was retrieved from the UBIRCH backend by the client,
+- the UUID of the device from which the data originated,
+- the public key of that device, which was used to verify the signature of the retrieved UPP
+- *possibly:* a description of an occurred error (**the `error`-key is only present in case an error occurred**)
 
 ```json
 {
-  "hash": "<the base64 encoded requested data hash>",
-  "upp": "<the base64 encoded UPP containing the requested data hash that was retrieved from the ubirch backend by the client>",
-  "uuid": "<the standard string representation of the device UUID>"
+  "hash": "<base64 encoded requested data hash>",
+  "upp": "<base64 encoded UPP which was retrieved from the UBIRCH backend",
+  "uuid": "<standard hex string representation of the device UUID>",
+  "pubKey": "<base64 encoded public key used for signature verification>",
+  "error": "error message"
 }
 ```
 
@@ -547,7 +595,8 @@ and insignificant space characters were elided.
       "devices": {
         "<YOUR_UUID>": "<YOUR_AUTH_TOKEN>"
       },
-      "secret": "<YOUR_16_BYTE_SECRET(base64 encoded)>"
+      "secret": "<YOUR_16_BYTE_SECRET(base64 encoded)>",
+      "logTextFormat": true
     }
     ```
     - Replace `<YOUR_UUID>` with your UUID from step 1.i.
@@ -563,15 +612,15 @@ and insignificant space characters were elided.
     ```
    You should see a console output like this:
     ```console
-    INFO[2020-06-30 12:16:30.977 +0200] UBIRCH client (v2.0.0, build=local)
-    INFO[2020-06-30 12:16:30.977 +0200] loading configuration from file (config.json)
-    INFO[2020-06-30 12:16:30.977 +0200] 1 known UUID(s)
-    INFO[2020-06-30 12:16:30.977 +0200] UBIRCH backend "prod" environment
-    INFO[2020-06-30 12:16:30.977 +0200] protocol context will be saved to file: protocol.json
-    INFO[2020-06-30 12:16:31.142 +0200] generating new key pair for UUID 8a70ad8b-a564-4e58-9a3b-224ac0f0153f
-    INFO[2020-06-30 12:16:31.469 +0200] 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: registering public key at key service: https://key.prod.ubirch.com/api/keyService/v1/pubkey
-    INFO[2020-06-30 12:16:31.584 +0200] 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: submitting CSR to identity service: https://identity.prod.ubirch.com/api/certs/v1/csr/register
-    INFO[2020-06-30 12:16:32.842 +0200] starting HTTP service
+    {"level":"info","msg":"UBIRCH client (v2.0.0, build=local)","time":"2021-03-01T18:41:20+01:00"}
+    {"level":"info","msg":"loading configuration from file: config.json","time":"2021-03-01T18:41:20+01:00"}
+    INFO[2021-03-01 18:41:20.291 +0100] 1 known UUID(s)
+    INFO[2021-03-01 18:41:20.291 +0100] UBIRCH backend "prod" environment
+    INFO[2021-03-01 18:41:20.291 +0100] protocol context will be saved to file: protocol.json
+    INFO[2021-03-01 18:41:20.291 +0100] generating new key pair for UUID 50b1a5bb-83cd-4251-b674-b3c71a058fc3
+    INFO[2021-03-01 18:41:20.664 +0100] 50b1a5bb-83cd-4251-b674-b3c71a058fc3: registering public key at key service: https://key.prod.ubirch.com/api/keyService/v1/pubkey
+    INFO[2021-03-01 18:41:21.755 +0100] 50b1a5bb-83cd-4251-b674-b3c71a058fc3: submitting CSR to identity service: https://identity.prod.ubirch.com/api/certs/v1/csr/register
+    INFO[2021-03-01 18:41:22.130 +0100] starting HTTP service
     ```
    That means the client is running and ready!
 
@@ -589,32 +638,52 @@ and insignificant space characters were elided.
 
    Here is an example of how a request to the client would look like using `CURL`:
    ```console
-   curl -H "X-Auth-Token: <YOUR_AUTH_TOKEN>" -H "Content-Type: application/json" -d '{"id": "605b91b4-49be-4f17-93e7-f1b14384968f", "ts": 1585838578, "data": "1234567890"}' localhost:8080/<YOUR_UUID> -i -s
+   curl -H "X-Auth-Token: <YOUR_AUTH_TOKEN>" -H "Content-Type: application/json" -d '{"id": "50b1a5bb-83cd-4251-b674-b3c71a058fc3", "ts": 1614621028, "data": "1234567890"}' localhost:8080/<YOUR_UUID> -i -s
    ```
    > Insert `<YOUR_AUTH_TOKEN>` and `<YOUR_UUID>` and a request body with your own unique content to ensure a unique hash!
 
    When the client receives the request, the output should look like this:
-   ```console
-   INFO[2020-06-30 12:17:31.584 +0200] 8a70ad8b-a564-4e58-9a3b-224ac0f0153f: signing hash: bTawDQO7nnB+3h55/6VyQ+Tmd1RTV9R0cFcf7CRWzQQ=
-   ```
+    ```console
+    INFO[2021-03-01 18:52:59.471 +0100] 50b1a5bb-83cd-4251-b674-b3c71a058fc3: anchoring hash: CDUvtOIBnnZ8im/UXQn5G/q5EK9l2Bqy+HyMgSzPZoA=
+    INFO[2021-03-01 18:53:00.313 +0100] 50b1a5bb-83cd-4251-b674-b3c71a058fc3: request ID: 0f11686e-aee3-4e97-8d0d-793a0c31d969
+    ```
    > Take note of the hash!
 
    If your request was submitted, you'll get a `200` response code.
 
-   The HTTP response body from the client is a JSON map containing the data hash and the UPP, that has been sent to the
-   UBIRCH backend, and the response from the backend, which is a UPP as well. UPPs are in *MessagePack* format.
+   The HTTP response body from the client is a JSON map containing the carried out operation, the data hash, the UPP,
+   which was sent to the UBIRCH backend, and the backend response, of which the content is also a UPP, UPPs are in *
+   MessagePack* format (base64 encoded) and can be decoded using, for example, this
+   [MessagePack to JSON Converter](https://toolslick.com/conversion/data/messagepack-to-json).
 
    ```json
     {
-      "hash": "bTawDQO7nnB+3h55/6VyQ+Tmd1RTV9R0cFcf7CRWzQQ=",
-      "requestID": "7fZH8yVcT0apq4Pnu5sdVw==",
-      "response": "liPEEJ08eP8i80RBpdGFxjbUhv/EQPgwxioCe/xc+22gjjvULF32Q+zZNDosE0msmzyppKHihm2a7wb7g3VJoXg2UhpM4xS87kAapI+m+QRONig9bIkAgadtZXNzYWdlv3lvdXIgcmVxdWVzdCBoYXMgYmVlbiBzdWJtaXR0ZWTEQP/3P6UH0G8qY5t9bdSjroKVI4N5KScCHKJ9xsoHhesLLv9dCgdD0UoGvc/Mg9x0PGHKVoxKBwPs1v95+M+EQQQ=",
-      "upp": "liPEEPfutp5U60IAt/7nLuSggtLEQPgwxioCe/xc+22gjjvULF32Q+zZNDosE0msmzyppKHihm2a7wb7g3VJoXg2UhpM4xS87kAapI+m+QRONig9bIkAxCBtNrANA7uecH7eHnn/pXJD5OZ3VFNX1HRwVx/sJFbNBMRAZqKMnYa7nuyfmyV1dAUxwBvXG3fdZYUxyRE+mfeC/GWDwNXE4Tga5iauFfzOaULeNcUR2msAzwcL0FObMZaNaw=="
+        "operation": "anchor",
+        "hash": "CDUvtOIBnnZ8im/UXQn5G/q5EK9l2Bqy+HyMgSzPZoA=",
+        "upp": "liPEEFCxpbuDzUJRtnSzxxoFj8PEQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAxCAINS+04gGednyKb9RdCfkb+rkQr2XYGrL4fIyBLM9mgMRAIVlhgxobRl7ApJerXUyJ5cBxBJJ7gwPUN9AKgKJWxAxkWMWufRp8jW9Ha79s5hYbNp9+bn94cMflWyAyyjy4Ew==",
+        "response": {
+            "statusCode": 200,
+            "headers": {
+                "Content-Length": [
+                    "187"
+                ],
+                "Content-Type": [
+                    "application/octet-stream"
+                ],
+                "Date": [
+                    "Mon, 01 Mar 2021 17:53:00 GMT"
+                ],
+                "Server": [
+                    "ubirch-trust-service/1.0"
+                ]
+            },
+            "content": "liPEEJ08eP8i80RBpdGFxjbUhv/EQCFZYYMaG0ZewKSXq11MieXAcQSSe4MD1DfQCoCiVsQMZFjFrn0afI1vR2u/bOYWGzaffm5/eHDH5VsgMso8uBMAxCAPEWhuruNOl40NeToMMdlpAAAAAAAAAAAAAAAAAAAAAMRA+IFgAugN6CY1xPSch1TwhFdac8yRA1QhPRXOhUt7rudrwrNv0NAEJGlLw1wUSpcSLmBFQaoRb9EezmYxmtF7iA=="
+        },
+        "requestID": "0f11686e-aee3-4e97-8d0d-793a0c31d969"
     }
    ```
-   If you get a response code other than `200`, it means that something went wrong. To check the error message, decode
-   the `"response"`-UPP from the backend using
-   the [MessagePack to JSON Converter](https://toolslick.com/conversion/data/messagepack-to-json).
+   If you get a response code other than `200`, it means that something went wrong. In this case the client will respond
+   with an error message. You can also find error messages in the console output of the client.
 
 1. To stop the client, press `ctrl` + `c`.
 

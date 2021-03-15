@@ -103,32 +103,48 @@ func main() {
 		httpServer.SetUpCORS(conf.CORS_Origins, conf.Debug)
 	}
 
-	// listen to messages to sign via http
-	httpSrvSign := ServerEndpoint{
-		Path:           fmt.Sprintf("/{%s}", UUIDKey),
-		MessageHandler: make(chan HTTPMessage, 100),
-		RequiresAuth:   true,
-		AuthTokens:     conf.Devices,
+	// initialize signer
+	s := Signer{
+		protocol:       &p,
+		env:            conf.Env,
+		authServiceURL: conf.Niomon,
+		MessageHandler: make(chan HTTPRequest, 100),
 	}
-	httpServer.AddEndpoint(httpSrvSign)
 
-	// listen to messages to verify via http
-	httpSrvVerify := ServerEndpoint{
-		Path:           "/verify",
-		MessageHandler: make(chan HTTPMessage, 100),
-		RequiresAuth:   false,
-		AuthTokens:     nil,
-	}
-	httpServer.AddEndpoint(httpSrvVerify)
-
-	// start signer
+	// start sequential signing routine
 	g.Go(func() error {
-		return signer(ctx, httpSrvSign.MessageHandler, &p, conf)
+		return signer(ctx, &s)
 	})
 
-	// start verifier
-	g.Go(func() error {
-		return verifier(ctx, httpSrvVerify.MessageHandler, &p, conf)
+	// set up endpoint for hash anchoring
+	httpServer.AddEndpoint(ServerEndpoint{
+		Path: fmt.Sprintf("/{%s}", UUIDKey),
+		Service: &AnchoringService{
+			Signer:     &s,
+			AuthTokens: conf.Devices,
+		},
+	})
+
+	// set up endpoint for hash update operations
+	httpServer.AddEndpoint(ServerEndpoint{
+		Path: fmt.Sprintf("/{%s}/{%s}", UUIDKey, OperationKey),
+		Service: &UpdateOperationService{
+			Signer:     &s,
+			AuthTokens: conf.Devices,
+		},
+	})
+
+	// set up endpoint for hash verification
+	httpServer.AddEndpoint(ServerEndpoint{
+		Path: "/verify",
+		Service: &VerificationService{
+			Verifier: &Verifier{
+				protocol:                      &p,
+				verifyServiceURL:              conf.VerifyService,
+				keyServiceURL:                 conf.KeyService,
+				verifyFromKnownIdentitiesOnly: false, // todo add to config
+			},
+		},
 	})
 
 	// start HTTP server
@@ -136,18 +152,15 @@ func main() {
 		return httpServer.Serve(ctx)
 	})
 
-	//wait until all function calls from the Go method have returned
-	if err = waitUntilDone(g, p); err != nil {
-		log.Fatal(err)
-	}
-}
-
-func waitUntilDone(g *errgroup.Group, p ExtendedProtocol) error {
-	groupErr := g.Wait()
-
-	if err := p.Deinit(); err != nil {
+	// wait for all go routines of the waitgroup to return
+	if err = g.Wait(); err != nil {
 		log.Error(err)
 	}
 
-	return groupErr
+	log.Info("shutting down client")
+
+	// wrap up
+	if err = p.Deinit(); err != nil {
+		log.Error(err)
+	}
 }

@@ -4,7 +4,7 @@
     "8a70ad8b-a564-4e58-9a3b-224ac0f0153f": "f728ddb3-d504-4925-b216-b7842a2f1a6b"
   },
   "secret": "MTIzNDU2Nzg5MDEyMzQ1Ng==",
-  "env": "demo",
+  "env": "prod",
   "DSN": "postgres://username:password@hostname:5432/database?sslmode=disable",
   "staticKeys": false,
   "keys": {
