@@ -15,7 +15,6 @@
 package main
 
 import (
-	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"github.com/google/uuid"
@@ -31,12 +30,10 @@ func registerPublicKey(p *ExtendedProtocol, uid uuid.UUID, pubKey []byte, keySer
 	}
 	log.Debugf("%s: certificate: %s", uid.String(), cert)
 
-	resp, err := post(keyService, cert, map[string]string{
-		"content-type":         "application/json",
-		"x-ubirch-hardware-id": uid.String(),
-		"x-ubirch-auth-type":   "ubirch",
-		"x-ubirch-credential":  base64.StdEncoding.EncodeToString([]byte(auth)),
-	})
+	keyRegHeader := ubirchHeader(uid, auth)
+	keyRegHeader["content-type"] = "application/json"
+
+	resp, err := post(keyService, cert, keyRegHeader)
 	if err != nil {
 		return fmt.Errorf("error sending key registration: %v", err)
 	}
@@ -57,7 +54,9 @@ func submitCSR(p *ExtendedProtocol, uid uuid.UUID, subjectCountry string, subjec
 	}
 	log.Debugf("%s: CSR [der]: %s", uid.String(), hex.EncodeToString(csr))
 
-	resp, err := post(identityService, csr, map[string]string{"Content-Type": "application/octet-stream"})
+	CSRHeader := map[string]string{"content-type": "application/octet-stream"}
+
+	resp, err := post(identityService, csr, CSRHeader)
 	if err != nil {
 		return fmt.Errorf("error sending CSR: %v", err)
 	}

@@ -39,7 +39,7 @@ type ServerEndpoint struct {
 
 type HTTPRequest struct {
 	ID        uuid.UUID
-	Auth      []byte
+	Auth      string
 	Hash      Sha256Sum
 	Operation operation
 	Response  chan HTTPResponse
@@ -174,20 +174,20 @@ func getUUID(r *http.Request) (uuid.UUID, error) {
 
 // checkAuth checks the auth token from the request header and returns it if valid
 // Returns error if UUID is unknown or auth token is invalid
-func checkAuth(r *http.Request, id uuid.UUID, authTokens map[string]string) ([]byte, error) {
+func checkAuth(r *http.Request, id uuid.UUID, authTokens map[string]string) (string, error) {
 	// check if UUID is known
 	idAuthToken, exists := authTokens[id.String()]
 	if !exists || idAuthToken == "" {
-		return nil, fmt.Errorf("unknown UUID: \"%s\"", id.String())
+		return "", fmt.Errorf("unknown UUID: \"%s\"", id.String())
 	}
 
 	// check auth token from request header
 	headerAuthToken := AuthToken(r.Header)
 	if idAuthToken != headerAuthToken {
-		return nil, fmt.Errorf("invalid auth token")
+		return "", fmt.Errorf("invalid auth token")
 	}
 
-	return []byte(headerAuthToken), nil
+	return headerAuthToken, nil
 }
 
 // getOperation returns the operation parameter from the request URL

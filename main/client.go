@@ -78,6 +78,14 @@ func getSignedCertificate(p *ExtendedProtocol, uid uuid.UUID, pubKey []byte) ([]
 	return json.Marshal(cert)
 }
 
+func ubirchHeader(uid uuid.UUID, auth string) map[string]string {
+	return map[string]string{
+		"x-ubirch-hardware-id": uid.String(),
+		"x-ubirch-auth-type":   "ubirch",
+		"x-ubirch-credential":  base64.StdEncoding.EncodeToString([]byte(auth)),
+	}
+}
+
 // post submits a message to a backend service
 // returns the response or encountered errors
 func post(url string, data []byte, header map[string]string) (HTTPResponse, error) {

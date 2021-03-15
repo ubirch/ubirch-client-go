@@ -116,7 +116,7 @@ func (s *Signer) handleSigningRequest(msg HTTPRequest) HTTPResponse {
 	log.Debugf("%s: UPP: %s", name, hex.EncodeToString(upp))
 
 	// send UPP to ubirch backend
-	backendResp, err := post(s.authServiceURL, upp, niomonHeader(name, auth))
+	backendResp, err := post(s.authServiceURL, upp, ubirchHeader(msg.ID, auth))
 	if err != nil {
 		log.Errorf("%s: sending request to UBIRCH Authentication Service failed: %v", name, err)
 		return errorResponse(http.StatusInternalServerError, "")
@@ -162,14 +162,6 @@ func (s *Signer) deleteHash(name string, hash []byte) ([]byte, error) {
 	log.Infof("%s: deleting hash: %s", name, base64.StdEncoding.EncodeToString(hash))
 
 	return s.protocol.SignHashExtended(name, hash, ubirch.Signed, ubirch.Delete)
-}
-
-func niomonHeader(name string, auth []byte) map[string]string {
-	return map[string]string{
-		"x-ubirch-hardware-id": name,
-		"x-ubirch-auth-type":   "ubirch",
-		"x-ubirch-credential":  base64.StdEncoding.EncodeToString(auth),
-	}
 }
 
 func getRequestID(respUPP ubirch.UPP) (string, error) {
