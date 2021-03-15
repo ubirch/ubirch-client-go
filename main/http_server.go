@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/cors"
 	"github.com/google/uuid"
 
@@ -99,8 +100,14 @@ func (service *AnchoringService) handleRequest(w http.ResponseWriter, r *http.Re
 	// submit message for signing
 	service.MessageHandler <- msg
 
-	// wait for response from ubirch backend to be forwarded
-	sendResponseChannel(w, msg.Response)
+	select {
+	case <-r.Context().Done():
+		log.Errorf("%s: 504 Gateway Timeout", msg.ID)
+		return
+
+	case resp := <-msg.Response:
+		sendResponse(w, resp)
+	}
 }
 
 func (service *UpdateOperationService) handleRequest(w http.ResponseWriter, r *http.Request) {
@@ -289,12 +296,6 @@ func JSONMarshal(v interface{}) ([]byte, error) {
 	return buffer.Bytes(), err
 }
 
-// blocks until response is received and forwards it to sender
-func sendResponseChannel(w http.ResponseWriter, respChan chan HTTPResponse) {
-	resp := <-respChan
-	sendResponse(w, resp)
-}
-
 // forwards response to sender
 func sendResponse(w http.ResponseWriter, resp HTTPResponse) {
 	for k, v := range resp.Header {
@@ -320,7 +321,9 @@ type HTTPServer struct {
 }
 
 func NewRouter() *chi.Mux {
-	return chi.NewMux()
+	router := chi.NewMux()
+	router.Use(middleware.Timeout(60 * time.Second))
+	return router
 }
 
 func (srv *HTTPServer) SetUpCORS(allowedOrigins []string, debug bool) {
