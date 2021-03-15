@@ -152,18 +152,15 @@ func main() {
 		return httpServer.Serve(ctx)
 	})
 
-	//wait until all function calls from the Go method have returned
-	if err = waitUntilDone(g, &p); err != nil {
-		log.Fatal(err)
-	}
-}
-
-func waitUntilDone(g *errgroup.Group, p *ExtendedProtocol) error {
-	groupErr := g.Wait()
-
-	if err := p.Deinit(); err != nil {
+	// wait for all go routines of the waitgroup to return
+	if err = g.Wait(); err != nil {
 		log.Error(err)
 	}
 
-	return groupErr
+	log.Info("shutting down client")
+
+	// wrap up
+	if err = p.Deinit(); err != nil {
+		log.Error(err)
+	}
 }

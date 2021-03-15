@@ -81,7 +81,7 @@ func signer(ctx context.Context, s *Signer) error {
 			}
 
 		case <-ctx.Done():
-			log.Println("finishing signer")
+			log.Debug("shutting down signer")
 			return nil
 		}
 	}
