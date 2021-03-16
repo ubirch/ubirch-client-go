@@ -36,7 +36,7 @@ const (
 	keyURL      = "https://key.%s.ubirch.com/api/keyService/v1/pubkey"
 	identityURL = "https://identity.%s.ubirch.com/api/certs/v1/csr/register"
 	niomonURL   = "https://niomon.%s.ubirch.com/"
-	verifyURL   = "https://verify.%s.ubirch.com/api/upp"
+	verifyURL   = "https://verify.%s.ubirch.com/api/upp/verify"
 
 	authEnv  = "UBIRCH_AUTH_MAP" // {UUID: [key, token]} (legacy)
 	authFile = "auth.json"       // {UUID: [key, token]} (legacy)
