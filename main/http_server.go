@@ -359,16 +359,18 @@ func (srv *HTTPServer) Serve(ctx context.Context) error {
 		WriteTimeout: 90 * time.Second,
 		IdleTimeout:  120 * time.Second,
 	}
+	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
 
 	go func() {
 		<-ctx.Done()
 		log.Debug("shutting down HTTP server")
 		server.SetKeepAlivesEnabled(false) // disallow clients to create new long-running conns
 
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
+		shutdownWithTimeoutCtx, shutdownWithTimeoutCancel := context.WithTimeout(shutdownCtx, 10*time.Second)
+		defer shutdownWithTimeoutCancel()
+		defer shutdownCancel()
 
-		if err := server.Shutdown(shutdownCtx); err != nil {
+		if err := server.Shutdown(shutdownWithTimeoutCtx); err != nil {
 			log.Warnf("failed to gracefully shut down server: %s", err)
 		}
 	}()
@@ -389,5 +391,8 @@ func (srv *HTTPServer) Serve(ctx context.Context) error {
 	if err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("error starting HTTP server: %v", err)
 	}
+
+	// wait for server to shut down gracefully
+	<-shutdownCtx.Done()
 	return nil
 }
