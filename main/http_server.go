@@ -31,10 +31,10 @@ const (
 	HashLen      = 32
 
 	GatewayTimeout        = 60 * time.Second
-	ShutdownTimeout       = 15 * time.Second
+	ShutdownTimeout       = 30 * time.Second
 	BackendRequestTimeout = 30 * time.Second
-	ReadTimeout           = 15 * time.Second
-	WriteTimeout          = 90 * time.Second
+	ReadTimeout           = 5 * time.Second
+	WriteTimeout          = 75 * time.Second
 	IdleTimeout           = 120 * time.Second
 )
 
