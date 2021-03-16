@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/cors"
 	"github.com/google/uuid"
 
@@ -28,6 +29,13 @@ const (
 	TextType     = "text/plain"
 	JSONType     = "application/json"
 	HashLen      = 32
+
+	GatewayTimeout        = 60 * time.Second
+	ShutdownTimeout       = 15 * time.Second
+	BackendRequestTimeout = 30 * time.Second
+	ReadTimeout           = 15 * time.Second
+	WriteTimeout          = 90 * time.Second
+	IdleTimeout           = 120 * time.Second
 )
 
 type Sha256Sum [HashLen]byte
@@ -99,8 +107,14 @@ func (service *AnchoringService) handleRequest(w http.ResponseWriter, r *http.Re
 	// submit message for signing
 	service.MessageHandler <- msg
 
-	// wait for response from ubirch backend to be forwarded
-	sendResponseChannel(w, msg.Response)
+	select {
+	case <-r.Context().Done():
+		log.Errorf("%s: 504 Gateway Timeout", msg.ID)
+		return
+
+	case resp := <-msg.Response:
+		sendResponse(w, resp)
+	}
 }
 
 func (service *UpdateOperationService) handleRequest(w http.ResponseWriter, r *http.Request) {
@@ -289,12 +303,6 @@ func JSONMarshal(v interface{}) ([]byte, error) {
 	return buffer.Bytes(), err
 }
 
-// blocks until response is received and forwards it to sender
-func sendResponseChannel(w http.ResponseWriter, respChan chan HTTPResponse) {
-	resp := <-respChan
-	sendResponse(w, resp)
-}
-
 // forwards response to sender
 func sendResponse(w http.ResponseWriter, resp HTTPResponse) {
 	for k, v := range resp.Header {
@@ -320,7 +328,9 @@ type HTTPServer struct {
 }
 
 func NewRouter() *chi.Mux {
-	return chi.NewMux()
+	router := chi.NewMux()
+	router.Use(middleware.Timeout(GatewayTimeout))
+	return router
 }
 
 func (srv *HTTPServer) SetUpCORS(allowedOrigins []string, debug bool) {
@@ -352,20 +362,22 @@ func (srv *HTTPServer) Serve(ctx context.Context) error {
 	server := &http.Server{
 		Addr:         srv.addr,
 		Handler:      srv.router,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 90 * time.Second,
-		IdleTimeout:  120 * time.Second,
+		ReadTimeout:  ReadTimeout,
+		WriteTimeout: WriteTimeout,
+		IdleTimeout:  IdleTimeout,
 	}
+	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
 
 	go func() {
 		<-ctx.Done()
 		log.Debug("shutting down HTTP server")
 		server.SetKeepAlivesEnabled(false) // disallow clients to create new long-running conns
 
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
+		shutdownWithTimeoutCtx, shutdownWithTimeoutCancel := context.WithTimeout(shutdownCtx, ShutdownTimeout)
+		defer shutdownWithTimeoutCancel()
+		defer shutdownCancel()
 
-		if err := server.Shutdown(shutdownCtx); err != nil {
+		if err := server.Shutdown(shutdownWithTimeoutCtx); err != nil {
 			log.Warnf("failed to gracefully shut down server: %s", err)
 		}
 	}()
@@ -386,5 +398,8 @@ func (srv *HTTPServer) Serve(ctx context.Context) error {
 	if err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("error starting HTTP server: %v", err)
 	}
+
+	// wait for server to shut down gracefully
+	<-shutdownCtx.Done()
 	return nil
 }
