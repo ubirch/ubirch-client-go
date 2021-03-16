@@ -89,7 +89,7 @@ func ubirchHeader(uid uuid.UUID, auth string) map[string]string {
 // post submits a message to a backend service
 // returns the response or encountered errors
 func post(url string, data []byte, header map[string]string) (HTTPResponse, error) {
-	client := &http.Client{Timeout: 60 * time.Second}
+	client := &http.Client{Timeout: BackendRequestTimeout}
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(data))
 	if err != nil {

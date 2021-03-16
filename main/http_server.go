@@ -29,6 +29,13 @@ const (
 	TextType     = "text/plain"
 	JSONType     = "application/json"
 	HashLen      = 32
+
+	GatewayTimeout        = 60 * time.Second
+	ShutdownTimeout       = 15 * time.Second
+	BackendRequestTimeout = 30 * time.Second
+	ReadTimeout           = 15 * time.Second
+	WriteTimeout          = 90 * time.Second
+	IdleTimeout           = 120 * time.Second
 )
 
 type Sha256Sum [HashLen]byte
@@ -322,7 +329,7 @@ type HTTPServer struct {
 
 func NewRouter() *chi.Mux {
 	router := chi.NewMux()
-	router.Use(middleware.Timeout(60 * time.Second))
+	router.Use(middleware.Timeout(GatewayTimeout))
 	return router
 }
 
@@ -355,9 +362,9 @@ func (srv *HTTPServer) Serve(ctx context.Context) error {
 	server := &http.Server{
 		Addr:         srv.addr,
 		Handler:      srv.router,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 90 * time.Second,
-		IdleTimeout:  120 * time.Second,
+		ReadTimeout:  ReadTimeout,
+		WriteTimeout: WriteTimeout,
+		IdleTimeout:  IdleTimeout,
 	}
 	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
 
@@ -366,7 +373,7 @@ func (srv *HTTPServer) Serve(ctx context.Context) error {
 		log.Debug("shutting down HTTP server")
 		server.SetKeepAlivesEnabled(false) // disallow clients to create new long-running conns
 
-		shutdownWithTimeoutCtx, shutdownWithTimeoutCancel := context.WithTimeout(shutdownCtx, 10*time.Second)
+		shutdownWithTimeoutCtx, shutdownWithTimeoutCancel := context.WithTimeout(shutdownCtx, ShutdownTimeout)
 		defer shutdownWithTimeoutCancel()
 		defer shutdownCancel()
 
