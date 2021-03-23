@@ -95,6 +95,13 @@ func handleSigningRequest(p *ExtendedProtocol, name string, hash []byte, auth []
 		return errorResponse(http.StatusInternalServerError, err.Error())
 	}
 
+	// if the request failed, it is likely that the backend response is signed with the default algorithm => EdDSA
+	// which means, we can not verify the validity of the response signature with this client
+	if httpFailed(backendResp.StatusCode) {
+		errMsg := fmt.Sprintf("request to UBIRCH Authentication Service (%s) failed", authServiceURL)
+		return getSigningResponse(backendResp.StatusCode, requestUPPStruct, backendResp, "n/a", errMsg)
+	}
+
 	// verify validity of the backend response
 	responseUPPStruct, err := verifyBackendResponse(p, requestUPPStruct, backendResp)
 	if err != nil {
@@ -128,7 +135,7 @@ func anchorHash(p *ExtendedProtocol, name string, hash []byte, auth []byte) (ubi
 	// send UPP to ubirch backend
 	resp, err := post(authServiceURL, uppBytes, niomonHeaders(name, auth))
 	if err != nil {
-		return nil, HTTPResponse{}, fmt.Errorf("sending request to UBIRCH Authentication Service failed: %v", err)
+		return nil, HTTPResponse{}, fmt.Errorf("could not send request to UBIRCH Authentication Service: %v", err)
 	}
 	log.Debugf("%s: backend response: (%d) %s", name, resp.StatusCode, hex.EncodeToString(resp.Content))
 
