@@ -30,9 +30,9 @@ const (
 	JSONType     = "application/json"
 	HashLen      = 32
 
-	GatewayTimeout        = 60 * time.Second
-	ShutdownTimeout       = 30 * time.Second
-	BackendRequestTimeout = 30 * time.Second
+	GatewayTimeout        = 55 * time.Second
+	ShutdownTimeout       = 60 * time.Second
+	BackendRequestTimeout = 20 * time.Second
 	ReadTimeout           = 5 * time.Second
 	WriteTimeout          = 75 * time.Second
 	IdleTimeout           = 120 * time.Second
@@ -104,14 +104,18 @@ func (service *AnchoringService) handleRequest(w http.ResponseWriter, r *http.Re
 	// create HTTPRequest with individual response channel for each request
 	msg.Response = make(chan HTTPResponse)
 
-	// submit message for signing
-	service.MessageHandler <- msg
+	// submit message for chaining
+	select {
+	case service.MessageHandler <- msg:
+	default: // do not accept any more requests if buffer is full
+		log.Warnf("%s: resquest skipped due to blocking channel", msg.ID)
+		http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
+		return
+	}
 
 	select {
 	case <-r.Context().Done():
 		log.Errorf("%s: 504 Gateway Timeout", msg.ID)
-		return
-
 	case resp := <-msg.Response:
 		sendResponse(w, resp)
 	}
