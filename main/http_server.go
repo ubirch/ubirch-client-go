@@ -30,9 +30,9 @@ const (
 	JSONType     = "application/json"
 	HashLen      = 32
 
-	GatewayTimeout        = 55 * time.Second
-	ShutdownTimeout       = 60 * time.Second
-	BackendRequestTimeout = 20 * time.Second
+	GatewayTimeout        = 55 * time.Second // time after which the client sends a 504 response if no timely response could be produced
+	ShutdownTimeout       = 60 * time.Second // time after which the server will be shut down forcefully if graceful shutdown did not happen
+	BackendRequestTimeout = 20 * time.Second // time after which request to ubirch backend will be canceled, we expect niomon to respond after 15s max
 	ReadTimeout           = 5 * time.Second
 	WriteTimeout          = 75 * time.Second
 	IdleTimeout           = 120 * time.Second
