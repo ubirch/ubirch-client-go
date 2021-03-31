@@ -339,13 +339,13 @@ the [releases](https://github.com/ubirch/ubirch-client-go/releases/latest)
 and pull the latest release from Docker Hub using the release tag, e.g.:
 
 ```console
-docker pull ubirch/ubirch-client:v1.1.2
+docker pull ubirch/ubirch-client:v1.1.6
 ```
 
 To start the multi-arch Docker image on any system, run:
 
 ```console
-docker run -v $(pwd):/data -p <host_port>:8080 ubirch/ubirch-client:v1.1.2
+docker run -v $(pwd):/data -p <host_port>:8080 ubirch/ubirch-client:v1.1.6
 ```
 
 > replace `<host_port>` with the desired TCP network port on the host (e.g. `-p 8080:8080`)
@@ -602,8 +602,8 @@ and insignificant space characters were elided.
 1. To run the dockerized UBIRCH client, you will need to have [Docker](https://docs.docker.com/) installed on your
    computer. Then just enter the following two lines in your working directory:
     ```console
-    docker pull ubirch/ubirch-client:v1.1.2
-    docker run -v $(pwd):/data -p 8080:8080 ubirch/ubirch-client:v1.1.2
+    docker pull ubirch/ubirch-client:v1.1.6
+    docker run -v $(pwd):/data -p 8080:8080 ubirch/ubirch-client:v1.1.6
     ```
    You should see a console output like this:
     ```console
