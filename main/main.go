@@ -108,12 +108,12 @@ func main() {
 		protocol:       &p,
 		env:            conf.Env,
 		authServiceURL: conf.Niomon,
-		MessageHandler: make(chan HTTPRequest, 100),
+		MessageHandler: make(chan HTTPRequest, 200), // 4rps * 50s => space for 200 requests
 	}
 
-	// start sequential signing routine
+	// start synchronous chaining routine
 	g.Go(func() error {
-		return signer(ctx, &s)
+		return s.chainer()
 	})
 
 	// set up endpoint for hash anchoring
@@ -149,6 +149,7 @@ func main() {
 
 	// start HTTP server
 	g.Go(func() error {
+		defer close(s.MessageHandler)
 		return httpServer.Serve(ctx)
 	})
 

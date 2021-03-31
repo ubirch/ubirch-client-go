@@ -30,9 +30,9 @@ const (
 	JSONType     = "application/json"
 	HashLen      = 32
 
-	GatewayTimeout        = 60 * time.Second
-	ShutdownTimeout       = 30 * time.Second
-	BackendRequestTimeout = 30 * time.Second
+	GatewayTimeout        = 55 * time.Second // time after which the client sends a 504 response if no timely response could be produced
+	ShutdownTimeout       = 60 * time.Second // time after which the server will be shut down forcefully if graceful shutdown did not happen
+	BackendRequestTimeout = 20 * time.Second // time after which request to ubirch backend will be canceled, we expect niomon to respond after 15s max
 	ReadTimeout           = 5 * time.Second
 	WriteTimeout          = 75 * time.Second
 	IdleTimeout           = 120 * time.Second
@@ -104,14 +104,18 @@ func (service *AnchoringService) handleRequest(w http.ResponseWriter, r *http.Re
 	// create HTTPRequest with individual response channel for each request
 	msg.Response = make(chan HTTPResponse)
 
-	// submit message for signing
-	service.MessageHandler <- msg
+	// submit message for chaining
+	select {
+	case service.MessageHandler <- msg:
+	default: // do not accept any more requests if buffer is full
+		log.Warnf("%s: resquest skipped due to blocking channel", msg.ID)
+		http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
+		return
+	}
 
 	select {
 	case <-r.Context().Done():
 		log.Errorf("%s: 504 Gateway Timeout", msg.ID)
-		return
-
 	case resp := <-msg.Response:
 		sendResponse(w, resp)
 	}

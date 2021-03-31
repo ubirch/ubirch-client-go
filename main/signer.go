@@ -15,7 +15,6 @@
 package main
 
 import (
-	"context"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -56,35 +55,31 @@ type Signer struct {
 }
 
 // handle incoming messages, create, sign and send a ubirch protocol packet (UPP) to the ubirch backend
-func signer(ctx context.Context, s *Signer) error {
-	for {
-		select {
-		case msg := <-s.MessageHandler:
-			// buffer last previous signature to be able to reset it in case sending UPP to backend fails
-			prevSign, found := s.protocol.Signatures[msg.ID]
-			if !found {
-				prevSign = make([]byte, 64)
-			}
+func (s *Signer) chainer() error {
+	for msg := range s.MessageHandler {
+		// buffer last previous signature to be able to reset it in case sending UPP to backend fails
+		prevSign, found := s.protocol.Signatures[msg.ID]
+		if !found {
+			prevSign = make([]byte, 64)
+		}
 
-			resp := s.handleSigningRequest(msg)
-			msg.Response <- resp
-			if httpFailed(resp.StatusCode) {
-				// reset previous signature in protocol context to ensure intact chain
-				s.protocol.Signatures[msg.ID] = prevSign
-			} else {
-				// persist last signature after UPP was successfully received in ubirch backend
-				err := s.protocol.PersistContext()
-				if err != nil {
-					return fmt.Errorf("unable to persist last signature: %v [\"%s\": \"%s\"]",
-						err, msg.ID.String(), base64.StdEncoding.EncodeToString(s.protocol.Signatures[msg.ID]))
-				}
+		resp := s.handleSigningRequest(msg)
+		msg.Response <- resp
+		if httpFailed(resp.StatusCode) {
+			// reset previous signature in protocol context to ensure intact chain
+			s.protocol.Signatures[msg.ID] = prevSign
+		} else {
+			// persist last signature after UPP was successfully received in ubirch backend
+			err := s.protocol.PersistContext()
+			if err != nil {
+				return fmt.Errorf("unable to persist last signature: %v [\"%s\": \"%s\"]",
+					err, msg.ID.String(), base64.StdEncoding.EncodeToString(s.protocol.Signatures[msg.ID]))
 			}
-
-		case <-ctx.Done():
-			log.Debug("shutting down signer")
-			return nil
 		}
 	}
+
+	log.Debug("shutting down signer")
+	return nil
 }
 
 func (s *Signer) handleSigningRequest(msg HTTPRequest) HTTPResponse {
