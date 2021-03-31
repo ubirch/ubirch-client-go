@@ -111,9 +111,9 @@ func main() {
 		MessageHandler: make(chan HTTPRequest, 100),
 	}
 
-	// start sequential signing routine
+	// start synchronous chaining routine
 	g.Go(func() error {
-		return signer(ctx, &s)
+		return s.chainer()
 	})
 
 	// set up endpoint for hash anchoring
@@ -149,6 +149,7 @@ func main() {
 
 	// start HTTP server
 	g.Go(func() error {
+		defer close(s.MessageHandler)
 		return httpServer.Serve(ctx)
 	})
 
