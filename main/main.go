@@ -108,7 +108,7 @@ func main() {
 		protocol:       &p,
 		env:            conf.Env,
 		authServiceURL: conf.Niomon,
-		MessageHandler: make(chan HTTPRequest, 200),
+		MessageHandler: make(chan HTTPRequest, 200), // 4rps * 50s => space for 200 requests
 	}
 
 	// start synchronous chaining routine
