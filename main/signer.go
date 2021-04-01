@@ -53,6 +53,15 @@ type Signer struct {
 	MessageHandler chan HTTPRequest
 }
 
+// non-blocking sending to response channel. returns right away if there is no receiver
+func (msg HTTPRequest) respond(resp HTTPResponse) {
+	select {
+	case msg.Response <- resp:
+	default:
+		log.Errorf("%s: response could not be sent: no receiver", msg.ID)
+	}
+}
+
 // handle incoming messages, create, sign and send a ubirch protocol packet (UPP) to the ubirch backend
 func (s *Signer) chainer() error {
 	for msg := range s.MessageHandler {
@@ -64,11 +73,7 @@ func (s *Signer) chainer() error {
 
 		resp := s.handleSigningRequest(msg)
 
-		select {
-		case msg.Response <- resp:
-		default:
-			log.Errorf("%s: response could not be sent: no receiver", msg.ID)
-		}
+		msg.respond(resp)
 
 		if httpFailed(resp.StatusCode) {
 			// reset previous signature in protocol context to ensure intact chain
