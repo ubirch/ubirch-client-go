@@ -19,12 +19,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/google/uuid"
 	"net/http"
 
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
-
+	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
 type operation string
@@ -64,7 +63,13 @@ func (s *Signer) chainer() error {
 		}
 
 		resp := s.handleSigningRequest(msg)
-		msg.Response <- resp
+
+		select {
+		case msg.Response <- resp:
+		default:
+			log.Errorf("%s: response could not be sent: no receiver", msg.ID)
+		}
+
 		if httpFailed(resp.StatusCode) {
 			// reset previous signature in protocol context to ensure intact chain
 			s.protocol.Signatures[msg.ID] = prevSign
