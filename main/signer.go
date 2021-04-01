@@ -78,7 +78,6 @@ func (s *Signer) chainer() error {
 		}
 
 		resp := s.handleSigningRequest(msg)
-
 		msg.respond(resp)
 
 		if httpFailed(resp.StatusCode) {
