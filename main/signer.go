@@ -65,6 +65,12 @@ func (msg HTTPRequest) respond(resp HTTPResponse) {
 // handle incoming messages, create, sign and send a ubirch protocol packet (UPP) to the ubirch backend
 func (s *Signer) chainer() error {
 	for msg := range s.MessageHandler {
+		// the message might have waited in the channel for a while
+		// check if the context is expired or canceled by now
+		if msg.RequestCtx.Err() != nil {
+			continue
+		}
+
 		// buffer last previous signature to be able to reset it in case sending UPP to backend fails
 		prevSign, found := s.protocol.Signatures[msg.ID]
 		if !found {
