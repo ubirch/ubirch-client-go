@@ -19,12 +19,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/google/uuid"
 	"net/http"
 
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
-
+	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
 type operation string
@@ -54,9 +53,24 @@ type Signer struct {
 	MessageHandler chan HTTPRequest
 }
 
+// non-blocking sending to response channel. returns right away if there is no receiver
+func (msg HTTPRequest) respond(resp HTTPResponse) {
+	select {
+	case msg.Response <- resp:
+	default:
+		log.Errorf("%s: response could not be sent: no receiver", msg.ID)
+	}
+}
+
 // handle incoming messages, create, sign and send a ubirch protocol packet (UPP) to the ubirch backend
 func (s *Signer) chainer() error {
 	for msg := range s.MessageHandler {
+		// the message might have waited in the channel for a while
+		// check if the context is expired or canceled by now
+		if msg.RequestCtx.Err() != nil {
+			continue
+		}
+
 		// buffer last previous signature to be able to reset it in case sending UPP to backend fails
 		prevSign, found := s.protocol.Signatures[msg.ID]
 		if !found {
@@ -64,7 +78,8 @@ func (s *Signer) chainer() error {
 		}
 
 		resp := s.handleSigningRequest(msg)
-		msg.Response <- resp
+		msg.respond(resp)
+
 		if httpFailed(resp.StatusCode) {
 			// reset previous signature in protocol context to ensure intact chain
 			s.protocol.Signatures[msg.ID] = prevSign

@@ -108,7 +108,7 @@ func main() {
 		protocol:       &p,
 		env:            conf.Env,
 		authServiceURL: conf.Niomon,
-		MessageHandler: make(chan HTTPRequest, 200), // 4rps * 50s => space for 200 requests
+		MessageHandler: make(chan HTTPRequest, 150), // 3rps * 50s // TODO: make configurable
 	}
 
 	// start synchronous chaining routine
@@ -142,7 +142,7 @@ func main() {
 				protocol:                      &p,
 				verifyServiceURL:              conf.VerifyService,
 				keyServiceURL:                 conf.KeyService,
-				verifyFromKnownIdentitiesOnly: false, // todo add to config
+				verifyFromKnownIdentitiesOnly: false, // TODO: make configurable
 			},
 		},
 	})

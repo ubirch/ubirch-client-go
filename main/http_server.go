@@ -46,11 +46,12 @@ type ServerEndpoint struct {
 }
 
 type HTTPRequest struct {
-	ID        uuid.UUID
-	Auth      string
-	Hash      Sha256Sum
-	Operation operation
-	Response  chan HTTPResponse
+	ID         uuid.UUID
+	Auth       string
+	Hash       Sha256Sum
+	Operation  operation
+	Response   chan HTTPResponse
+	RequestCtx context.Context
 }
 
 type HTTPResponse struct {
@@ -104,12 +105,14 @@ func (service *AnchoringService) handleRequest(w http.ResponseWriter, r *http.Re
 	// create HTTPRequest with individual response channel for each request
 	msg.Response = make(chan HTTPResponse)
 
+	msg.RequestCtx = r.Context()
+
 	// submit message for chaining
 	select {
 	case service.MessageHandler <- msg:
 	default: // do not accept any more requests if buffer is full
-		log.Warnf("%s: resquest skipped due to blocking channel", msg.ID)
-		http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
+		log.Warnf("%s: resquest skipped due to overflowing request channel", msg.ID)
+		http.Error(w, "Service Temporarily Unavailable", http.StatusServiceUnavailable)
 		return
 	}
 
@@ -377,8 +380,7 @@ func (srv *HTTPServer) Serve(ctx context.Context) error {
 		log.Debug("shutting down HTTP server")
 		server.SetKeepAlivesEnabled(false) // disallow clients to create new long-running conns
 
-		shutdownWithTimeoutCtx, shutdownWithTimeoutCancel := context.WithTimeout(shutdownCtx, ShutdownTimeout)
-		defer shutdownWithTimeoutCancel()
+		shutdownWithTimeoutCtx, _ := context.WithTimeout(shutdownCtx, ShutdownTimeout)
 		defer shutdownCancel()
 
 		if err := server.Shutdown(shutdownWithTimeoutCtx); err != nil {
