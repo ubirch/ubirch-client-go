@@ -14,9 +14,9 @@ import (
 
 const (
 	clientBaseURL         = "http://localhost:8080/"
-	configFile            = "../main/config.json"
-	numberOfTestIDs       = 100
-	numberOfRequestsPerID = 50
+	configFile            = "config.json"
+	numberOfTestIDs       = 1000
+	numberOfRequestsPerID = 5
 )
 
 func main() {
@@ -24,14 +24,18 @@ func main() {
 	var wg sync.WaitGroup
 
 	testIdentities := getTestIdentities(numberOfTestIDs)
+	log.Infof("%d identities, %d requests each", numberOfTestIDs, numberOfRequestsPerID)
+	log.Infof(" = = = => sending %d requests <= = = = ", numberOfTestIDs*numberOfRequestsPerID)
+
+	start := time.Now()
 
 	for uid, auth := range testIdentities {
 		sendRequests(uid, auth, &wg)
 	}
 
-	log.Debug("waiting...")
+	log.Infof(" = = = => %d requests sent after %f seconds <= = = = ", numberOfTestIDs*numberOfRequestsPerID, time.Since(start).Seconds())
 	wg.Wait()
-	log.Info("done")
+	log.Infof(" = = = => done after %f seconds <= = = = ", time.Since(start).Seconds())
 }
 
 func sendRequests(id string, auth string, wg *sync.WaitGroup) {
@@ -44,6 +48,8 @@ func sendRequests(id string, auth string, wg *sync.WaitGroup) {
 	for i := 1; i <= numberOfRequestsPerID; i++ {
 		wg.Add(1)
 		go sendAndCheckResponse(HTTPclient, clientURL, header, wg)
+
+		time.Sleep(time.Second / numberOfRequestsPerID)
 	}
 }
 
