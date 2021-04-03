@@ -72,7 +72,7 @@ func main() {
 	}
 	p.Signatures = map[uuid.UUID][]byte{}
 
-	err = p.Init(configDir, contextFile, conf.DSN, conf.Keys)
+	err = p.Init(configDir, contextFile, conf.DSN)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -16,7 +16,6 @@ package main
 
 import (
 	"database/sql/driver"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,7 +24,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
@@ -38,7 +36,7 @@ type ExtendedProtocol struct {
 }
 
 // Init sets keys in crypto context and updates keystore in persistent storage
-func (p *ExtendedProtocol) Init(configDir string, filename string, dsn string, keys map[string]string) error {
+func (p *ExtendedProtocol) Init(configDir string, filename string, dsn string) error {
 	// check if we want to use a database as persistent storage
 	if dsn != "" {
 		// use the database
@@ -63,30 +61,6 @@ func (p *ExtendedProtocol) Init(configDir string, filename string, dsn string, k
 
 	if len(p.Signatures) != 0 {
 		log.Printf("loaded existing protocol context: %d signatures", len(p.Signatures))
-	}
-
-	if keys != nil {
-		// inject keys from configuration to keystore
-		for name, key := range keys {
-			uid, err := uuid.Parse(name)
-			if err != nil {
-				return fmt.Errorf("unable to parse key name %s from key map to UUID: %v", name, err)
-			}
-			keyBytes, err := base64.StdEncoding.DecodeString(key)
-			if err != nil {
-				return fmt.Errorf("unable to decode private key string for %s: %v, string was: %s", name, err, key)
-			}
-			err = p.SetKey(name, uid, keyBytes)
-			if err != nil {
-				return fmt.Errorf("unable to insert private key to protocol context: %v", err)
-			}
-		}
-
-		// update keystore in persistent storage
-		err = p.PersistContext()
-		if err != nil {
-			return fmt.Errorf("unable to store keys: %v", err)
-		}
 	}
 	return nil
 }
