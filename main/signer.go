@@ -85,7 +85,7 @@ func (s *Signer) chainer() error {
 			s.protocol.Signatures[msg.ID] = prevSign
 		} else {
 			// persist last signature after UPP was successfully received in ubirch backend
-			err := s.protocol.PersistContext()
+			err := s.protocol.PersistSignatures()
 			if err != nil {
 				return fmt.Errorf("unable to persist last signature: %v [\"%s\": \"%s\"]",
 					err, msg.ID.String(), base64.StdEncoding.EncodeToString(s.protocol.Signatures[msg.ID]))

@@ -69,7 +69,7 @@ func submitCSR(p *ExtendedProtocol, uid uuid.UUID, subjectCountry string, subjec
 }
 
 func initDeviceKeys(p *ExtendedProtocol, conf Config) error {
-	err := p.LoadContext() // fails if p not initialized
+	err := p.LoadKeys()
 	if err != nil {
 		return fmt.Errorf("unable to load protocol context: %v", err)
 	}
@@ -119,7 +119,7 @@ func initDeviceKeys(p *ExtendedProtocol, conf Config) error {
 			}
 
 			// store newly generated key in persistent storage
-			err = p.PersistContext()
+			err = p.PersistKeys()
 			if err != nil {
 				return fmt.Errorf("unable to persist new key pair for UUID %s: %v", name, err)
 			}
@@ -156,7 +156,7 @@ func initDeviceKeys(p *ExtendedProtocol, conf Config) error {
 		if _, found := p.Signatures[uid]; !found {
 			p.Signatures[uid] = make([]byte, 64)
 
-			err = p.PersistContext()
+			err = p.PersistSignatures()
 			if err != nil {
 				return fmt.Errorf("unable to persist protocol context: %v", err)
 			}
