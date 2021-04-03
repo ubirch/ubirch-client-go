@@ -71,8 +71,20 @@ func main() {
 		Names:    map[string]uuid.UUID{},
 	}
 	p.Signatures = map[uuid.UUID][]byte{}
+	p.contextFile_Legacy = filepath.Join(configDir, contextFile)
 
-	err = p.Init(configDir, contextFile, conf.DSN)
+	if conf.DSN != "" {
+		log.Fatalf("database not supported in current version")
+		// FIXME // use the database
+		//p.ctxManager, err = NewPostgres(conf.DSN)
+		//if err != nil {
+		//	return fmt.Errorf("unable to connect to database: %v", err)
+		//}
+	} else {
+		p.ctxManager = NewFileManager(configDir)
+	}
+
+	err = p.Init()
 	if err != nil {
 		log.Fatal(err)
 	}

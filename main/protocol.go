@@ -19,46 +19,27 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"strings"
-
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
-
 	log "github.com/sirupsen/logrus"
-)
-
-const (
-	keyFileName       = "keys.json"
-	SignatureFileName = "signatures.json"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
+	"os"
 )
 
 type ExtendedProtocol struct {
 	ubirch.Protocol
-	db                 Database
+	ctxManager         ContextManager
 	contextFile_Legacy string
 }
 
-// Init sets keys in crypto context and updates keystore in persistent storage
-func (p *ExtendedProtocol) Init(configDir string, filename string, dsn string) error {
-	// check if we want to use a database as persistent storage
-	if dsn != "" {
-		// FIXME // use the database
-		//db, err := NewPostgres(dsn)
-		//if err != nil {
-		//	return fmt.Errorf("unable to connect to database: %v", err)
-		//}
-		//p.db = db
-		//log.Printf("protocol context will be saved to database")
-		log.Fatalf("database not supported in current version")
-	} else if filename != "" {
-		p.contextFile_Legacy = filepath.Join(configDir, filename)
-		log.Printf("protocol context will be saved to files")
-	} else {
-		return fmt.Errorf("neither DSN nor filename for protocol context set")
-	}
+type ContextManager interface {
+	LoadKeys(dest interface{}) error
+	PersistKeys(source interface{}) error
+	LoadSignatures(dest interface{}) error
+	PersistSignatures(source interface{}) error
+	Close() error
+}
 
+// Init sets keys in crypto context and updates keystore in persistent storage
+func (p *ExtendedProtocol) Init() error {
 	err := p.portLegacyProtocolCtxFile()
 	if err != nil {
 		return err
@@ -81,28 +62,23 @@ func (p *ExtendedProtocol) Init(configDir string, filename string, dsn string) e
 }
 
 func (p *ExtendedProtocol) Deinit() error {
-	if p.db != nil {
-		if err := p.db.Close(); err != nil {
-			return fmt.Errorf("unable to close database connection: %v", err)
-		}
-	}
-	return nil
+	return p.ctxManager.Close()
 }
 
 func (p *ExtendedProtocol) LoadKeys() error {
-	return loadFile(keyFileName, &p.Crypto) // todo filepath.Join(configDir, filename)
+	return p.ctxManager.LoadKeys(&p.Crypto)
 }
 
 func (p *ExtendedProtocol) PersistKeys() error {
-	return persistFile(keyFileName, &p.Crypto) // todo filepath.Join(configDir, filename)
+	return p.ctxManager.PersistKeys(&p.Crypto)
 }
 
 func (p *ExtendedProtocol) LoadSignatures() error {
-	return loadFile(SignatureFileName, &p.Signatures) // todo filepath.Join(configDir, filename)
+	return p.ctxManager.LoadSignatures(&p.Signatures)
 }
 
 func (p *ExtendedProtocol) PersistSignatures() error {
-	return persistFile(SignatureFileName, &p.Signatures) // todo filepath.Join(configDir, filename)
+	return p.ctxManager.PersistSignatures(&p.Signatures)
 }
 
 func (p *ExtendedProtocol) portLegacyProtocolCtxFile() error {
@@ -141,40 +117,6 @@ func (p *ExtendedProtocol) portLegacyProtocolCtxFile() error {
 		log.Errorf("unable to delete legacy protocol context backup file: %v", err)
 	}
 
-	return nil
-}
-
-func persistFile(file string, source interface{}) error {
-	if _, err := os.Stat(file); !os.IsNotExist(err) { // if file already exists, create a backup
-		err = os.Rename(file, file+".bck")
-		if err != nil {
-			log.Warnf("unable to create backup file for %s: %v", file, err)
-		}
-	}
-	contextBytes, _ := json.MarshalIndent(source, "", "  ")
-	return ioutil.WriteFile(file, contextBytes, 444)
-}
-
-func loadFile(file string, dest interface{}) error {
-	if _, err := os.Stat(file); os.IsNotExist(err) { // if file does not exist yet, return right away
-		return nil
-	}
-	contextBytes, err := ioutil.ReadFile(file)
-	if err != nil {
-		file = file + ".bck"
-		contextBytes, err = ioutil.ReadFile(file)
-		if err != nil {
-			return err
-		}
-	}
-	err = json.Unmarshal(contextBytes, dest)
-	if err != nil {
-		if strings.HasSuffix(file, ".bck") {
-			return err
-		} else {
-			return loadFile(file+".bck", dest)
-		}
-	}
 	return nil
 }
 
