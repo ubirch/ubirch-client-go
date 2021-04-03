@@ -116,34 +116,37 @@ func main() {
 		return s.chainer()
 	})
 
-	// set up endpoint for hash anchoring
+	// set up endpoint for chaining
 	httpServer.AddEndpoint(ServerEndpoint{
 		Path: fmt.Sprintf("/{%s}", UUIDKey),
-		Service: &AnchoringService{
+		Service: &ChainingService{
 			Signer:     &s,
 			AuthTokens: conf.Devices,
 		},
 	})
 
-	// set up endpoint for hash update operations
+	// set up endpoint for update operations
 	httpServer.AddEndpoint(ServerEndpoint{
 		Path: fmt.Sprintf("/{%s}/{%s}", UUIDKey, OperationKey),
-		Service: &UpdateOperationService{
+		Service: &UpdateService{
 			Signer:     &s,
 			AuthTokens: conf.Devices,
 		},
 	})
 
-	// set up endpoint for hash verification
+	// initialize verifier
+	v := Verifier{
+		protocol:                      &p,
+		verifyServiceURL:              conf.VerifyService,
+		keyServiceURL:                 conf.KeyService,
+		verifyFromKnownIdentitiesOnly: false, // TODO: make configurable
+	}
+
+	// set up endpoint for verification
 	httpServer.AddEndpoint(ServerEndpoint{
 		Path: "/verify",
 		Service: &VerificationService{
-			Verifier: &Verifier{
-				protocol:                      &p,
-				verifyServiceURL:              conf.VerifyService,
-				keyServiceURL:                 conf.KeyService,
-				verifyFromKnownIdentitiesOnly: false, // TODO: make configurable
-			},
+			Verifier: &v,
 		},
 	})
 

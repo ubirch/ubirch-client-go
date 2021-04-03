@@ -64,12 +64,12 @@ type Service interface {
 	handleRequest(w http.ResponseWriter, r *http.Request)
 }
 
-type AnchoringService struct {
+type ChainingService struct {
 	*Signer
 	AuthTokens map[string]string
 }
 
-type UpdateOperationService struct {
+type UpdateService struct {
 	*Signer
 	AuthTokens map[string]string
 }
@@ -78,7 +78,7 @@ type VerificationService struct {
 	*Verifier
 }
 
-func (service *AnchoringService) handleRequest(w http.ResponseWriter, r *http.Request) {
+func (service *ChainingService) handleRequest(w http.ResponseWriter, r *http.Request) {
 	var msg HTTPRequest
 	var err error
 
@@ -116,15 +116,18 @@ func (service *AnchoringService) handleRequest(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	// wait for response or timeout
 	select {
 	case <-r.Context().Done():
 		log.Errorf("%s: 504 Gateway Timeout", msg.ID)
 	case resp := <-msg.Response:
 		sendResponse(w, resp)
+	case <-r.Context().Done():
+		log.Errorf("%s: %v", msg.ID, r.Context().Err())
 	}
 }
 
-func (service *UpdateOperationService) handleRequest(w http.ResponseWriter, r *http.Request) {
+func (service *UpdateService) handleRequest(w http.ResponseWriter, r *http.Request) {
 	var msg HTTPRequest
 	var err error
 
