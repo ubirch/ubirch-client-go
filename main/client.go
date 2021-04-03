@@ -91,7 +91,7 @@ func ubirchHeader(uid uuid.UUID, auth string) map[string]string {
 func post(url string, data []byte, header map[string]string) (HTTPResponse, error) {
 	client := &http.Client{Timeout: BackendRequestTimeout}
 
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(data))
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(data))
 	if err != nil {
 		return HTTPResponse{}, fmt.Errorf("can't make new post request: %v", err)
 	}
