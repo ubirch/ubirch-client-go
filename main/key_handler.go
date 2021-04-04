@@ -151,16 +151,6 @@ func initDeviceKeys(p *ExtendedProtocol, conf Config) error {
 			log.Errorf("submitting CSR for UUID %s failed: %v", name, err)
 		}
 
-		//  explicitly set prev. signature to all zeroes in protocol context if UUID does not have a prev. signature
-		// in order to be able to reset the prev. signature to all zeroes in case sending of the first UPP fails
-		if _, found := p.Signatures[uid]; !found {
-			p.Signatures[uid] = make([]byte, 64)
-
-			err = p.PersistSignatures()
-			if err != nil {
-				return fmt.Errorf("unable to persist protocol context: %v", err)
-			}
-		}
 	}
 	return nil
 }
