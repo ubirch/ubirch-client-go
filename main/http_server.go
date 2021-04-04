@@ -118,8 +118,6 @@ func (service *ChainingService) handleRequest(w http.ResponseWriter, r *http.Req
 
 	// wait for response or timeout
 	select {
-	case <-r.Context().Done():
-		log.Errorf("%s: 504 Gateway Timeout", msg.ID)
 	case resp := <-msg.Response:
 		sendResponse(w, resp)
 	case <-r.Context().Done():
