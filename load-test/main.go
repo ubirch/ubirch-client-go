@@ -15,8 +15,8 @@ import (
 const (
 	clientBaseURL         = "http://localhost:8080/"
 	configFile            = "config.json"
-	numberOfTestIDs       = 1000
-	numberOfRequestsPerID = 5
+	numberOfTestIDs       = 2000
+	numberOfRequestsPerID = 3
 )
 
 func main() {
@@ -33,9 +33,9 @@ func main() {
 		sendRequests(uid, auth, &wg)
 	}
 
-	log.Infof(" = = = => requests sent after %f seconds <= = = = ", time.Since(start).Seconds())
+	log.Infof(" = = = => requests sent after %7.3f seconds <= = = = ", time.Since(start).Seconds())
 	wg.Wait()
-	log.Infof(" = = = => requests done after %f seconds <= = = = ", time.Since(start).Seconds())
+	log.Infof(" = = = => requests done after %7.3f seconds <= = = = ", time.Since(start).Seconds())
 }
 
 func sendRequests(id string, auth string, wg *sync.WaitGroup) {
