@@ -24,8 +24,8 @@ func main() {
 	var wg sync.WaitGroup
 
 	testIdentities := getTestIdentities(numberOfTestIDs)
-	log.Infof("%d identities, %d requests each", numberOfTestIDs, numberOfRequestsPerID)
-	log.Infof(" = = = => sending %d requests <= = = = ", numberOfTestIDs*numberOfRequestsPerID)
+	log.Infof("%d identities, %d requests each", len(testIdentities), numberOfRequestsPerID)
+	log.Infof(" = = = => sending %d requests <= = = = ", len(testIdentities)*numberOfRequestsPerID)
 
 	start := time.Now()
 
@@ -33,9 +33,9 @@ func main() {
 		sendRequests(uid, auth, &wg)
 	}
 
-	log.Infof(" = = = => %d requests sent after %f seconds <= = = = ", numberOfTestIDs*numberOfRequestsPerID, time.Since(start).Seconds())
+	log.Infof(" = = = => requests sent after %f seconds <= = = = ", time.Since(start).Seconds())
 	wg.Wait()
-	log.Infof(" = = = => done after %f seconds <= = = = ", time.Since(start).Seconds())
+	log.Infof(" = = = => requests done after %f seconds <= = = = ", time.Since(start).Seconds())
 }
 
 func sendRequests(id string, auth string, wg *sync.WaitGroup) {
