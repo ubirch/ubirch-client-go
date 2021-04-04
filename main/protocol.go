@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"os"
@@ -39,26 +40,35 @@ type ContextManager interface {
 }
 
 // Init sets keys in crypto context and updates keystore in persistent storage
-func (p *ExtendedProtocol) Init() error {
+func NewExtendedProtocol(secret []byte, cm ContextManager) (*ExtendedProtocol, error) {
+	p := &ExtendedProtocol{}
+	p.Crypto = &ubirch.CryptoContext{
+		Keystore: ubirch.NewEncryptedKeystore(secret),
+		Names:    map[string]uuid.UUID{},
+	}
+	p.Signatures = map[uuid.UUID][]byte{}
+	p.ctxManager = cm
+
 	err := p.portLegacyProtocolCtxFile()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	err = p.LoadKeys()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	err = p.LoadSignatures()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if len(p.Signatures) != 0 {
 		log.Printf("loaded existing protocol context: %d signatures", len(p.Signatures))
 	}
-	return nil
+
+	return p, nil
 }
 
 func (p *ExtendedProtocol) Deinit() error {

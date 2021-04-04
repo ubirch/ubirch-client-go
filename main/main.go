@@ -19,10 +19,9 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
-	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"golang.org/x/sync/errgroup"
 
 	log "github.com/sirupsen/logrus"
@@ -64,33 +63,27 @@ func main() {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
 
-	// create an ubirch protocol instance
-	p := ExtendedProtocol{}
-	p.Crypto = &ubirch.CryptoContext{
-		Keystore: ubirch.NewEncryptedKeystore(conf.SecretBytes),
-		Names:    map[string]uuid.UUID{},
-	}
-	p.Signatures = map[uuid.UUID][]byte{}
-	p.contextFile_Legacy = filepath.Join(configDir, contextFile)
-
+	var ctxManager ContextManager
 	if conf.DSN != "" {
-		log.Fatalf("database not supported in current version")
+		log.Fatalf("database not supported in current client version")
 		// FIXME // use the database
-		//p.ctxManager, err = NewPostgres(conf.DSN)
+		//ctxManager, err = NewPostgres(conf.DSN)
 		//if err != nil {
-		//	return fmt.Errorf("unable to connect to database: %v", err)
+		//	log.Fatal("unable to connect to database: %v", err)
 		//}
 	} else {
-		p.ctxManager = NewFileManager(configDir)
+		ctxManager = NewFileManager(configDir)
 	}
 
-	err = p.Init()
+	// create an ubirch protocol instance
+	p, err := NewExtendedProtocol(conf.SecretBytes, ctxManager)
 	if err != nil {
 		log.Fatal(err)
 	}
+	p.contextFile_Legacy = filepath.Join(configDir, contextFile)
 
 	// generate and register keys for known devices
-	err = initDeviceKeys(&p, conf)
+	err = initDeviceKeys(p, conf)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -117,7 +110,7 @@ func main() {
 
 	// initialize signer
 	s := Signer{
-		protocol:       &p,
+		protocol:       p,
 		env:            conf.Env,
 		authServiceURL: conf.Niomon,
 		MessageHandler: make(chan HTTPRequest, 150), // 3rps * 50s // TODO: make configurable
@@ -148,7 +141,7 @@ func main() {
 
 	// initialize verifier
 	v := Verifier{
-		protocol:                      &p,
+		protocol:                      p,
 		verifyServiceURL:              conf.VerifyService,
 		keyServiceURL:                 conf.KeyService,
 		verifyFromKnownIdentitiesOnly: false, // TODO: make configurable
