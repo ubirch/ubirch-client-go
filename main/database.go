@@ -42,6 +42,9 @@ type Postgres struct {
 	conn *sql.DB
 }
 
+// TODO: Ensure Postgres implements the ContextManager interface
+//var _ ContextManager = (*Postgres)(nil)
+
 // NewPostgres takes a database connection string, returns a new initialized
 // database.
 func NewPostgres(dsn string) (*Postgres, error) {
