@@ -68,6 +68,7 @@ type Config struct {
 	Debug            bool              `json:"debug"`             // enable extended debug output, defaults to 'false'
 	LogTextFormat    bool              `json:"logTextFormat"`     // log in text format for better human readability, default format is JSON
 	RequestBufSize   int               `json:"RequestBufferSize"` // number of requests to the client that will be buffered for chaining
+	ConfigDir        string            // directory where config and protocol ctx are stored (set automatically)
 	SecretBytes      []byte            // the decoded key store secret (set automatically)
 	KeyService       string            // key service URL (set automatically)
 	IdentityService  string            // identity service URL (set automatically)
@@ -100,12 +101,12 @@ func (c *Config) Load(configDir string, filename string) error {
 		log.SetFormatter(&log.TextFormatter{FullTimestamp: true, TimestampFormat: "2006-01-02 15:04:05.000 -0700"})
 	}
 
-	err = c.loadAuthMap(configDir) // TODO: DEPRECATED
+	err = c.loadAuthMap() // TODO: DEPRECATED
 	if err != nil {
 		return err
 	}
 
-	err = c.loadIdentitiesFile(configDir)
+	err = c.loadIdentitiesFile()
 	if err != nil {
 		return err
 	}
@@ -121,6 +122,16 @@ func (c *Config) Load(configDir string, filename string) error {
 	c.setDefaultCORS()
 	c.setDefaultReqBufSize()
 	return c.setDefaultURLs()
+}
+
+func (c *Config) GetCtxManager() (ContextManager, error) {
+	if c.DSN != "" {
+		return nil, fmt.Errorf("database not supported in current client version")
+		// FIXME: use the database
+		// return NewPostgres(c.DSN)
+	} else {
+		return NewFileManager(c.ConfigDir)
+	}
 }
 
 // loadEnv reads the configuration from environment variables
@@ -267,13 +278,13 @@ func (c *Config) setDefaultURLs() error {
 
 // loadIdentitiesFile loads device identities from the identities JSON file.
 // Returns without error if file does not exist.
-func (c *Config) loadIdentitiesFile(configDir string) error {
+func (c *Config) loadIdentitiesFile() error {
 	// if file does not exist, return right away
 	if _, err := os.Stat(identitiesFile); os.IsNotExist(err) {
 		return nil
 	}
 
-	fileHandle, err := os.Open(filepath.Join(configDir, identitiesFile))
+	fileHandle, err := os.Open(filepath.Join(c.ConfigDir, identitiesFile))
 	if err != nil {
 		return err
 	}
@@ -299,7 +310,7 @@ func (c *Config) loadIdentitiesFile(configDir string) error {
 // TODO: DEPRECATED
 //  loadAuthMap loads the auth map from the environment >> legacy <<
 //  Returns without error if neither env variable nor file exists.
-func (c *Config) loadAuthMap(configDir string) error {
+func (c *Config) loadAuthMap() error {
 	var err error
 	var authMapBytes []byte
 
@@ -311,7 +322,7 @@ func (c *Config) loadAuthMap(configDir string) error {
 		if _, err := os.Stat(authFile); os.IsNotExist(err) {
 			return nil
 		}
-		authMapBytes, err = ioutil.ReadFile(filepath.Join(configDir, authFile))
+		authMapBytes, err = ioutil.ReadFile(filepath.Join(c.ConfigDir, authFile))
 		if err != nil {
 			return err
 		}
