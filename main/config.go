@@ -68,12 +68,12 @@ type Config struct {
 	Debug            bool              `json:"debug"`             // enable extended debug output, defaults to 'false'
 	LogTextFormat    bool              `json:"logTextFormat"`     // log in text format for better human readability, default format is JSON
 	RequestBufSize   int               `json:"RequestBufferSize"` // number of requests to the client that will be buffered for chaining
-	ConfigDir        string            // directory where config and protocol ctx are stored (set automatically)
 	SecretBytes      []byte            // the decoded key store secret (set automatically)
 	KeyService       string            // key service URL (set automatically)
 	IdentityService  string            // identity service URL (set automatically)
 	Niomon           string            // authentication service URL (set automatically)
 	VerifyService    string            // verification service URL (set automatically)
+	configDir        string            // directory where config and protocol ctx are stored (set automatically)
 }
 
 func (c *Config) Load(configDir string, filename string) error {
@@ -88,6 +88,8 @@ func (c *Config) Load(configDir string, filename string) error {
 	if err != nil {
 		return err
 	}
+
+	c.configDir = configDir
 
 	c.SecretBytes, err = base64.StdEncoding.DecodeString(c.Secret)
 	if err != nil {
@@ -118,7 +120,7 @@ func (c *Config) Load(configDir string, filename string) error {
 
 	// set defaults
 	c.setDefaultCSR()
-	c.setDefaultTLS(configDir)
+	c.setDefaultTLS()
 	c.setDefaultCORS()
 	c.setDefaultReqBufSize()
 	return c.setDefaultURLs()
@@ -130,7 +132,7 @@ func (c *Config) GetCtxManager() (ContextManager, error) {
 		// FIXME: use the database
 		// return NewPostgres(c.DSN)
 	} else {
-		return NewFileManager(c.ConfigDir)
+		return NewFileManager(c.configDir)
 	}
 }
 
@@ -197,11 +199,11 @@ func (c *Config) setDefaultCSR() {
 	log.Debugf("CSR Subject Organization: %s", c.CSR_Organization)
 }
 
-func (c *Config) setDefaultTLS(configDir string) {
+func (c *Config) setDefaultTLS() {
 	if c.TCP_addr == "" {
 		c.TCP_addr = ":8080"
 	}
-	log.Infof("TCP address: %s", c.TCP_addr)
+	log.Debugf("TCP address: %s", c.TCP_addr)
 
 	if c.TLS {
 		log.Debug("TLS enabled")
@@ -209,13 +211,13 @@ func (c *Config) setDefaultTLS(configDir string) {
 		if c.TLS_CertFile == "" {
 			c.TLS_CertFile = defaultTLSCertFile
 		}
-		c.TLS_CertFile = filepath.Join(configDir, c.TLS_CertFile)
+		c.TLS_CertFile = filepath.Join(c.configDir, c.TLS_CertFile)
 		log.Debugf(" - Cert: %s", c.TLS_CertFile)
 
 		if c.TLS_KeyFile == "" {
 			c.TLS_KeyFile = defaultTLSKeyFile
 		}
-		c.TLS_KeyFile = filepath.Join(configDir, c.TLS_KeyFile)
+		c.TLS_KeyFile = filepath.Join(c.configDir, c.TLS_KeyFile)
 		log.Debugf(" -  Key: %s", c.TLS_KeyFile)
 	}
 }
@@ -284,7 +286,7 @@ func (c *Config) loadIdentitiesFile() error {
 		return nil
 	}
 
-	fileHandle, err := os.Open(filepath.Join(c.ConfigDir, identitiesFile))
+	fileHandle, err := os.Open(filepath.Join(c.configDir, identitiesFile))
 	if err != nil {
 		return err
 	}
@@ -322,7 +324,7 @@ func (c *Config) loadAuthMap() error {
 		if _, err := os.Stat(authFile); os.IsNotExist(err) {
 			return nil
 		}
-		authMapBytes, err = ioutil.ReadFile(filepath.Join(c.ConfigDir, authFile))
+		authMapBytes, err = ioutil.ReadFile(filepath.Join(c.configDir, authFile))
 		if err != nil {
 			return err
 		}
