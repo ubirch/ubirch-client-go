@@ -38,6 +38,8 @@ const (
 	defaultNiomonURL   = "https://niomon.%s.ubirch.com/"
 	defaultVerifyURL   = "https://verify.%s.ubirch.com/api/upp/verify"
 
+	configFile = "config.json"
+
 	authEnv  = "UBIRCH_AUTH_MAP" // {UUID: [key, token]} TODO: DEPRECATED
 	authFile = "auth.json"       // {UUID: [key, token]} TODO: DEPRECATED
 
@@ -76,14 +78,14 @@ type Config struct {
 	configDir        string            // directory where config and protocol ctx are stored (set automatically)
 }
 
-func (c *Config) Load(configDir string, filename string) error {
+func (c *Config) Load(configDir string) error {
 	// assume that we want to load from env instead of config files, if
 	// we have the UBIRCH_SECRET env variable set.
 	var err error
 	if os.Getenv("UBIRCH_SECRET") != "" {
 		err = c.loadEnv()
 	} else {
-		err = c.loadFile(filepath.Join(configDir, filename))
+		err = c.loadFile(filepath.Join(configDir, configFile))
 	}
 	if err != nil {
 		return err
