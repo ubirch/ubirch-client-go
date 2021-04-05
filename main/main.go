@@ -41,8 +41,9 @@ func shutdown(cancel context.CancelFunc) {
 
 func main() {
 	const (
-		Version = "v2.0.0"
-		Build   = "local"
+		Version    = "v2.0.0"
+		Build      = "local"
+		configFile = "config.json"
 	)
 
 	var configDir string
@@ -55,7 +56,7 @@ func main() {
 
 	// read configuration
 	conf := Config{}
-	err := conf.Load(configDir)
+	err := conf.Load(configDir, configFile)
 	if err != nil {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
