@@ -351,9 +351,6 @@ func (srv *HTTPServer) SetUpCORS(allowedOrigins []string, debug bool) {
 		MaxAge:           300, // Maximum value not ignored by any of major browsers
 		Debug:            debug,
 	}))
-
-	log.Printf("CORS enabled")
-	log.Debugf(" - Allowed Origins: %v", allowedOrigins)
 }
 
 func (srv *HTTPServer) AddEndpoint(endpoint ServerEndpoint) {
@@ -389,11 +386,6 @@ func (srv *HTTPServer) Serve(ctx context.Context) error {
 		}
 	}()
 
-	if srv.TLS {
-		log.Info("TLS enabled")
-		log.Debugf(" - Cert: %s", srv.certFile)
-		log.Debugf(" -  Key: %s", srv.keyFile)
-	}
 	log.Infof("starting HTTP server")
 
 	var err error

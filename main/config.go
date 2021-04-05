@@ -190,25 +190,33 @@ func (c *Config) setDefaultTLS(configDir string) {
 	if c.TCP_addr == "" {
 		c.TCP_addr = ":8080"
 	}
+	log.Infof("TCP address: %s", c.TCP_addr)
 
 	if c.TLS {
+		log.Debug("TLS enabled")
+
 		if c.TLS_CertFile == "" {
 			c.TLS_CertFile = defaultTLSCertFile
 		}
 		c.TLS_CertFile = filepath.Join(configDir, c.TLS_CertFile)
+		log.Debugf(" - Cert: %s", c.TLS_CertFile)
 
 		if c.TLS_KeyFile == "" {
 			c.TLS_KeyFile = defaultTLSKeyFile
 		}
 		c.TLS_KeyFile = filepath.Join(configDir, c.TLS_KeyFile)
+		log.Debugf(" -  Key: %s", c.TLS_KeyFile)
 	}
 }
 
 func (c *Config) setDefaultCORS() {
 	if c.CORS {
+		log.Debug("CORS enabled")
+
 		if c.CORS_Origins == nil {
 			c.CORS_Origins = []string{"*"} // allow all origins
 		}
+		log.Debugf(" - Allowed Origins: %v", c.CORS_Origins)
 	}
 }
 
