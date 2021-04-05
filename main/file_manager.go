@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"os"
@@ -10,13 +11,15 @@ import (
 )
 
 const (
-	keyFileName       = "keys.json"
-	SignatureFileName = "signatures.json"
+	keyFileName        = "keys.json"
+	SignatureFileName  = "signatures.json"
+	SignatureFilesPath = "/signatures"
 )
 
 type FileManager struct {
-	keyFile       string
-	signatureFile string
+	keyFile            string
+	signatureFile      string
+	signatureFilesPath string
 }
 
 // Ensure FileManager implements the ContextManager interface
@@ -24,8 +27,9 @@ var _ ContextManager = (*FileManager)(nil)
 
 func NewFileManager(contextDir string) *FileManager {
 	return &FileManager{
-		keyFile:       filepath.Join(contextDir, keyFileName),
-		signatureFile: filepath.Join(contextDir, SignatureFileName),
+		keyFile:            filepath.Join(contextDir, keyFileName),
+		signatureFile:      filepath.Join(contextDir, SignatureFileName),
+		signatureFilesPath: filepath.Join(contextDir, SignatureFilesPath),
 	}
 }
 
@@ -45,8 +49,29 @@ func (f *FileManager) PersistSignatures(source interface{}) error {
 	return persistFile(f.signatureFile, source)
 }
 
+func (f *FileManager) LoadSignature(uid uuid.UUID) ([]byte, error) {
+	signatureFile := f.getSignatureFile(uid)
+
+	if _, err := os.Stat(signatureFile); os.IsNotExist(err) {
+		return make([]byte, 64), nil
+	}
+
+	return ioutil.ReadFile(signatureFile)
+}
+
+func (f *FileManager) PersistSignature(uid uuid.UUID, signature []byte) error {
+	signatureFile := f.getSignatureFile(uid)
+
+	return ioutil.WriteFile(signatureFile, signature, 444)
+}
+
 func (f *FileManager) Close() error {
 	return nil
+}
+
+func (f *FileManager) getSignatureFile(uid uuid.UUID) string {
+	signatureFileName := uid.String() + ".bin"
+	return filepath.Join(f.signatureFilesPath, signatureFileName)
 }
 
 func loadFile(file string, dest interface{}) error {
