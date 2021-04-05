@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 
 	"golang.org/x/sync/errgroup"
@@ -42,10 +41,9 @@ func shutdown(cancel context.CancelFunc) {
 
 func main() {
 	const (
-		Version     = "v2.0.0"
-		Build       = "local"
-		configFile  = "config.json"
-		contextFile = "protocol.json"
+		Version    = "v2.0.0"
+		Build      = "local"
+		configFile = "config.json"
 	)
 
 	var configDir string
@@ -63,24 +61,16 @@ func main() {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
 
-	var ctxManager ContextManager
-	if conf.DSN != "" {
-		log.Fatalf("database not supported in current client version")
-		// FIXME // use the database
-		//ctxManager, err = NewPostgres(conf.DSN)
-		//if err != nil {
-		//	log.Fatal("unable to connect to database: %v", err)
-		//}
-	} else {
-		ctxManager = NewFileManager(configDir)
-	}
-
-	// create an ubirch protocol instance
-	p, err := NewExtendedProtocol(conf.SecretBytes, ctxManager)
+	ctxManager, err := conf.GetCtxManager()
 	if err != nil {
 		log.Fatal(err)
 	}
-	p.contextFile_Legacy = filepath.Join(configDir, contextFile)
+
+	// create an ubirch protocol instance
+	p, err := NewExtendedProtocol(conf.SecretBytes, ctxManager, configDir)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// generate and register keys for known devices
 	err = initDeviceKeys(p, conf)
@@ -113,19 +103,20 @@ func main() {
 		protocol:       p,
 		env:            conf.Env,
 		authServiceURL: conf.Niomon,
-		MessageHandler: make(chan HTTPRequest, conf.RequestBufSize),
 	}
 
-	// start synchronous chaining routine
+	// set up synchronous chaining routine
+	chainingJobs := make(chan HTTPRequest, conf.RequestBufSize)
+
 	g.Go(func() error {
-		return s.chainer()
+		return s.chainer(chainingJobs)
 	})
 
 	// set up endpoint for chaining
 	httpServer.AddEndpoint(ServerEndpoint{
 		Path: fmt.Sprintf("/{%s}", UUIDKey),
 		Service: &ChainingService{
-			Signer:     &s,
+			Jobs:       chainingJobs,
 			AuthTokens: conf.Devices,
 		},
 	})
@@ -157,7 +148,8 @@ func main() {
 
 	// start HTTP server
 	g.Go(func() error {
-		defer close(s.MessageHandler)
+		// when server is shut down, close chaining jobs channel, so chainer returns
+		defer close(chainingJobs)
 		return httpServer.Serve(ctx)
 	})
 

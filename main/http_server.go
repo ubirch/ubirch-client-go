@@ -65,7 +65,7 @@ type Service interface {
 }
 
 type ChainingService struct {
-	*Signer
+	Jobs       chan HTTPRequest
 	AuthTokens map[string]string
 }
 
@@ -94,8 +94,6 @@ func (service *ChainingService) handleRequest(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	msg.Operation = anchorHash
-
 	msg.Hash, err = getHash(r)
 	if err != nil {
 		Error(w, err, http.StatusBadRequest)
@@ -109,7 +107,7 @@ func (service *ChainingService) handleRequest(w http.ResponseWriter, r *http.Req
 
 	// submit message for chaining
 	select {
-	case service.MessageHandler <- msg:
+	case service.Jobs <- msg:
 	default: // do not accept any more requests if buffer is full
 		log.Warnf("%s: resquest skipped due to overflowing request channel", msg.ID)
 		http.Error(w, "Service Temporarily Unavailable", http.StatusServiceUnavailable)
@@ -153,7 +151,7 @@ func (service *UpdateService) handleRequest(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	resp := service.handleSigningRequest(msg)
+	resp := service.updateHash(msg)
 	sendResponse(w, resp)
 }
 
