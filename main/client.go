@@ -167,5 +167,9 @@ func isKeyRegistered(keyService string, id uuid.UUID, pubKey []byte) (bool, erro
 }
 
 func httpFailed(StatusCode int) bool {
-	return !(StatusCode >= 200 && StatusCode < 300)
+	return !httpSuccess(StatusCode)
+}
+
+func httpSuccess(StatusCode int) bool {
+	return StatusCode >= 200 && StatusCode < 300
 }
