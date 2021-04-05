@@ -38,8 +38,8 @@ const (
 	niomonURL   = "https://niomon.%s.ubirch.com/"
 	verifyURL   = "https://verify.%s.ubirch.com/api/upp/verify"
 
-	authEnv  = "UBIRCH_AUTH_MAP" // {UUID: [key, token]} (legacy)
-	authFile = "auth.json"       // {UUID: [key, token]} (legacy)
+	authEnv  = "UBIRCH_AUTH_MAP" // {UUID: [key, token]} TODO: DEPRECATED
+	authFile = "auth.json"       // {UUID: [key, token]} TODO: DEPRECATED
 
 	identitiesFile = "identities.json" // [{ "uuid": "<uuid>", "password": "<auth>" }]
 
@@ -97,7 +97,7 @@ func (c *Config) Load(configDir string, filename string) error {
 		log.SetFormatter(&log.TextFormatter{FullTimestamp: true, TimestampFormat: "2006-01-02 15:04:05.000 -0700"})
 	}
 
-	err = c.loadAuthMap(configDir) // legacy
+	err = c.loadAuthMap(configDir) // TODO: DEPRECATED
 	if err != nil {
 		return err
 	}
@@ -277,8 +277,9 @@ func (c *Config) loadDeviceIdentitiesFile(configDir string) error {
 	return nil
 }
 
-// loadAuthMap loads the auth map from the environment >> legacy <<
-// Returns without error if neither env variable nor file exists.
+// TODO: DEPRECATED
+//  loadAuthMap loads the auth map from the environment >> legacy <<
+//  Returns without error if neither env variable nor file exists.
 func (c *Config) loadAuthMap(configDir string) error {
 	var err error
 	var authMapBytes []byte
