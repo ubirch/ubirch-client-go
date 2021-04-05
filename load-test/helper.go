@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
@@ -70,7 +71,7 @@ type chainChecker struct {
 	signaturesMutex sync.RWMutex
 }
 
-func (c *chainChecker) checkChain(uppBytes <-chan []byte) {
+func (c *chainChecker) checkChain(uppBytes <-chan []byte, cancel context.CancelFunc) {
 	for b := range uppBytes {
 		upp, err := ubirch.Decode(b)
 		if err != nil {
@@ -97,6 +98,8 @@ func (c *chainChecker) checkChain(uppBytes <-chan []byte) {
 
 		c.SetSignature(id, signatureUPP)
 	}
+
+	cancel()
 }
 
 func (c *chainChecker) GetSignature(id string) []byte {

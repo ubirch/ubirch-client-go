@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
@@ -29,7 +30,8 @@ func main() {
 
 	cc := chainChecker{signatures: make(map[string][]byte, numberOfTestIDs)}
 	ccChan := make(chan []byte)
-	go cc.checkChain(ccChan)
+	ctx, cancel := context.WithCancel(context.Background())
+	go cc.checkChain(ccChan, cancel)
 
 	start := time.Now()
 
@@ -40,6 +42,7 @@ func main() {
 	log.Infof(" = = = => requests sent after %7.3f seconds <= = = = ", time.Since(start).Seconds())
 	wg.Wait()
 	close(ccChan)
+	<-ctx.Done()
 	log.Infof(" = = = => requests done after %7.3f seconds <= = = = ", time.Since(start).Seconds())
 }
 
