@@ -252,7 +252,7 @@ func (c *Config) setDefaultURLs() error {
 		return fmt.Errorf("invalid UBIRCH backend environment: \"%s\"", c.Env)
 	}
 
-	log.Infof("UBIRCH backend \"%s\" environment", c.Env)
+	log.Infof("UBIRCH backend env: %s", c.Env)
 
 	if c.KeyService == "" {
 		c.KeyService = fmt.Sprintf(defaultKeyURL, c.Env)
