@@ -19,11 +19,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
-	log "github.com/sirupsen/logrus"
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"os"
 	"path/filepath"
+
+	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const contextFileName_Legacy = "protocol.json" // TODO: DEPRECATED
