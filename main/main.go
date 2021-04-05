@@ -113,7 +113,7 @@ func main() {
 		protocol:       p,
 		env:            conf.Env,
 		authServiceURL: conf.Niomon,
-		MessageHandler: make(chan HTTPRequest, 150), // 3rps * 50s // TODO: make configurable
+		MessageHandler: make(chan HTTPRequest, conf.RequestBufSize),
 	}
 
 	// start synchronous chaining routine
