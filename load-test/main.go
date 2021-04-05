@@ -15,8 +15,8 @@ import (
 const (
 	clientBaseURL         = "http://localhost:8080/"
 	configFile            = "config.json"
-	numberOfTestIDs       = 2000
-	numberOfRequestsPerID = 3
+	numberOfTestIDs       = 100
+	numberOfRequestsPerID = 4
 )
 
 func main() {
@@ -27,18 +27,23 @@ func main() {
 	log.Infof("%d identities, %d requests each", len(testIdentities), numberOfRequestsPerID)
 	log.Infof(" = = = => sending %d requests <= = = = ", len(testIdentities)*numberOfRequestsPerID)
 
+	cc := chainChecker{signatures: make(map[string][]byte, numberOfTestIDs)}
+	ccChan := make(chan []byte)
+	go cc.checkChain(ccChan)
+
 	start := time.Now()
 
 	for uid, auth := range testIdentities {
-		sendRequests(uid, auth, &wg)
+		sendRequests(uid, auth, ccChan, &wg)
 	}
 
 	log.Infof(" = = = => requests sent after %7.3f seconds <= = = = ", time.Since(start).Seconds())
 	wg.Wait()
+	close(ccChan)
 	log.Infof(" = = = => requests done after %7.3f seconds <= = = = ", time.Since(start).Seconds())
 }
 
-func sendRequests(id string, auth string, wg *sync.WaitGroup) {
+func sendRequests(id string, auth string, ccChan chan<- []byte, wg *sync.WaitGroup) {
 	HTTPclient := &http.Client{Timeout: 65 * time.Second}
 	clientURL := clientBaseURL + id + "/hash"
 	header := http.Header{}
@@ -47,13 +52,13 @@ func sendRequests(id string, auth string, wg *sync.WaitGroup) {
 
 	for i := 1; i <= numberOfRequestsPerID; i++ {
 		wg.Add(1)
-		go sendAndCheckResponse(HTTPclient, clientURL, header, wg)
+		go sendAndCheckResponse(HTTPclient, clientURL, header, ccChan, wg)
 
 		time.Sleep(time.Second / numberOfRequestsPerID)
 	}
 }
 
-func sendAndCheckResponse(HTTPclient *http.Client, clientURL string, header http.Header, wg *sync.WaitGroup) {
+func sendAndCheckResponse(HTTPclient *http.Client, clientURL string, header http.Header, ccChan chan<- []byte, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	hash := make([]byte, 32)
@@ -73,7 +78,8 @@ func sendAndCheckResponse(HTTPclient *http.Client, clientURL string, header http
 	if !bytes.Equal(hash, resp.Hash) {
 		log.Error("HASH MISMATCH")
 	}
-	// todo check resp -> chain
+	// check resp -> chain
+	ccChan <- resp.UPP
 }
 
 func sendRequest(HTTPclient *http.Client, clientURL string, header http.Header, hash []byte) (signingResponse, error) {

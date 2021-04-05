@@ -1,9 +1,13 @@
 package main
 
 import (
+	"bytes"
+	"encoding/base64"
 	"encoding/json"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"net/http"
 	"os"
+	"sync"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -59,4 +63,56 @@ func getTestIdentities(num int) map[string]string {
 func setup() {
 	log.SetFormatter(&log.TextFormatter{FullTimestamp: true, TimestampFormat: "2006-01-02 15:04:05.000 -0700"})
 	log.SetLevel(log.DebugLevel)
+}
+
+type chainChecker struct {
+	signatures      map[string][]byte
+	signaturesMutex sync.RWMutex
+}
+
+func (c *chainChecker) checkChain(uppBytes <-chan []byte) {
+	for b := range uppBytes {
+		upp, err := ubirch.Decode(b)
+		if err != nil {
+			log.Errorf("RESPONSE CONTAINED INVALID UPP: %v", err)
+		}
+
+		id := upp.GetUuid().String()
+		signatureUPP := upp.GetSignature()
+		prevSignatureLocal := c.GetSignature(id)
+
+		if prevSignatureLocal == nil {
+			c.SetSignature(id, signatureUPP)
+			continue
+		}
+
+		prevSignatureUPP := upp.GetPrevSignature()
+
+		if !bytes.Equal(prevSignatureLocal, prevSignatureUPP) {
+			log.Errorf("PREV SIGNATURE MISMATCH: local %s, got %s",
+				base64.StdEncoding.EncodeToString(prevSignatureLocal),
+				base64.StdEncoding.EncodeToString(prevSignatureUPP),
+			)
+		}
+
+		c.SetSignature(id, signatureUPP)
+	}
+}
+
+func (c *chainChecker) GetSignature(id string) []byte {
+	c.signaturesMutex.RLock()
+	defer c.signaturesMutex.RUnlock()
+
+	return c.signatures[id]
+}
+
+func (c *chainChecker) SetSignature(id string, signature []byte) {
+	if len(signature) != 64 {
+		log.Fatal("invalid signature length")
+	}
+
+	c.signaturesMutex.Lock()
+	defer c.signaturesMutex.Unlock()
+
+	c.signatures[id] = signature
 }
