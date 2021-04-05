@@ -23,24 +23,27 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"os"
+	"path/filepath"
 )
+
+const contextFileName_Legacy = "protocol.json" // TODO: DEPRECATED
 
 type ExtendedProtocol struct {
 	ubirch.Protocol
-	ctxManager         ContextManager
-	contextFile_Legacy string
+	ctxManager ContextManager
+	Signatures map[uuid.UUID][]byte // this is here only for the purpose of backwards compatibility TODO: DEPRECATED
 }
 
 type ContextManager interface {
 	LoadKeys(dest interface{}) error
 	PersistKeys(source interface{}) error
-	LoadSignatures(dest interface{}) error
-	PersistSignatures(source interface{}) error
+	LoadSignature(uid uuid.UUID) ([]byte, error)
+	PersistSignature(uid uuid.UUID, signature []byte) error
 	Close() error
 }
 
 // Init sets keys in crypto context and updates keystore in persistent storage
-func NewExtendedProtocol(secret []byte, cm ContextManager) (*ExtendedProtocol, error) {
+func NewExtendedProtocol(secret []byte, cm ContextManager, configDir string) (*ExtendedProtocol, error) {
 	p := &ExtendedProtocol{}
 	p.Crypto = &ubirch.CryptoContext{
 		Keystore: ubirch.NewEncryptedKeystore(secret),
@@ -49,7 +52,7 @@ func NewExtendedProtocol(secret []byte, cm ContextManager) (*ExtendedProtocol, e
 	p.Signatures = map[uuid.UUID][]byte{}
 	p.ctxManager = cm
 
-	err := p.portLegacyProtocolCtxFile()
+	err := p.portLegacyProtocolCtxFile(configDir)
 	if err != nil {
 		return nil, err
 	}
@@ -57,15 +60,6 @@ func NewExtendedProtocol(secret []byte, cm ContextManager) (*ExtendedProtocol, e
 	err = p.LoadKeys()
 	if err != nil {
 		return nil, err
-	}
-
-	err = p.LoadSignatures()
-	if err != nil {
-		return nil, err
-	}
-
-	if len(p.Signatures) != 0 {
-		log.Printf("loaded existing protocol context: %d signatures", len(p.Signatures))
 	}
 
 	return p, nil
@@ -83,24 +77,29 @@ func (p *ExtendedProtocol) PersistKeys() error {
 	return p.ctxManager.PersistKeys(&p.Crypto)
 }
 
-func (p *ExtendedProtocol) LoadSignatures() error {
-	return p.ctxManager.LoadSignatures(&p.Signatures)
+func (p *ExtendedProtocol) LoadSignature(uid uuid.UUID) ([]byte, error) {
+	return p.ctxManager.LoadSignature(uid)
 }
 
-func (p *ExtendedProtocol) PersistSignatures() error {
-	return p.ctxManager.PersistSignatures(&p.Signatures)
-}
-
-func (p *ExtendedProtocol) portLegacyProtocolCtxFile() error {
-	if p.contextFile_Legacy == "" {
-		return nil
+// this is here only for the purpose of backwards compatibility TODO: DEPRECATED
+func (p *ExtendedProtocol) PersistSignature(uid uuid.UUID, signature []byte) error {
+	if len(signature) != p.SignatureLength() {
+		return fmt.Errorf("invalid signature length: expected %d, got %d", p.SignatureLength(), len(signature))
 	}
-	if _, err := os.Stat(p.contextFile_Legacy); os.IsNotExist(err) { // if file does not exist, return right away
+
+	return p.ctxManager.PersistSignature(uid, signature)
+}
+
+// this is here only for the purpose of backwards compatibility TODO: DEPRECATED
+func (p *ExtendedProtocol) portLegacyProtocolCtxFile(configDir string) error {
+	contextFile_Legacy := filepath.Join(configDir, contextFileName_Legacy)
+
+	if _, err := os.Stat(contextFile_Legacy); os.IsNotExist(err) { // if file does not exist, return right away
 		return nil
 	}
 
 	// read legacy protocol context from persistent storage
-	err := loadFile(p.contextFile_Legacy, p)
+	err := loadFile(contextFile_Legacy, p)
 	if err != nil {
 		return fmt.Errorf("unable to load protocol context: %v", err)
 	}
@@ -112,21 +111,31 @@ func (p *ExtendedProtocol) portLegacyProtocolCtxFile() error {
 	}
 
 	// persist loaded signatures to new signature storage
-	err = p.PersistSignatures()
+	err = p.persistSignatures()
 	if err != nil {
 		return fmt.Errorf("unable to persist signatures: %v", err)
 	}
 
 	// delete legacy protocol ctx file + bckup
-	err = os.Remove(p.contextFile_Legacy)
+	err = os.Remove(contextFile_Legacy)
 	if err != nil {
 		return fmt.Errorf("unable to delete legacy protocol context file: %v", err)
 	}
-	err = os.Remove(p.contextFile_Legacy + ".bck")
+	err = os.Remove(contextFile_Legacy + ".bck")
 	if err != nil {
 		log.Errorf("unable to delete legacy protocol context backup file: %v", err)
 	}
 
+	return nil
+}
+
+func (p *ExtendedProtocol) persistSignatures() error {
+	for uid, signature := range p.Signatures {
+		err := p.PersistSignature(uid, signature)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

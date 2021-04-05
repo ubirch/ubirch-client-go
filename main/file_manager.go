@@ -11,26 +11,32 @@ import (
 )
 
 const (
-	keyFileName        = "keys.json"
-	SignatureFileName  = "signatures.json"
-	SignatureFilesPath = "/signatures"
+	keyFileName      = "keys.json"
+	SignatureDirName = "signatures"
 )
 
 type FileManager struct {
-	keyFile            string
-	signatureFile      string
-	signatureFilesPath string
+	keyFile      string
+	signatureDir string
 }
 
 // Ensure FileManager implements the ContextManager interface
 var _ ContextManager = (*FileManager)(nil)
 
-func NewFileManager(contextDir string) *FileManager {
-	return &FileManager{
-		keyFile:            filepath.Join(contextDir, keyFileName),
-		signatureFile:      filepath.Join(contextDir, SignatureFileName),
-		signatureFilesPath: filepath.Join(contextDir, SignatureFilesPath),
+func NewFileManager(configDir string) (*FileManager, error) {
+	f := &FileManager{
+		keyFile:      filepath.Join(configDir, keyFileName),
+		signatureDir: filepath.Join(configDir, SignatureDirName),
 	}
+
+	if _, err := os.Stat(f.signatureDir); os.IsNotExist(err) {
+		err = os.Mkdir(f.signatureDir, 555)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return f, nil
 }
 
 func (f *FileManager) LoadKeys(dest interface{}) error {
@@ -39,14 +45,6 @@ func (f *FileManager) LoadKeys(dest interface{}) error {
 
 func (f *FileManager) PersistKeys(source interface{}) error {
 	return persistFile(f.keyFile, source)
-}
-
-func (f *FileManager) LoadSignatures(dest interface{}) error {
-	return loadFile(f.signatureFile, dest)
-}
-
-func (f *FileManager) PersistSignatures(source interface{}) error {
-	return persistFile(f.signatureFile, source)
 }
 
 func (f *FileManager) LoadSignature(uid uuid.UUID) ([]byte, error) {
@@ -71,7 +69,7 @@ func (f *FileManager) Close() error {
 
 func (f *FileManager) getSignatureFile(uid uuid.UUID) string {
 	signatureFileName := uid.String() + ".bin"
-	return filepath.Join(f.signatureFilesPath, signatureFileName)
+	return filepath.Join(f.signatureDir, signatureFileName)
 }
 
 func loadFile(file string, dest interface{}) error {
