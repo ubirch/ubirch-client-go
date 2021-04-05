@@ -81,7 +81,6 @@ func (p *ExtendedProtocol) LoadSignature(uid uuid.UUID) ([]byte, error) {
 	return p.ctxManager.LoadSignature(uid)
 }
 
-// this is here only for the purpose of backwards compatibility TODO: DEPRECATED
 func (p *ExtendedProtocol) PersistSignature(uid uuid.UUID, signature []byte) error {
 	if len(signature) != p.SignatureLength() {
 		return fmt.Errorf("invalid signature length: expected %d, got %d", p.SignatureLength(), len(signature))
@@ -123,12 +122,13 @@ func (p *ExtendedProtocol) portLegacyProtocolCtxFile(configDir string) error {
 	}
 	err = os.Remove(contextFile_Legacy + ".bck")
 	if err != nil {
-		log.Errorf("unable to delete legacy protocol context backup file: %v", err)
+		log.Warnf("unable to delete legacy protocol context backup file: %v", err)
 	}
 
 	return nil
 }
 
+// this is here only for the purpose of backwards compatibility TODO: DEPRECATED
 func (p *ExtendedProtocol) persistSignatures() error {
 	for uid, signature := range p.Signatures {
 		err := p.PersistSignature(uid, signature)
