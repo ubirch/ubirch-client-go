@@ -97,7 +97,7 @@ func (c *Config) Load(configDir string, filename string) error {
 	}
 
 	if c.Debug {
-		log.SetLevel(log.DebugLevel)
+		log.SetLevel(log.DebugLevel) // TODO: make configurable
 	}
 	if c.LogTextFormat {
 		log.SetFormatter(&log.TextFormatter{FullTimestamp: true, TimestampFormat: "2006-01-02 15:04:05.000 -0700"})
