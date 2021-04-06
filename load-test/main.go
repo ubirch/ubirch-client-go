@@ -41,9 +41,9 @@ func main() {
 
 	log.Infof(" = = = => requests sent after %7.3f seconds <= = = = ", time.Since(start).Seconds())
 	wg.Wait()
+	log.Infof(" = = = => requests done after %7.3f seconds <= = = = ", time.Since(start).Seconds())
 	close(ccChan)
 	<-ctx.Done()
-	log.Infof(" = = = => requests done after %7.3f seconds <= = = = ", time.Since(start).Seconds())
 }
 
 func sendRequests(id string, auth string, ccChan chan<- []byte, wg *sync.WaitGroup) {
