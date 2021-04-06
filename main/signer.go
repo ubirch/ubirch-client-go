@@ -22,8 +22,9 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-	log "github.com/sirupsen/logrus"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type operation string

@@ -18,7 +18,9 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+
 	"github.com/google/uuid"
+
 	log "github.com/sirupsen/logrus"
 )
 

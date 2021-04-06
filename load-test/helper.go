@@ -5,10 +5,11 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"net/http"
 	"os"
 	"sync"
+
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
 )
