@@ -2,17 +2,22 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/google/uuid"
-	log "github.com/sirupsen/logrus"
+	"io/fs"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/google/uuid"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const (
 	keyFileName      = "keys.json"
 	SignatureDirName = "signatures"
+	filePerm         = 0644
+	dirPerm          = 0755
 )
 
 type FileManager struct {
@@ -30,7 +35,7 @@ func NewFileManager(configDir string) (*FileManager, error) {
 	}
 
 	if _, err := os.Stat(f.signatureDir); os.IsNotExist(err) {
-		err = os.Mkdir(f.signatureDir, 555)
+		err = os.Mkdir(f.signatureDir, os.FileMode(dirPerm))
 		if err != nil {
 			return nil, err
 		}
@@ -60,7 +65,7 @@ func (f *FileManager) LoadSignature(uid uuid.UUID) ([]byte, error) {
 func (f *FileManager) PersistSignature(uid uuid.UUID, signature []byte) error {
 	signatureFile := f.getSignatureFile(uid)
 
-	return ioutil.WriteFile(signatureFile, signature, 444)
+	return ioutil.WriteFile(signatureFile, signature, fs.FileMode(filePerm))
 }
 
 func (f *FileManager) Close() error {
@@ -103,5 +108,5 @@ func persistFile(file string, source interface{}) error {
 		}
 	}
 	contextBytes, _ := json.MarshalIndent(source, "", "  ")
-	return ioutil.WriteFile(file, contextBytes, 444)
+	return ioutil.WriteFile(file, contextBytes, fs.FileMode(filePerm))
 }
