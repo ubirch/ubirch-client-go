@@ -46,7 +46,7 @@ const (
 	defaultTLSCertFile = "cert.pem"
 	defaultTLSKeyFile  = "key.pem"
 
-	defaultReqBufSize = 100
+	defaultReqBufSize = 30
 )
 
 // configuration of the client
