@@ -68,7 +68,11 @@ func injectKeys(p *ExtendedProtocol, keys map[string]string) error {
 		}
 		err = p.SetKey(name, uid, keyBytes)
 		if err != nil {
-			return fmt.Errorf("unable to insert private key to protocol context: %v", err)
+			return fmt.Errorf("unable to inject key to keystore: %v", err)
+		}
+		err = p.PersistKeys()
+		if err != nil {
+			return fmt.Errorf("unable to persist injected key for UUID %s: %v", uid, err)
 		}
 	}
 
