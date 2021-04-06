@@ -31,8 +31,8 @@ const (
 	HashLen      = 32
 
 	GatewayTimeout        = 20 * time.Second // time after which the client sends a 504 response if no timely response could be produced
-	ShutdownTimeout       = 25 * time.Second // time after which the server will be shut down forcefully if graceful shutdown did not happen
-	BackendRequestTimeout = 15 * time.Second // time after which request to ubirch backend will be canceled, we expect niomon to respond after 15s max
+	ShutdownTimeout       = 25 * time.Second // time after which the server will be shut down forcefully if graceful shutdown did not happen before
+	BackendRequestTimeout = 15 * time.Second // time after which requests to the ubirch backend will be canceled
 	ReadTimeout           = 5 * time.Second
 	WriteTimeout          = 30 * time.Second
 	IdleTimeout           = 120 * time.Second
