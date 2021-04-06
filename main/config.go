@@ -238,7 +238,7 @@ func (c *Config) setDefaultReqBufSize() {
 	if c.RequestBufSize == 0 {
 		c.RequestBufSize = defaultReqBufSize
 	}
-	log.Debugf("Request Buffer Size: %d", c.RequestBufSize)
+	log.Debugf("request buffer size: %d", c.RequestBufSize)
 }
 
 func (c *Config) setDefaultURLs() error {

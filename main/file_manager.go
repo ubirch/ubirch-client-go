@@ -40,6 +40,10 @@ func NewFileManager(configDir string) (*FileManager, error) {
 		}
 	}
 
+	log.Info("protocol context will be stored in local file system")
+	log.Debugf(" - keystore file: %s", f.keyFile)
+	log.Debugf(" - signature dir: %s", f.signatureDir)
+
 	return f, nil
 }
 
