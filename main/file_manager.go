@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"io/fs"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -35,7 +34,7 @@ func NewFileManager(configDir string) (*FileManager, error) {
 	}
 
 	if _, err := os.Stat(f.signatureDir); os.IsNotExist(err) {
-		err = os.Mkdir(f.signatureDir, os.FileMode(dirPerm))
+		err = os.Mkdir(f.signatureDir, dirPerm)
 		if err != nil {
 			return nil, err
 		}
@@ -65,7 +64,7 @@ func (f *FileManager) LoadSignature(uid uuid.UUID) ([]byte, error) {
 func (f *FileManager) PersistSignature(uid uuid.UUID, signature []byte) error {
 	signatureFile := f.getSignatureFile(uid)
 
-	return ioutil.WriteFile(signatureFile, signature, fs.FileMode(filePerm))
+	return ioutil.WriteFile(signatureFile, signature, filePerm)
 }
 
 func (f *FileManager) Close() error {
@@ -108,5 +107,5 @@ func persistFile(file string, source interface{}) error {
 		}
 	}
 	contextBytes, _ := json.MarshalIndent(source, "", "  ")
-	return ioutil.WriteFile(file, contextBytes, fs.FileMode(filePerm))
+	return ioutil.WriteFile(file, contextBytes, filePerm)
 }
