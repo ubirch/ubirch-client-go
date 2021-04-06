@@ -66,7 +66,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// create an ubirch protocol instance
+	// initialize ubirch protocol instance
 	p, err := NewExtendedProtocol(conf.SecretBytes, ctxManager, configDir)
 	if err != nil {
 		log.Fatal(err)
