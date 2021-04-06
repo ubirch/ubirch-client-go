@@ -72,6 +72,8 @@ type chainChecker struct {
 }
 
 func (c *chainChecker) checkChain(uppBytes <-chan []byte, cancel context.CancelFunc) {
+	defer cancel()
+
 	for b := range uppBytes {
 		upp, err := ubirch.Decode(b)
 		if err != nil {
@@ -98,8 +100,6 @@ func (c *chainChecker) checkChain(uppBytes <-chan []byte, cancel context.CancelF
 
 		c.SetSignature(id, signatureUPP)
 	}
-
-	cancel()
 }
 
 func (c *chainChecker) GetSignature(id string) []byte {
