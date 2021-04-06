@@ -66,7 +66,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// create an ubirch protocol instance
+	// initialize ubirch protocol instance
 	p, err := NewExtendedProtocol(conf.SecretBytes, ctxManager, configDir)
 	if err != nil {
 		log.Fatal(err)
@@ -78,6 +78,21 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// initialize signer
+	s := Signer{
+		protocol:       p,
+		env:            conf.Env,
+		authServiceURL: conf.Niomon,
+	}
+
+	// initialize verifier
+	v := Verifier{
+		protocol:                      p,
+		verifyServiceURL:              conf.VerifyService,
+		keyServiceURL:                 conf.KeyService,
+		verifyFromKnownIdentitiesOnly: false, // TODO: make configurable
+	}
+
 	// create a waitgroup that contains all asynchronous operations
 	// a cancellable context is used to stop the operations gracefully
 	ctx, cancel := context.WithCancel(context.Background())
@@ -85,6 +100,13 @@ func main() {
 
 	// set up graceful shutdown handling
 	go shutdown(cancel)
+
+	// set up synchronous chaining routine
+	chainingJobs := make(chan HTTPRequest, conf.RequestBufSize)
+
+	g.Go(func() error {
+		return s.chainer(chainingJobs)
+	})
 
 	// set up HTTP server
 	httpServer := HTTPServer{
@@ -97,20 +119,6 @@ func main() {
 	if conf.CORS && conf.Env != PROD_STAGE { // never enable CORS on production stage
 		httpServer.SetUpCORS(conf.CORS_Origins, conf.Debug)
 	}
-
-	// initialize signer
-	s := Signer{
-		protocol:       p,
-		env:            conf.Env,
-		authServiceURL: conf.Niomon,
-	}
-
-	// set up synchronous chaining routine
-	chainingJobs := make(chan HTTPRequest, conf.RequestBufSize)
-
-	g.Go(func() error {
-		return s.chainer(chainingJobs)
-	})
 
 	// set up endpoint for chaining
 	httpServer.AddEndpoint(ServerEndpoint{
@@ -129,14 +137,6 @@ func main() {
 			AuthTokens: conf.Devices,
 		},
 	})
-
-	// initialize verifier
-	v := Verifier{
-		protocol:                      p,
-		verifyServiceURL:              conf.VerifyService,
-		keyServiceURL:                 conf.KeyService,
-		verifyFromKnownIdentitiesOnly: false, // TODO: make configurable
-	}
 
 	// set up endpoint for verification
 	httpServer.AddEndpoint(ServerEndpoint{
