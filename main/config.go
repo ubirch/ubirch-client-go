@@ -77,19 +77,19 @@ type Config struct {
 }
 
 func (c *Config) Load(configDir string, filename string) error {
+	c.configDir = configDir
+
 	// assume that we want to load from env instead of config files, if
 	// we have the UBIRCH_SECRET env variable set.
 	var err error
 	if os.Getenv("UBIRCH_SECRET") != "" {
 		err = c.loadEnv()
 	} else {
-		err = c.loadFile(filepath.Join(configDir, filename))
+		err = c.loadFile(filename)
 	}
 	if err != nil {
 		return err
 	}
-
-	c.configDir = configDir
 
 	c.SecretBytes, err = base64.StdEncoding.DecodeString(c.Secret)
 	if err != nil {
@@ -144,9 +144,10 @@ func (c *Config) loadEnv() error {
 
 // LoadFile reads the configuration from a json file
 func (c *Config) loadFile(filename string) error {
-	log.Infof("loading configuration from file: %s", filename)
+	configFile := filepath.Join(c.configDir, filename)
+	log.Infof("loading configuration from file: %s", configFile)
 
-	fileHandle, err := os.Open(filename)
+	fileHandle, err := os.Open(configFile)
 	if err != nil {
 		return err
 	}
@@ -250,7 +251,7 @@ func (c *Config) setDefaultURLs() error {
 		return fmt.Errorf("invalid UBIRCH backend environment: \"%s\"", c.Env)
 	}
 
-	log.Infof("UBIRCH backend env: %s", c.Env)
+	log.Infof("UBIRCH backend environment: %s", c.Env)
 
 	if c.KeyService == "" {
 		c.KeyService = fmt.Sprintf(defaultKeyURL, c.Env)
