@@ -65,7 +65,8 @@ func (msg HTTPRequest) respond(resp HTTPResponse) {
 	select {
 	case msg.Response <- resp:
 	default:
-		log.Errorf("%s: response could not be sent: no receiver", msg.ID)
+		log.Warnf("%s: request has been processed, but response could not be sent: (%d) %s",
+			msg.ID, resp.StatusCode, string(resp.Content))
 	}
 }
 
@@ -85,7 +86,7 @@ func (s *Signer) chainer(jobs <-chan HTTPRequest) error {
 		upp, err := s.getChainedUPP(msg.ID, msg.Hash[:])
 		if err != nil {
 			log.Errorf("%s: could not create UBIRCH Protocol Package: %v", msg.ID, err)
-			msg.Response <- errorResponse(http.StatusInternalServerError, "")
+			msg.respond(errorResponse(http.StatusInternalServerError, ""))
 			continue // todo should this be fatal?
 		}
 
@@ -127,7 +128,13 @@ func (s *Signer) getChainedUPP(id uuid.UUID, hash []byte) ([]byte, error) {
 	}
 
 	return s.protocol.Sign(
-		&ubirch.ChainedUPP{Version: ubirch.Chained, Uuid: id, PrevSignature: prevSignature, Hint: ubirch.Binary, Payload: hash},
+		&ubirch.ChainedUPP{
+			Version:       ubirch.Chained,
+			Uuid:          id,
+			PrevSignature: prevSignature,
+			Hint:          ubirch.Binary,
+			Payload:       hash,
+		},
 	)
 }
 
@@ -138,7 +145,12 @@ func (s *Signer) getSignedUPP(id uuid.UUID, hash []byte, op operation) ([]byte, 
 	}
 
 	return s.protocol.Sign(
-		&ubirch.SignedUPP{Version: ubirch.Signed, Uuid: id, Hint: hint, Payload: hash},
+		&ubirch.SignedUPP{
+			Version: ubirch.Signed,
+			Uuid:    id,
+			Hint:    hint,
+			Payload: hash,
+		},
 	)
 }
 
@@ -157,7 +169,8 @@ func (s *Signer) sendUPP(msg HTTPRequest, upp []byte) HTTPResponse {
 	var requestID string
 	responseUPPStruct, err := ubirch.Decode(backendResp.Content)
 	if err != nil {
-		log.Warnf("decoding backend response failed: %v, backend response: (%d) %q", err, backendResp.StatusCode, backendResp.Content)
+		log.Warnf("decoding backend response failed: %v, backend response: (%d) %q",
+			err, backendResp.StatusCode, backendResp.Content)
 	} else {
 		requestID, err = getRequestID(responseUPPStruct)
 		if err != nil {
@@ -186,7 +199,6 @@ func errorResponse(code int, message string) HTTPResponse {
 	if message == "" {
 		message = http.StatusText(code)
 	}
-	log.Error(message)
 	return HTTPResponse{
 		StatusCode: code,
 		Header:     http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
@@ -208,7 +220,7 @@ func getSigningResponse(respCode int, msg HTTPRequest, upp []byte, backendResp H
 	}
 
 	if httpFailed(respCode) {
-		log.Errorf("%s: %s", msg.ID, string(signingResp))
+		log.Errorf("%s: request failed: (%d) %s", msg.ID, respCode, string(signingResp))
 	}
 
 	return HTTPResponse{

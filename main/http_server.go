@@ -119,7 +119,7 @@ func (service *ChainingService) handleRequest(w http.ResponseWriter, r *http.Req
 	case resp := <-msg.Response:
 		sendResponse(w, resp)
 	case <-r.Context().Done():
-		log.Errorf("%s: %v", msg.ID, r.Context().Err())
+		log.Warnf("%s: %v", msg.ID, r.Context().Err())
 	}
 }
 

@@ -59,6 +59,7 @@ func (v *Verifier) verifyHash(hash []byte) HTTPResponse {
 	// retrieve certificate for hash from the ubirch backend
 	code, upp, err := v.loadUPP(hash)
 	if err != nil {
+		log.Error(err)
 		return errorResponse(code, err.Error())
 	}
 	log.Debugf("retrieved UPP %s", hex.EncodeToString(upp))
