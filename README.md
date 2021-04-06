@@ -19,9 +19,12 @@ a restart.
 ---
 **WARNING**
 
-Per default, the client creates a file `protocol.json` in the working directory, where it stores the encrypted signing
-keys and last signatures for chaining. **Do not delete this file** as our backend will not accept new key registrations
-once a device already has a registered key.
+By default, the client stores the encrypted signing keys in a local file `keys.json`, which will be created in the
+working directory upon start-up. **Do not delete this file**, as our backend will not accept new key registrations once
+a device already has a registered key.
+
+Further, the client creates a subdirectory `/signatures` with multiple binary files, which contain the previous UPP
+signatures for chaining.
 
 ---
 
@@ -40,8 +43,8 @@ Docker Hub Address: [ubirch/ubirch-client](https://hub.docker.com/r/ubirch/ubirc
 - System based on Intel/AMD64 or ARM
 - Docker installation
 - Space to store last used signatures and key material, either:
-  - disk space, mounted into the docker pod, or
-  - as SQL database
+    - disk space, mounted into the docker pod, or
+    - as SQL database
 - Possibility to send a HTTP request to UBIRCH.com domains
 - A unique identifier (UUID) registered with the UBIRCH console
 - A corresponding authentication token (acquired via UBIRCH console)
@@ -149,7 +152,7 @@ To switch to the `demo` backend environment
 
 The `DSN` (*Data Source Name*) can be used to connect the client to a SQL database for storing the protocol context
 (i.e. the encrypted keystore and last signatures) persistently. If DSN is not set or empty, the client will create a
-file `protocol.json` (and `protocol.json.bck`) locally in the working directory.
+file `keys.json` (and `keys.json.bck`) as well as a subdirectory `/signatures` locally in the working directory.
 
 If you want to use a SQL database instead of a local file, make sure to apply the
 [database schema](main/schema.sql), as the application will not create it itself on first run, and set the DSN in the
@@ -610,8 +613,8 @@ and insignificant space characters were elided.
     {"level":"info","msg":"UBIRCH client (v2.0.0, build=local)","time":"2021-03-01T18:41:20+01:00"}
     {"level":"info","msg":"loading configuration from file: config.json","time":"2021-03-01T18:41:20+01:00"}
     INFO[2021-03-01 18:41:20.291 +0100] 1 known UUID(s)
-    INFO[2021-03-01 18:41:20.291 +0100] UBIRCH backend "prod" environment
-    INFO[2021-03-01 18:41:20.291 +0100] protocol context will be saved to file: protocol.json
+    INFO[2021-03-01 18:41:20.291 +0100] UBIRCH backend environment: prod
+    INFO[2021-03-01 18:41:20.291 +0100] protocol context will be stored in local file system
     INFO[2021-03-01 18:41:20.291 +0100] generating new key pair for UUID 50b1a5bb-83cd-4251-b674-b3c71a058fc3
     INFO[2021-03-01 18:41:20.664 +0100] 50b1a5bb-83cd-4251-b674-b3c71a058fc3: registering public key at key service: https://key.prod.ubirch.com/api/keyService/v1/pubkey
     INFO[2021-03-01 18:41:21.755 +0100] 50b1a5bb-83cd-4251-b674-b3c71a058fc3: submitting CSR to identity service: https://identity.prod.ubirch.com/api/certs/v1/csr/register

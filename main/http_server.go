@@ -64,12 +64,12 @@ type Service interface {
 	handleRequest(w http.ResponseWriter, r *http.Request)
 }
 
-type AnchoringService struct {
-	*Signer
+type ChainingService struct {
+	Jobs       chan HTTPRequest
 	AuthTokens map[string]string
 }
 
-type UpdateOperationService struct {
+type UpdateService struct {
 	*Signer
 	AuthTokens map[string]string
 }
@@ -78,7 +78,7 @@ type VerificationService struct {
 	*Verifier
 }
 
-func (service *AnchoringService) handleRequest(w http.ResponseWriter, r *http.Request) {
+func (service *ChainingService) handleRequest(w http.ResponseWriter, r *http.Request) {
 	var msg HTTPRequest
 	var err error
 
@@ -94,8 +94,6 @@ func (service *AnchoringService) handleRequest(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	msg.Operation = anchorHash
-
 	msg.Hash, err = getHash(r)
 	if err != nil {
 		Error(w, err, http.StatusBadRequest)
@@ -109,22 +107,23 @@ func (service *AnchoringService) handleRequest(w http.ResponseWriter, r *http.Re
 
 	// submit message for chaining
 	select {
-	case service.MessageHandler <- msg:
+	case service.Jobs <- msg:
 	default: // do not accept any more requests if buffer is full
 		log.Warnf("%s: resquest skipped due to overflowing request channel", msg.ID)
 		http.Error(w, "Service Temporarily Unavailable", http.StatusServiceUnavailable)
 		return
 	}
 
+	// wait for response or timeout
 	select {
-	case <-r.Context().Done():
-		log.Errorf("%s: 504 Gateway Timeout", msg.ID)
 	case resp := <-msg.Response:
 		sendResponse(w, resp)
+	case <-r.Context().Done():
+		log.Errorf("%s: %v", msg.ID, r.Context().Err())
 	}
 }
 
-func (service *UpdateOperationService) handleRequest(w http.ResponseWriter, r *http.Request) {
+func (service *UpdateService) handleRequest(w http.ResponseWriter, r *http.Request) {
 	var msg HTTPRequest
 	var err error
 
@@ -152,7 +151,7 @@ func (service *UpdateOperationService) handleRequest(w http.ResponseWriter, r *h
 		return
 	}
 
-	resp := service.handleSigningRequest(msg)
+	resp := service.updateHash(msg)
 	sendResponse(w, resp)
 }
 
@@ -350,9 +349,6 @@ func (srv *HTTPServer) SetUpCORS(allowedOrigins []string, debug bool) {
 		MaxAge:           300, // Maximum value not ignored by any of major browsers
 		Debug:            debug,
 	}))
-
-	log.Printf("CORS enabled")
-	log.Debugf(" - Allowed Origins: %v", allowedOrigins)
 }
 
 func (srv *HTTPServer) AddEndpoint(endpoint ServerEndpoint) {
@@ -388,11 +384,6 @@ func (srv *HTTPServer) Serve(ctx context.Context) error {
 		}
 	}()
 
-	if srv.TLS {
-		log.Info("TLS enabled")
-		log.Debugf(" - Cert: %s", srv.certFile)
-		log.Debugf(" -  Key: %s", srv.keyFile)
-	}
 	log.Infof("starting HTTP server")
 
 	var err error

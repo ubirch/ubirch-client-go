@@ -21,8 +21,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"golang.org/x/sync/errgroup"
 
 	log "github.com/sirupsen/logrus"
@@ -43,10 +41,9 @@ func shutdown(cancel context.CancelFunc) {
 
 func main() {
 	const (
-		Version     = "v2.0.0"
-		Build       = "local"
-		configFile  = "config.json"
-		contextFile = "protocol.json"
+		Version    = "v2.0.0"
+		Build      = "local"
+		configFile = "config.json"
 	)
 
 	var configDir string
@@ -64,21 +61,19 @@ func main() {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
 
-	// create an ubirch protocol instance
-	p := ExtendedProtocol{}
-	p.Crypto = &ubirch.CryptoContext{
-		Keystore: ubirch.NewEncryptedKeystore(conf.SecretBytes),
-		Names:    map[string]uuid.UUID{},
+	ctxManager, err := conf.GetCtxManager()
+	if err != nil {
+		log.Fatal(err)
 	}
-	p.Signatures = map[uuid.UUID][]byte{}
 
-	err = p.Init(configDir, contextFile, conf.DSN, conf.Keys)
+	// create an ubirch protocol instance
+	p, err := NewExtendedProtocol(conf.SecretBytes, ctxManager, configDir)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// generate and register keys for known devices
-	err = initDeviceKeys(&p, conf)
+	err = initDeviceKeys(p, conf)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -105,51 +100,56 @@ func main() {
 
 	// initialize signer
 	s := Signer{
-		protocol:       &p,
+		protocol:       p,
 		env:            conf.Env,
 		authServiceURL: conf.Niomon,
-		MessageHandler: make(chan HTTPRequest, 150), // 3rps * 50s // TODO: make configurable
 	}
 
-	// start synchronous chaining routine
+	// set up synchronous chaining routine
+	chainingJobs := make(chan HTTPRequest, conf.RequestBufSize)
+
 	g.Go(func() error {
-		return s.chainer()
+		return s.chainer(chainingJobs)
 	})
 
-	// set up endpoint for hash anchoring
+	// set up endpoint for chaining
 	httpServer.AddEndpoint(ServerEndpoint{
 		Path: fmt.Sprintf("/{%s}", UUIDKey),
-		Service: &AnchoringService{
-			Signer:     &s,
+		Service: &ChainingService{
+			Jobs:       chainingJobs,
 			AuthTokens: conf.Devices,
 		},
 	})
 
-	// set up endpoint for hash update operations
+	// set up endpoint for update operations
 	httpServer.AddEndpoint(ServerEndpoint{
 		Path: fmt.Sprintf("/{%s}/{%s}", UUIDKey, OperationKey),
-		Service: &UpdateOperationService{
+		Service: &UpdateService{
 			Signer:     &s,
 			AuthTokens: conf.Devices,
 		},
 	})
 
-	// set up endpoint for hash verification
+	// initialize verifier
+	v := Verifier{
+		protocol:                      p,
+		verifyServiceURL:              conf.VerifyService,
+		keyServiceURL:                 conf.KeyService,
+		verifyFromKnownIdentitiesOnly: false, // TODO: make configurable
+	}
+
+	// set up endpoint for verification
 	httpServer.AddEndpoint(ServerEndpoint{
 		Path: "/verify",
 		Service: &VerificationService{
-			Verifier: &Verifier{
-				protocol:                      &p,
-				verifyServiceURL:              conf.VerifyService,
-				keyServiceURL:                 conf.KeyService,
-				verifyFromKnownIdentitiesOnly: false, // TODO: make configurable
-			},
+			Verifier: &v,
 		},
 	})
 
 	// start HTTP server
 	g.Go(func() error {
-		defer close(s.MessageHandler)
+		// when server is shut down, close chaining jobs channel, so chainer returns
+		defer close(chainingJobs)
 		return httpServer.Serve(ctx)
 	})
 

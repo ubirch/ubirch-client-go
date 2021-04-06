@@ -10,7 +10,7 @@ require (
 	github.com/lib/pq v1.3.0
 	github.com/sirupsen/logrus v1.6.0
 	github.com/stretchr/testify v1.5.1
-	github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.2.5-0.20210310233515-4e2042e57805
+	github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.2.6-0.20210405124814-9dd258c160b5
 	golang.org/x/net v0.0.0-20210331060903-cb1fcc7394e5 // indirect
 	golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a
 )

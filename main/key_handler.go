@@ -15,11 +15,121 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+
 	"github.com/google/uuid"
+
 	log "github.com/sirupsen/logrus"
 )
+
+func initDeviceKeys(p *ExtendedProtocol, conf Config) error {
+	err := p.LoadKeys()
+	if err != nil {
+		return fmt.Errorf("unable to load protocol context: %v", err)
+	}
+
+	// inject keys from configuration to keystore
+	err = injectKeys(p, conf.Keys)
+	if err != nil {
+		return err
+	}
+
+	// create and register keys for identities
+	for name, auth := range conf.Devices {
+		// make sure identity name is a valid UUID
+		uid, err := uuid.Parse(name)
+		if err != nil {
+			return fmt.Errorf("invalid identity name \"%s\" (not a UUID): %s", name, err)
+		}
+
+		// make sure identity has an auth token
+		if auth == "" {
+			return fmt.Errorf("no auth token found for identity \"%s\"", name)
+		}
+
+		err = setUpKey(p, uid, auth, conf)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func injectKeys(p *ExtendedProtocol, keys map[string]string) error {
+	for name, key := range keys {
+		uid, err := uuid.Parse(name)
+		if err != nil {
+			return fmt.Errorf("unable to parse key name %s from key map to UUID: %v", name, err)
+		}
+		keyBytes, err := base64.StdEncoding.DecodeString(key)
+		if err != nil {
+			return fmt.Errorf("unable to decode private key string for %s: %v, string was: %s", name, err, key)
+		}
+		err = p.SetKey(name, uid, keyBytes)
+		if err != nil {
+			return fmt.Errorf("unable to inject key to keystore: %v", err)
+		}
+		err = p.PersistKeys()
+		if err != nil {
+			return fmt.Errorf("unable to persist injected key for UUID %s: %v", uid, err)
+		}
+	}
+
+	return nil
+}
+
+func setUpKey(p *ExtendedProtocol, uid uuid.UUID, auth string, conf Config) error {
+	// check if there is a known signing key for the UUID
+	if !p.PrivateKeyExists(uid.String()) {
+		if conf.StaticKeys {
+			return fmt.Errorf("dynamic key generation is disabled and no injected signing key found for UUID %s", uid)
+		}
+
+		// if dynamic key generation is enabled generate new key pair
+		log.Printf("generating new key pair for UUID %s", uid)
+		err := p.GenerateKey(uid.String(), uid)
+		if err != nil {
+			return fmt.Errorf("generating new key pair for UUID %s failed: %v", uid, err)
+		}
+
+		// store newly generated key in persistent storage
+		err = p.PersistKeys()
+		if err != nil {
+			return fmt.Errorf("unable to persist new key pair for UUID %s: %v", uid, err)
+		}
+	}
+
+	// get the public key
+	pubKey, err := p.GetPublicKey(uid.String())
+	if err != nil {
+		return err
+	}
+
+	// check if the key is already registered at the key service
+	isRegistered, err := isKeyRegistered(conf.KeyService, uid, pubKey)
+	if err != nil {
+		return err
+	}
+
+	if !isRegistered {
+		// register public key at the ubirch backend
+		err = registerPublicKey(p, uid, pubKey, conf.KeyService, auth)
+		if err != nil {
+			return fmt.Errorf("key registration for UUID %s failed: %v", uid, err)
+		}
+	}
+
+	// submit a X.509 Certificate Signing Request for the public key
+	err = submitCSR(p, uid, conf.CSR_Country, conf.CSR_Organization, conf.IdentityService)
+	if err != nil {
+		log.Errorf("submitting CSR for UUID %s failed: %v", uid, err)
+	}
+
+	return nil
+}
 
 func registerPublicKey(p *ExtendedProtocol, uid uuid.UUID, pubKey []byte, keyService string, auth string) error {
 	log.Printf("%s: registering public key at key service: %s", uid.String(), keyService)
@@ -64,84 +174,5 @@ func submitCSR(p *ExtendedProtocol, uid uuid.UUID, subjectCountry string, subjec
 		return fmt.Errorf("request to %s failed: (%d) %q", identityService, resp.StatusCode, resp.Content)
 	}
 	log.Debugf("%s: CSR submitted: (%d) %s", uid.String(), resp.StatusCode, string(resp.Content))
-	return nil
-}
-
-func initDeviceKeys(p *ExtendedProtocol, conf Config) error {
-	err := p.LoadContext() // fails if p not initialized
-	if err != nil {
-		return fmt.Errorf("unable to load protocol context: %v", err)
-	}
-
-	for device, auth := range conf.Devices {
-		// check if device name is a valid UUID
-		uid, err := uuid.Parse(device)
-		if err != nil {
-			return fmt.Errorf("invalid device name \"%s\" (not a UUID): %s", device, err)
-		}
-		name := uid.String()
-
-		// make sure device has an auth token
-		if auth == "" {
-			return fmt.Errorf("no auth token found for device \"%s\"", device)
-		}
-
-		// check if there is a known signing key for the UUID
-		if !p.PrivateKeyExists(name) {
-			if conf.StaticKeys {
-				return fmt.Errorf("dynamic key generation is disabled and no injected signing key found for UUID %s", name)
-			}
-
-			// if dynamic key generation is enabled generate new key pair
-			log.Printf("generating new key pair for UUID %s", name)
-			err := p.GenerateKey(name, uid)
-			if err != nil {
-				return fmt.Errorf("generating new key pair for UUID %s failed: %v", name, err)
-			}
-
-			// store newly generated key in persistent storage
-			err = p.PersistContext()
-			if err != nil {
-				return fmt.Errorf("unable to persist new key pair for UUID %s: %v", name, err)
-			}
-		}
-
-		// get the public key
-		pubKey, err := p.GetPublicKey(name)
-		if err != nil {
-			return err
-		}
-
-		// check if the key is already registered at the key service
-		isRegistered, err := isKeyRegistered(conf.KeyService, uid, pubKey)
-		if err != nil {
-			return err
-		}
-
-		if !isRegistered {
-			// register public key at the ubirch backend
-			err = registerPublicKey(p, uid, pubKey, conf.KeyService, auth)
-			if err != nil {
-				return fmt.Errorf("key registration for UUID %s failed: %v", name, err)
-			}
-		}
-
-		// submit a X.509 Certificate Signing Request for the public key
-		err = submitCSR(p, uid, conf.CSR_Country, conf.CSR_Organization, conf.IdentityService)
-		if err != nil {
-			log.Errorf("submitting CSR for UUID %s failed: %v", name, err)
-		}
-
-		//  explicitly set prev. signature to all zeroes in protocol context if UUID does not have a prev. signature
-		// in order to be able to reset the prev. signature to all zeroes in case sending of the first UPP fails
-		if _, found := p.Signatures[uid]; !found {
-			p.Signatures[uid] = make([]byte, 64)
-
-			err = p.PersistContext()
-			if err != nil {
-				return fmt.Errorf("unable to persist protocol context: %v", err)
-			}
-		}
-	}
 	return nil
 }

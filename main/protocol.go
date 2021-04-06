@@ -16,14 +16,11 @@ package main
 
 import (
 	"database/sql/driver"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
@@ -31,126 +28,114 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const contextFileName_Legacy = "protocol.json" // TODO: DEPRECATED
+
 type ExtendedProtocol struct {
 	ubirch.Protocol
-	db          Database
-	contextFile string
+	ctxManager ContextManager
+	Signatures map[uuid.UUID][]byte // this is here only for the purpose of backwards compatibility TODO: DEPRECATED
+}
+
+type ContextManager interface {
+	LoadKeys(dest interface{}) error
+	PersistKeys(source interface{}) error
+	LoadSignature(uid uuid.UUID) ([]byte, error)
+	PersistSignature(uid uuid.UUID, signature []byte) error
+	Close() error
 }
 
 // Init sets keys in crypto context and updates keystore in persistent storage
-func (p *ExtendedProtocol) Init(configDir string, filename string, dsn string, keys map[string]string) error {
-	// check if we want to use a database as persistent storage
-	if dsn != "" {
-		// use the database
-		db, err := NewPostgres(dsn)
-		if err != nil {
-			return fmt.Errorf("unable to connect to database: %v", err)
-		}
-		p.db = db
-		log.Printf("protocol context will be saved to database")
-	} else if filename != "" {
-		p.contextFile = filepath.Join(configDir, filename)
-		log.Printf("protocol context will be saved to file: %s", p.contextFile)
-	} else {
-		return fmt.Errorf("neither DSN nor filename for protocol context set")
+func NewExtendedProtocol(secret []byte, cm ContextManager, configDir string) (*ExtendedProtocol, error) {
+	p := &ExtendedProtocol{}
+	p.Crypto = &ubirch.CryptoContext{
+		Keystore: ubirch.NewEncryptedKeystore(secret),
+		Names:    map[string]uuid.UUID{},
+	}
+	p.Signatures = map[uuid.UUID][]byte{}
+	p.ctxManager = cm
+
+	err := p.portLegacyProtocolCtxFile(configDir)
+	if err != nil {
+		return nil, err
 	}
 
-	// try to read an existing protocol context from persistent storage (keystore, last signatures, CSRs)
-	err := p.LoadContext()
+	err = p.LoadKeys()
+	if err != nil {
+		return nil, err
+	}
+
+	return p, nil
+}
+
+func (p *ExtendedProtocol) Deinit() error {
+	return p.ctxManager.Close()
+}
+
+func (p *ExtendedProtocol) LoadKeys() error {
+	return p.ctxManager.LoadKeys(&p.Crypto)
+}
+
+func (p *ExtendedProtocol) PersistKeys() error {
+	return p.ctxManager.PersistKeys(&p.Crypto)
+}
+
+func (p *ExtendedProtocol) LoadSignature(uid uuid.UUID) ([]byte, error) {
+	return p.ctxManager.LoadSignature(uid)
+}
+
+func (p *ExtendedProtocol) PersistSignature(uid uuid.UUID, signature []byte) error {
+	if len(signature) != p.SignatureLength() {
+		return fmt.Errorf("invalid signature length: expected %d, got %d", p.SignatureLength(), len(signature))
+	}
+
+	return p.ctxManager.PersistSignature(uid, signature)
+}
+
+// this is here only for the purpose of backwards compatibility TODO: DEPRECATED
+func (p *ExtendedProtocol) portLegacyProtocolCtxFile(configDir string) error {
+	contextFile_Legacy := filepath.Join(configDir, contextFileName_Legacy)
+
+	if _, err := os.Stat(contextFile_Legacy); os.IsNotExist(err) { // if file does not exist, return right away
+		return nil
+	}
+
+	// read legacy protocol context from persistent storage
+	err := loadFile(contextFile_Legacy, p)
 	if err != nil {
 		return fmt.Errorf("unable to load protocol context: %v", err)
 	}
 
-	if len(p.Signatures) != 0 {
-		log.Printf("loaded existing protocol context: %d signatures", len(p.Signatures))
+	// persist loaded keys to new key storage
+	err = p.PersistKeys()
+	if err != nil {
+		return fmt.Errorf("unable to persist keys: %v", err)
 	}
 
-	if keys != nil {
-		// inject keys from configuration to keystore
-		for name, key := range keys {
-			uid, err := uuid.Parse(name)
-			if err != nil {
-				return fmt.Errorf("unable to parse key name %s from key map to UUID: %v", name, err)
-			}
-			keyBytes, err := base64.StdEncoding.DecodeString(key)
-			if err != nil {
-				return fmt.Errorf("unable to decode private key string for %s: %v, string was: %s", name, err, key)
-			}
-			err = p.SetKey(name, uid, keyBytes)
-			if err != nil {
-				return fmt.Errorf("unable to insert private key to protocol context: %v", err)
-			}
-		}
-
-		// update keystore in persistent storage
-		err = p.PersistContext()
-		if err != nil {
-			return fmt.Errorf("unable to store keys: %v", err)
-		}
+	// persist loaded signatures to new signature storage
+	err = p.persistSignatures()
+	if err != nil {
+		return fmt.Errorf("unable to persist signatures: %v", err)
 	}
+
+	// delete legacy protocol ctx file + bckup
+	err = os.Remove(contextFile_Legacy)
+	if err != nil {
+		return fmt.Errorf("unable to delete legacy protocol context file: %v", err)
+	}
+	err = os.Remove(contextFile_Legacy + ".bck")
+	if err != nil {
+		log.Warnf("unable to delete legacy protocol context backup file: %v", err)
+	}
+
 	return nil
 }
 
-func (p *ExtendedProtocol) Deinit() error {
-	if p.db != nil {
-		if err := p.db.Close(); err != nil {
-			return fmt.Errorf("unable to close database connection: %v", err)
-		}
-	}
-	return nil
-}
-
-// PersistContext saves current ubirch-protocol context, storing keystore, key certificates and signatures
-func (p *ExtendedProtocol) PersistContext() error {
-	if p.db != nil {
-		return p.db.SetProtocolContext(p)
-	} else if p.contextFile != "" {
-		return p.saveFile(p.contextFile)
-	} else {
-		return fmt.Errorf("DB / file for protocol context not initialized")
-	}
-}
-
-// LoadContext loads current ubirch-protocol context, loading keys and signatures
-func (p *ExtendedProtocol) LoadContext() error {
-	if p.db != nil {
-		return p.db.GetProtocolContext(p)
-	} else if p.contextFile != "" {
-		return p.loadFile(p.contextFile)
-	} else {
-		return fmt.Errorf("DB / file for protocol context not initialized")
-	}
-}
-
-func (p *ExtendedProtocol) saveFile(file string) error {
-	if _, err := os.Stat(file); !os.IsNotExist(err) { // if file already exists, create a backup
-		err = os.Rename(file, file+".bck")
-		if err != nil {
-			log.Warnf("unable to create backup file for %s: %v", file, err)
-		}
-	}
-	contextBytes, _ := json.MarshalIndent(p, "", "  ")
-	return ioutil.WriteFile(file, contextBytes, 444)
-}
-
-func (p *ExtendedProtocol) loadFile(file string) error {
-	if _, err := os.Stat(file); os.IsNotExist(err) { // if file does not exist yet, return right away
-		return nil
-	}
-	contextBytes, err := ioutil.ReadFile(file)
-	if err != nil {
-		file = file + ".bck"
-		contextBytes, err = ioutil.ReadFile(file)
+// this is here only for the purpose of backwards compatibility TODO: DEPRECATED
+func (p *ExtendedProtocol) persistSignatures() error {
+	for uid, signature := range p.Signatures {
+		err := p.PersistSignature(uid, signature)
 		if err != nil {
 			return err
-		}
-	}
-	err = json.Unmarshal(contextBytes, p)
-	if err != nil {
-		if strings.HasSuffix(file, ".bck") {
-			return err
-		} else {
-			return p.loadFile(file + ".bck")
 		}
 	}
 	return nil
@@ -158,7 +143,7 @@ func (p *ExtendedProtocol) loadFile(file string) error {
 
 // Value lets the struct implement the driver.Valuer interface. This method
 // simply returns the JSON-encoded representation of the struct.
-func (p ExtendedProtocol) Value() (driver.Value, error) {
+func (p *ExtendedProtocol) Value() (driver.Value, error) {
 	return json.Marshal(p)
 }
 
@@ -169,5 +154,5 @@ func (p *ExtendedProtocol) Scan(value interface{}) error {
 	if !ok {
 		return errors.New("type assertion to []byte failed")
 	}
-	return json.Unmarshal(b, &p)
+	return json.Unmarshal(b, p)
 }

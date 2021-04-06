@@ -22,8 +22,9 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-	log "github.com/sirupsen/logrus"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type operation string
@@ -36,6 +37,13 @@ const (
 
 	lenRequestID = 16
 )
+
+var hintLookup = map[operation]ubirch.Hint{
+	anchorHash:  ubirch.Binary,
+	disableHash: ubirch.Disable,
+	enableHash:  ubirch.Enable,
+	deleteHash:  ubirch.Delete,
+}
 
 type signingResponse struct {
 	Error     string       `json:"error,omitempty"`
@@ -50,7 +58,6 @@ type Signer struct {
 	protocol       *ExtendedProtocol
 	env            string
 	authServiceURL string
-	MessageHandler chan HTTPRequest
 }
 
 // non-blocking sending to response channel. returns right away if there is no receiver
@@ -62,76 +69,89 @@ func (msg HTTPRequest) respond(resp HTTPResponse) {
 	}
 }
 
-// handle incoming messages, create, sign and send a ubirch protocol packet (UPP) to the ubirch backend
-func (s *Signer) chainer() error {
-	for msg := range s.MessageHandler {
+// handle incoming messages, create, sign and send a chained ubirch protocol packet (UPP) to the ubirch backend
+func (s *Signer) chainer(jobs <-chan HTTPRequest) error {
+	log.Debugf("starting chainer")
+
+	for msg := range jobs {
 		// the message might have waited in the channel for a while
 		// check if the context is expired or canceled by now
 		if msg.RequestCtx.Err() != nil {
 			continue
 		}
 
-		// buffer last previous signature to be able to reset it in case sending UPP to backend fails
-		prevSign, found := s.protocol.Signatures[msg.ID]
-		if !found {
-			prevSign = make([]byte, 64)
+		log.Infof("%s: anchor hash [chained]: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
+
+		upp, err := s.getChainedUPP(msg.ID, msg.Hash[:])
+		if err != nil {
+			log.Errorf("%s: could not create UBIRCH Protocol Package: %v", msg.ID, err)
+			msg.Response <- errorResponse(http.StatusInternalServerError, "")
+			continue // todo should this be fatal?
 		}
 
-		resp := s.handleSigningRequest(msg)
+		resp := s.sendUPP(msg, upp)
+
 		msg.respond(resp)
 
-		if httpFailed(resp.StatusCode) {
-			// reset previous signature in protocol context to ensure intact chain
-			s.protocol.Signatures[msg.ID] = prevSign
-		} else {
-			// persist last signature after UPP was successfully received in ubirch backend
-			err := s.protocol.PersistContext()
+		// persist last signature only if UPP was successfully received by ubirch backend
+		if httpSuccess(resp.StatusCode) {
+			signature := upp[len(upp)-s.protocol.SignatureLength():]
+			err := s.protocol.PersistSignature(msg.ID, signature)
 			if err != nil {
 				return fmt.Errorf("unable to persist last signature: %v [\"%s\": \"%s\"]",
-					err, msg.ID.String(), base64.StdEncoding.EncodeToString(s.protocol.Signatures[msg.ID]))
+					err, msg.ID, base64.StdEncoding.EncodeToString(signature))
 			}
 		}
 	}
 
-	log.Debug("shutting down signer")
+	log.Debugf("shutting down chainer")
 	return nil
 }
 
-func (s *Signer) handleSigningRequest(msg HTTPRequest) HTTPResponse {
-	name := msg.ID.String()
-	hash := msg.Hash[:]
-	auth := msg.Auth
+func (s *Signer) updateHash(msg HTTPRequest) HTTPResponse {
+	log.Infof("%s: %s hash: %s", msg.ID, msg.Operation, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
-	// create and sign a UPP containing the hash
-	var upp []byte
-	var err error
-
-	switch msg.Operation {
-	case anchorHash:
-		upp, err = s.anchorHash(name, hash)
-	case disableHash:
-		upp, err = s.disableHash(name, hash)
-	case enableHash:
-		upp, err = s.enableHash(name, hash)
-	case deleteHash:
-		upp, err = s.deleteHash(name, hash)
-	default:
-		err = fmt.Errorf("unsupported operation: \"%s\"", msg.Operation)
-	}
-
+	upp, err := s.getSignedUPP(msg.ID, msg.Hash[:], msg.Operation)
 	if err != nil {
-		log.Errorf("%s: could not create UBIRCH Protocol Package: %v", name, err)
+		log.Errorf("%s: could not create UBIRCH Protocol Package: %v", msg.ID, err)
 		return errorResponse(http.StatusInternalServerError, "")
 	}
-	log.Debugf("%s: UPP: %s", name, hex.EncodeToString(upp))
+
+	return s.sendUPP(msg, upp)
+}
+
+func (s *Signer) getChainedUPP(id uuid.UUID, hash []byte) ([]byte, error) {
+	prevSignature, err := s.protocol.LoadSignature(id)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.protocol.Sign(
+		&ubirch.ChainedUPP{Version: ubirch.Chained, Uuid: id, PrevSignature: prevSignature, Hint: ubirch.Binary, Payload: hash},
+	)
+}
+
+func (s *Signer) getSignedUPP(id uuid.UUID, hash []byte, op operation) ([]byte, error) {
+	hint, found := hintLookup[op]
+	if !found {
+		return nil, fmt.Errorf("%s: invalid operation: \"%s\"", id, op)
+	}
+
+	return s.protocol.Sign(
+		&ubirch.SignedUPP{Version: ubirch.Signed, Uuid: id, Hint: hint, Payload: hash},
+	)
+}
+
+func (s *Signer) sendUPP(msg HTTPRequest, upp []byte) HTTPResponse {
+	log.Debugf("%s: UPP: %s", msg.ID, hex.EncodeToString(upp))
 
 	// send UPP to ubirch backend
-	backendResp, err := post(s.authServiceURL, upp, ubirchHeader(msg.ID, auth))
+	backendResp, err := post(s.authServiceURL, upp, ubirchHeader(msg.ID, msg.Auth))
 	if err != nil {
-		log.Errorf("%s: sending request to UBIRCH Authentication Service failed: %v", name, err)
+		log.Errorf("%s: sending request to UBIRCH Authentication Service failed: %v", msg.ID, err)
 		return errorResponse(http.StatusInternalServerError, "")
 	}
-	log.Debugf("%s: backend response: (%d) %s", name, backendResp.StatusCode, hex.EncodeToString(backendResp.Content))
+	log.Debugf("%s: backend response: (%d) %s", msg.ID, backendResp.StatusCode, hex.EncodeToString(backendResp.Content))
 
 	// decode the backend response UPP and get request ID
 	var requestID string
@@ -143,35 +163,11 @@ func (s *Signer) handleSigningRequest(msg HTTPRequest) HTTPResponse {
 		if err != nil {
 			log.Warnf("could not get request ID from backend response: %v", err)
 		} else {
-			log.Infof("%s: request ID: %s", name, requestID)
+			log.Infof("%s: request ID: %s", msg.ID, requestID)
 		}
 	}
 
 	return getSigningResponse(backendResp.StatusCode, msg, upp, backendResp, requestID, "")
-}
-
-func (s *Signer) anchorHash(name string, hash []byte) ([]byte, error) {
-	log.Infof("%s: anchoring hash: %s", name, base64.StdEncoding.EncodeToString(hash))
-
-	return s.protocol.SignHash(name, hash, ubirch.Chained)
-}
-
-func (s *Signer) disableHash(name string, hash []byte) ([]byte, error) {
-	log.Infof("%s: disabling hash: %s", name, base64.StdEncoding.EncodeToString(hash))
-
-	return s.protocol.SignHashExtended(name, hash, ubirch.Signed, ubirch.Disable)
-}
-
-func (s *Signer) enableHash(name string, hash []byte) ([]byte, error) {
-	log.Infof("%s: enabling hash: %s", name, base64.StdEncoding.EncodeToString(hash))
-
-	return s.protocol.SignHashExtended(name, hash, ubirch.Signed, ubirch.Enable)
-}
-
-func (s *Signer) deleteHash(name string, hash []byte) ([]byte, error) {
-	log.Infof("%s: deleting hash: %s", name, base64.StdEncoding.EncodeToString(hash))
-
-	return s.protocol.SignHashExtended(name, hash, ubirch.Signed, ubirch.Delete)
 }
 
 func getRequestID(respUPP ubirch.UPP) (string, error) {
