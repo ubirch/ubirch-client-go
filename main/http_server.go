@@ -373,14 +373,15 @@ func (srv *HTTPServer) Serve(ctx context.Context) error {
 
 	go func() {
 		<-ctx.Done()
-		log.Debug("shutting down HTTP server")
 		server.SetKeepAlivesEnabled(false) // disallow clients to create new long-running conns
 
 		shutdownWithTimeoutCtx, _ := context.WithTimeout(shutdownCtx, ShutdownTimeout)
 		defer shutdownCancel()
 
 		if err := server.Shutdown(shutdownWithTimeoutCtx); err != nil {
-			log.Warnf("failed to gracefully shut down server: %s", err)
+			log.Warnf("could not gracefully shut down server: %s", err)
+		} else {
+			log.Debug("shut down HTTP server")
 		}
 	}()
 

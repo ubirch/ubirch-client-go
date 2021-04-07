@@ -105,7 +105,7 @@ func (s *Signer) chainer(jobs <-chan HTTPRequest) error {
 		}
 	}
 
-	log.Debugf("shutting down chainer")
+	log.Debug("shut down chainer")
 	return nil
 }
 

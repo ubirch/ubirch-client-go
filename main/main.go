@@ -158,10 +158,10 @@ func main() {
 		log.Error(err)
 	}
 
-	log.Info("shutting down client")
-
 	// wrap up
 	if err = p.Deinit(); err != nil {
 		log.Error(err)
 	}
+
+	log.Info("shut down client")
 }
