@@ -24,10 +24,10 @@ func TestCoseSign(t *testing.T) {
 
 	coseSigner := &CoseSigner{cryptoCtx}
 
-	cborData := []byte("\\x84jSignature1C\\xa1\\x01&@Nsigned message")
-	cborSHA256 := sha256.Sum256(cborData)
+	cborBytes := []byte("\\x84jSignature1C\\xa1\\x01&@Nsigned message")
+	cborHash := sha256.Sum256(cborBytes)
 
-	coseBytes, err := coseSigner.Sign(uid, cborSHA256)
+	coseBytes, err := coseSigner.getSignedCOSE(uid, cborHash)
 	if err != nil {
 		t.Fatal(err)
 	}
