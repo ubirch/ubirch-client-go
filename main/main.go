@@ -133,10 +133,10 @@ func main() {
 		},
 	})
 
-	// set up endpoint for update operations
+	// set up endpoint for signing
 	httpServer.AddEndpoint(ServerEndpoint{
 		Path: fmt.Sprintf("/{%s}/{%s}", UUIDKey, OperationKey),
-		Service: &UpdateService{
+		Service: &SigningService{
 			Signer:     &s,
 			AuthTokens: conf.Devices,
 		},

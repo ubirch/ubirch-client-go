@@ -69,7 +69,7 @@ type ChainingService struct {
 	AuthTokens map[string]string
 }
 
-type UpdateService struct {
+type SigningService struct {
 	*Signer
 	AuthTokens map[string]string
 }
@@ -128,7 +128,7 @@ func (service *ChainingService) handleRequest(w http.ResponseWriter, r *http.Req
 	}
 }
 
-func (service *UpdateService) handleRequest(w http.ResponseWriter, r *http.Request) {
+func (service *SigningService) handleRequest(w http.ResponseWriter, r *http.Request) {
 	var msg HTTPRequest
 	var err error
 
@@ -156,7 +156,7 @@ func (service *UpdateService) handleRequest(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	resp := service.updateHash(msg)
+	resp := service.Sign(msg)
 	sendResponse(w, resp)
 }
 
