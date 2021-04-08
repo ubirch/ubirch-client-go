@@ -1,34 +1,33 @@
 package main
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/sha256"
 	"encoding/base64"
-	"math/big"
+	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"testing"
 )
 
 func TestCoseSign(t *testing.T) {
-	key := "YUm0Xy475i7gnGNSnNJUriHQm33Uf+b/XHqZwjFluwM="
-	keyBytes, _ := base64.StdEncoding.DecodeString(key)
+	uid := uuid.MustParse("d1b7eb09-d1d8-4c63-b6a5-1c861a6477fa")
+	key, _ := base64.StdEncoding.DecodeString("YUm0Xy475i7gnGNSnNJUriHQm33Uf+b/XHqZwjFluwM=")
 
-	privKey := new(ecdsa.PrivateKey)
-	privKey.D = new(big.Int)
-	privKey.D.SetBytes(keyBytes)
-	privKey.PublicKey.Curve = elliptic.P256()
-	privKey.PublicKey.X, privKey.PublicKey.Y = privKey.PublicKey.Curve.ScalarBaseMult(privKey.D.Bytes())
+	cryptoCtx := &ubirch.CryptoContext{
+		Keystore: ubirch.NewEncryptedKeystore([]byte("1234567890123456")),
+		Names:    map[string]uuid.UUID{},
+	}
 
-	signer, err := NewCoseSigner(privKey)
+	err := cryptoCtx.SetKey(uid.String(), uid, key)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	data := "hGpTaWduYXR1cmUxQ6EBJkBOc2lnbmVkIG1lc3NhZ2U=" //  b'\x84jSignature1C\xa1\x01&@Nsigned message'
-	dataBytes, _ := base64.StdEncoding.DecodeString(data)
-	hash := sha256.Sum256(dataBytes)
+	coseSigner := &CoseSigner{cryptoCtx}
 
-	coseBytes, err := CoseSign(signer, hash[:])
+	cborData := []byte("\\x84jSignature1C\\xa1\\x01&@Nsigned message")
+	cborSHA256 := sha256.Sum256(cborData)
+
+	coseBytes, err := coseSigner.Sign(uid, cborSHA256[:])
 	if err != nil {
 		t.Fatal(err)
 	}
