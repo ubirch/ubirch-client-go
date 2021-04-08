@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"go.mozilla.org/cose"
@@ -11,13 +10,9 @@ type CoseSigner struct {
 	ubirch.Crypto
 }
 
-func (c *CoseSigner) Sign(id uuid.UUID, cborSHA256 []byte) ([]byte, error) {
-	if len(cborSHA256) != c.HashLength() {
-		return nil, fmt.Errorf("invalid hash size: expected %d, got %d bytes", c.HashLength(), len(cborSHA256))
-	}
-
+func (c *CoseSigner) Sign(id uuid.UUID, cborSHA256 [32]byte) ([]byte, error) {
 	// create ES256 signature
-	signatureBytes, err := c.Crypto.Sign(id, cborSHA256)
+	signatureBytes, err := c.Crypto.SignHash(id, cborSHA256[:])
 	if err != nil {
 		return nil, err
 	}
@@ -29,7 +24,7 @@ func (c *CoseSigner) Sign(id uuid.UUID, cborSHA256 []byte) ([]byte, error) {
 
 	// create COSE_Sign structure -> https://tools.ietf.org/html/rfc8152#section-4.1
 	msg := cose.NewSignMessage()
-	msg.Payload = cborSHA256
+	msg.Payload = cborSHA256[:]
 	msg.AddSignature(sig)
 
 	return msg.MarshalCBOR()
