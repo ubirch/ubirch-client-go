@@ -93,6 +93,10 @@ func main() {
 		verifyFromKnownIdentitiesOnly: false, // TODO: make configurable
 	}
 
+	coseSigner := &CoseSigner{
+		cryptoCtx: p.Crypto,
+	}
+
 	// create a waitgroup that contains all asynchronous operations
 	// a cancellable context is used to stop the operations gracefully
 	ctx, cancel := context.WithCancel(context.Background())
@@ -143,6 +147,15 @@ func main() {
 		Path: "/verify",
 		Service: &VerificationService{
 			Verifier: &v,
+		},
+	})
+
+	// set up endpoint for CBOR signing
+	httpServer.AddEndpoint(ServerEndpoint{
+		Path: fmt.Sprintf("/{%s}/cbor", UUIDKey),
+		Service: &CBORService{
+			CoseSigner: coseSigner,
+			AuthTokens: conf.Devices,
 		},
 	})
 

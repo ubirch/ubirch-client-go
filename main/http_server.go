@@ -78,6 +78,11 @@ type VerificationService struct {
 	*Verifier
 }
 
+type CBORService struct {
+	*CoseSigner
+	AuthTokens map[string]string
+}
+
 func (service *ChainingService) handleRequest(w http.ResponseWriter, r *http.Request) {
 	var msg HTTPRequest
 	var err error
@@ -163,6 +168,40 @@ func (service *VerificationService) handleRequest(w http.ResponseWriter, r *http
 	}
 
 	resp := service.verifyHash(hash[:])
+	sendResponse(w, resp)
+}
+
+func (service *CBORService) handleRequest(w http.ResponseWriter, r *http.Request) {
+	var msg HTTPRequest
+	var err error
+
+	msg.ID, err = getUUID(r)
+	if err != nil {
+		Error(w, err, http.StatusNotFound)
+		return
+	}
+
+	msg.Auth, err = checkAuth(r, msg.ID, service.AuthTokens)
+	if err != nil {
+		Error(w, err, http.StatusUnauthorized)
+		return
+	}
+
+	// TODO getHash(r, enc="CBOR")
+	isHashRequest := strings.HasSuffix(r.URL.Path, HashEndpoint)
+	if !isHashRequest {
+		err = fmt.Errorf("CBOR requests not yet supported. Please use the '/cbor/hash' endpoint")
+		Error(w, err, http.StatusNotImplemented)
+		return
+	}
+
+	msg.Hash, err = getHash(r)
+	if err != nil {
+		Error(w, err, http.StatusBadRequest)
+		return
+	}
+
+	resp := service.Sign(msg)
 	sendResponse(w, resp)
 }
 
