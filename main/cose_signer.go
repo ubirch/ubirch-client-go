@@ -4,15 +4,38 @@ import (
 	"encoding/base64"
 	"net/http"
 
+	"github.com/fxamacker/cbor/v2" // imports as package "cbor"
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
-	"go.mozilla.org/cose"
 
 	log "github.com/sirupsen/logrus"
 )
 
+const COSE_Sign1_Tag = 18
+
 type CoseSigner struct {
 	cryptoCtx ubirch.Crypto
+	encMode   cbor.EncMode
+}
+
+func NewCoseSigner(cryptoCtx ubirch.Crypto) *CoseSigner {
+	encMode, err := initCBOREncMode()
+	if err != nil {
+		log.Fatal(err) // todo
+	}
+
+	return &CoseSigner{
+		cryptoCtx: cryptoCtx,
+		encMode:   encMode,
+	}
+}
+
+func initCBOREncMode() (en cbor.EncMode, err error) {
+	encOpt := cbor.EncOptions{
+		IndefLength: cbor.IndefLengthForbidden, // no streaming
+		Sort:        cbor.SortCanonical,        // sort map keys
+	}
+	return encOpt.EncMode()
 }
 
 func (c *CoseSigner) Sign(msg HTTPRequest) HTTPResponse {
@@ -30,6 +53,14 @@ func (c *CoseSigner) Sign(msg HTTPRequest) HTTPResponse {
 		Header:     http.Header{},
 		Content:    coseBytes,
 	}
+}
+
+type COSE_Sign1 struct {
+	_           struct{} `cbor:",toarray"`
+	Protected   []byte
+	Unprotected map[interface{}]interface{}
+	Payload     []byte
+	Signature   []byte
 }
 
 func (c *CoseSigner) getSignedCOSE(id uuid.UUID, hash [32]byte) ([]byte, error) {
@@ -94,9 +125,21 @@ func (c *CoseSigner) getSignedCOSE(id uuid.UUID, hash [32]byte) ([]byte, error) 
 					payload : bstr						# (b'payload bytes')
 				]
 
+		* How to compute a signature:
 
-		hash = SHA256('Signature1', b'\xA1\x01\x26', b'', b'payload bytes')
-		signature = ECDSA-sign(hash)
+			1. Create a Sig_structure and populate it with the appropriate fields.
+
+			2. Create the value ToBeSigned by encoding the Sig_structure to a byte string, using the encoding described in Section 14.
+
+			3. Call the signature creation algorithm passing in K (the key to sign with), alg (the algorithm to sign with), and ToBeSigned (the value to sign).
+
+			4. Place the resulting signature value in the 'signature' field of the array.
+
+
+			sig_struct = ['Signature1', b'\xA1\x01\x26', b'', b'payload bytes']
+			hash = SHA256(CBOR-encode(sig_struct))
+			signature = ECDSA-sign(hash)
+			cose_Sign1 = [b'\xA1\x01\x26', {4: b'<uuid>'}, b'payload bytes', signature]
 
 	*/
 
@@ -106,15 +149,14 @@ func (c *CoseSigner) getSignedCOSE(id uuid.UUID, hash [32]byte) ([]byte, error) 
 		return nil, err
 	}
 
-	sig := cose.NewSignature()
-	sig.SignatureBytes = signatureBytes
+	// create COSE_Sign1 object
+	coseSign1 := &COSE_Sign1{
+		Protected:   []byte{0xA1, 0x01, 0x26},
+		Unprotected: map[interface{}]interface{}{4: id[:]},
+		Payload:     nil,
+		Signature:   signatureBytes,
+	}
 
-	// create COSE_Sign structure -> https://tools.ietf.org/html/rfc8152#section-4.1
-	msg := cose.NewSignMessage()
-	msg.AddSignature(sig)
-	msg.Headers.Protected["alg"] = "ES256"
-	msg.Headers.Unprotected["kid"] = id
-	msg.Payload = []byte("<payload bytes>")
-
-	return msg.MarshalCBOR()
+	// encode COSE_Sign1 object with tag
+	return c.encMode.Marshal(cbor.Tag{Number: COSE_Sign1_Tag, Content: coseSign1})
 }

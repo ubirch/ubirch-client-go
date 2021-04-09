@@ -93,9 +93,7 @@ func main() {
 		verifyFromKnownIdentitiesOnly: false, // TODO: make configurable
 	}
 
-	coseSigner := &CoseSigner{
-		cryptoCtx: p.Crypto,
-	}
+	coseSigner := NewCoseSigner(p.Crypto)
 
 	// create a waitgroup that contains all asynchronous operations
 	// a cancellable context is used to stop the operations gracefully

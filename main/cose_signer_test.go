@@ -22,7 +22,10 @@ func TestCoseSign(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	coseSigner := &CoseSigner{cryptoCtx}
+	pubKey, _ := cryptoCtx.GetPublicKey(uid.String())
+	t.Logf("%s: public key: %x", uid, pubKey)
+
+	coseSigner := NewCoseSigner(cryptoCtx)
 
 	cborBytes := []byte("\\x84jSignature1C\\xa1\\x01&@Nsigned message")
 	cborHash := sha256.Sum256(cborBytes)
@@ -32,6 +35,5 @@ func TestCoseSign(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Logf("%q", coseBytes)
-	t.Logf("%x", coseBytes)
+	t.Logf("signed COSE: %x", coseBytes)
 }
