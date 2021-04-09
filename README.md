@@ -244,7 +244,7 @@ The response body consists of either an error message, or a JSON map with
 {
   "operation": "(anchor | delete | enable | disable)",
   "hash": "<base64 encoded data hash>",
-  "upp": "<base64 encoded UPP which was sent to the UBIRCH backend>",
+  "upp": "<base64 encoded UPP containing the data hash>",
   "response": {
     "statusCode": <backend response status code (int)>,
     "header": {<backend response header (map[string][]string)>},
@@ -277,7 +277,7 @@ verification of the validity of the retrieved UPP.
 The response body consists of either an error message, or a JSON map with
 
 - the requested data hash,
-- the UPP, which contains that data hash and was retrieved from the UBIRCH backend by the client,
+- the UPP, which contains the requested data hash and was retrieved from the UBIRCH backend by the client,
 - the UUID of the device from which the data originated,
 - the public key of that device, which was used to verify the signature of the retrieved UPP
 - *possibly:* a description of an occurred error (**the `error`-key is only present in case an error occurred**)
@@ -285,7 +285,7 @@ The response body consists of either an error message, or a JSON map with
 ```json
 {
   "hash": "<base64 encoded requested data hash>",
-  "upp": "<base64 encoded UPP which was retrieved from the UBIRCH backend",
+  "upp": "<base64 encoded UPP containing the requested data hash",
   "uuid": "<standard hex string representation of the device UUID>",
   "pubKey": "<base64 encoded public key used for signature verification>",
   "error": "error message"
@@ -294,9 +294,27 @@ The response body consists of either an error message, or a JSON map with
 
 ### COSE Signing Service
 
-https://tools.ietf.org/html/rfc8152
+(https://tools.ietf.org/html/rfc8152)
 
-------------------------------------------------------------------------------------------------------------------------
+The COSE signing service expects the SHA256 hash of a [CBOR](https://tools.ietf.org/html/rfc7049) object, which will be
+signed by the client.
+
+| Method | Path | Content-Type | Description |
+|--------|------|--------------|-------------|
+| POST | `/<UUID>/cbor/hash` | `application/octet-stream` | SHA256 hash (binary) will be signed and returned |
+| POST | `/<UUID>/cbor/hash` | `text/plain` | SHA256 hash (base64 string repr.) will be signed and returned |
+
+#### COSE Signing Response
+
+The COSE signing service returns a [COSE Signed Data Object](https://tools.ietf.org/html/rfc8152#section-4.1),
+containing the CBOR SHA256 hash as payload.
+
+The [signature header](https://tools.ietf.org/html/rfc8152#section-3) contains the following parameters:
+
+| Bucket | Label | Value | Description |
+|--------|-------|-------|-------------|
+| protected | "alg" | "ES256" | Identifier for the cryptographic algorithm used for signing |
+| unprotected | "kid" | <UUID (bytes) corresponding to the key used for signing> |    Key identifier |
 
 ### TCP Address
 
@@ -310,7 +328,7 @@ http://localhost:8080
 
 > See [how to set a different TCP address/port for the client](#set-tcp-address).
 
-**Example:**
+#### Example:
 
 Here is an example of a request to the client using `CURL`.
 
@@ -357,7 +375,7 @@ If the client receives a JSON data package, it will generate a *sorted compact r
 i.e. it will first create a string representation of the JSON formatted data where the keys are in alphabetical order
 and insignificant space characters were elided.
 
-**Example:**
+#### Example:
 
 - JSON data package:
     ```json
