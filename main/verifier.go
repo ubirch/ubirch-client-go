@@ -18,7 +18,6 @@ package main
 
 import (
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -62,7 +61,7 @@ func (v *Verifier) verifyHash(hash []byte) HTTPResponse {
 		log.Error(err)
 		return errorResponse(code, err.Error())
 	}
-	log.Debugf("retrieved UPP %s", hex.EncodeToString(upp))
+	log.Debugf("retrieved UPP %x", upp)
 
 	// verify validity of the retrieved UPP locally
 	name, pkey, err := v.verifyUPP(upp)

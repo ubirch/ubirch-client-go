@@ -16,7 +16,6 @@ package main
 
 import (
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -90,7 +89,7 @@ func (s *Signer) chainer(jobs <-chan HTTPRequest) error {
 			msg.respond(errorResponse(http.StatusInternalServerError, ""))
 			continue // todo should this be fatal?
 		}
-		log.Debugf("%s: chained UPP: %s", msg.ID, hex.EncodeToString(uppBytes))
+		log.Debugf("%s: chained UPP: %x", msg.ID, uppBytes)
 
 		resp := s.sendUPP(msg, uppBytes)
 
@@ -119,7 +118,7 @@ func (s *Signer) Sign(msg HTTPRequest) HTTPResponse {
 		log.Errorf("%s: could not create signed UPP: %v", msg.ID, err)
 		return errorResponse(http.StatusInternalServerError, "")
 	}
-	log.Debugf("%s: signed UPP: %s", msg.ID, hex.EncodeToString(uppBytes))
+	log.Debugf("%s: signed UPP: %x", msg.ID, uppBytes)
 
 	return s.sendUPP(msg, uppBytes)
 }
@@ -164,7 +163,7 @@ func (s *Signer) sendUPP(msg HTTPRequest, upp []byte) HTTPResponse {
 		log.Errorf("%s: sending request to UBIRCH Authentication Service failed: %v", msg.ID, err)
 		return errorResponse(http.StatusInternalServerError, "")
 	}
-	log.Debugf("%s: backend response: (%d) %s", msg.ID, backendResp.StatusCode, hex.EncodeToString(backendResp.Content))
+	log.Debugf("%s: backend response: (%d) %x", msg.ID, backendResp.StatusCode, backendResp.Content)
 
 	// decode the backend response UPP and get request ID
 	var requestID string

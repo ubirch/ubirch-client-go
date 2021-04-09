@@ -16,7 +16,6 @@ package main
 
 import (
 	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -162,7 +161,7 @@ func submitCSR(p *ExtendedProtocol, uid uuid.UUID, subjectCountry string, subjec
 	if err != nil {
 		return fmt.Errorf("error creating CSR: %v", err)
 	}
-	log.Debugf("%s: CSR [der]: %s", uid.String(), hex.EncodeToString(csr))
+	log.Debugf("%s: CSR [der]: %x", uid.String(), csr)
 
 	CSRHeader := map[string]string{"content-type": "application/octet-stream"}
 

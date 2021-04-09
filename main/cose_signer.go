@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/base64"
-	"encoding/hex"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -24,7 +23,7 @@ func (c *CoseSigner) Sign(msg HTTPRequest) HTTPResponse {
 		log.Errorf("%s: could not create signed COSE: %v", msg.ID, err)
 		return errorResponse(http.StatusInternalServerError, "")
 	}
-	log.Debugf("%s: signed COSE: %s", msg.ID, hex.EncodeToString(coseBytes))
+	log.Debugf("%s: signed COSE: %x", msg.ID, coseBytes)
 
 	return HTTPResponse{
 		StatusCode: http.StatusOK,
