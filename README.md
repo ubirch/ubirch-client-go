@@ -169,25 +169,22 @@ the `-v $(pwd):/data` parameter can be omitted.
 
 ## Interface Description
 
-### Anchoring
+The UBIRCH client provides HTTP endpoints for both original data and direct hash injection, i.e. the SHA256 digest of
+the original data. If the client receives original data, it will create a SHA256 hash before any further processing.
 
-The UBIRCH client provides HTTP endpoints for both original data, which will be hashed by the client, and direct data
-hash injection, i.e. the SHA256 digest of the original data.
+*We don't care about your data!*
 
-| Method | Path | Content-Type | Description |
-|--------|------|--------------|-------------|
-| POST | `/<UUID>` | `application/octet-stream` | original data (binary) |
-| POST | `/<UUID>` | `application/json` | original data (JSON data package) |
-| POST | `/<UUID>/hash` | `application/octet-stream` | hash (binary) |
-| POST | `/<UUID>/hash` | `text/plain` | hash (base64 string repr.) |
+This means that the original data will have to be stored independently in order to be able to verify it later.
 
 > When receiving a JSON data package, the UBIRCH client will sort the keys alphabetically and remove insignificant
 > space characters before hashing.
 >
 > See [reproducibility of hashes](#reproducibility-of-hashes).
 
-To access either endpoint, an authentication token, which corresponds to the `UUID` used in the request, must be sent
-with the request header. Without it, the client won’t accept the request.
+### UPP Signing Service
+
+Signing service endpoints require an authentication token, which corresponds to the `UUID` used in the request. The
+token must be sent with the request header. Without it, the client will not accept the request.
 
 | Request Header | Description |
 |----------------|------------------------------------------|
@@ -195,12 +192,28 @@ with the request header. Without it, the client won’t accept the request.
 
 > See [how to acquire the ubirch backend token](#how-to-acquire-the-ubirch-backend-token).
 
-### Update Operations
+#### Anchoring Hashes (chained)
+
+| Method | Path | Content-Type | Description |
+|--------|------|--------------|-------------|
+| POST | `/<UUID>` | `application/octet-stream` | original data (binary) will be hashed, chained, signed, and anchored |
+| POST | `/<UUID>` | `application/json` | original data (JSON data package) will be hashed, chained, signed, and anchored |
+| POST | `/<UUID>/hash` | `application/octet-stream` | SHA256 hash (binary) will be chained, signed, and anchored |
+| POST | `/<UUID>/hash` | `text/plain` | SHA256 hash (base64 string repr.) will be chained, signed, and anchored  |
+
+#### Anchoring Hashes (no chain)
+
+| Method | Path | Content-Type | Description |
+|--------|------|--------------|-------------|
+| POST | `/<UUID>/anchor` | `application/octet-stream` | original data (binary) will be hashed signed, and anchored |
+| POST | `/<UUID>/anchor` | `application/json` | original data (JSON data package) will be hashed signed, and anchored |
+| POST | `/<UUID>/anchor/hash` | `application/octet-stream` | SHA256 hash (binary) will be signed, and anchored |
+| POST | `/<UUID>/anchor/hash` | `text/plain` | SHA256 hash (base64 string repr.) will be signed, and anchored |
+
+#### Update Operations
 
 Beside anchoring, the client can request hash update operations from the UBIRCH backend, i.e. `disable`, `enable`
 and `delete`.
-
-Just like for anchoring, the UBIRCH client provides HTTP endpoints for original data and direct data hash injection.
 
 | Update Operation | Path (original data)| Path (hash) |
 |------------------|---------------------|-------------|
@@ -208,16 +221,10 @@ Just like for anchoring, the UBIRCH client provides HTTP endpoints for original 
 | enable  | `/<UUID>/enable`  | `/<UUID>/enable/hash`  |
 | delete  | `/<UUID>/delete`  | `/<UUID>/delete/hash`  |
 
-These Endpoints also require the use of the `X-Auth-Token` request header.
-
-| Request Header | Description |
-|----------------|------------------------------------------|
-| `X-Auth-Token` | UBIRCH backend token related to `<UUID>` |
-
 Hash update requests to the UBIRCH backend must come from the same UUID that anchored said hash and be signed by the
 same private key that signed the anchoring request.
 
-**Response:**
+#### UPP Signing Response
 
 Response codes indicate the successful delivery of the UPP to the UBIRCH backend. Any code other than `200` should be
 considered a failure. The client does not retry itself. A good approach to handle errors is to add a flag to the
@@ -251,18 +258,18 @@ The response body consists of either an error message, or a JSON map with
 > UPPs (such as the backend response content) are [MessagePack](https://github.com/msgpack/msgpack/blob/master/spec.md) formatted
 > and can be decoded using an online tool like [this MessagePack to JSON Converter](https://toolslick.com/conversion/data/messagepack-to-json).
 
-### Verification
+### UPP Verification Service
 
-The UBIRCH client also provides verification endpoints for original data and hashes.
+Verification service endpoints do not require an authentication token.
 
 | Method | Path | Content-Type | Description |
 |--------|------|--------------|-------------|
-| POST | `/verify` | `application/octet-stream` | original data (binary) |
-| POST | `/verify` | `application/json` | original data (JSON data package) |
-| POST | `/verify/hash` | `application/octet-stream` | hash (binary) |
-| POST | `/verify/hash` | `text/plain` | hash (base64 string repr.) |
+| POST | `/verify` | `application/octet-stream` | verify hash of original data (binary) |
+| POST | `/verify` | `application/json` | verify hash of original data (JSON data package) |
+| POST | `/verify/hash` | `application/octet-stream` | verify hash (binary) |
+| POST | `/verify/hash` | `text/plain` | verify hash (base64 string repr.) |
 
-There is no authentication token necessary to access the verification endpoints.
+#### UPP Verification Response
 
 A `200` response code indicates the successful verification of the data in the UBIRCH backend as well as a local
 verification of the validity of the retrieved UPP.
@@ -284,6 +291,12 @@ The response body consists of either an error message, or a JSON map with
   "error": "error message"
 }
 ```
+
+### COSE Signing Service
+
+https://tools.ietf.org/html/rfc8152
+
+------------------------------------------------------------------------------------------------------------------------
 
 ### TCP Address
 
