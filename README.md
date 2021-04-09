@@ -113,7 +113,7 @@ The only mandatory configurations are
 
 > See [example_config.json](main/example_config.json) as an example for file-based configuration.
 
-Besides the `devices`-map, the device UUIDs and their corresponding authentication tokens can also be set through a file
+Beside the `devices`-map, the device UUIDs and their corresponding authentication tokens can also be set through a file
 "`identities.json`". See example: [example_identities.json](main/example_identities.json)
 
 ### Environment Based Configuration
@@ -125,7 +125,258 @@ UBIRCH_SECRET=<16 byte secret used to encrypt the key store (base64 encoded)>
 
 > See [example.env](main/example.env) as an example for environment-based configuration.
 
-All other configuration parameters have default values, but can be configured as follows.
+All further configuration parameters have default values, that can be changed as described
+under [Optional Configurations](#optional-configurations).
+
+### How to acquire the ubirch backend token
+
+- Create an account at the [**UBIRCH web UI**](https://console.prod.ubirch.com/) and log in
+- Go to **Things** (in the menu on the left) and click on `+ ADD NEW DEVICE`
+- Enter your UUID to the **ID** field. You can also add a description if you want. Then click on `register`.
+- Your UUID should now show up under the **Your Things**-overview. Click on it and copy the "password" (which looks like
+  a UUID) from the `apiConfig`. This is the UBIRCH backend token needed for the configuration of the client.
+
+[Jump back to Configuration](#configuration)
+
+## Run Client in Docker container
+
+To get the latest multi-architecture image, check
+the [releases](https://github.com/ubirch/ubirch-client-go/releases/latest)
+and pull the latest release from Docker Hub using the release tag, e.g.:
+
+```console
+docker pull ubirch/ubirch-client:v1.1.7
+```
+
+To start the multi-arch Docker image on any system, run:
+
+```console
+docker run -v $(pwd):/data -p <host_port>:8080 ubirch/ubirch-client:v1.1.7
+```
+
+> replace `<host_port>` with the desired TCP network port on the host (e.g. `-p 8080:8080`)
+
+The default configuration directory inside the docker container is `/data`. The docker image mounts the current
+directory (`$(pwd)`) into the */data* path to load the configuration file (if configuration is not set via environment
+variables), and the TLS certificate and key files (if TLS is enabled). If no DSN (database) is set in the configuration,
+the image stores the protocol context
+(i.e. keystore and last signatures) in this directory as well, in which case the directory must be writable.
+
+It is also possible to pass an absolute path instead of `$(pwd)`.
+
+If the */data* path is not used for either configuration file, TLS cert files, or to store the protocol context,
+the `-v $(pwd):/data` parameter can be omitted.
+
+## Interface Description
+
+### Anchoring
+
+The UBIRCH client provides HTTP endpoints for both original data, which will be hashed by the client, and direct data
+hash injection, i.e. the SHA256 digest of the original data.
+
+| Method | Path | Content-Type | Description |
+|--------|------|--------------|-------------|
+| POST | `/<UUID>` | `application/octet-stream` | original data (binary) |
+| POST | `/<UUID>` | `application/json` | original data (JSON data package) |
+| POST | `/<UUID>/hash` | `application/octet-stream` | hash (binary) |
+| POST | `/<UUID>/hash` | `text/plain` | hash (base64 string repr.) |
+
+> When receiving a JSON data package, the UBIRCH client will sort the keys alphabetically and remove insignificant
+> space characters before hashing.
+>
+> See [reproducibility of hashes](#reproducibility-of-hashes).
+
+To access either endpoint, an authentication token, which corresponds to the `UUID` used in the request, must be sent
+with the request header. Without it, the client won’t accept the request.
+
+| Request Header | Description |
+|----------------|------------------------------------------|
+| `X-Auth-Token` | UBIRCH backend token related to `<UUID>` |
+
+> See [how to acquire the ubirch backend token](#how-to-acquire-the-ubirch-backend-token).
+
+### Update Operations
+
+Beside anchoring, the client can request hash update operations from the UBIRCH backend, i.e. `disable`, `enable`
+and `delete`.
+
+Just like for anchoring, the UBIRCH client provides HTTP endpoints for original data and direct data hash injection.
+
+| Update Operation | Path (original data)| Path (hash) |
+|------------------|---------------------|-------------|
+| disable | `/<UUID>/disable` | `/<UUID>/disable/hash` |
+| enable  | `/<UUID>/enable`  | `/<UUID>/enable/hash`  |
+| delete  | `/<UUID>/delete`  | `/<UUID>/delete/hash`  |
+
+These Endpoints also require the use of the `X-Auth-Token` request header.
+
+| Request Header | Description |
+|----------------|------------------------------------------|
+| `X-Auth-Token` | UBIRCH backend token related to `<UUID>` |
+
+Hash update requests to the UBIRCH backend must come from the same UUID that anchored said hash and be signed by the
+same private key that signed the anchoring request.
+
+**Response:**
+
+Response codes indicate the successful delivery of the UPP to the UBIRCH backend. Any code other than `200` should be
+considered a failure. The client does not retry itself. A good approach to handle errors is to add a flag to the
+original data storage that indicates whether the UBIRCH blockchain anchoring was successful and retry at a later point
+if necessary.
+
+The response body consists of either an error message, or a JSON map with
+
+- the carried out operation,
+- the data hash,
+- the UPP, which contains that data hash and was sent to the UBIRCH backend by the client,
+- the response from the UBIRCH backend,
+- the unique request ID
+- *possibly:* a description of an occurred error (**the `error`-key is only present in case an error occurred**)
+
+```fundamental
+{
+  "operation": "(anchor | delete | enable | disable)",
+  "hash": "<base64 encoded data hash>",
+  "upp": "<base64 encoded UPP which was sent to the UBIRCH backend>",
+  "response": {
+    "statusCode": <backend response status code (int)>,
+    "header": {<backend response header (map[string][]string)>},
+    "content": "<base64 encoded backend response content>"
+  },
+  "requestID": "<request ID (standard hex string representation)>",
+  "error": "error message"
+}
+```
+
+> UPPs (such as the backend response content) are [MessagePack](https://github.com/msgpack/msgpack/blob/master/spec.md) formatted
+> and can be decoded using an online tool like [this MessagePack to JSON Converter](https://toolslick.com/conversion/data/messagepack-to-json).
+
+### Verification
+
+The UBIRCH client also provides verification endpoints for original data and hashes.
+
+| Method | Path | Content-Type | Description |
+|--------|------|--------------|-------------|
+| POST | `/verify` | `application/octet-stream` | original data (binary) |
+| POST | `/verify` | `application/json` | original data (JSON data package) |
+| POST | `/verify/hash` | `application/octet-stream` | hash (binary) |
+| POST | `/verify/hash` | `text/plain` | hash (base64 string repr.) |
+
+There is no authentication token necessary to access the verification endpoints.
+
+A `200` response code indicates the successful verification of the data in the UBIRCH backend as well as a local
+verification of the validity of the retrieved UPP.
+
+The response body consists of either an error message, or a JSON map with
+
+- the requested data hash,
+- the UPP, which contains that data hash and was retrieved from the UBIRCH backend by the client,
+- the UUID of the device from which the data originated,
+- the public key of that device, which was used to verify the signature of the retrieved UPP
+- *possibly:* a description of an occurred error (**the `error`-key is only present in case an error occurred**)
+
+```json
+{
+  "hash": "<base64 encoded requested data hash>",
+  "upp": "<base64 encoded UPP which was retrieved from the UBIRCH backend",
+  "uuid": "<standard hex string representation of the device UUID>",
+  "pubKey": "<base64 encoded public key used for signature verification>",
+  "error": "error message"
+}
+```
+
+### TCP Address
+
+When running the client locally, the default base address is:
+
+```fundamental
+http://localhost:8080
+```
+
+(or `https://localhost:8080`, if TLS is enabled)
+
+> See [how to set a different TCP address/port for the client](#set-tcp-address).
+
+**Example:**
+
+Here is an example of a request to the client using `CURL`.
+
+- original data (JSON):
+  ```console
+  curl localhost:8080/<UUID> \
+    -H "X-Auth-Token: <AUTH_TOKEN>" \
+    -H "Content-Type: application/json" \
+    -d '{"id": "605b91b4-49be-4f17-93e7-f1b14384968f", "ts": 1585838578, "data": "1234567890"}' \
+    -i
+  ```
+
+- direct data hash injection:
+  ```console
+  curl localhost:8080/<UUID>/hash \
+    -H "X-Auth-Token: <AUTH_TOKEN>" \
+    -H "Content-Type: text/plain" \
+    -d "bTawDQO7nnB+3h55/6VyQ+Tmd1RTV9R0cFcf7CRWzQQ=" \
+    -i
+  ```
+
+### Uniqueness of hashes
+
+Every anchored data hash, and therefore the data, **must be unique**. The UBIRCH backend will reject the request with
+response code `409` if the same hash has been sent previously.
+
+Uniqueness can be achieved by adding a UUID and timestamp to the data before hashing. For example:
+
+```json
+{
+  "id": "605b91b4-49be-4f17-93e7-f1b14384968f",
+  "ts": 1585838578,
+  "data": "1234567890"
+}
+```
+
+### Reproducibility of hashes
+
+It is essential for the hashes to be reproducible in order to use them for verification of the data at a later time.
+Since the JSON format is non-deterministic, we need to define rules for converting it to a binary representation before
+calculating the hash.
+
+If the client receives a JSON data package, it will generate a *sorted compact rendering* before calculating the hash,
+i.e. it will first create a string representation of the JSON formatted data where the keys are in alphabetical order
+and insignificant space characters were elided.
+
+**Example:**
+
+- JSON data package:
+    ```json
+    {
+      "id": "605b91b4-49be-4f17-93e7-f1b14384968f",
+      "ts": 1585838578,
+      "data": {
+          "T": "26.250",
+          "H": "65"
+      }
+    }
+    ```
+- sorted compact rendering (string):
+    ```json
+    {"data":{"H":"65","T":"26.250"},"id":"605b91b4-49be-4f17-93e7-f1b14384968f","ts":1585838578}
+    ```
+- SHA256 digest (base64):
+    ```fundamental
+    uVXpb1vR8UlQnow/FoIcNbvcJ5bY1r2B+DZwe8AYSkE=
+    ```
+
+> **Floating-point numbers and integers greater than 2<sup>53</sup> are not allowed as values for the JSON data package!**
+>
+> If you need to sign floating-point numbers or numbers greater than *9,007,199,254,740,992*, you can pass the string representation, e.g.
+> ```json
+> {
+>   "float": "5.321",
+>   "bigNum": "9007199254740993"
+> }
+> ```
+
+## Optional Configurations
 
 ### Set the UBIRCH backend environment
 
@@ -196,7 +447,7 @@ openssl ecparam -genkey -name prime256v1 -noout | openssl ec -text -noout | grep
 *The client will register dynamically generated as well as injected public keys at the UBIRCH key service and store the
 keys persistently in the encrypted keystore.*
 
-### X.509 Certificate Signing Requests
+### Customize X.509 Certificate Signing Requests
 
 The client creates X.509 Certificate Signing Requests (*CSRs*) for the public keys of the devices it is managing. The *
 Common Name* of the CSR subject is the UUID associated with the public key. The values for the *Organization* and *
@@ -324,254 +575,6 @@ By default, the log of the client is in JSON format. To change it to a (more hum
     ```shell
     UBIRCH_LOGTEXTFORMAT=true
     ```
-
-### How to acquire the ubirch backend token
-
-- Create an account at the [**UBIRCH web UI**](https://console.prod.ubirch.com/) and log in
-- Go to **Things** (in the menu on the left) and click on `+ ADD NEW DEVICE`
-- Enter your UUID to the **ID** field. You can also add a description if you want. Then click on `register`.
-- Your UUID should now show up under the **Your Things**-overview. Click on it and copy the "password" (which looks like
-  a UUID) from the `apiConfig`. This is the UBIRCH backend token needed for the configuration of the client.
-
-[Jump back to Configuration](#configuration)
-
-## Run Client in Docker container
-
-To get the latest multi-architecture image, check
-the [releases](https://github.com/ubirch/ubirch-client-go/releases/latest)
-and pull the latest release from Docker Hub using the release tag, e.g.:
-
-```console
-docker pull ubirch/ubirch-client:v1.1.7
-```
-
-To start the multi-arch Docker image on any system, run:
-
-```console
-docker run -v $(pwd):/data -p <host_port>:8080 ubirch/ubirch-client:v1.1.7
-```
-
-> replace `<host_port>` with the desired TCP network port on the host (e.g. `-p 8080:8080`)
-
-The default configuration directory inside the docker container is `/data`. The docker image mounts the current
-directory (`$(pwd)`) into the */data* path to load the configuration file (if configuration is not set via environment
-variables), and the TLS certificate and key files (if TLS is enabled). If no DSN (database) is set in the configuration,
-the image stores the protocol context
-(i.e. keystore and last signatures) in this directory as well, in which case the directory must be writable.
-
-It is also possible to pass an absolute path instead of `$(pwd)`.
-
-If the */data* path is not used for either configuration file, TLS cert files, or to store the protocol context,
-the `-v $(pwd):/data` parameter can be omitted.
-
-## Interface Description
-
-### Anchoring
-
-The UBIRCH client provides HTTP endpoints for both original data, which will be hashed by the client, and direct data
-hash injection, i.e. the SHA256 digest of the original data.
-
-| Method | Path | Content-Type | Description |
-|--------|------|--------------|-------------|
-| POST | `/<UUID>` | `application/octet-stream` | original data (binary) |
-| POST | `/<UUID>` | `application/json` | original data (JSON data package) |
-| POST | `/<UUID>/hash` | `application/octet-stream` | hash (binary) |
-| POST | `/<UUID>/hash` | `text/plain` | hash (base64 string repr.) |
-
-> When receiving a JSON data package, the UBIRCH client will sort the keys alphabetically and remove insignificant
-> space characters before hashing.
->
-> See [reproducibility of hashes](#reproducibility-of-hashes).
-
-To access either endpoint, an authentication token, which corresponds to the `UUID` used in the request, must be sent
-with the request header. Without it, the client won’t accept the request.
-
-| Request Header | Description |
-|----------------|------------------------------------------|
-| `X-Auth-Token` | UBIRCH backend token related to `<UUID>` |
-
-> See [how to acquire the ubirch backend token](#how-to-acquire-the-ubirch-backend-token).
-
-### Update Operations
-
-Besides achoring, the client can request hash update operations from the UBIRCH backend, i.e. `disable`, `enable`
-and `delete`.
-
-Just like for anchoring, the UBIRCH client provides HTTP endpoints for original data and direct data hash injection.
-
-| Update Operation | Path (original data)| Path (hash) |
-|------------------|---------------------|-------------|
-| disable | `/<UUID>/disable` | `/<UUID>/disable/hash` |
-| enable  | `/<UUID>/enable`  | `/<UUID>/enable/hash`  |
-| delete  | `/<UUID>/delete`  | `/<UUID>/delete/hash`  |
-
-These Endpoints also require the use of the `X-Auth-Token` request header.
-
-| Request Header | Description |
-|----------------|------------------------------------------|
-| `X-Auth-Token` | UBIRCH backend token related to `<UUID>` |
-
-Hash update requests to the UBIRCH backend must come from the same UUID that anchored said hash and be signed by the
-same private key that signed the anchoring request.
-
-### TCP Address
-
-When running the client locally, the default address is:
-
-```fundamental
-http://localhost:8080/<UUID>
-```
-
-(or `https://localhost:8080/<UUID>`, if TLS is enabled)
-
-> See [how to set a different TCP address/port for the client](#set-tcp-address).
-
-**Example:**
-
-Here is an example of a request to the client using `CURL`.
-
-- original data (JSON):
-  ```console
-  curl localhost:8080/<UUID> \
-    -H "X-Auth-Token: <AUTH_TOKEN>" \
-    -H "Content-Type: application/json" \
-    -d '{"id": "605b91b4-49be-4f17-93e7-f1b14384968f", "ts": 1585838578, "data": "1234567890"}' \
-    -i
-  ```
-
-- direct data hash injection:
-  ```console
-  curl localhost:8080/<UUID>/hash \
-    -H "X-Auth-Token: <AUTH_TOKEN>" \
-    -H "Content-Type: text/plain" \
-    -d "bTawDQO7nnB+3h55/6VyQ+Tmd1RTV9R0cFcf7CRWzQQ=" \
-    -i
-  ```
-
-**Response:**
-
-Response codes indicate the successful delivery of the UPP to the UBIRCH backend. Any code other than `200` should be
-considered a failure. The client does not retry itself. A good approach to handle errors is to add a flag to the
-original data storage that indicates whether the UBIRCH blockchain anchoring was successful and retry at a later point
-if necessary.
-
-The response body consists of either an error message, or a JSON map with
-
-- the carried out operation,
-- the data hash,
-- the UPP, which contains that data hash and was sent to the UBIRCH backend by the client,
-- the response from the UBIRCH backend,
-- the unique request ID
-- *possibly:* a description of an occurred error (**the `error`-key is only present in case an error occurred**)
-
-```fundamental
-{
-  "operation": "(anchor | delete | enable | disable)",
-  "hash": "<base64 encoded data hash>",
-  "upp": "<base64 encoded UPP which was sent to the UBIRCH backend>",
-  "response": {
-    "statusCode": <backend response status code (int)>,
-    "header": {<backend response header (map[string][]string)>},
-    "content": "<base64 encoded backend response content>"
-  },
-  "requestID": "<request ID (standard hex string representation)>",
-  "error": "error message"
-}
-```
-
-> UPPs (such as the backend response content) are [MessagePack](https://github.com/msgpack/msgpack/blob/master/spec.md) formatted
-> and can be decoded using an online tool like [this MessagePack to JSON Converter](https://toolslick.com/conversion/data/messagepack-to-json).
-
-### Verification
-
-The UBIRCH client also provides verification endpoints for original data and hashes.
-
-| Method | Path | Content-Type | Description |
-|--------|------|--------------|-------------|
-| POST | `/verify` | `application/octet-stream` | original data (binary) |
-| POST | `/verify` | `application/json` | original data (JSON data package) |
-| POST | `/verify/hash` | `application/octet-stream` | hash (binary) |
-| POST | `/verify/hash` | `text/plain` | hash (base64 string repr.) |
-
-There is no authentication token necessary to access the verification endpoints.
-
-A `200` response code indicates the successful verification of the data in the UBIRCH backend as well as a local
-verification of the validity of the retrieved UPP.
-
-The response body consists of either an error message, or a JSON map with
-
-- the requested data hash,
-- the UPP, which contains that data hash and was retrieved from the UBIRCH backend by the client,
-- the UUID of the device from which the data originated,
-- the public key of that device, which was used to verify the signature of the retrieved UPP
-- *possibly:* a description of an occurred error (**the `error`-key is only present in case an error occurred**)
-
-```json
-{
-  "hash": "<base64 encoded requested data hash>",
-  "upp": "<base64 encoded UPP which was retrieved from the UBIRCH backend",
-  "uuid": "<standard hex string representation of the device UUID>",
-  "pubKey": "<base64 encoded public key used for signature verification>",
-  "error": "error message"
-}
-```
-
-### Uniqueness of hashes
-
-Every anchored data hash, and therefore the data, **must be unique**. The UBIRCH backend will reject the request with
-response code `409` if the same hash has been sent previously.
-
-Uniqueness can be achieved by adding a UUID and timestamp to the data before hashing. For example:
-
-```json
-{
-  "id": "605b91b4-49be-4f17-93e7-f1b14384968f",
-  "ts": 1585838578,
-  "data": "1234567890"
-}
-```
-
-### Reproducibility of hashes
-
-It is essential for the hashes to be reproducible in order to use them for verification of the data at a later time.
-Since the JSON format is non-deterministic, we need to define rules for converting it to a binary representation before
-calculating the hash.
-
-If the client receives a JSON data package, it will generate a *sorted compact rendering* before calculating the hash,
-i.e. it will first create a string representation of the JSON formatted data where the keys are in alphabetical order
-and insignificant space characters were elided.
-
-**Example:**
-
-- JSON data package:
-    ```json
-    {
-      "id": "605b91b4-49be-4f17-93e7-f1b14384968f",
-      "ts": 1585838578,
-      "data": {
-          "T": "26.250",
-          "H": "65"
-      }
-    }
-    ```
-- sorted compact rendering (string):
-    ```json
-    {"data":{"H":"65","T":"26.250"},"id":"605b91b4-49be-4f17-93e7-f1b14384968f","ts":1585838578}
-    ```
-- SHA256 digest (base64):
-    ```fundamental
-    uVXpb1vR8UlQnow/FoIcNbvcJ5bY1r2B+DZwe8AYSkE=
-    ```
-
-> **Floating-point numbers and integers greater than 2<sup>53</sup> are not allowed as values for the JSON data package!**
->
-> If you need to sign floating-point numbers or numbers greater than *9,007,199,254,740,992*, you can pass the string representation, e.g.
-> ```json
-> {
->   "float": "5.321",
->   "bigNum": "9007199254740993"
-> }
-> ```
 
 ## Quick Start
 
