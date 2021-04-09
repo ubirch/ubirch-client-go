@@ -30,6 +30,7 @@ import (
 type operation string
 
 const (
+	chainHash   operation = "chain"
 	anchorHash  operation = "anchor"
 	disableHash operation = "disable"
 	enableHash  operation = "enable"
@@ -81,7 +82,7 @@ func (s *Signer) chainer(jobs <-chan HTTPRequest) error {
 			continue
 		}
 
-		log.Infof("%s: anchor hash [chained]: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
+		log.Infof("%s: %s hash: %s", msg.ID, msg.Operation, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
 		uppBytes, err := s.getChainedUPP(msg.ID, msg.Hash)
 		if err != nil {

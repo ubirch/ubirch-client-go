@@ -89,6 +89,8 @@ func (service *ChainingService) handleRequest(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	msg.Operation = chainHash
+
 	msg.Hash, err = getHash(r)
 	if err != nil {
 		Error(w, err, http.StatusBadRequest)
@@ -242,31 +244,32 @@ func checkAuth(r *http.Request, id uuid.UUID, authTokens map[string]string) (str
 func getOperation(r *http.Request) (operation, error) {
 	opParam := chi.URLParam(r, OperationKey)
 	switch operation(opParam) {
-	case disableHash, enableHash, deleteHash:
+	case anchorHash, disableHash, enableHash, deleteHash:
 		return operation(opParam), nil
 	default:
 		return "", fmt.Errorf("invalid update operation: "+
-			"expected (\"%s\" | \"%s\" | \"%s\"), got \"%s\"", disableHash, enableHash, deleteHash, opParam)
+			"expected (\"%s\" | \"%s\" | \"%s\" | \"%s\"), got \"%s\"",
+			anchorHash, disableHash, enableHash, deleteHash, opParam)
 	}
 }
 
 // getHash returns the hash from the request body
 func getHash(r *http.Request) (Sha256Sum, error) {
-	data, err := ioutil.ReadAll(r.Body)
+	rBody, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return Sha256Sum{}, fmt.Errorf("unable to read request body: %v", err)
 	}
 
 	isHashRequest := strings.HasSuffix(r.URL.Path, HashEndpoint)
 	if isHashRequest { // request contains hash
-		return getHashFromHashRequest(r, data)
+		return getHashFromHashRequest(r.Header, rBody)
 	} else { // request contains original data
-		return getHashFromDataRequest(r, data)
+		return getHashFromDataRequest(r.Header, rBody)
 	}
 }
 
-func getHashFromDataRequest(r *http.Request, data []byte) (hash Sha256Sum, err error) {
-	switch ContentType(r.Header) {
+func getHashFromDataRequest(header http.Header, data []byte) (hash Sha256Sum, err error) {
+	switch ContentType(header) {
 	case JSONType:
 		data, err = getSortedCompactJSON(data)
 		if err != nil {
@@ -275,6 +278,7 @@ func getHashFromDataRequest(r *http.Request, data []byte) (hash Sha256Sum, err e
 		// only log original data if in debug-mode
 		log.Debugf("sorted compact JSON: %s", string(data))
 	case BinType:
+		// do nothing
 	default:
 		return Sha256Sum{}, fmt.Errorf("invalid content-type for original data: "+
 			"expected (\"%s\" | \"%s\")", BinType, JSONType)
@@ -284,14 +288,15 @@ func getHashFromDataRequest(r *http.Request, data []byte) (hash Sha256Sum, err e
 	return sha256.Sum256(data), nil
 }
 
-func getHashFromHashRequest(r *http.Request, data []byte) (hash Sha256Sum, err error) {
-	switch ContentType(r.Header) {
+func getHashFromHashRequest(header http.Header, data []byte) (hash Sha256Sum, err error) {
+	switch ContentType(header) {
 	case TextType:
 		data, err = base64.StdEncoding.DecodeString(string(data))
 		if err != nil {
 			return Sha256Sum{}, fmt.Errorf("decoding base64 encoded hash failed: %v (%s)", err, string(data))
 		}
 	case BinType:
+		// do nothing
 	default:
 		return Sha256Sum{}, fmt.Errorf("invalid content-type for hash: "+
 			"expected (\"%s\" | \"%s\")", BinType, TextType)
