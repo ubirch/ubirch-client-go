@@ -195,6 +195,10 @@ func (service *CBORService) handleRequest(w http.ResponseWriter, r *http.Request
 			Error(w, err, http.StatusInternalServerError)
 			return
 		}
+
+		if ENV != PROD_STAGE { // never log original data on prod
+			log.Debugf("%s: signed COSE with original data: %x", msg.ID, resp.Content)
+		}
 	}
 
 	sendResponse(w, resp)
@@ -305,8 +309,10 @@ func getHashFromDataRequest(header http.Header, data []byte) (hash Sha256Sum, er
 		if err != nil {
 			return Sha256Sum{}, err
 		}
-		// only log original data if in debug-mode
-		log.Debugf("sorted compact JSON: %s", string(data))
+
+		if ENV != PROD_STAGE { // never log original data on prod
+			log.Debugf("sorted compact JSON: %s", string(data))
+		}
 	case BinType:
 		// do nothing
 	default:
