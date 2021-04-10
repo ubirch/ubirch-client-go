@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/sha256"
 	"encoding/base64"
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
@@ -20,19 +19,10 @@ func TestCoseSign(t *testing.T) {
 
 	coseSigner := NewCoseSigner(cryptoCtx)
 
-	sigStruct := &Sig_structure{
-		Context:         COSE_Sign1_Context,
-		ProtectedHeader: ProtectedHeaderAlgES256,
-		External:        []byte{}, // empty
-		Payload:         payload,
-	}
-
-	toBeSigned, err := coseSigner.Marshal(sigStruct)
+	digest, err := coseSigner.GetSigStructDigest(payload)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	digest := sha256.Sum256(toBeSigned)
 
 	coseBytes, err := coseSigner.getSignedCOSE(uid, digest)
 	if err != nil {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
 	"net/http"
 
@@ -64,10 +65,6 @@ func NewCoseSigner(cryptoCtx ubirch.Crypto) *CoseSigner {
 		cryptoCtx: cryptoCtx,
 		encMode:   encMode,
 	}
-}
-
-func (c *CoseSigner) Marshal(v interface{}) ([]byte, error) {
-	return c.encMode.Marshal(v)
 }
 
 func (c *CoseSigner) Sign(msg HTTPRequest) HTTPResponse {
@@ -182,13 +179,33 @@ func (c *CoseSigner) getSignedCOSE(id uuid.UUID, hash [32]byte) ([]byte, error) 
 	}
 
 	// encode COSE_Sign1 object with tag
-	return c.Marshal(cbor.Tag{Number: COSE_Sign1_Tag, Content: coseSign1})
+	return c.encMode.Marshal(cbor.Tag{Number: COSE_Sign1_Tag, Content: coseSign1})
 }
 
-func initCBOREncMode() (en cbor.EncMode, err error) {
+func initCBOREncMode() (cbor.EncMode, error) {
 	encOpt := cbor.EncOptions{
 		IndefLength: cbor.IndefLengthForbidden, // no streaming
 		Sort:        cbor.SortCanonical,        // sort map keys
 	}
 	return encOpt.EncMode()
+}
+
+// GetSigStructDigest creates the SHA256 hash of a CBOR serialized signature structure
+// containing given payload.
+// Implements step 1 + 2 of the "How to compute a signature"-instructions
+// from https://cose-wg.github.io/cose-spec/#rfc.section.4.4 (Signing and Verification Process)
+func (c *CoseSigner) GetSigStructDigest(payload []byte) ([32]byte, error) {
+	sigStruct := &Sig_structure{
+		Context:         COSE_Sign1_Context,
+		ProtectedHeader: ProtectedHeaderAlgES256,
+		External:        []byte{}, // empty
+		Payload:         payload,
+	}
+
+	toBeSigned, err := c.encMode.Marshal(sigStruct)
+	if err != nil {
+		return [32]byte{}, err
+	}
+
+	return sha256.Sum256(toBeSigned), nil
 }
