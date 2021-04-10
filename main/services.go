@@ -179,21 +179,40 @@ func (service *CBORService) handleRequest(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	isHashRequest := strings.HasSuffix(r.URL.Path, HashEndpoint)
-	if !isHashRequest {
-		err = fmt.Errorf("CBOR requests not yet supported. Please use the '/cbor/hash' endpoint")
-		Error(w, err, http.StatusNotImplemented)
-		return
-	}
-
-	msg.Hash, err = getHash(r)
+	var payload []byte
+	payload, msg.Hash, err = service.getPayloadAndCBORHash(r)
 	if err != nil {
 		Error(w, err, http.StatusBadRequest)
 		return
 	}
 
 	resp := service.Sign(msg)
+
+	// if we know the original data, we can insert it to the COSE_Sign1 object
+	if !isHashRequest(r) {
+		err = service.InsertPayloadToCOSE(&resp.Content, payload)
+		if err != nil {
+			Error(w, err, http.StatusInternalServerError)
+			return
+		}
+	}
+
 	sendResponse(w, resp)
+}
+
+func (service *CBORService) getPayloadAndCBORHash(r *http.Request) ([]byte, Sha256Sum, error) {
+	rBody, err := readBody(r)
+	if err != nil {
+		return nil, Sha256Sum{}, err
+	}
+
+	if isHashRequest(r) { // request contains hash
+		hash, err := getHashFromHashRequest(r.Header, rBody)
+		return nil, hash, err
+	} else { // request contains original data
+		hash, err := service.GetSigStructDigest(rBody)
+		return rBody, hash, err
+	}
 }
 
 // wrapper for http.Error that additionally logs the error message to std.Output
@@ -253,15 +272,26 @@ func getOperation(r *http.Request) (operation, error) {
 	}
 }
 
-// getHash returns the hash from the request body
-func getHash(r *http.Request) (Sha256Sum, error) {
+func readBody(r *http.Request) ([]byte, error) {
 	rBody, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		return Sha256Sum{}, fmt.Errorf("unable to read request body: %v", err)
+		return nil, fmt.Errorf("unable to read request body: %v", err)
+	}
+	return rBody, nil
+}
+
+func isHashRequest(r *http.Request) bool {
+	return strings.HasSuffix(r.URL.Path, HashEndpoint)
+}
+
+// getHash returns the hash from the request body
+func getHash(r *http.Request) (Sha256Sum, error) {
+	rBody, err := readBody(r)
+	if err != nil {
+		return Sha256Sum{}, err
 	}
 
-	isHashRequest := strings.HasSuffix(r.URL.Path, HashEndpoint)
-	if isHashRequest { // request contains hash
+	if isHashRequest(r) { // request contains hash
 		return getHashFromHashRequest(r.Header, rBody)
 	} else { // request contains original data
 		return getHashFromDataRequest(r.Header, rBody)

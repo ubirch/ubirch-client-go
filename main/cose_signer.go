@@ -206,3 +206,18 @@ func (c *CoseSigner) GetSigStructDigest(payload []byte) ([32]byte, error) {
 
 	return sha256.Sum256(toBeSigned), nil
 }
+
+func (c *CoseSigner) InsertPayloadToCOSE(coseBytes *[]byte, payload []byte) error {
+	coseSign1 := &COSE_Sign1{}
+
+	err := cbor.Unmarshal(*coseBytes, coseSign1)
+	if err != nil {
+		return err
+	}
+
+	coseSign1.Payload = payload
+
+	*coseBytes, err = c.encMode.Marshal(cbor.Tag{Number: COSE_Sign1_Tag, Content: coseSign1})
+
+	return err
+}
