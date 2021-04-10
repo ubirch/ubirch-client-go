@@ -174,7 +174,7 @@ func (c *CoseSigner) getSignedCOSE(id uuid.UUID, hash [32]byte) ([]byte, error) 
 	coseSign1 := &COSE_Sign1{
 		Protected:   ProtectedHeaderAlgES256,
 		Unprotected: map[interface{}]interface{}{COSE_Kid_Label: id[:]},
-		Payload:     []byte{},
+		Payload:     hash[:],
 		Signature:   signatureBytes,
 	}
 
