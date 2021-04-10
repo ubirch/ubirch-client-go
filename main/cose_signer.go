@@ -11,7 +11,43 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const COSE_Sign1_Tag = 18
+const (
+	COSE_Kid_Label     = 4            // key identifier label (Common COSE Headers Parameters: https://cose-wg.github.io/cose-spec/#rfc.section.3.1)
+	COSE_Sign1_Tag     = 18           // CBOR tag TBD7 identifies tagged COSE_Sign1 structure (https://cose-wg.github.io/cose-spec/#rfc.section.4.2)
+	COSE_Sign1_Context = "Signature1" // signature context identifier for COSE_Sign1 structure (https://cose-wg.github.io/cose-spec/#rfc.section.4.4)
+
+)
+
+var ProtectedHeaderAlgES256 = []byte{0xA1, 0x01, 0x26} // {"alg": "ES256"}
+
+// 	COSE_Sign1 = [
+// 		Headers,
+//		payload : bstr / nil,
+//		signature : bstr
+//	]
+// https://cose-wg.github.io/cose-spec/#rfc.section.4.2
+type COSE_Sign1 struct {
+	_           struct{} `cbor:",toarray"`
+	Protected   []byte
+	Unprotected map[interface{}]interface{}
+	Payload     []byte
+	Signature   []byte
+}
+
+//	Sig_structure = [
+// 		context : "Signature1",
+//		body_protected : serialized_map,
+//		external_aad : bstr,
+//		payload : bstr
+//	]
+// https://cose-wg.github.io/cose-spec/#rfc.section.4.4
+type Sig_structure struct {
+	_               struct{} `cbor:",toarray"`
+	Context         string
+	ProtectedHeader []byte
+	External        []byte
+	Payload         []byte
+}
 
 type CoseSigner struct {
 	cryptoCtx ubirch.Crypto
@@ -21,7 +57,7 @@ type CoseSigner struct {
 func NewCoseSigner(cryptoCtx ubirch.Crypto) *CoseSigner {
 	encMode, err := initCBOREncMode()
 	if err != nil {
-		log.Fatal(err) // todo
+		log.Panic(err) // todo
 	}
 
 	return &CoseSigner{
@@ -30,12 +66,8 @@ func NewCoseSigner(cryptoCtx ubirch.Crypto) *CoseSigner {
 	}
 }
 
-func initCBOREncMode() (en cbor.EncMode, err error) {
-	encOpt := cbor.EncOptions{
-		IndefLength: cbor.IndefLengthForbidden, // no streaming
-		Sort:        cbor.SortCanonical,        // sort map keys
-	}
-	return encOpt.EncMode()
+func (c *CoseSigner) Marshal(v interface{}) ([]byte, error) {
+	return c.encMode.Marshal(v)
 }
 
 func (c *CoseSigner) Sign(msg HTTPRequest) HTTPResponse {
@@ -53,14 +85,6 @@ func (c *CoseSigner) Sign(msg HTTPRequest) HTTPResponse {
 		Header:     http.Header{},
 		Content:    coseBytes,
 	}
-}
-
-type COSE_Sign1 struct {
-	_           struct{} `cbor:",toarray"`
-	Protected   []byte
-	Unprotected map[interface{}]interface{}
-	Payload     []byte
-	Signature   []byte
 }
 
 func (c *CoseSigner) getSignedCOSE(id uuid.UUID, hash [32]byte) ([]byte, error) {
@@ -136,10 +160,10 @@ func (c *CoseSigner) getSignedCOSE(id uuid.UUID, hash [32]byte) ([]byte, error) 
 			4. Place the resulting signature value in the 'signature' field of the array.
 
 
-			sig_struct = ['Signature1', b'\xA1\x01\x26', b'', b'payload bytes']
-			hash = SHA256(CBOR-encode(sig_struct))
-			signature = ECDSA-sign(hash)
-			cose_Sign1 = [b'\xA1\x01\x26', {4: b'<uuid>'}, b'payload bytes', signature]
+			sig_structure = ['Signature1', b'\xA1\x01\x26', b'', b'payload bytes']
+			toBeSigned = SHA256_hash(CBOR_encode(sig_structure))
+			signature = ECDSA_sign(toBeSigned)
+			COSE_Sign1 = [b'\xA1\x01\x26', {4: b'<uuid>'}, b'payload bytes', signature]
 
 	*/
 
@@ -151,12 +175,20 @@ func (c *CoseSigner) getSignedCOSE(id uuid.UUID, hash [32]byte) ([]byte, error) 
 
 	// create COSE_Sign1 object
 	coseSign1 := &COSE_Sign1{
-		Protected:   []byte{0xA1, 0x01, 0x26},
-		Unprotected: map[interface{}]interface{}{4: id[:]},
-		Payload:     nil,
+		Protected:   ProtectedHeaderAlgES256,
+		Unprotected: map[interface{}]interface{}{COSE_Kid_Label: id[:]},
+		Payload:     []byte{},
 		Signature:   signatureBytes,
 	}
 
 	// encode COSE_Sign1 object with tag
-	return c.encMode.Marshal(cbor.Tag{Number: COSE_Sign1_Tag, Content: coseSign1})
+	return c.Marshal(cbor.Tag{Number: COSE_Sign1_Tag, Content: coseSign1})
+}
+
+func initCBOREncMode() (en cbor.EncMode, err error) {
+	encOpt := cbor.EncOptions{
+		IndefLength: cbor.IndefLengthForbidden, // no streaming
+		Sort:        cbor.SortCanonical,        // sort map keys
+	}
+	return encOpt.EncMode()
 }

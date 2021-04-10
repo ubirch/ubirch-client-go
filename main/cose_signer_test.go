@@ -8,10 +8,41 @@ import (
 	"testing"
 )
 
-func TestCoseSign(t *testing.T) {
-	uid := uuid.MustParse("d1b7eb09-d1d8-4c63-b6a5-1c861a6477fa")
-	key, _ := base64.StdEncoding.DecodeString("YUm0Xy475i7gnGNSnNJUriHQm33Uf+b/XHqZwjFluwM=")
+var (
+	uid    = uuid.MustParse("d1b7eb09-d1d8-4c63-b6a5-1c861a6477fa")
+	key, _ = base64.StdEncoding.DecodeString("YUm0Xy475i7gnGNSnNJUriHQm33Uf+b/XHqZwjFluwM=")
 
+	payload = []byte("payload bytes")
+)
+
+func TestCoseSign(t *testing.T) {
+	cryptoCtx := setupCrypto(t)
+
+	coseSigner := NewCoseSigner(cryptoCtx)
+
+	sigStruct := &Sig_structure{
+		Context:         COSE_Sign1_Context,
+		ProtectedHeader: ProtectedHeaderAlgES256,
+		External:        []byte{}, // empty
+		Payload:         payload,
+	}
+
+	toBeSigned, err := coseSigner.Marshal(sigStruct)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	digest := sha256.Sum256(toBeSigned)
+
+	coseBytes, err := coseSigner.getSignedCOSE(uid, digest)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Logf("signed COSE: %x", coseBytes)
+}
+
+func setupCrypto(t *testing.T) ubirch.Crypto {
 	cryptoCtx := &ubirch.CryptoContext{
 		Keystore: ubirch.NewEncryptedKeystore([]byte("1234567890123456")),
 		Names:    map[string]uuid.UUID{},
@@ -23,17 +54,7 @@ func TestCoseSign(t *testing.T) {
 	}
 
 	pubKey, _ := cryptoCtx.GetPublicKey(uid.String())
-	t.Logf("%s: public key: %x", uid, pubKey)
+	t.Logf("public key: %x", pubKey)
 
-	coseSigner := NewCoseSigner(cryptoCtx)
-
-	cborBytes := []byte("\\x84jSignature1C\\xa1\\x01&@Nsigned message")
-	cborHash := sha256.Sum256(cborBytes)
-
-	coseBytes, err := coseSigner.getSignedCOSE(uid, cborHash)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Logf("signed COSE: %x", coseBytes)
+	return cryptoCtx
 }
