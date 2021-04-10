@@ -157,10 +157,13 @@ func (c *CoseSigner) getSignedCOSE(id uuid.UUID, hash [32]byte) ([]byte, error) 
 			4. Place the resulting signature value in the 'signature' field of the array.
 
 
-			sig_structure = ['Signature1', b'\xA1\x01\x26', b'', b'payload bytes']
-			toBeSigned = SHA256_hash(CBOR_encode(sig_structure))
-			signature = ECDSA_sign(toBeSigned)
-			COSE_Sign1 = [b'\xA1\x01\x26', {4: b'<uuid>'}, b'payload bytes', signature]
+		=> Pseudo-Code:
+			sig_structure = ['Signature1', b'\xA1\x01\x26', b'', b'payload bytes']		# (1.) out of scope
+			toBeSigned = SHA256_hash(CBOR_encode(sig_structure))						# (2.) normally, the hashing would be done in the next step, as part of
+																								the signing, but since we do not want to know the original data,
+																								the hashing should be done out of scope of this method
+			signature = ECDSA_sign(toBeSigned)											# (3.) in scope
+			COSE_Sign1 = [b'\xA1\x01\x26', {4: b'<uuid>'}, b'payload bytes', signature]	# (4.)
 
 	*/
 
