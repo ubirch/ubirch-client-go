@@ -20,6 +20,9 @@ import (
 const (
 	UUIDKey      = "uuid"
 	OperationKey = "operation"
+	VerifyPath   = "verify"
+	COSEPath     = "cbor"
+	HashEndpoint = "hash"
 
 	BinType  = "application/octet-stream"
 	TextType = "text/plain"
@@ -60,12 +63,12 @@ type SigningService struct {
 
 var _ Service = (*SigningService)(nil)
 
-type CBORService struct {
+type COSEService struct {
 	*CoseSigner
 	AuthTokens map[string]string
 }
 
-var _ Service = (*CBORService)(nil)
+var _ Service = (*COSEService)(nil)
 
 type VerificationService struct {
 	*Verifier
@@ -73,126 +76,132 @@ type VerificationService struct {
 
 var _ Service = (*VerificationService)(nil)
 
-func (service *ChainingService) handleRequest(w http.ResponseWriter, r *http.Request) {
-	var msg HTTPRequest
+func (c *ChainingService) handleRequest(w http.ResponseWriter, r *http.Request) {
 	var err error
+
+	msg := HTTPRequest{
+		Operation:  chainHash,
+		Response:   make(chan HTTPResponse),
+		RequestCtx: r.Context(),
+	}
 
 	msg.ID, err = getUUID(r)
 	if err != nil {
-		Error(w, err, http.StatusNotFound)
+		Error(msg.ID, w, err, http.StatusNotFound)
 		return
 	}
 
-	msg.Auth, err = checkAuth(r, msg.ID, service.AuthTokens)
+	msg.Auth, err = checkAuth(r, msg.ID, c.AuthTokens)
 	if err != nil {
-		Error(w, err, http.StatusUnauthorized)
+		Error(msg.ID, w, err, http.StatusUnauthorized)
 		return
 	}
-
-	msg.Operation = chainHash
 
 	msg.Hash, err = getHash(r)
 	if err != nil {
-		Error(w, err, http.StatusBadRequest)
+		Error(msg.ID, w, err, http.StatusBadRequest)
 		return
 	}
 
-	// create HTTPRequest with individual response channel for each request
-	msg.Response = make(chan HTTPResponse)
-
-	msg.RequestCtx = r.Context()
-
-	// submit message for chaining
-	select {
-	case service.Jobs <- msg:
-	default: // do not accept any more requests if buffer is full
-		log.Warnf("%s: resquest skipped due to overflowing request channel", msg.ID)
+	err = c.submitForChaining(msg)
+	if err != nil {
+		log.Warnf("%s: %v", msg.ID, err)
 		http.Error(w, "Service Temporarily Unavailable", http.StatusServiceUnavailable)
 		return
 	}
 
-	// wait for response or context cancel
+	resp, err := waitForResp(msg.Response, r.Context())
+	if err != nil {
+		log.Warnf("%s: %v", msg.ID, err)
+		return
+	}
+
+	sendResponse(w, resp)
+}
+
+func (c *ChainingService) submitForChaining(msg HTTPRequest) error {
 	select {
-	case resp := <-msg.Response:
-		sendResponse(w, resp)
-	case <-r.Context().Done():
-		log.Warnf("%s: %v", msg.ID, r.Context().Err())
+	case c.Jobs <- msg:
+		return nil
+	default: // do not accept any more requests if buffer is full
+		return fmt.Errorf("resquest skipped due to overflowing request channel")
 	}
 }
 
-func (service *SigningService) handleRequest(w http.ResponseWriter, r *http.Request) {
+func (s *SigningService) handleRequest(w http.ResponseWriter, r *http.Request) {
 	var msg HTTPRequest
 	var err error
 
 	msg.ID, err = getUUID(r)
 	if err != nil {
-		Error(w, err, http.StatusNotFound)
+		Error(msg.ID, w, err, http.StatusNotFound)
 		return
 	}
 
-	msg.Auth, err = checkAuth(r, msg.ID, service.AuthTokens)
+	msg.Auth, err = checkAuth(r, msg.ID, s.AuthTokens)
 	if err != nil {
-		Error(w, err, http.StatusUnauthorized)
+		Error(msg.ID, w, err, http.StatusUnauthorized)
 		return
 	}
 
 	msg.Operation, err = getOperation(r)
 	if err != nil {
-		Error(w, err, http.StatusNotFound)
+		Error(msg.ID, w, err, http.StatusNotFound)
 		return
 	}
 
 	msg.Hash, err = getHash(r)
 	if err != nil {
-		Error(w, err, http.StatusBadRequest)
+		Error(msg.ID, w, err, http.StatusBadRequest)
 		return
 	}
 
-	resp := service.Sign(msg)
+	resp := s.Sign(msg)
 	sendResponse(w, resp)
 }
 
-func (service *VerificationService) handleRequest(w http.ResponseWriter, r *http.Request) {
+func (v *VerificationService) handleRequest(w http.ResponseWriter, r *http.Request) {
 	hash, err := getHash(r)
 	if err != nil {
-		Error(w, err, http.StatusBadRequest)
+		Error(uuid.Nil, w, err, http.StatusBadRequest)
 		return
 	}
 
-	resp := service.verifyHash(hash[:])
+	resp := v.Verify(hash[:])
 	sendResponse(w, resp)
 }
 
-func (service *CBORService) handleRequest(w http.ResponseWriter, r *http.Request) {
+func (c *COSEService) handleRequest(w http.ResponseWriter, r *http.Request) {
 	var msg HTTPRequest
 	var err error
 
 	msg.ID, err = getUUID(r)
 	if err != nil {
-		Error(w, err, http.StatusNotFound)
+		Error(msg.ID, w, err, http.StatusNotFound)
 		return
 	}
 
-	msg.Auth, err = checkAuth(r, msg.ID, service.AuthTokens)
+	msg.Auth, err = checkAuth(r, msg.ID, c.AuthTokens)
 	if err != nil {
-		Error(w, err, http.StatusUnauthorized)
+		Error(msg.ID, w, err, http.StatusUnauthorized)
 		return
 	}
 
-	var payload []byte
-	payload, msg.Hash, err = service.getPayloadAndCBORHash(r)
+	payload, hash, err := c.getPayloadAndCBORHash(r)
 	if err != nil {
-		Error(w, err, http.StatusBadRequest)
+		Error(msg.ID, w, err, http.StatusBadRequest)
 		return
 	}
 
-	resp := service.Sign(msg)
+	msg.Hash = hash
 
-	// if we know the original data, we can insert it to the COSE_Sign1 object
-	if !isHashRequest(r) {
-		err = service.InsertPayloadToCOSE(&resp.Content, payload)
+	resp := c.Sign(msg)
+
+	if !isHashRequest(r) { // if we know the original data, we can insert it to the COSE_Sign1 object
+		err = c.InsertPayloadToCOSE(&resp.Content, payload)
 		if err != nil {
-			Error(w, err, http.StatusInternalServerError)
+			log.Warnf("%s: %v", msg.ID, err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
 
@@ -204,7 +213,7 @@ func (service *CBORService) handleRequest(w http.ResponseWriter, r *http.Request
 	sendResponse(w, resp)
 }
 
-func (service *CBORService) getPayloadAndCBORHash(r *http.Request) ([]byte, Sha256Sum, error) {
+func (c *COSEService) getPayloadAndCBORHash(r *http.Request) ([]byte, Sha256Sum, error) {
 	rBody, err := readBody(r)
 	if err != nil {
 		return nil, Sha256Sum{}, err
@@ -214,14 +223,17 @@ func (service *CBORService) getPayloadAndCBORHash(r *http.Request) ([]byte, Sha2
 		hash, err := getHashFromHashRequest(r.Header, rBody)
 		return nil, hash, err
 	} else { // request contains original data
-		hash, err := service.GetSigStructDigest(rBody)
+		if ContentType(r.Header) != BinType {
+			return nil, Sha256Sum{}, fmt.Errorf("invalid content-type for original data: expected \"%s\"", BinType)
+		}
+		hash, err := c.GetSigStructDigest(rBody)
 		return rBody, hash, err
 	}
 }
 
 // wrapper for http.Error that additionally logs the error message to std.Output
-func Error(w http.ResponseWriter, err error, code int) {
-	log.Error(err)
+func Error(uid uuid.UUID, w http.ResponseWriter, err error, code int) {
+	log.Warnf("%s: %v", uid, err)
 	http.Error(w, err.Error(), code)
 }
 
@@ -251,7 +263,7 @@ func checkAuth(r *http.Request, id uuid.UUID, authTokens map[string]string) (str
 	// check if UUID is known
 	idAuthToken, exists := authTokens[id.String()]
 	if !exists || idAuthToken == "" {
-		return "", fmt.Errorf("unknown UUID: \"%s\"", id.String())
+		return "", fmt.Errorf("unknown UUID")
 	}
 
 	// check auth token from request header
@@ -357,7 +369,7 @@ func getSortedCompactJSON(data []byte) ([]byte, error) {
 		return nil, fmt.Errorf("unable to parse request body: %v", err)
 	}
 	// json.Marshal sorts the keys
-	sortedJson, err := JSONMarshal(reqDump)
+	sortedJson, err := jsonMarshal(reqDump)
 	if err != nil {
 		return nil, fmt.Errorf("unable to serialize json object: %v", err)
 	}
@@ -370,12 +382,23 @@ func getSortedCompactJSON(data []byte) ([]byte, error) {
 	return sortedCompactJson.Bytes(), nil
 }
 
-func JSONMarshal(v interface{}) ([]byte, error) {
+func jsonMarshal(v interface{}) ([]byte, error) {
 	buffer := &bytes.Buffer{}
 	encoder := json.NewEncoder(buffer)
 	encoder.SetEscapeHTML(false)
 	err := encoder.Encode(v)
 	return buffer.Bytes(), err
+}
+
+// wait for response or context cancel
+// returns the response, if response comes first, or ctx.Err(), if context was canceled first
+func waitForResp(msgResp <-chan HTTPResponse, ctx context.Context) (HTTPResponse, error) {
+	select {
+	case resp := <-msgResp:
+		return resp, nil
+	case <-ctx.Done():
+		return HTTPResponse{}, ctx.Err()
+	}
 }
 
 // forwards response to sender

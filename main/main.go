@@ -124,7 +124,7 @@ func main() {
 
 	// set up endpoint for chaining
 	httpServer.AddEndpoint(ServerEndpoint{
-		Path: fmt.Sprintf("/{%s}", UUIDKey),
+		Path: fmt.Sprintf("{%s}", UUIDKey),
 		Service: &ChainingService{
 			Jobs:       chainingJobs,
 			AuthTokens: conf.Devices,
@@ -133,7 +133,7 @@ func main() {
 
 	// set up endpoint for signing
 	httpServer.AddEndpoint(ServerEndpoint{
-		Path: fmt.Sprintf("/{%s}/{%s}", UUIDKey, OperationKey),
+		Path: fmt.Sprintf("{%s}/{%s}", UUIDKey, OperationKey),
 		Service: &SigningService{
 			Signer:     &s,
 			AuthTokens: conf.Devices,
@@ -142,16 +142,16 @@ func main() {
 
 	// set up endpoint for verification
 	httpServer.AddEndpoint(ServerEndpoint{
-		Path: "/verify",
+		Path: VerifyPath,
 		Service: &VerificationService{
 			Verifier: &v,
 		},
 	})
 
-	// set up endpoint for CBOR signing
+	// set up endpoint for COSE signing
 	httpServer.AddEndpoint(ServerEndpoint{
-		Path: fmt.Sprintf("/{%s}/cbor", UUIDKey),
-		Service: &CBORService{
+		Path: fmt.Sprintf("{%s}/%s", UUIDKey, COSEPath),
+		Service: &COSEService{
 			CoseSigner: coseSigner,
 			AuthTokens: conf.Devices,
 		},

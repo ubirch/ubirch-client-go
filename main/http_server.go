@@ -21,8 +21,6 @@ const (
 	ReadTimeout           = 5 * time.Second
 	WriteTimeout          = 30 * time.Second
 	IdleTimeout           = 120 * time.Second
-
-	HashEndpoint = "/hash"
 )
 
 type ServerEndpoint struct {
@@ -65,7 +63,7 @@ func (srv *HTTPServer) SetUpCORS(allowedOrigins []string, debug bool) {
 }
 
 func (srv *HTTPServer) AddEndpoint(endpoint ServerEndpoint) {
-	hashEndpointPath := path.Join(endpoint.Path + HashEndpoint)
+	hashEndpointPath := path.Join(endpoint.Path, HashEndpoint)
 
 	srv.router.Post(endpoint.Path, endpoint.handleRequest)
 	srv.router.Post(hashEndpointPath, endpoint.handleRequest)

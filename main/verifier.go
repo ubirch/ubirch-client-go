@@ -52,7 +52,7 @@ type Verifier struct {
 	verifyFromKnownIdentitiesOnly bool
 }
 
-func (v *Verifier) verifyHash(hash []byte) HTTPResponse {
+func (v *Verifier) Verify(hash []byte) HTTPResponse {
 	log.Infof("verifying hash %s", base64.StdEncoding.EncodeToString(hash))
 
 	// retrieve certificate for hash from the ubirch backend
