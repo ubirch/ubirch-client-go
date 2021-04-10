@@ -49,6 +49,8 @@ const (
 	defaultReqBufSize = 30
 )
 
+var ENV string
+
 // configuration of the client
 type Config struct {
 	Devices          map[string]string `json:"devices"`           // maps UUIDs to backend auth tokens (mandatory)
@@ -251,6 +253,7 @@ func (c *Config) setDefaultURLs() error {
 		return fmt.Errorf("invalid UBIRCH backend environment: \"%s\"", c.Env)
 	}
 
+	ENV = c.Env
 	log.Infof("UBIRCH backend environment: %s", c.Env)
 
 	if c.KeyService == "" {
