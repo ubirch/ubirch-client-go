@@ -29,6 +29,11 @@ func TestCoseSign(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	err = coseSigner.InsertPayloadToCOSE(&coseBytes, payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	t.Logf("signed COSE: %x", coseBytes)
 }
 
