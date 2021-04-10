@@ -183,15 +183,12 @@ func (c *CoseSigner) getSignedCOSE(id uuid.UUID, hash [32]byte) ([]byte, error) 
 }
 
 func initCBOREncMode() (cbor.EncMode, error) {
-	encOpt := cbor.EncOptions{
-		IndefLength: cbor.IndefLengthForbidden, // no streaming
-		Sort:        cbor.SortCanonical,        // sort map keys
-	}
+	encOpt := cbor.CanonicalEncOptions() //https://cose-wg.github.io/cose-spec/#rfc.section.14
 	return encOpt.EncMode()
 }
 
 // GetSigStructDigest creates the SHA256 hash of a CBOR serialized signature structure
-// containing given payload.
+// containing the given payload.
 // Implements step 1 + 2 of the "How to compute a signature"-instructions
 // from https://cose-wg.github.io/cose-spec/#rfc.section.4.4 (Signing and Verification Process)
 func (c *CoseSigner) GetSigStructDigest(payload []byte) ([32]byte, error) {
