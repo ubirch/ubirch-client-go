@@ -292,23 +292,23 @@ The response body consists of either an error message, or a JSON map with
 }
 ```
 
-### COSE Signing Service
+### COSE Service
 
 *see specification: [CBOR Object Signing and Encryption (COSE)](https://tools.ietf.org/html/rfc8152)*
 
-The COSE signing service accepts either original data, or the SHA256 hash of a
+The COSE service expects either original data, or the SHA256 hash of a
 [CBOR-encoded signature structure](https://tools.ietf.org/html/rfc8152#section-4.4) (`Sig_structure`)
 for a [COSE Single Signer Data Object](https://tools.ietf.org/html/rfc8152#section-4.2) (`COSE_Sign1`).
 
 | Method | Path | Content-Type | Description |
 |--------|------|--------------|-------------|
 | POST | `/<UUID>/anchor` | `application/octet-stream` | original data (binary) |
-| POST | `/<UUID>/cbor/hash` | `application/octet-stream` | [SHA256 hash (binary)](#how-to-create-cose-objects-with-hashes) |
-| POST | `/<UUID>/cbor/hash` | `text/plain` | [SHA256 hash (base64 string repr.)](#how-to-create-cose-objects-with-hashes) |
+| POST | `/<UUID>/cbor/hash` | `application/octet-stream` | [SHA256 hash (binary)](#how-to-create-valid-cose-objects-without-sending-original-data-to-the-service) |
+| POST | `/<UUID>/cbor/hash` | `text/plain` | [SHA256 hash (base64 string repr.)](#how-to-create-valid-cose-objects-without-sending-original-data-to-the-service) |
 
-#### COSE Signing Response
+#### COSE Response
 
-The client returns a signed `COSE_Sign1` object, containing the request data (original data or SHA256 hash) as payload.
+The service returns a ECDSA P-256 signed `COSE_Sign1` object.
 
 ```fundamental
     COSE_Sign1 = [
@@ -319,12 +319,7 @@ The client returns a signed `COSE_Sign1` object, containing the request data (or
     ]
 ```
 
-**Note, that the `COSE_Sign1` object will not be verifiable, if it does not have the original data as payload.**
-
-If only a hash (and not the original data) is sent to the client, the original data must be inserted into the payload
-field of the returned `COSE_Sign1` object afterwards, in order to get a valid (verifiable) COSE object.
-
-The returned `COSE_Sign1` object contains the
+The returned `COSE_Sign1` object contains the request data (original data or SHA256 hash) as payload and the
 following [header parameters](https://tools.ietf.org/html/rfc8152#section-3):
 
 | Bucket | Name | Label | Value | Description |
@@ -332,33 +327,43 @@ following [header parameters](https://tools.ietf.org/html/rfc8152#section-3):
 | protected header | "alg" | 1 | -7 ([ES256](https://cose-wg.github.io/cose-spec/#rfc.section.8.1)) | Identifier for the cryptographic algorithm used for signing |
 | unprotected header | "kid" | 4 |  <UUID (bytes) corresponding to the key used for signing> | Key identifier |
 
-#### How to create COSE objects with hashes
+**Note, that the `COSE_Sign1` object will not be verifiable, if it does not have the original data as payload.**
 
-Here are the steps to create a valid `COSE_Sign1` object with the appropriate hash, which needs to be sent to the
-client.
+If only a hash (and not the original data) is sent to the COSE service, the original data must be inserted into the
+payload field of the returned `COSE_Sign1` object afterwards, in order to get a valid (verifiable) COSE object.
 
-*These are only necessary when using the `/hash`-endpoint of the COSE signing service. When sending original data, this
-is done internally by the client.*
+#### How to create valid COSE objects without sending original data to the service
 
-1. Create a [Sig_structure](https://tools.ietf.org/html/rfc8152#section-4.4) and fill the fields.
+Here are the steps to create a valid `COSE_Sign1` object with the appropriate hash, which needs to be sent to the COSE
+service.
+
+*These are only necessary when using the `/hash`-endpoint of the COSE service. When sending original data, this is done
+internally by the service.*
+
+1. Create a [Sig_structure](https://tools.ietf.org/html/rfc8152#section-4.4) with the following fields.
 
     ```fundamental
         Sig_structure = [
-            context : "Signature1",
+            context : "Signature1",           # text string identifying the context of the signature
             body_protected : serialized_map,  # the serialized CBOR-encoded protected header map of the `COSE_Sign1` object (b'\xA1\x01\x26') => {1: -7} => {"alg": <ES256>}
             external_aad : bstr,              # empty (b'')
             payload : bstr                    # original data (b'<payload>')
         ]
     ```
 
-2. Create the value *ToBeSigned* by encoding the `Sig_structure` to a byte string, using the CBOR encoding described
+    - context: `"Signature1"`           (identifier for `COSE_Sign1`)
+    - body_protected: `b'\xA1\x01\x26'` (identifier for `ECDSA P-256` signing algorithm)
+    - external_aad: `b''`               (not used)
+    - payload: *here goes the original data bytes*
+
+2. Create the value *ToBeSigned* by encoding the `Sig_structure` to a byte string, using the CBOR-encoding described
    in [Section 14](https://cose-wg.github.io/cose-spec/#rfc.section.14).
 
-3. Create the SHA256 hash of the serialized CBOR-encoded Sig_structure.
+3. Create the SHA256 hash of the CBOR-encoded Sig_structure.
 
-4. Send hash to COSE signing service.
+4. Send hash to COSE service.
 
-5. CBOR-decode response into `COSE_Sign1` structure.
+5. CBOR-decode response into `COSE_Sign1` structure with the following fields.
 
     ```fundamental
         COSE_Sign1 = [
@@ -374,16 +379,11 @@ is done internally by the client.*
 **Pseudo-Code:**
 
 ```fundamental
-sig_structure       = ['Signature1', b'\xA1\x01\x26', b'', b'payload bytes']
-
-toBeSigned          = CBOR_encode(sig_structure)
-
-hash                = SHA256_hash(toBeSigned)
-
-COSE_Sign1_bytes    = send_to_client(hash)
-
+Sig_structure       = ['Signature1', b'\xA1\x01\x26', b'', b'payload bytes']
+ToBeSigned          = CBOR_encode(Sig_structure)
+SHA256              = SHA256_hash(ToBeSigned)
+COSE_Sign1_bytes    = send_to_COSE_service(SHA256)
 COSE_Sign1          = CBOR_decode(COSE_Sign1_bytes)
-
 COSE_Sign1->payload = b'payload bytes'
 ```
 
