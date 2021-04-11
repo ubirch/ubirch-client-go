@@ -296,13 +296,13 @@ The response body consists of either an error message, or a JSON map with
 
 *see specification: [CBOR Object Signing and Encryption (COSE)](https://tools.ietf.org/html/rfc8152)*
 
-The COSE service expects either original data, or the SHA256 hash of a
-[CBOR-encoded signature structure](https://tools.ietf.org/html/rfc8152#section-4.4) (`Sig_structure`)
+The COSE service expects either CBOR encoded original data, or the SHA256 hash of a
+[CBOR encoded signature structure](https://tools.ietf.org/html/rfc8152#section-4.4) (`Sig_structure`)
 for a [COSE Single Signer Data Object](https://tools.ietf.org/html/rfc8152#section-4.2) (`COSE_Sign1`).
 
 | Method | Path | Content-Type | Description |
 |--------|------|--------------|-------------|
-| POST | `/<UUID>/anchor` | `application/octet-stream` | original data (binary) |
+| POST | `/<UUID>/anchor` | `"application/cbor"` | original data (CBOR encoded) |
 | POST | `/<UUID>/cbor/hash` | `application/octet-stream` | [SHA256 hash (binary)](#how-to-create-valid-cose-objects-without-sending-original-data-to-the-service) |
 | POST | `/<UUID>/cbor/hash` | `text/plain` | [SHA256 hash (base64 string repr.)](#how-to-create-valid-cose-objects-without-sending-original-data-to-the-service) |
 
@@ -312,10 +312,10 @@ The service returns a ECDSA P-256 signed `COSE_Sign1` object.
 
 ```fundamental
     COSE_Sign1 = [
-        protected : serialized_map,  # serialized CBOR-encoded protected header map (b'\xA1\x01\x26') => {1: -7} => {"alg": <ES256>}
-        unprotected : header_map,    # CBOR-encoded unprotected header map \xA1\x04\x50\xA7\xEA\x87\xF4\xCF\xC4\x45\x67\x8B\xD1\x0B\x4C\x15\xEA\xF5\x5E => {4: b'\xA7\xEA\x87\xF4\xCF\xC4\x45\x67\x8B\xD1\x0B\x4C\x15\xEA\xF5\x5E'} => {"kid": <UUID>}
+        protected : serialized_map,  # serialized CBOR encoded protected header map (b'\xA1\x01\x26') => {1: -7} => {"alg": <ES256>}
+        unprotected : header_map,    # CBOR encoded unprotected header map \xA1\x04\x50\xA7\xEA\x87\xF4\xCF\xC4\x45\x67\x8B\xD1\x0B\x4C\x15\xEA\xF5\x5E => {4: b'\xA7\xEA\x87\xF4\xCF\xC4\x45\x67\x8B\xD1\x0B\x4C\x15\xEA\xF5\x5E'} => {"kid": <UUID>}
         payload : bstr,              # original data or SHA256 hash (depending on request content)
-        signature : bstr             # ECDSA P-256 signature of the SHA256 hash of the CBOR-encoded COSE_Sign1 signature structure
+        signature : bstr             # ECDSA P-256 signature of the SHA256 hash of the CBOR encoded COSE_Sign1 signature structure
     ]
 ```
 
@@ -345,7 +345,7 @@ internally by the service.*
     ```fundamental
         Sig_structure = [
             context : "Signature1",           # text string identifying the context of the signature
-            body_protected : serialized_map,  # the serialized CBOR-encoded protected header map of the `COSE_Sign1` object (b'\xA1\x01\x26') => {1: -7} => {"alg": <ES256>}
+            body_protected : serialized_map,  # the serialized CBOR encoded protected header map of the `COSE_Sign1` object (b'\xA1\x01\x26') => {1: -7} => {"alg": <ES256>}
             external_aad : bstr,              # empty (b'')
             payload : bstr                    # original data (b'<payload>')
         ]
@@ -359,7 +359,7 @@ internally by the service.*
 2. Create the value *ToBeSigned* by encoding the `Sig_structure` to a byte string, using the CBOR-encoding described
    in [Section 14](https://cose-wg.github.io/cose-spec/#rfc.section.14).
 
-3. Create the SHA256 hash of the CBOR-encoded Sig_structure.
+3. Create the SHA256 hash of the CBOR encoded Sig_structure.
 
 4. Send hash to COSE service.
 
