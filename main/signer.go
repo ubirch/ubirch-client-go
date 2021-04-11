@@ -47,7 +47,6 @@ var hintLookup = map[operation]ubirch.Hint{
 
 type signingResponse struct {
 	Error     string       `json:"error,omitempty"`
-	Operation operation    `json:"operation,omitempty"`
 	Hash      []byte       `json:"hash,omitempty"`
 	UPP       []byte       `json:"upp,omitempty"`
 	Response  HTTPResponse `json:"response,omitempty"`
@@ -61,9 +60,9 @@ type Signer struct {
 }
 
 // non-blocking sending to response channel. returns right away if there is no receiver
-func (msg HTTPRequest) respond(resp HTTPResponse) {
+func (msg ChainingRequest) respond(resp HTTPResponse) {
 	select {
-	case msg.Response <- resp:
+	case msg.ResponseChan <- resp:
 	default:
 		log.Warnf("%s: request has been processed, but response could not be sent: (%d) %s",
 			msg.ID, resp.StatusCode, string(resp.Content))
@@ -71,7 +70,7 @@ func (msg HTTPRequest) respond(resp HTTPResponse) {
 }
 
 // handle incoming messages, create, sign and send a chained ubirch protocol packet (UPP) to the ubirch backend
-func (s *Signer) chainer(jobs <-chan HTTPRequest) error {
+func (s *Signer) chainer(jobs <-chan ChainingRequest) error {
 	log.Debugf("starting chainer")
 
 	for msg := range jobs {
@@ -81,7 +80,7 @@ func (s *Signer) chainer(jobs <-chan HTTPRequest) error {
 			continue
 		}
 
-		log.Infof("%s: %s hash: %s", msg.ID, msg.Operation, base64.StdEncoding.EncodeToString(msg.Hash[:]))
+		log.Infof("%s: anchor hash [chained]: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
 		uppBytes, err := s.getChainedUPP(msg.ID, msg.Hash)
 		if err != nil {
@@ -91,7 +90,7 @@ func (s *Signer) chainer(jobs <-chan HTTPRequest) error {
 		}
 		log.Debugf("%s: chained UPP: %x", msg.ID, uppBytes)
 
-		resp := s.sendUPP(msg, uppBytes)
+		resp := s.sendUPP(msg.HTTPRequest, uppBytes)
 
 		msg.respond(resp)
 
@@ -103,6 +102,8 @@ func (s *Signer) chainer(jobs <-chan HTTPRequest) error {
 				return fmt.Errorf("unable to persist last signature: %v [\"%s\": \"%s\"]",
 					err, msg.ID, base64.StdEncoding.EncodeToString(signature))
 			}
+		} else {
+			log.Errorf("%s: [chain] request failed: (%d) %s", msg.ID, resp.StatusCode, string(resp.Content))
 		}
 	}
 
@@ -110,7 +111,7 @@ func (s *Signer) chainer(jobs <-chan HTTPRequest) error {
 	return nil
 }
 
-func (s *Signer) Sign(msg HTTPRequest) HTTPResponse {
+func (s *Signer) Sign(msg SigningRequest) HTTPResponse {
 	log.Infof("%s: %s hash: %s", msg.ID, msg.Operation, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
 	uppBytes, err := s.getSignedUPP(msg.ID, msg.Hash, msg.Operation)
@@ -120,7 +121,13 @@ func (s *Signer) Sign(msg HTTPRequest) HTTPResponse {
 	}
 	log.Debugf("%s: signed UPP: %x", msg.ID, uppBytes)
 
-	return s.sendUPP(msg, uppBytes)
+	resp := s.sendUPP(msg.HTTPRequest, uppBytes)
+
+	if httpFailed(resp.StatusCode) {
+		log.Errorf("%s: [%s] request failed: (%d) %s", msg.ID, msg.Operation, resp.StatusCode, string(resp.Content))
+	}
+
+	return resp
 }
 
 func (s *Signer) getChainedUPP(id uuid.UUID, hash [32]byte) ([]byte, error) {
@@ -212,15 +219,10 @@ func getSigningResponse(respCode int, msg HTTPRequest, upp []byte, backendResp H
 		UPP:       upp,
 		Response:  backendResp,
 		RequestID: requestID,
-		Operation: msg.Operation,
 		Error:     errMsg,
 	})
 	if err != nil {
 		log.Warnf("error serializing signing response: %v", err)
-	}
-
-	if httpFailed(respCode) {
-		log.Errorf("%s: request failed: (%d) %s", msg.ID, respCode, string(signingResp))
 	}
 
 	return HTTPResponse{

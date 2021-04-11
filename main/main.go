@@ -109,7 +109,7 @@ func main() {
 	go shutdown(cancel)
 
 	// set up synchronous chaining routine
-	chainingJobs := make(chan HTTPRequest, conf.RequestBufSize)
+	chainingJobs := make(chan ChainingRequest, conf.RequestBufSize)
 
 	g.Go(func() error {
 		return s.chainer(chainingJobs)
@@ -147,7 +147,7 @@ func main() {
 
 	// set up endpoint for verification
 	httpServer.AddEndpoint(ServerEndpoint{
-		Path: fmt.Sprintf("/{%s}", VerifyPath),
+		Path: fmt.Sprintf("/%s", VerifyPath),
 		Service: &VerificationService{
 			Verifier: &v,
 		},

@@ -35,12 +35,9 @@ const (
 type Sha256Sum [HashLen]byte
 
 type HTTPRequest struct {
-	ID         uuid.UUID
-	Auth       string
-	Hash       Sha256Sum
-	Operation  operation
-	Response   chan HTTPResponse
-	RequestCtx context.Context
+	ID   uuid.UUID
+	Auth string
+	Hash Sha256Sum
 }
 
 type HTTPResponse struct {
@@ -50,12 +47,18 @@ type HTTPResponse struct {
 }
 
 type ChainingService struct {
-	Jobs       chan HTTPRequest
+	Jobs       chan ChainingRequest
 	AuthTokens map[string]string
 }
 
 // Ensure ChainingService implements the Service interface
 var _ Service = (*ChainingService)(nil)
+
+type ChainingRequest struct {
+	HTTPRequest
+	ResponseChan chan HTTPResponse
+	RequestCtx   context.Context
+}
 
 type SigningService struct {
 	*Signer
@@ -64,12 +67,22 @@ type SigningService struct {
 
 var _ Service = (*SigningService)(nil)
 
+type SigningRequest struct {
+	HTTPRequest
+	Operation operation
+}
+
 type COSEService struct {
 	*CoseSigner
 	AuthTokens map[string]string
 }
 
 var _ Service = (*COSEService)(nil)
+
+type CBORRequest struct {
+	HTTPRequest
+	Payload []byte
+}
 
 type VerificationService struct {
 	*Verifier
@@ -80,10 +93,9 @@ var _ Service = (*VerificationService)(nil)
 func (c *ChainingService) handleRequest(w http.ResponseWriter, r *http.Request) {
 	var err error
 
-	msg := HTTPRequest{
-		Operation:  chainHash,
-		Response:   make(chan HTTPResponse),
-		RequestCtx: r.Context(),
+	msg := ChainingRequest{
+		ResponseChan: make(chan HTTPResponse),
+		RequestCtx:   r.Context(),
 	}
 
 	msg.ID, err = getUUID(r)
@@ -111,7 +123,7 @@ func (c *ChainingService) handleRequest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	resp, err := waitForResp(msg.Response, r.Context())
+	resp, err := waitForResp(msg.ResponseChan, r.Context())
 	if err != nil {
 		log.Warnf("%s: %v", msg.ID, err)
 		return
@@ -120,7 +132,7 @@ func (c *ChainingService) handleRequest(w http.ResponseWriter, r *http.Request) 
 	sendResponse(w, resp)
 }
 
-func (c *ChainingService) submitForChaining(msg HTTPRequest) error {
+func (c *ChainingService) submitForChaining(msg ChainingRequest) error {
 	select {
 	case c.Jobs <- msg:
 		return nil
@@ -130,7 +142,7 @@ func (c *ChainingService) submitForChaining(msg HTTPRequest) error {
 }
 
 func (s *SigningService) handleRequest(w http.ResponseWriter, r *http.Request) {
-	var msg HTTPRequest
+	var msg SigningRequest
 	var err error
 
 	msg.ID, err = getUUID(r)
@@ -173,7 +185,7 @@ func (v *VerificationService) handleRequest(w http.ResponseWriter, r *http.Reque
 }
 
 func (c *COSEService) handleRequest(w http.ResponseWriter, r *http.Request) {
-	var msg HTTPRequest
+	var msg CBORRequest
 	var err error
 
 	msg.ID, err = getUUID(r)
@@ -193,22 +205,13 @@ func (c *COSEService) handleRequest(w http.ResponseWriter, r *http.Request) {
 		Error(msg.ID, w, err, http.StatusBadRequest)
 		return
 	}
-
+	msg.Payload = payload
 	msg.Hash = hash
 
 	resp := c.Sign(msg)
 
-	if !isHashRequest(r) { // if we know the original data, we can insert it to the COSE_Sign1 object
-		err = c.InsertPayloadToCOSE(&resp.Content, payload)
-		if err != nil {
-			log.Warnf("%s: %v", msg.ID, err)
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-			return
-		}
-
-		if ENV != PROD_STAGE { // never log original data on prod
-			log.Debugf("%s: signed COSE with original data: %x", msg.ID, resp.Content)
-		}
+	if isHashRequest(r) || ENV != PROD_STAGE { // never log original data on prod
+		log.Debugf("%s: signed COSE: %x", msg.ID, resp.Content)
 	}
 
 	sendResponse(w, resp)

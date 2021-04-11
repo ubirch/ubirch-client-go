@@ -66,15 +66,14 @@ func NewCoseSigner(cryptoCtx *ubirch.ECDSACryptoContext) *CoseSigner {
 	}
 }
 
-func (c *CoseSigner) Sign(msg HTTPRequest) HTTPResponse {
+func (c *CoseSigner) Sign(msg CBORRequest) HTTPResponse {
 	log.Infof("%s: sign CBOR hash: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
-	coseBytes, err := c.getSignedCOSE(msg.ID, msg.Hash)
+	coseBytes, err := c.getSignedCOSE(msg.ID, msg.Hash, msg.Payload)
 	if err != nil {
 		log.Errorf("%s: could not create signed COSE: %v", msg.ID, err)
 		return errorResponse(http.StatusInternalServerError, "")
 	}
-	log.Debugf("%s: signed COSE: %x", msg.ID, coseBytes)
 
 	return HTTPResponse{
 		StatusCode: http.StatusOK,
@@ -84,7 +83,7 @@ func (c *CoseSigner) Sign(msg HTTPRequest) HTTPResponse {
 }
 
 // getSignedCOSE creates a COSE Single Signer Data Object (COSE_Sign1) with ECDSA P-256 signature
-func (c *CoseSigner) getSignedCOSE(id uuid.UUID, hash [32]byte) ([]byte, error) {
+func (c *CoseSigner) getSignedCOSE(id uuid.UUID, hash [32]byte, payload []byte) ([]byte, error) {
 	/*
 		* https://cose-wg.github.io/cose-spec/#rfc.section.4.2
 			[COSE Single Signer Data Object]
@@ -159,13 +158,13 @@ func (c *CoseSigner) getSignedCOSE(id uuid.UUID, hash [32]byte) ([]byte, error) 
 
 
 		=> Pseudo-Code:
-			sig_structure = ['Signature1', b'\xA1\x01\x26', b'', b'payload bytes']	# (1.) out of scope
+			sig_structure = ['Signature1', b'\xA1\x01\x26', b'', <payload>]			# (1.) out of scope
 			hash = SHA256_hash(CBOR_encode(sig_structure))							# (2.)  normally, the hashing would be done in the next step, as part of
 																							the signing, but since we do not want to know the original data,
 																							the hashing should be done out of scope of this method
 			signature = ECDSA_sign(hash)											# (3.) in scope
-			COSE_Sign1 = [b'\xA1\x01\x26', {4: b'<uuid>'}, hash, signature]			# (4.) here we place the hash in the 'payload' field instead of the original payload
-
+			COSE_Sign1 = [b'\xA1\x01\x26', {4: b'<uuid>'}, <payload>, signature]	# (4.) here we place the hash in the 'payload' field if original
+																							payload is unknown
 	*/
 
 	// create ES256 signature
@@ -178,7 +177,7 @@ func (c *CoseSigner) getSignedCOSE(id uuid.UUID, hash [32]byte) ([]byte, error) 
 	coseSign1 := &COSE_Sign1{
 		Protected:   ProtectedHeaderAlgES256,
 		Unprotected: map[interface{}]interface{}{COSE_Kid_Label: id[:]},
-		Payload:     hash[:],
+		Payload:     payload,
 		Signature:   signatureBytes,
 	}
 
@@ -207,19 +206,4 @@ func (c *CoseSigner) GetSigStructBytes(payload []byte) ([]byte, error) {
 
 	// encode with "Canonical CBOR" rules -> https://tools.ietf.org/html/rfc7049#section-3.9
 	return c.encMode.Marshal(sigStruct)
-}
-
-func (c *CoseSigner) InsertPayloadToCOSE(coseBytes *[]byte, payload []byte) error {
-	coseSign1 := &COSE_Sign1{}
-
-	err := cbor.Unmarshal(*coseBytes, coseSign1)
-	if err != nil {
-		return err
-	}
-
-	coseSign1.Payload = payload
-
-	*coseBytes, err = c.encMode.Marshal(cbor.Tag{Number: COSE_Sign1_Tag, Content: coseSign1})
-
-	return err
 }

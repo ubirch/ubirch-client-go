@@ -233,7 +233,6 @@ if necessary.
 
 The response body consists of either an error message, or a JSON map with
 
-- the carried out operation,
 - the data hash,
 - the UPP, which contains that data hash and was sent to the UBIRCH backend by the client,
 - the response from the UBIRCH backend,
@@ -242,7 +241,6 @@ The response body consists of either an error message, or a JSON map with
 
 ```fundamental
 {
-  "operation": "(anchor | delete | enable | disable)",
   "hash": "<base64 encoded data hash>",
   "upp": "<base64 encoded UPP containing the data hash>",
   "response": {
@@ -754,14 +752,13 @@ By default, the log of the client is in JSON format. To change it to a (more hum
 
    If your request was submitted, you'll get a `200` response code.
 
-   The HTTP response body from the client is a JSON map containing the carried out operation, the data hash, the UPP,
-   which was sent to the UBIRCH backend, and the backend response, of which the content is also a UPP, UPPs are in *
-   MessagePack* format (base64 encoded) and can be decoded using, for example, this
+   The HTTP response body from the client is a JSON map containing the data hash, the UPP, which was sent to the UBIRCH
+   backend, and the backend response, of which the content is also a UPP, UPPs are in *MessagePack* format
+   (base64 encoded) and can be decoded using, for example, this
    [MessagePack to JSON Converter](https://toolslick.com/conversion/data/messagepack-to-json).
 
    ```json
     {
-        "operation": "anchor",
         "hash": "CDUvtOIBnnZ8im/UXQn5G/q5EK9l2Bqy+HyMgSzPZoA=",
         "upp": "liPEEFCxpbuDzUJRtnSzxxoFj8PEQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAxCAINS+04gGednyKb9RdCfkb+rkQr2XYGrL4fIyBLM9mgMRAIVlhgxobRl7ApJerXUyJ5cBxBJJ7gwPUN9AKgKJWxAxkWMWufRp8jW9Ha79s5hYbNp9+bn94cMflWyAyyjy4Ew==",
         "response": {
