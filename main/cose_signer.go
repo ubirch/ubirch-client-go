@@ -51,11 +51,11 @@ type Sig_structure struct {
 }
 
 type CoseSigner struct {
-	cryptoCtx ubirch.Crypto
+	cryptoCtx *ubirch.ECDSACryptoContext
 	encMode   cbor.EncMode
 }
 
-func NewCoseSigner(cryptoCtx ubirch.Crypto) *CoseSigner {
+func NewCoseSigner(cryptoCtx *ubirch.ECDSACryptoContext) *CoseSigner {
 	encMode, err := initCBOREncMode()
 	if err != nil {
 		log.Panic(err) // todo
@@ -84,16 +84,18 @@ func (c *CoseSigner) Sign(msg HTTPRequest) HTTPResponse {
 	}
 }
 
+// getSignedCOSE creates a COSE Single Signer Data Object (COSE_Sign1) with ECDSA P-256 signature
 func (c *CoseSigner) getSignedCOSE(id uuid.UUID, hash [32]byte) ([]byte, error) {
 	/*
 		* https://cose-wg.github.io/cose-spec/#rfc.section.4.2
+			[COSE Single Signer Data Object]
 
 			The COSE_Sign1 structure is used when only one signature is going to be placed on a message.
 
 			The structure can be encoded either tagged or untagged depending on the context it will be used in.
 			A tagged COSE_Sign1 structure is identified by the CBOR tag TBD7. The CDDL fragment that represents this is:
 
-			COSE_Sign1_Tagged = #6.18(COSE_Sign1)	# [18	cose-sign1	COSE_Sign1	COSE Single Signer Data Object]
+			COSE_Sign1_Tagged = #6.18(COSE_Sign1)
 
 			The COSE_Sign1 structure is a CBOR array. The fields of the array in order are:
 
@@ -115,7 +117,7 @@ func (c *CoseSigner) getSignedCOSE(id uuid.UUID, hash [32]byte) ([]byte, error) 
 		* https://cose-wg.github.io/cose-spec/#rfc.section.3
 
 				Headers = (
-					protected : serialized_map,		# (b'\xA1\x01\x26')	=> {1: -7} => {"alg": "ES256"}
+					protected : serialized_map,		# (b'\xA1\x01\x26')	=> {1: -7} => {"alg": ES256}
 					unprotected : header_map		# \xA1\x04\x42\x31\x31 => {4: b'\x31\x31'} => {"kid": "11"}
 				)
 
@@ -142,7 +144,7 @@ func (c *CoseSigner) getSignedCOSE(id uuid.UUID, hash [32]byte) ([]byte, error) 
 				Sig_structure = [
 					context : "Signature1",
 					body_protected : serialized_map,	# (b'\xA1\x01\x26')	=> {1: -7}
-					external_aad : empty bstr,			# (b'')
+					external_aad : bstr,				# (b'')
 					payload : bstr						# (b'payload bytes')
 				]
 
@@ -158,12 +160,12 @@ func (c *CoseSigner) getSignedCOSE(id uuid.UUID, hash [32]byte) ([]byte, error) 
 
 
 		=> Pseudo-Code:
-			sig_structure = ['Signature1', b'\xA1\x01\x26', b'', b'payload bytes']		# (1.) out of scope
-			toBeSigned = SHA256_hash(CBOR_encode(sig_structure))						# (2.) normally, the hashing would be done in the next step, as part of
-																								the signing, but since we do not want to know the original data,
-																								the hashing should be done out of scope of this method
-			signature = ECDSA_sign(toBeSigned)											# (3.) in scope
-			COSE_Sign1 = [b'\xA1\x01\x26', {4: b'<uuid>'}, b'payload bytes', signature]	# (4.)
+			sig_structure = ['Signature1', b'\xA1\x01\x26', b'', b'payload bytes']	# (1.) out of scope
+			hash = SHA256_hash(CBOR_encode(sig_structure))							# (2.)  normally, the hashing would be done in the next step, as part of
+																							the signing, but since we do not want to know the original data,
+																							the hashing should be done out of scope of this method
+			signature = ECDSA_sign(hash)											# (3.) in scope
+			COSE_Sign1 = [b'\xA1\x01\x26', {4: b'<uuid>'}, hash, signature]			# (4.) here we place the hash in the 'payload' field instead of the original payload
 
 	*/
 
@@ -194,6 +196,7 @@ func initCBOREncMode() (cbor.EncMode, error) {
 // containing the given payload.
 // Implements step 1 + 2 of the "How to compute a signature"-instructions
 // from https://cose-wg.github.io/cose-spec/#rfc.section.4.4 (Signing and Verification Process)
+// and additionally hashes the result.
 func (c *CoseSigner) GetSigStructDigest(payload []byte) ([32]byte, error) {
 	sigStruct := &Sig_structure{
 		Context:         COSE_Sign1_Context,

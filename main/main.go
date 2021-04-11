@@ -21,6 +21,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"golang.org/x/sync/errgroup"
 
 	log "github.com/sirupsen/logrus"
@@ -61,13 +63,18 @@ func main() {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
 
+	// initialize ubirch protocol
+	cryptoCtx := &ubirch.ECDSACryptoContext{
+		Keystore: ubirch.NewEncryptedKeystore(conf.SecretBytes),
+		Names:    map[string]uuid.UUID{},
+	}
+
 	ctxManager, err := conf.GetCtxManager()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// initialize ubirch protocol instance
-	p, err := NewExtendedProtocol(conf.SecretBytes, ctxManager, configDir)
+	p, err := NewExtendedProtocol(cryptoCtx, ctxManager, configDir)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -93,7 +100,7 @@ func main() {
 		verifyFromKnownIdentitiesOnly: false, // TODO: make configurable
 	}
 
-	coseSigner := NewCoseSigner(p.Crypto)
+	coseSigner := NewCoseSigner(cryptoCtx)
 
 	// create a waitgroup that contains all asynchronous operations
 	// a cancellable context is used to stop the operations gracefully

@@ -44,15 +44,11 @@ type ContextManager interface {
 	Close() error
 }
 
-// Init sets keys in crypto context and updates keystore in persistent storage
-func NewExtendedProtocol(secret []byte, cm ContextManager, configDir string) (*ExtendedProtocol, error) {
+func NewExtendedProtocol(cryptoCtx ubirch.Crypto, ctxManager ContextManager, configDir string) (*ExtendedProtocol, error) {
 	p := &ExtendedProtocol{}
-	p.Crypto = &ubirch.CryptoContext{
-		Keystore: ubirch.NewEncryptedKeystore(secret),
-		Names:    map[string]uuid.UUID{},
-	}
+	p.Crypto = cryptoCtx
+	p.ctxManager = ctxManager
 	p.Signatures = map[uuid.UUID][]byte{}
-	p.ctxManager = cm
 
 	err := p.portLegacyProtocolCtxFile(configDir)
 	if err != nil {

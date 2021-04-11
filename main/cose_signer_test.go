@@ -37,8 +37,8 @@ func TestCoseSign(t *testing.T) {
 	t.Logf("signed COSE: %x", coseBytes)
 }
 
-func setupCrypto(t *testing.T) ubirch.Crypto {
-	cryptoCtx := &ubirch.CryptoContext{
+func setupCrypto(t *testing.T) *ubirch.ECDSACryptoContext {
+	cryptoCtx := &ubirch.ECDSACryptoContext{
 		Keystore: ubirch.NewEncryptedKeystore([]byte("1234567890123456")),
 		Names:    map[string]uuid.UUID{},
 	}
