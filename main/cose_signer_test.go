@@ -40,15 +40,14 @@ func TestCoseSign(t *testing.T) {
 func setupCrypto(t *testing.T) *ubirch.ECDSACryptoContext {
 	cryptoCtx := &ubirch.ECDSACryptoContext{
 		Keystore: ubirch.NewEncryptedKeystore([]byte("1234567890123456")),
-		Names:    map[string]uuid.UUID{},
 	}
 
-	err := cryptoCtx.SetKey(uid.String(), uid, key)
+	err := cryptoCtx.SetKey(uid, key)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	pubKey, _ := cryptoCtx.GetPublicKey(uid.String())
+	pubKey, _ := cryptoCtx.GetPublicKey(uid)
 	t.Logf("public key: %x", pubKey)
 
 	return cryptoCtx

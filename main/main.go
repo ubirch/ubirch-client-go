@@ -21,7 +21,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"golang.org/x/sync/errgroup"
 
@@ -66,7 +65,6 @@ func main() {
 	// initialize ubirch protocol
 	cryptoCtx := &ubirch.ECDSACryptoContext{
 		Keystore: ubirch.NewEncryptedKeystore(conf.SecretBytes),
-		Names:    map[string]uuid.UUID{},
 	}
 
 	ctxManager, err := conf.GetCtxManager()
@@ -131,7 +129,7 @@ func main() {
 
 	// set up endpoint for chaining
 	httpServer.AddEndpoint(ServerEndpoint{
-		Path: fmt.Sprintf("{%s}", UUIDKey),
+		Path: fmt.Sprintf("/{%s}", UUIDKey),
 		Service: &ChainingService{
 			Jobs:       chainingJobs,
 			AuthTokens: conf.Devices,
@@ -140,7 +138,7 @@ func main() {
 
 	// set up endpoint for signing
 	httpServer.AddEndpoint(ServerEndpoint{
-		Path: fmt.Sprintf("{%s}/{%s}", UUIDKey, OperationKey),
+		Path: fmt.Sprintf("/{%s}/{%s}", UUIDKey, OperationKey),
 		Service: &SigningService{
 			Signer:     &s,
 			AuthTokens: conf.Devices,
@@ -149,7 +147,7 @@ func main() {
 
 	// set up endpoint for verification
 	httpServer.AddEndpoint(ServerEndpoint{
-		Path: VerifyPath,
+		Path: fmt.Sprintf("/{%s}", VerifyPath),
 		Service: &VerificationService{
 			Verifier: &v,
 		},
@@ -157,7 +155,7 @@ func main() {
 
 	// set up endpoint for COSE signing
 	httpServer.AddEndpoint(ServerEndpoint{
-		Path: fmt.Sprintf("{%s}/%s", UUIDKey, COSEPath),
+		Path: fmt.Sprintf("/{%s}/%s", UUIDKey, COSEPath),
 		Service: &COSEService{
 			CoseSigner: coseSigner,
 			AuthTokens: conf.Devices,
