@@ -24,13 +24,8 @@ import (
 )
 
 func initDeviceKeys(p *ExtendedProtocol, conf Config) error {
-	err := p.LoadKeys()
-	if err != nil {
-		return fmt.Errorf("unable to load protocol context: %v", err)
-	}
-
 	// inject keys from configuration to keystore
-	err = injectKeys(p, conf.Keys)
+	err := injectKeys(p, conf.Keys)
 	if err != nil {
 		return err
 	}
