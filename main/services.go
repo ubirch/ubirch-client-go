@@ -27,6 +27,7 @@ const (
 	BinType  = "application/octet-stream"
 	TextType = "text/plain"
 	JSONType = "application/json"
+	CBORType = "application/cbor"
 
 	HashLen = 32
 )
@@ -221,13 +222,25 @@ func (c *COSEService) getPayloadAndCBORHash(r *http.Request) ([]byte, Sha256Sum,
 
 	if isHashRequest(r) { // request contains hash
 		hash, err := getHashFromHashRequest(r.Header, rBody)
-		return nil, hash, err
-	} else { // request contains original data
-		if ContentType(r.Header) != BinType {
-			return nil, Sha256Sum{}, fmt.Errorf("invalid content-type for original data: expected \"%s\"", BinType)
-		}
-		hash, err := c.GetSigStructDigest(rBody)
 		return rBody, hash, err
+	} else { // request contains original data
+		hash, err := c.getHashFromCBORDataRequest(r.Header, rBody)
+		return rBody, hash, err
+	}
+}
+
+func (c *COSEService) getHashFromCBORDataRequest(header http.Header, data []byte) (Sha256Sum, error) {
+	switch ContentType(header) {
+	case CBORType:
+		toBeSigned, err := c.GetSigStructBytes(data)
+		if err != nil {
+			return Sha256Sum{}, err
+		}
+		hash := sha256.Sum256(toBeSigned)
+		return hash, err
+	default:
+		return Sha256Sum{}, fmt.Errorf("invalid content-type for original data: "+
+			"expected \"%s\"", CBORType)
 	}
 }
 

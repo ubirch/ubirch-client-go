@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/sha256"
 	"encoding/base64"
 	"net/http"
 
@@ -192,12 +191,13 @@ func initCBOREncMode() (cbor.EncMode, error) {
 	return encOpt.EncMode()
 }
 
-// GetSigStructDigest creates the SHA256 hash of a CBOR serialized signature structure
-// containing the given payload.
-// Implements step 1 + 2 of the "How to compute a signature"-instructions
-// from https://cose-wg.github.io/cose-spec/#rfc.section.4.4 (Signing and Verification Process)
-// and additionally hashes the result.
-func (c *CoseSigner) GetSigStructDigest(payload []byte) ([32]byte, error) {
+// GetSigStructBytes creates a "Canonical CBOR"-encoded](https://tools.ietf.org/html/rfc7049#section-3.9)
+// signature structure for a COSE_Sign1 object containing the given payload.
+//
+// Implements step 1 + 2 of the "How to compute a signature"-instructions from
+// the [Signing and Verification Process](https://cose-wg.github.io/cose-spec/#rfc.section.4.4)
+// and returns the ToBeSigned value.
+func (c *CoseSigner) GetSigStructBytes(payload []byte) ([]byte, error) {
 	sigStruct := &Sig_structure{
 		Context:         COSE_Sign1_Context,
 		ProtectedHeader: ProtectedHeaderAlgES256,
@@ -205,12 +205,8 @@ func (c *CoseSigner) GetSigStructDigest(payload []byte) ([32]byte, error) {
 		Payload:         payload,
 	}
 
-	toBeSigned, err := c.encMode.Marshal(sigStruct)
-	if err != nil {
-		return [32]byte{}, err
-	}
-
-	return sha256.Sum256(toBeSigned), nil
+	// encode with "Canonical CBOR" rules -> https://tools.ietf.org/html/rfc7049#section-3.9
+	return c.encMode.Marshal(sigStruct)
 }
 
 func (c *CoseSigner) InsertPayloadToCOSE(coseBytes *[]byte, payload []byte) error {
