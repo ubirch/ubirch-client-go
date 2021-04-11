@@ -335,8 +335,8 @@ payload field of the returned `COSE_Sign1` object afterwards, in order to get a 
 Here are the steps to create a valid `COSE_Sign1` object with the appropriate hash, which needs to be sent to the COSE
 service.
 
-*These are only necessary when using the `/hash`-endpoint of the COSE service. When sending original data, this is done
-internally by the service.*
+*These steps are only necessary when using the `/hash`-endpoint of the COSE service. When sending original data, this is
+done internally by the service.*
 
 1. Create a [Sig_structure](https://tools.ietf.org/html/rfc8152#section-4.4) with the following fields.
 
@@ -352,7 +352,7 @@ internally by the service.*
     - context: `"Signature1"`           (identifier for `COSE_Sign1`)
     - body_protected: `b'\xA1\x01\x26'` (identifier for `ECDSA P-256` signing algorithm)
     - external_aad: `b''`               (not used)
-    - payload: *here goes the original data bytes*
+    - payload: *here goes the CBOR encoded original data*
 
 2. Create the value *ToBeSigned* by encoding the `Sig_structure` to a byte string, using the CBOR-encoding described
    in [Section 14](https://cose-wg.github.io/cose-spec/#rfc.section.14).
