@@ -345,7 +345,7 @@ done internally by the service.*
             context : "Signature1",           # text string identifying the context of the signature
             body_protected : serialized_map,  # the serialized CBOR encoded protected header map of the `COSE_Sign1` object (b'\xA1\x01\x26') => {1: -7} => {"alg": <ES256>}
             external_aad : bstr,              # empty (b'') or protected application attributes
-            payload : bstr                    # original data (b'<payload>')
+            payload : bstr                    # serialized CBOR encoded original data (b'<payload>')
         ]
     ```
 
