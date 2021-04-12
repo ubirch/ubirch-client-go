@@ -294,12 +294,16 @@ The response body consists of either an error message, or a JSON map with
 
 *see specification: [CBOR Object Signing and Encryption (COSE)](https://tools.ietf.org/html/rfc8152)*
 
-The COSE service expects either CBOR encoded original data, or the SHA256 hash of a
+The COSE service expects either original data as JSON or CBOR object, or the SHA256 hash of a
 [CBOR encoded signature structure](https://tools.ietf.org/html/rfc8152#section-4.4) (`Sig_structure`)
 for a [COSE Single Signer Data Object](https://tools.ietf.org/html/rfc8152#section-4.2) (`COSE_Sign1`).
 
+When receiving a JSON data package, the service will encode it
+with [Canonical CBOR](https://tools.ietf.org/html/rfc7049#section-3.9) rules.
+
 | Method | Path | Content-Type | Description |
 |--------|------|--------------|-------------|
+| POST | `/<UUID>/anchor` | `"application/json"` | original data (JSON data package) |
 | POST | `/<UUID>/anchor` | `"application/cbor"` | original data (CBOR encoded) |
 | POST | `/<UUID>/cbor/hash` | `application/octet-stream` | [SHA256 hash (binary)](#how-to-create-valid-cose-objects-without-sending-original-data-to-the-service) |
 | POST | `/<UUID>/cbor/hash` | `text/plain` | [SHA256 hash (base64 string repr.)](#how-to-create-valid-cose-objects-without-sending-original-data-to-the-service) |
