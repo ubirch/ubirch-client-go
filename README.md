@@ -351,9 +351,8 @@ done internally by the service.*
 
     - context: `"Signature1"`           (identifier for `COSE_Sign1`)
     - body_protected: `b'\xA1\x01\x26'` (identifier for `ECDSA P-256` signing algorithm)
-    - external_aad: `b''`               (*
-      optional:* [externally supplied data](https://tools.ietf.org/html/rfc8152#section-4.3) -> not part of the COSE
-      object)
+    - external_aad: `b''`               (*optional:*
+      [externally supplied data](https://tools.ietf.org/html/rfc8152#section-4.3) -> not part of the COSE object)
     - payload: *here goes the CBOR encoded original data*
 
 2. Create the value *ToBeSigned* by encoding the `Sig_structure` to a byte string, using the CBOR-encoding described
