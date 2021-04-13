@@ -308,6 +308,13 @@ with [Canonical CBOR](https://tools.ietf.org/html/rfc7049#section-3.9) rules.
 | POST | `/<UUID>/cbor/hash` | `application/octet-stream` | [SHA256 hash (binary)](#how-to-create-valid-cose-objects-without-sending-original-data-to-the-service) |
 | POST | `/<UUID>/cbor/hash` | `text/plain` | [SHA256 hash (base64 string repr.)](#how-to-create-valid-cose-objects-without-sending-original-data-to-the-service) |
 
+To send the **hex** string representation of the hash (instead of base64), the `Content-Transfer-Encoding`-header can be
+used.
+
+```json
+{"Content-Type": "text/plain", "Content-Transfer-Encoding": "hex"}
+```
+
 #### COSE Response
 
 The service returns a ECDSA P-256 signed `COSE_Sign1` object.

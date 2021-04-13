@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -28,6 +29,8 @@ const (
 	TextType = "text/plain"
 	JSONType = "application/json"
 	CBORType = "application/cbor"
+
+	HexEncoding = "hex"
 
 	HashLen = 32
 )
@@ -280,6 +283,11 @@ func ContentType(header http.Header) string {
 	return strings.ToLower(header.Get("Content-Type"))
 }
 
+// helper function to get "Content-Transfer-Encoding" from request header
+func ContentEncoding(header http.Header) string {
+	return strings.ToLower(header.Get("Content-Transfer-Encoding"))
+}
+
 // helper function to get "X-Auth-Token" from request header
 func AuthToken(header http.Header) string {
 	return header.Get("X-Auth-Token")
@@ -377,9 +385,16 @@ func getHashFromDataRequest(header http.Header, data []byte) (hash Sha256Sum, er
 func getHashFromHashRequest(header http.Header, data []byte) (hash Sha256Sum, err error) {
 	switch ContentType(header) {
 	case TextType:
-		data, err = base64.StdEncoding.DecodeString(string(data))
-		if err != nil {
-			return Sha256Sum{}, fmt.Errorf("decoding base64 encoded hash failed: %v (%s)", err, string(data))
+		if ContentEncoding(header) == HexEncoding {
+			data, err = hex.DecodeString(string(data))
+			if err != nil {
+				return Sha256Sum{}, fmt.Errorf("decoding hex encoded hash failed: %v (%s)", err, string(data))
+			}
+		} else {
+			data, err = base64.StdEncoding.DecodeString(string(data))
+			if err != nil {
+				return Sha256Sum{}, fmt.Errorf("decoding base64 encoded hash failed: %v (%s)", err, string(data))
+			}
 		}
 	case BinType:
 		// do nothing
