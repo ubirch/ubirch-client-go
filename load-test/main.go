@@ -2,55 +2,43 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 )
 
 const (
-	clientBaseURL         = "http://localhost:8080/"
-	configFile            = "config.json"
-	numberOfTestIDs       = 50
-	numberOfRequestsPerID = 10
-	requestsPerSecond     = 5
+	clientBaseURL          = "http://localhost:8080/"
+	configFile             = "config.json"
+	numberOfTestIDs        = 100
+	numberOfRequestsPerID  = 10
+	requestsPerSecondPerID = 4
 )
 
 func main() {
-	setup()
-	var wg sync.WaitGroup
+	t := setup()
 
-	testIdentities := getTestIdentities(numberOfTestIDs)
-	log.Infof("%d identities, %d requests each", len(testIdentities), numberOfRequestsPerID)
-	log.Infof(" = = = => sending %d requests <= = = = ", len(testIdentities)*numberOfRequestsPerID)
-	log.Infof(" = = = => %d requests per second <= = = = ", requestsPerSecond)
-
-	cc := chainChecker{signatures: make(map[string][]byte, numberOfTestIDs)}
-	ccChan := make(chan []byte)
-	ctx, cancel := context.WithCancel(context.Background())
-	go cc.checkChain(ccChan, cancel)
+	log.Infof("%d identities, %d requests each => sending [%d] requests", len(t.identities), numberOfRequestsPerID, len(t.identities)*numberOfRequestsPerID)
+	log.Infof("%d requests per second per identity", requestsPerSecondPerID)
 
 	start := time.Now()
 
-	for uid, auth := range testIdentities {
-		wg.Add(1)
-		go sendRequests(uid, auth, ccChan, &wg)
+	for uid, auth := range t.identities {
+		t.wg.Add(1)
+		go t.sendRequests(uid, auth)
 	}
 
-	log.Infof(" = = = => requests sent after %7.3f seconds <= = = = ", time.Since(start).Seconds())
-	wg.Wait()
+	t.wg.Wait()
 	log.Infof(" = = = => requests done after %7.3f seconds <= = = = ", time.Since(start).Seconds())
-	close(ccChan)
-	<-ctx.Done()
+	t.teardown()
 }
 
-func sendRequests(id string, auth string, ccChan chan<- []byte, wg *sync.WaitGroup) {
-	defer wg.Done()
+func (t *testCtx) sendRequests(id string, auth string) {
+	defer t.wg.Done()
 
 	HTTPclient := &http.Client{Timeout: 65 * time.Second}
 	clientURL := clientBaseURL + id + "/hash"
@@ -59,15 +47,15 @@ func sendRequests(id string, auth string, ccChan chan<- []byte, wg *sync.WaitGro
 	header.Set("X-Auth-Token", auth)
 
 	for i := 1; i <= numberOfRequestsPerID; i++ {
-		wg.Add(1)
-		go sendAndCheckResponse(HTTPclient, clientURL, header, ccChan, wg)
+		t.wg.Add(1)
+		go t.sendAndCheckResponse(HTTPclient, clientURL, header)
 
-		time.Sleep(time.Second / requestsPerSecond)
+		time.Sleep(time.Second / requestsPerSecondPerID)
 	}
 }
 
-func sendAndCheckResponse(HTTPclient *http.Client, clientURL string, header http.Header, ccChan chan<- []byte, wg *sync.WaitGroup) {
-	defer wg.Done()
+func (t *testCtx) sendAndCheckResponse(HTTPclient *http.Client, clientURL string, header http.Header) {
+	defer t.wg.Done()
 
 	hash := make([]byte, 32)
 	_, err := rand.Read(hash)
@@ -76,7 +64,7 @@ func sendAndCheckResponse(HTTPclient *http.Client, clientURL string, header http
 		return
 	}
 
-	resp, err := sendRequest(HTTPclient, clientURL, header, hash)
+	resp, err := t.sendRequest(HTTPclient, clientURL, header, hash)
 	if err != nil {
 		log.Error(err)
 		return
@@ -87,10 +75,10 @@ func sendAndCheckResponse(HTTPclient *http.Client, clientURL string, header http
 		log.Error("HASH MISMATCH")
 	}
 	// check resp -> chain
-	ccChan <- resp.UPP
+	t.ccChan <- resp.UPP
 }
 
-func sendRequest(HTTPclient *http.Client, clientURL string, header http.Header, hash []byte) (signingResponse, error) {
+func (t *testCtx) sendRequest(HTTPclient *http.Client, clientURL string, header http.Header, hash []byte) (signingResponse, error) {
 	req, err := http.NewRequest(http.MethodPost, clientURL, bytes.NewBuffer(hash))
 	if err != nil {
 		return signingResponse{}, err
@@ -107,6 +95,7 @@ func sendRequest(HTTPclient *http.Client, clientURL string, header http.Header, 
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
+		t.failChan <- resp.Status
 		return signingResponse{}, fmt.Errorf(resp.Status)
 	}
 
