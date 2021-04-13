@@ -39,7 +39,7 @@ IMAGE_TAG := $(VERSION)
 IMAGE_ARCHS := amd64 arm arm64 386 # supported architectures
 
 GO = go
-GO_VERSION := 1.15
+GO_VERSION := 1.16
 LDFLAGS = -ldflags "-buildid= -s -w -X main.Version=$(VERSION) -X main.Revision=$(REVISION)"
 GO_BUILD = $(GO) build -tags="netgo" -trimpath $(LDFLAGS)
 UPX=upx --quiet --quiet
