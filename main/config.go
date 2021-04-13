@@ -254,7 +254,6 @@ func (c *Config) setDefaultURLs() error {
 	}
 
 	ENV = c.Env
-	log.Infof("UBIRCH backend environment: %s", c.Env)
 
 	if c.KeyService == "" {
 		c.KeyService = fmt.Sprintf(defaultKeyURL, c.Env)
@@ -274,6 +273,7 @@ func (c *Config) setDefaultURLs() error {
 		c.VerifyService = fmt.Sprintf(defaultVerifyURL, c.Env)
 	}
 
+	log.Infof("UBIRCH backend environment: %s", c.Env)
 	log.Debugf(" - Key Service: %s", c.KeyService)
 	log.Debugf(" - Identity Service: %s", c.IdentityService)
 	log.Debugf(" - Authentication Service: %s", c.Niomon)
