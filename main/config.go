@@ -46,7 +46,7 @@ const (
 	defaultTLSCertFile = "cert.pem"
 	defaultTLSKeyFile  = "key.pem"
 
-	defaultReqBufSize = 30
+	defaultReqBufSize = 20 // expected max. waiting time for accepted requests at a throughput of 3rps => ~7sec
 )
 
 var ENV string
