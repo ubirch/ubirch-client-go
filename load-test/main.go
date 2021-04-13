@@ -16,8 +16,9 @@ import (
 const (
 	clientBaseURL         = "http://localhost:8080/"
 	configFile            = "config.json"
-	numberOfTestIDs       = 100
-	numberOfRequestsPerID = 4
+	numberOfTestIDs       = 50
+	numberOfRequestsPerID = 10
+	requestsPerSecond     = 5
 )
 
 func main() {
@@ -27,6 +28,7 @@ func main() {
 	testIdentities := getTestIdentities(numberOfTestIDs)
 	log.Infof("%d identities, %d requests each", len(testIdentities), numberOfRequestsPerID)
 	log.Infof(" = = = => sending %d requests <= = = = ", len(testIdentities)*numberOfRequestsPerID)
+	log.Infof(" = = = => %d requests per second <= = = = ", requestsPerSecond)
 
 	cc := chainChecker{signatures: make(map[string][]byte, numberOfTestIDs)}
 	ccChan := make(chan []byte)
@@ -60,7 +62,7 @@ func sendRequests(id string, auth string, ccChan chan<- []byte, wg *sync.WaitGro
 		wg.Add(1)
 		go sendAndCheckResponse(HTTPclient, clientURL, header, ccChan, wg)
 
-		time.Sleep(time.Second / numberOfRequestsPerID)
+		time.Sleep(time.Second / requestsPerSecond)
 	}
 }
 
