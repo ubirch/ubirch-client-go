@@ -54,7 +54,6 @@ type signingResponse struct {
 
 type Signer struct {
 	protocol       *ExtendedProtocol
-	env            string
 	authServiceURL string
 }
 

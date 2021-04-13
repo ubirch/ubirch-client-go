@@ -86,7 +86,6 @@ func main() {
 	// initialize signer
 	s := Signer{
 		protocol:       p,
-		env:            conf.Env,
 		authServiceURL: conf.Niomon,
 	}
 
