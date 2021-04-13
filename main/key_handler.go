@@ -16,7 +16,6 @@ package main
 
 import (
 	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -25,13 +24,8 @@ import (
 )
 
 func initDeviceKeys(p *ExtendedProtocol, conf Config) error {
-	err := p.LoadKeys()
-	if err != nil {
-		return fmt.Errorf("unable to load protocol context: %v", err)
-	}
-
 	// inject keys from configuration to keystore
-	err = injectKeys(p, conf.Keys)
+	err := injectKeys(p, conf.Keys)
 	if err != nil {
 		return err
 	}
@@ -68,7 +62,7 @@ func injectKeys(p *ExtendedProtocol, keys map[string]string) error {
 		if err != nil {
 			return fmt.Errorf("unable to decode private key string for %s: %v, string was: %s", name, err, key)
 		}
-		err = p.SetKey(name, uid, keyBytes)
+		err = p.SetKey(uid, keyBytes)
 		if err != nil {
 			return fmt.Errorf("unable to inject key to keystore: %v", err)
 		}
@@ -83,14 +77,14 @@ func injectKeys(p *ExtendedProtocol, keys map[string]string) error {
 
 func setUpKey(p *ExtendedProtocol, uid uuid.UUID, auth string, conf Config) error {
 	// check if there is a known signing key for the UUID
-	if !p.PrivateKeyExists(uid.String()) {
+	if !p.PrivateKeyExists(uid) {
 		if conf.StaticKeys {
 			return fmt.Errorf("dynamic key generation is disabled and no injected signing key found for UUID %s", uid)
 		}
 
 		// if dynamic key generation is enabled generate new key pair
 		log.Printf("generating new key pair for UUID %s", uid)
-		err := p.GenerateKey(uid.String(), uid)
+		err := p.GenerateKey(uid)
 		if err != nil {
 			return fmt.Errorf("generating new key pair for UUID %s failed: %v", uid, err)
 		}
@@ -103,7 +97,7 @@ func setUpKey(p *ExtendedProtocol, uid uuid.UUID, auth string, conf Config) erro
 	}
 
 	// get the public key
-	pubKey, err := p.GetPublicKey(uid.String())
+	pubKey, err := p.GetPublicKey(uid)
 	if err != nil {
 		return err
 	}
@@ -132,13 +126,13 @@ func setUpKey(p *ExtendedProtocol, uid uuid.UUID, auth string, conf Config) erro
 }
 
 func registerPublicKey(p *ExtendedProtocol, uid uuid.UUID, pubKey []byte, keyService string, auth string) error {
-	log.Printf("%s: registering public key at key service: %s", uid.String(), keyService)
+	log.Printf("%s: registering public key at key service: %s", uid, keyService)
 
 	cert, err := getSignedCertificate(p, uid, pubKey)
 	if err != nil {
 		return fmt.Errorf("error creating public key certificate: %v", err)
 	}
-	log.Debugf("%s: certificate: %s", uid.String(), cert)
+	log.Debugf("%s: certificate: %s", uid, cert)
 
 	keyRegHeader := ubirchHeader(uid, auth)
 	keyRegHeader["content-type"] = "application/json"
@@ -150,19 +144,19 @@ func registerPublicKey(p *ExtendedProtocol, uid uuid.UUID, pubKey []byte, keySer
 	if httpFailed(resp.StatusCode) {
 		return fmt.Errorf("request to %s failed: (%d) %q", keyService, resp.StatusCode, resp.Content)
 	}
-	log.Debugf("%s: key registration successful: (%d) %s", uid.String(), resp.StatusCode, string(resp.Content))
+	log.Debugf("%s: key registration successful: (%d) %s", uid, resp.StatusCode, string(resp.Content))
 	return nil
 }
 
 // submitCSR submits a X.509 Certificate Signing Request for the public key to the identity service
 func submitCSR(p *ExtendedProtocol, uid uuid.UUID, subjectCountry string, subjectOrganization string, identityService string) error {
-	log.Printf("%s: submitting CSR to identity service: %s", uid.String(), identityService)
+	log.Printf("%s: submitting CSR to identity service: %s", uid, identityService)
 
-	csr, err := p.GetCSR(uid.String(), subjectCountry, subjectOrganization)
+	csr, err := p.GetCSR(uid, subjectCountry, subjectOrganization)
 	if err != nil {
 		return fmt.Errorf("error creating CSR: %v", err)
 	}
-	log.Debugf("%s: CSR [der]: %s", uid.String(), hex.EncodeToString(csr))
+	log.Debugf("%s: CSR [der]: %x", uid, csr)
 
 	CSRHeader := map[string]string{"content-type": "application/octet-stream"}
 
@@ -173,6 +167,6 @@ func submitCSR(p *ExtendedProtocol, uid uuid.UUID, subjectCountry string, subjec
 	if httpFailed(resp.StatusCode) {
 		return fmt.Errorf("request to %s failed: (%d) %q", identityService, resp.StatusCode, resp.Content)
 	}
-	log.Debugf("%s: CSR submitted: (%d) %s", uid.String(), resp.StatusCode, string(resp.Content))
+	log.Debugf("%s: CSR submitted: (%d) %s", uid, resp.StatusCode, string(resp.Content))
 	return nil
 }

@@ -21,6 +21,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"golang.org/x/sync/errgroup"
 
 	log "github.com/sirupsen/logrus"
@@ -61,13 +62,17 @@ func main() {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
 
+	// initialize ubirch protocol
+	cryptoCtx := &ubirch.ECDSACryptoContext{
+		Keystore: ubirch.NewEncryptedKeystore(conf.SecretBytes),
+	}
+
 	ctxManager, err := conf.GetCtxManager()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// initialize ubirch protocol instance
-	p, err := NewExtendedProtocol(conf.SecretBytes, ctxManager, configDir)
+	p, err := NewExtendedProtocol(cryptoCtx, ctxManager, configDir)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -93,6 +98,11 @@ func main() {
 		verifyFromKnownIdentitiesOnly: false, // TODO: make configurable
 	}
 
+	coseSigner, err := NewCoseSigner(cryptoCtx)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	// create a waitgroup that contains all asynchronous operations
 	// a cancellable context is used to stop the operations gracefully
 	ctx, cancel := context.WithCancel(context.Background())
@@ -102,7 +112,7 @@ func main() {
 	go shutdown(cancel)
 
 	// set up synchronous chaining routine
-	chainingJobs := make(chan HTTPRequest, conf.RequestBufSize)
+	chainingJobs := make(chan ChainingRequest, conf.RequestBufSize)
 
 	g.Go(func() error {
 		return s.chainer(chainingJobs)
@@ -129,10 +139,10 @@ func main() {
 		},
 	})
 
-	// set up endpoint for update operations
+	// set up endpoint for signing
 	httpServer.AddEndpoint(ServerEndpoint{
 		Path: fmt.Sprintf("/{%s}/{%s}", UUIDKey, OperationKey),
-		Service: &UpdateService{
+		Service: &SigningService{
 			Signer:     &s,
 			AuthTokens: conf.Devices,
 		},
@@ -140,9 +150,18 @@ func main() {
 
 	// set up endpoint for verification
 	httpServer.AddEndpoint(ServerEndpoint{
-		Path: "/verify",
+		Path: fmt.Sprintf("/%s", VerifyPath),
 		Service: &VerificationService{
 			Verifier: &v,
+		},
+	})
+
+	// set up endpoint for COSE signing
+	httpServer.AddEndpoint(ServerEndpoint{
+		Path: fmt.Sprintf("/{%s}/%s", UUIDKey, COSEPath),
+		Service: &COSEService{
+			CoseSigner: coseSigner,
+			AuthTokens: conf.Devices,
 		},
 	})
 

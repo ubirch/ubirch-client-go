@@ -18,7 +18,6 @@ package main
 
 import (
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -53,7 +52,7 @@ type Verifier struct {
 	verifyFromKnownIdentitiesOnly bool
 }
 
-func (v *Verifier) verifyHash(hash []byte) HTTPResponse {
+func (v *Verifier) Verify(hash []byte) HTTPResponse {
 	log.Infof("verifying hash %s", base64.StdEncoding.EncodeToString(hash))
 
 	// retrieve certificate for hash from the ubirch backend
@@ -62,16 +61,16 @@ func (v *Verifier) verifyHash(hash []byte) HTTPResponse {
 		log.Error(err)
 		return errorResponse(code, err.Error())
 	}
-	log.Debugf("retrieved UPP %s", hex.EncodeToString(upp))
+	log.Debugf("retrieved UPP %x", upp)
 
 	// verify validity of the retrieved UPP locally
-	name, pkey, err := v.verifyUPP(upp)
+	id, pkey, err := v.verifyUPP(upp)
 	if err != nil {
-		return getVerificationResponse(http.StatusUnprocessableEntity, hash, upp, name, pkey, err.Error())
+		return getVerificationResponse(http.StatusUnprocessableEntity, hash, upp, id, pkey, err.Error())
 	}
-	log.Debugf("verified UPP from identity %s using public key %s", name, base64.StdEncoding.EncodeToString(pkey))
+	log.Debugf("verified UPP from identity %s using public key %s", id, base64.StdEncoding.EncodeToString(pkey))
 
-	return getVerificationResponse(http.StatusOK, hash, upp, name, pkey, "")
+	return getVerificationResponse(http.StatusOK, hash, upp, id, pkey, "")
 }
 
 // loadUPP retrieves the UPP which contains a given hash from the ubirch backend
@@ -119,41 +118,40 @@ func (v *Verifier) loadUPP(hash []byte) (int, []byte, error) {
 }
 
 // verifyUPP verifies the signature of UPPs from known identities using their public keys from the local keystore
-func (v *Verifier) verifyUPP(upp []byte) (string, []byte, error) {
+func (v *Verifier) verifyUPP(upp []byte) (uuid.UUID, []byte, error) {
 	uppStruct, err := ubirch.Decode(upp)
 	if err != nil {
-		return "", nil, fmt.Errorf("retrieved invalid UPP: %v", err)
+		return uuid.Nil, nil, fmt.Errorf("retrieved invalid UPP: %v", err)
 	}
 
 	id := uppStruct.GetUuid()
-	name := id.String()
 
-	pubkey, err := v.protocol.GetPublicKey(name)
+	pubkey, err := v.protocol.GetPublicKey(id)
 	if err != nil {
 		if v.verifyFromKnownIdentitiesOnly {
-			return name, nil, fmt.Errorf("retrieved certificate for requested hash is from unknown identity")
+			return id, nil, fmt.Errorf("retrieved certificate for requested hash is from unknown identity")
 		} else {
-			log.Warnf("couldn't get public key for identity %s from local context", name)
-			pubkey, err = v.loadPublicKey(name, id)
+			log.Warnf("couldn't get public key for identity %s from local context", id)
+			pubkey, err = v.loadPublicKey(id)
 			if err != nil {
-				return name, nil, err
+				return id, nil, err
 			}
 		}
 	}
 
-	verified, err := v.protocol.Verify(name, upp)
+	verified, err := v.protocol.Verify(id, upp)
 	if !verified {
 		if err != nil {
 			log.Error(err)
 		}
-		return name, pubkey, fmt.Errorf("signature of retrieved certificate for requested hash could not be verified")
+		return id, pubkey, fmt.Errorf("signature of retrieved certificate for requested hash could not be verified")
 	}
 
-	return name, pubkey, nil
+	return id, pubkey, nil
 }
 
 // loadPublicKey retrieves the first valid public key associated with an identity from the key service
-func (v *Verifier) loadPublicKey(name string, id uuid.UUID) ([]byte, error) {
+func (v *Verifier) loadPublicKey(id uuid.UUID) ([]byte, error) {
 	log.Debugf("requesting public key for identity %s from key service (%s)", id.String(), v.keyServiceURL)
 
 	keys, err := requestPublicKeys(v.keyServiceURL, id)
@@ -175,24 +173,24 @@ func (v *Verifier) loadPublicKey(name string, id uuid.UUID) ([]byte, error) {
 	}
 
 	// inject new public key into protocol context for verification
-	err = v.protocol.SetPublicKey(name, id, pubkey)
+	err = v.protocol.SetPublicKey(id, pubkey)
 	if err != nil {
 		return nil, fmt.Errorf("unable to set retrieved public key for verification: %v", err)
 	}
 
 	err = v.protocol.PersistKeys()
 	if err != nil {
-		log.Errorf("unable to persist retrieved public key for UUID %s: %v", name, err)
+		log.Errorf("unable to persist retrieved public key for UUID %s: %v", id, err)
 	}
 
 	return pubkey, nil
 }
 
-func getVerificationResponse(respCode int, hash []byte, upp []byte, name string, pkey []byte, errMsg string) HTTPResponse {
+func getVerificationResponse(respCode int, hash []byte, upp []byte, id uuid.UUID, pkey []byte, errMsg string) HTTPResponse {
 	verificationResp, err := json.Marshal(verificationResponse{
 		Hash:   hash,
 		UPP:    upp,
-		UUID:   name,
+		UUID:   id.String(),
 		PubKey: pkey,
 		Error:  errMsg,
 	})
