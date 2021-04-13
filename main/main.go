@@ -110,12 +110,14 @@ func main() {
 	// set up graceful shutdown handling
 	go shutdown(cancel)
 
-	// set up synchronous chaining routine
-	chainingJobs := make(chan ChainingRequest, conf.RequestBufSize)
+	// set up synchronous chaining routines for each identity
+	chainingJobs := make(map[string]chan ChainingRequest, len(conf.Devices))
 
-	g.Go(func() error {
-		return s.chainer(chainingJobs)
-	})
+	for id := range conf.Devices {
+		jobs := make(chan ChainingRequest, conf.RequestBufSize)
+		chainingJobs[id] = jobs
+		s.startChainer(g, id, jobs)
+	}
 
 	// set up HTTP server
 	httpServer := HTTPServer{
@@ -166,8 +168,7 @@ func main() {
 
 	// start HTTP server
 	g.Go(func() error {
-		// when server is shut down, close chaining jobs channel, so chainer returns
-		defer close(chainingJobs)
+		defer closeAll(chainingJobs) // when server is shut down, close all chaining jobs, so chainers return
 		return httpServer.Serve(ctx)
 	})
 
@@ -182,4 +183,10 @@ func main() {
 	}
 
 	log.Info("shut down client")
+}
+
+func closeAll(jobs map[string]chan ChainingRequest) {
+	for _, job := range jobs {
+		close(job)
+	}
 }

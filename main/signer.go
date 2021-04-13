@@ -22,6 +22,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
+	"golang.org/x/sync/errgroup"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -67,14 +68,27 @@ func (msg ChainingRequest) respond(resp HTTPResponse) {
 	}
 }
 
+// start chainer in go routine
+func (s *Signer) startChainer(g *errgroup.Group, id string, jobs <-chan ChainingRequest) {
+	g.Go(func() error {
+		return s.chainer(id, jobs)
+	})
+}
+
 // handle incoming messages, create, sign and send a chained ubirch protocol packet (UPP) to the ubirch backend
-func (s *Signer) chainer(jobs <-chan ChainingRequest) error {
-	log.Debugf("starting chainer")
+func (s *Signer) chainer(chainerID string, jobs <-chan ChainingRequest) error {
+	log.Debugf("%s: starting chainer", chainerID)
 
 	for msg := range jobs {
 		// the message might have waited in the channel for a while
 		// check if the context is expired or canceled by now
 		if msg.RequestCtx.Err() != nil {
+			continue
+		}
+
+		if msg.ID.String() != chainerID {
+			log.Errorf("%s: chainer received request with wrong ID: %s", chainerID, msg.ID)
+			msg.respond(errorResponse(http.StatusInternalServerError, ""))
 			continue
 		}
 
@@ -95,17 +109,18 @@ func (s *Signer) chainer(jobs <-chan ChainingRequest) error {
 		// persist last signature only if UPP was successfully received by ubirch backend
 		if httpSuccess(resp.StatusCode) {
 			signature := uppBytes[len(uppBytes)-s.protocol.SignatureLength():]
-			err := s.protocol.PersistSignature(msg.ID, signature)
+			err = s.protocol.PersistSignature(msg.ID, signature)
 			if err != nil {
-				return fmt.Errorf("unable to persist last signature: %v [\"%s\": \"%s\"]",
+				log.Errorf("unable to persist last signature: %v [\"%s\": \"%s\"]",
 					err, msg.ID, base64.StdEncoding.EncodeToString(signature))
+				return err
 			}
 		} else {
 			log.Errorf("%s: [chain] request failed: (%d) %s", msg.ID, resp.StatusCode, string(resp.Content))
 		}
 	}
 
-	log.Debug("shut down chainer")
+	log.Debugf("%s: shut down chainer", chainerID)
 	return nil
 }
 
