@@ -6,7 +6,7 @@
 4. To test, continue with the [Quickstart step 4](https://github.com/ubirch/ubirch-client-go#quick-start)
 
 > It may be useful to run the go client as a service. You can follow [this guide](https://www.howtogeek.com/50786/using-srvstart-to-run-any-application-as-a-windows-service/)
-> to install it a service.
+> to install it as service.
 
 ## TODO
 
