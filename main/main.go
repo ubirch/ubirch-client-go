@@ -98,7 +98,10 @@ func main() {
 		verifyFromKnownIdentitiesOnly: false, // TODO: make configurable
 	}
 
-	coseSigner := NewCoseSigner(cryptoCtx)
+	coseSigner, err := NewCoseSigner(cryptoCtx)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// create a waitgroup that contains all asynchronous operations
 	// a cancellable context is used to stop the operations gracefully

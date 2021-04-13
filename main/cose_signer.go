@@ -12,13 +12,12 @@ import (
 )
 
 const (
+	COSE_Alg_Label     = 1            // cryptographic algorithm identifier label (Common COSE Headers Parameters: https://cose-wg.github.io/cose-spec/#rfc.section.3.1)
+	COSE_ES256_ID      = -7           // cryptographic algorithm identifier for ECDSA P-256 (https://cose-wg.github.io/cose-spec/#rfc.section.8.1)
 	COSE_Kid_Label     = 4            // key identifier label (Common COSE Headers Parameters: https://cose-wg.github.io/cose-spec/#rfc.section.3.1)
 	COSE_Sign1_Tag     = 18           // CBOR tag TBD7 identifies tagged COSE_Sign1 structure (https://cose-wg.github.io/cose-spec/#rfc.section.4.2)
 	COSE_Sign1_Context = "Signature1" // signature context identifier for COSE_Sign1 structure (https://cose-wg.github.io/cose-spec/#rfc.section.4.4)
-
 )
-
-var ProtectedHeaderAlgES256 = []byte{0xA1, 0x01, 0x26} // {"alg": "ES256"}
 
 // 	COSE_Sign1 = [
 // 		Headers,
@@ -50,20 +49,28 @@ type Sig_structure struct {
 }
 
 type CoseSigner struct {
-	cryptoCtx *ubirch.ECDSACryptoContext
-	encMode   cbor.EncMode
+	cryptoCtx       *ubirch.ECDSACryptoContext
+	encMode         cbor.EncMode
+	protectedHeader []byte
 }
 
-func NewCoseSigner(cryptoCtx *ubirch.ECDSACryptoContext) *CoseSigner {
+func NewCoseSigner(cryptoCtx *ubirch.ECDSACryptoContext) (*CoseSigner, error) {
 	encMode, err := initCBOREncMode()
 	if err != nil {
-		log.Panic(err) // todo
+		return nil, err
+	}
+
+	protectedHeaderAlgES256 := map[uint8]int8{COSE_Alg_Label: COSE_ES256_ID}
+	protectedHeaderAlgES256CBOR, err := encMode.Marshal(protectedHeaderAlgES256)
+	if err != nil {
+		return nil, err
 	}
 
 	return &CoseSigner{
-		cryptoCtx: cryptoCtx,
-		encMode:   encMode,
-	}
+		cryptoCtx:       cryptoCtx,
+		encMode:         encMode,
+		protectedHeader: protectedHeaderAlgES256CBOR,
+	}, nil
 }
 
 func (c *CoseSigner) Sign(msg CBORRequest) HTTPResponse {
@@ -175,7 +182,7 @@ func (c *CoseSigner) getSignedCOSE(id uuid.UUID, hash [32]byte, payload []byte) 
 
 	// create COSE_Sign1 object
 	coseSign1 := &COSE_Sign1{
-		Protected:   ProtectedHeaderAlgES256,
+		Protected:   c.protectedHeader,
 		Unprotected: map[interface{}]interface{}{COSE_Kid_Label: id[:]},
 		Payload:     payload,
 		Signature:   signatureBytes,
@@ -199,7 +206,7 @@ func initCBOREncMode() (cbor.EncMode, error) {
 func (c *CoseSigner) GetSigStructBytes(payload []byte) ([]byte, error) {
 	sigStruct := &Sig_structure{
 		Context:         COSE_Sign1_Context,
-		ProtectedHeader: ProtectedHeaderAlgES256,
+		ProtectedHeader: c.protectedHeader,
 		External:        []byte{}, // empty
 		Payload:         payload,
 	}
