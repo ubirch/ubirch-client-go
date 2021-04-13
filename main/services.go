@@ -238,13 +238,17 @@ func (c *COSEService) getPayloadAndHashFromDataRequest(header http.Header, data 
 		if err != nil {
 			return nil, Sha256Sum{}, fmt.Errorf("unable to CBOR encode JSON object: %v", err)
 		}
-		log.Debugf("CBOR encoded JSON: %x", data)
+		if ENV != PROD_STAGE { // never log original data on prod
+			log.Debugf("CBOR encoded JSON: %x", data)
+		}
 		fallthrough
 	case CBORType:
 		toBeSigned, err := c.GetSigStructBytes(data)
-		log.Debugf("toBeSigned: %x", toBeSigned)
 		if err != nil {
 			return nil, Sha256Sum{}, err
+		}
+		if ENV != PROD_STAGE { // never log original data on prod
+			log.Debugf("toBeSigned: %x", toBeSigned)
 		}
 		hash = sha256.Sum256(toBeSigned)
 		return data, hash, err
