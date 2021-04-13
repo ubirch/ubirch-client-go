@@ -29,7 +29,6 @@ import (
 type operation string
 
 const (
-	chainHash   operation = "chain"
 	anchorHash  operation = "anchor"
 	disableHash operation = "disable"
 	enableHash  operation = "enable"
