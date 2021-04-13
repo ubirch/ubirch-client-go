@@ -36,7 +36,8 @@ func main() {
 	start := time.Now()
 
 	for uid, auth := range testIdentities {
-		sendRequests(uid, auth, ccChan, &wg)
+		wg.Add(1)
+		go sendRequests(uid, auth, ccChan, &wg)
 	}
 
 	log.Infof(" = = = => requests sent after %7.3f seconds <= = = = ", time.Since(start).Seconds())
@@ -47,6 +48,8 @@ func main() {
 }
 
 func sendRequests(id string, auth string, ccChan chan<- []byte, wg *sync.WaitGroup) {
+	defer wg.Done()
+
 	HTTPclient := &http.Client{Timeout: 65 * time.Second}
 	clientURL := clientBaseURL + id + "/hash"
 	header := http.Header{}
