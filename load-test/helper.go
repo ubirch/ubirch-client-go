@@ -62,14 +62,51 @@ func getTestIdentities(num int) map[string]string {
 	return testIdentities
 }
 
-func setup() {
+type testCtx struct {
+	ccChan     chan<- []byte
+	ccCtx      context.Context
+	failChan   chan<- string
+	failCtx    context.Context
+	wg         *sync.WaitGroup
+	identities map[string]string
+}
+
+func setup() *testCtx {
 	log.SetFormatter(&log.TextFormatter{FullTimestamp: true, TimestampFormat: "2006-01-02 15:04:05.000 -0700"})
 	log.SetLevel(log.DebugLevel)
+
+	ccChan, ccCtx := setupChainChecker()
+	failChan, failCtx := setupFailCounter()
+
+	return &testCtx{
+		ccChan:     ccChan,
+		ccCtx:      ccCtx,
+		failChan:   failChan,
+		failCtx:    failCtx,
+		wg:         &sync.WaitGroup{},
+		identities: getTestIdentities(numberOfTestIDs),
+	}
+}
+
+func (t *testCtx) teardown() {
+	close(t.ccChan)
+	<-t.ccCtx.Done()
+	close(t.failChan)
+	<-t.failCtx.Done()
 }
 
 type chainChecker struct {
 	signatures      map[string][]byte
 	signaturesMutex sync.RWMutex
+}
+
+func setupChainChecker() (chan []byte, context.Context) {
+	cc := chainChecker{signatures: make(map[string][]byte, numberOfTestIDs)}
+	ccChan := make(chan []byte)
+	ctx, cancel := context.WithCancel(context.Background())
+	go cc.checkChain(ccChan, cancel)
+
+	return ccChan, ctx
 }
 
 func (c *chainChecker) checkChain(uppBytes <-chan []byte, cancel context.CancelFunc) {
@@ -119,4 +156,30 @@ func (c *chainChecker) SetSignature(id string, signature []byte) {
 	defer c.signaturesMutex.Unlock()
 
 	c.signatures[id] = signature
+}
+
+func setupFailCounter() (chan string, context.Context) {
+	failChan := make(chan string)
+	ctx, cancel := context.WithCancel(context.Background())
+	go countFails(failChan, cancel)
+
+	return failChan, ctx
+}
+
+func countFails(statusCodes <-chan string, cancel context.CancelFunc) {
+	defer cancel()
+	failCounters := map[string]int{}
+
+	for status := range statusCodes {
+		count, found := failCounters[status]
+		if !found {
+			failCounters[status] = 1
+		} else {
+			failCounters[status] = count + 1
+		}
+	}
+
+	for status, count := range failCounters {
+		log.Errorf("[ %4d ] x %s", count, status)
+	}
 }

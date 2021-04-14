@@ -19,9 +19,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
+	"golang.org/x/sync/errgroup"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -67,14 +69,27 @@ func (msg ChainingRequest) respond(resp HTTPResponse) {
 	}
 }
 
+// start chainer in go routine
+func (s *Signer) startChainer(g *errgroup.Group, id string, jobs <-chan ChainingRequest) {
+	g.Go(func() error {
+		return s.chainer(id, jobs)
+	})
+}
+
 // handle incoming messages, create, sign and send a chained ubirch protocol packet (UPP) to the ubirch backend
-func (s *Signer) chainer(jobs <-chan ChainingRequest) error {
-	log.Debugf("starting chainer")
+func (s *Signer) chainer(chainerID string, jobs <-chan ChainingRequest) error {
+	log.Debugf("%s: starting chainer", chainerID)
 
 	for msg := range jobs {
 		// the message might have waited in the channel for a while
 		// check if the context is expired or canceled by now
 		if msg.RequestCtx.Err() != nil {
+			continue
+		}
+
+		if msg.ID.String() != chainerID {
+			log.Errorf("%s: chainer received request with wrong ID: %s", chainerID, msg.ID)
+			msg.respond(errorResponse(http.StatusInternalServerError, ""))
 			continue
 		}
 
@@ -95,17 +110,16 @@ func (s *Signer) chainer(jobs <-chan ChainingRequest) error {
 		// persist last signature only if UPP was successfully received by ubirch backend
 		if httpSuccess(resp.StatusCode) {
 			signature := uppBytes[len(uppBytes)-s.protocol.SignatureLength():]
-			err := s.protocol.PersistSignature(msg.ID, signature)
+			err = s.protocol.PersistSignature(msg.ID, signature)
 			if err != nil {
-				return fmt.Errorf("unable to persist last signature: %v [\"%s\": \"%s\"]",
+				log.Errorf("unable to persist last signature: %v [\"%s\": \"%s\"]",
 					err, msg.ID, base64.StdEncoding.EncodeToString(signature))
+				return err
 			}
-		} else {
-			log.Errorf("%s: [chain] request failed: (%d) %s", msg.ID, resp.StatusCode, string(resp.Content))
 		}
 	}
 
-	log.Debug("shut down chainer")
+	log.Debugf("%s: shut down chainer", chainerID)
 	return nil
 }
 
@@ -120,10 +134,6 @@ func (s *Signer) Sign(msg SigningRequest) HTTPResponse {
 	log.Debugf("%s: signed UPP: %x", msg.ID, uppBytes)
 
 	resp := s.sendUPP(msg.HTTPRequest, uppBytes)
-
-	if httpFailed(resp.StatusCode) {
-		log.Errorf("%s: [%s] request failed: (%d) %s", msg.ID, msg.Operation, resp.StatusCode, string(resp.Content))
-	}
 
 	return resp
 }
@@ -141,8 +151,7 @@ func (s *Signer) getChainedUPP(id uuid.UUID, hash [32]byte) ([]byte, error) {
 			PrevSignature: prevSignature,
 			Hint:          ubirch.Binary,
 			Payload:       hash[:],
-		},
-	)
+		})
 }
 
 func (s *Signer) getSignedUPP(id uuid.UUID, hash [32]byte, op operation) ([]byte, error) {
@@ -157,16 +166,20 @@ func (s *Signer) getSignedUPP(id uuid.UUID, hash [32]byte, op operation) ([]byte
 			Uuid:    id,
 			Hint:    hint,
 			Payload: hash[:],
-		},
-	)
+		})
 }
 
 func (s *Signer) sendUPP(msg HTTPRequest, upp []byte) HTTPResponse {
 	// send UPP to ubirch backend
 	backendResp, err := post(s.authServiceURL, upp, ubirchHeader(msg.ID, msg.Auth))
 	if err != nil {
-		log.Errorf("%s: sending request to UBIRCH Authentication Service failed: %v", msg.ID, err)
-		return errorResponse(http.StatusInternalServerError, "")
+		if os.IsTimeout(err) {
+			log.Errorf("%s: request to UBIRCH Authentication Service timed out after %s: %v", msg.ID, BackendRequestTimeout.String(), err)
+			return errorResponse(http.StatusGatewayTimeout, "")
+		} else {
+			log.Errorf("%s: sending request to UBIRCH Authentication Service failed: %v", msg.ID, err)
+			return errorResponse(http.StatusInternalServerError, "")
+		}
 	}
 	log.Debugf("%s: backend response: (%d) %x", msg.ID, backendResp.StatusCode, backendResp.Content)
 
@@ -221,6 +234,10 @@ func getSigningResponse(respCode int, msg HTTPRequest, upp []byte, backendResp H
 	})
 	if err != nil {
 		log.Warnf("error serializing signing response: %v", err)
+	}
+
+	if httpFailed(respCode) {
+		log.Errorf("%s: request failed: (%d) %s", msg.ID, respCode, string(signingResp))
 	}
 
 	return HTTPResponse{

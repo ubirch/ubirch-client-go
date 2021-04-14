@@ -15,12 +15,12 @@ import (
 )
 
 const (
+	BackendRequestTimeout = 10 * time.Second // time after which requests to the ubirch backend will be canceled
 	GatewayTimeout        = 20 * time.Second // time after which the client sends a 504 response if no timely response could be produced
 	ShutdownTimeout       = 25 * time.Second // time after which the server will be shut down forcefully if graceful shutdown did not happen before
-	BackendRequestTimeout = 15 * time.Second // time after which requests to the ubirch backend will be canceled
-	ReadTimeout           = 5 * time.Second
-	WriteTimeout          = 30 * time.Second
-	IdleTimeout           = 120 * time.Second
+	ReadTimeout           = 1 * time.Second  // maximum duration for reading the entire request -> low since we only expect requests with small content
+	WriteTimeout          = 30 * time.Second // time after which the connection will be closed if response was not written -> this should never happen
+	IdleTimeout           = 60 * time.Second // time to wait for the next request when keep-alives are enabled
 )
 
 type ServerEndpoint struct {

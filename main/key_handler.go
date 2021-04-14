@@ -31,6 +31,7 @@ func initDeviceKeys(p *ExtendedProtocol, conf Config) error {
 	}
 
 	// create and register keys for identities
+	log.Infof("initializing %d identities...", len(conf.Devices))
 	for name, auth := range conf.Devices {
 		// make sure identity name is a valid UUID
 		uid, err := uuid.Parse(name)
@@ -150,7 +151,7 @@ func registerPublicKey(p *ExtendedProtocol, uid uuid.UUID, pubKey []byte, keySer
 
 // submitCSR submits a X.509 Certificate Signing Request for the public key to the identity service
 func submitCSR(p *ExtendedProtocol, uid uuid.UUID, subjectCountry string, subjectOrganization string, identityService string) error {
-	log.Printf("%s: submitting CSR to identity service: %s", uid, identityService)
+	log.Debugf("%s: submitting CSR to identity service", uid)
 
 	csr, err := p.GetCSR(uid, subjectCountry, subjectOrganization)
 	if err != nil {

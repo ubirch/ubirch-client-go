@@ -50,7 +50,7 @@ type HTTPResponse struct {
 }
 
 type ChainingService struct {
-	Jobs       chan ChainingRequest
+	Jobs       map[string]chan ChainingRequest
 	AuthTokens map[string]string
 }
 
@@ -137,7 +137,7 @@ func (c *ChainingService) handleRequest(w http.ResponseWriter, r *http.Request) 
 
 func (c *ChainingService) submitForChaining(msg ChainingRequest) error {
 	select {
-	case c.Jobs <- msg:
+	case c.Jobs[msg.ID.String()] <- msg:
 		return nil
 	default: // do not accept any more requests if buffer is full
 		return fmt.Errorf("resquest skipped due to overflowing request channel")

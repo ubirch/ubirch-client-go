@@ -88,10 +88,10 @@ func ubirchHeader(uid uuid.UUID, auth string) map[string]string {
 
 // post submits a message to a backend service
 // returns the response or encountered errors
-func post(url string, data []byte, header map[string]string) (HTTPResponse, error) {
+func post(serviceURL string, data []byte, header map[string]string) (HTTPResponse, error) {
 	client := &http.Client{Timeout: BackendRequestTimeout}
 
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(data))
+	req, err := http.NewRequest(http.MethodPost, serviceURL, bytes.NewBuffer(data))
 	if err != nil {
 		return HTTPResponse{}, fmt.Errorf("can't make new post request: %v", err)
 	}
@@ -109,11 +109,15 @@ func post(url string, data []byte, header map[string]string) (HTTPResponse, erro
 	defer resp.Body.Close()
 
 	respBodyBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return HTTPResponse{}, err
+	}
+
 	return HTTPResponse{
 		StatusCode: resp.StatusCode,
 		Header:     resp.Header,
 		Content:    respBodyBytes,
-	}, err
+	}, nil
 }
 
 // requestPublicKeys requests a devices public keys at the identity service
