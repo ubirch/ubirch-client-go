@@ -19,7 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
+	"os"
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
@@ -175,8 +175,8 @@ func (s *Signer) sendUPP(msg HTTPRequest, upp []byte) HTTPResponse {
 	// send UPP to ubirch backend
 	backendResp, err := post(s.authServiceURL, upp, ubirchHeader(msg.ID, msg.Auth))
 	if err != nil {
-		if e, ok := err.(*url.Error); ok && e.Timeout() {
-			log.Errorf("%s: request to UBIRCH Authentication Service timed out after %d sec: %v", msg.ID, BackendRequestTimeout, err)
+		if os.IsTimeout(err) {
+			log.Errorf("%s: request to UBIRCH Authentication Service timed out after %s: %v", msg.ID, BackendRequestTimeout.String(), err)
 			return errorResponse(http.StatusGatewayTimeout, "")
 		} else {
 			log.Errorf("%s: sending request to UBIRCH Authentication Service failed: %v", msg.ID, err)
