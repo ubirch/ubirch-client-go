@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	BackendRequestTimeout = 15 * time.Second // time after which requests to the ubirch backend will be canceled
+	BackendRequestTimeout = 10 * time.Second // time after which requests to the ubirch backend will be canceled
 	GatewayTimeout        = 20 * time.Second // time after which the client sends a 504 response if no timely response could be produced
 	ShutdownTimeout       = 25 * time.Second // time after which the server will be shut down forcefully if graceful shutdown did not happen before
 	ReadTimeout           = 1 * time.Second
