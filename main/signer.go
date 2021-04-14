@@ -151,8 +151,7 @@ func (s *Signer) getChainedUPP(id uuid.UUID, hash [32]byte) ([]byte, error) {
 			PrevSignature: prevSignature,
 			Hint:          ubirch.Binary,
 			Payload:       hash[:],
-		},
-	)
+		})
 }
 
 func (s *Signer) getSignedUPP(id uuid.UUID, hash [32]byte, op operation) ([]byte, error) {
@@ -167,8 +166,7 @@ func (s *Signer) getSignedUPP(id uuid.UUID, hash [32]byte, op operation) ([]byte
 			Uuid:    id,
 			Hint:    hint,
 			Payload: hash[:],
-		},
-	)
+		})
 }
 
 func (s *Signer) sendUPP(msg HTTPRequest, upp []byte) HTTPResponse {
