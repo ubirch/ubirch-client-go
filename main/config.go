@@ -274,10 +274,10 @@ func (c *Config) setDefaultURLs() error {
 	}
 
 	log.Infof("UBIRCH backend environment: %s", c.Env)
-	log.Debugf(" - Key Service:            %s", c.KeyService)
-	log.Debugf(" - Identity Service:       %s", c.IdentityService)
-	log.Debugf(" - Authentication Service: %s", c.Niomon)
-	log.Debugf(" - Verification Service:   %s", c.VerifyService)
+	log.Infof(" - Key Service:            %s", c.KeyService)
+	log.Infof(" - Identity Service:       %s", c.IdentityService)
+	log.Infof(" - Authentication Service: %s", c.Niomon)
+	log.Infof(" - Verification Service:   %s", c.VerifyService)
 
 	return nil
 }
