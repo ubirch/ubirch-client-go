@@ -22,7 +22,7 @@ const (
 func main() {
 	t := setup()
 
-	log.Infof("%d identities, %d requests each => sending [%d] requests", len(t.identities), numberOfRequestsPerID, len(t.identities)*numberOfRequestsPerID)
+	log.Infof("%d identities, %d requests each => sending [ %d ] requests", len(t.identities), numberOfRequestsPerID, len(t.identities)*numberOfRequestsPerID)
 	log.Infof("%d requests per second per identity", requestsPerSecondPerID)
 
 	start := time.Now()
@@ -33,14 +33,14 @@ func main() {
 	}
 
 	t.wg.Wait()
-	log.Infof(" = = = => requests done after %7.3f seconds <= = = = ", time.Since(start).Seconds())
+	log.Infof(" = = = => requests done after [ %7.3f ] seconds <= = = = ", time.Since(start).Seconds())
 	t.teardown()
 }
 
 func (t *testCtx) sendRequests(id string, auth string) {
 	defer t.wg.Done()
 
-	HTTPclient := &http.Client{Timeout: 65 * time.Second}
+	HTTPclient := &http.Client{Timeout: 30 * time.Second}
 	clientURL := clientBaseURL + id + "/hash"
 	header := http.Header{}
 	header.Set("Content-Type", "application/octet-stream")

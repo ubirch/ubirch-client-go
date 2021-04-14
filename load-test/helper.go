@@ -180,6 +180,6 @@ func countFails(statusCodes <-chan string, cancel context.CancelFunc) {
 	}
 
 	for status, count := range failCounters {
-		log.Errorf("%4d x [ %s ]", count, status)
+		log.Errorf("[ %4d ] x %s", count, status)
 	}
 }
