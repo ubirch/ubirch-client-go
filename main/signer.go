@@ -115,8 +115,6 @@ func (s *Signer) chainer(chainerID string, jobs <-chan ChainingRequest) error {
 					err, msg.ID, base64.StdEncoding.EncodeToString(signature))
 				return err
 			}
-		} else {
-			log.Errorf("%s: [chain] request failed: (%d) %s", msg.ID, resp.StatusCode, string(resp.Content))
 		}
 	}
 
@@ -135,10 +133,6 @@ func (s *Signer) Sign(msg SigningRequest) HTTPResponse {
 	log.Debugf("%s: signed UPP: %x", msg.ID, uppBytes)
 
 	resp := s.sendUPP(msg.HTTPRequest, uppBytes)
-
-	if httpFailed(resp.StatusCode) {
-		log.Errorf("%s: [%s] request failed: (%d) %s", msg.ID, msg.Operation, resp.StatusCode, string(resp.Content))
-	}
 
 	return resp
 }
@@ -236,6 +230,10 @@ func getSigningResponse(respCode int, msg HTTPRequest, upp []byte, backendResp H
 	})
 	if err != nil {
 		log.Warnf("error serializing signing response: %v", err)
+	}
+
+	if httpFailed(respCode) {
+		log.Errorf("%s: request failed: (%d) %s", msg.ID, respCode, string(signingResp))
 	}
 
 	return HTTPResponse{
