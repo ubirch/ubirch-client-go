@@ -14,22 +14,26 @@ import (
 const (
 	clientBaseURL          = "http://localhost:8080/"
 	configFile             = "config.json"
-	numberOfTestIDs        = 100
-	numberOfRequestsPerID  = 10
-	requestsPerSecondPerID = 4
+	numberOfTestIDs        = 500
+	numberOfRequestsPerID  = 2
+	IDsPerSecond           = 5
+	requestsPerSecondPerID = 2
 )
 
 func main() {
 	t := setup()
 
 	log.Infof("%d identities, %d requests each => sending [ %d ] requests", len(t.identities), numberOfRequestsPerID, len(t.identities)*numberOfRequestsPerID)
-	log.Infof("%d requests per second per identity", requestsPerSecondPerID)
+	log.Infof("%3d requests per second per identity", requestsPerSecondPerID)
+	log.Infof("%3d requests per second overall", requestsPerSecondPerID*IDsPerSecond)
 
 	start := time.Now()
 
 	for uid, auth := range t.identities {
 		t.wg.Add(1)
 		go t.sendRequests(uid, auth)
+
+		time.Sleep(time.Second / IDsPerSecond)
 	}
 
 	t.wg.Wait()
