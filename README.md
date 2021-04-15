@@ -276,6 +276,100 @@ The response body consists of either an error message, or a JSON map with
 | 503 - Service Temporarily Unavailable | x | x | service busy |
 | 504 - Gateway Timeout | x | x | service was unable to produce a timely response |
 
+#### Examples:
+
+------------------------------------------------------------------------------------------------------------------------
+
+1. original data (JSON):
+
+    - anchor hash (**chained**)
+        ```console
+        curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f \
+          -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
+          -H "Content-Type: application/json" \
+          -d '{"id": "ba70ad8b-a564-4e58-9a3b-224ac0f0153f", "ts": 1585838578, "data": "1234567890"}' \
+          -i
+      ```
+    - anchor hash (**unchained**)
+        ```console
+        curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/anchor \
+          -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
+          -H "Content-Type: application/json" \
+          -d '{"id": "ba70ad8b-a564-4e58-9a3b-224ac0f0153f", "ts": 1585838578, "data": "1234567890"}' \
+          -i
+      ```
+    - disable hash
+        ```console
+        curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/disable \
+          -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
+          -H "Content-Type: application/json" \
+          -d '{"id": "ba70ad8b-a564-4e58-9a3b-224ac0f0153f", "ts": 1585838578, "data": "1234567890"}' \
+          -i
+      ```
+    - enable hash
+        ```console
+        curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/enable \
+          -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
+          -H "Content-Type: application/json" \
+          -d '{"id": "ba70ad8b-a564-4e58-9a3b-224ac0f0153f", "ts": 1585838578, "data": "1234567890"}' \
+          -i
+      ```
+    - delete hash
+        ```console
+        curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/delete \
+          -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
+          -H "Content-Type: application/json" \
+          -d '{"id": "ba70ad8b-a564-4e58-9a3b-224ac0f0153f", "ts": 1585838578, "data": "1234567890"}' \
+          -i
+      ```
+
+------------------------------------------------------------------------------------------------------------------------
+
+2. direct data hash injection:
+
+    - anchor hash (**chained**)
+        ```console
+        curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/hash \
+          -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
+          -H "Content-Type: text/plain" \
+          -d "wp1WK/3z5yHiGBYUZReiMN4UVM2lUJzAtGg9kFtdy3A=" \
+          -i
+      ```
+    - anchor hash (**unchained**)
+        ```console
+        curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/anchor/hash \
+          -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
+          -H "Content-Type: text/plain" \
+          -d "wp1WK/3z5yHiGBYUZReiMN4UVM2lUJzAtGg9kFtdy3A=" \
+          -i
+      ```
+    - disable hash
+        ```console
+        curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/disable/hash \
+          -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
+          -H "Content-Type: text/plain" \
+          -d "wp1WK/3z5yHiGBYUZReiMN4UVM2lUJzAtGg9kFtdy3A=" \
+          -i
+      ```
+    - enable hash
+        ```console
+        curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/enable/hash \
+          -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
+          -H "Content-Type: text/plain" \
+          -d "wp1WK/3z5yHiGBYUZReiMN4UVM2lUJzAtGg9kFtdy3A=" \
+          -i
+      ```
+    - delete hash
+        ```console
+        curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/delete/hash \
+          -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
+          -H "Content-Type: text/plain" \
+          -d "wp1WK/3z5yHiGBYUZReiMN4UVM2lUJzAtGg9kFtdy3A=" \
+          -i
+      ```
+
+------------------------------------------------------------------------------------------------------------------------
+
 ### UPP Verification Service
 
 Verification service endpoints do not require an authentication token.
