@@ -119,7 +119,13 @@ func (c *ChainingService) handleRequest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	err = c.submitForChaining(msg)
+	requestChan, found := c.Jobs[msg.ID.String()]
+	if !found {
+		Error(msg.ID, w, fmt.Errorf("chaining not supported for identity"), http.StatusForbidden)
+		return
+	}
+
+	err = submitForChaining(requestChan, msg)
 	if err != nil {
 		log.Warnf("%s: %v", msg.ID, err)
 		http.Error(w, "Service Temporarily Unavailable", http.StatusServiceUnavailable)
@@ -135,9 +141,9 @@ func (c *ChainingService) handleRequest(w http.ResponseWriter, r *http.Request) 
 	sendResponse(w, resp)
 }
 
-func (c *ChainingService) submitForChaining(msg ChainingRequest) error {
+func submitForChaining(requestChan chan<- ChainingRequest, msg ChainingRequest) error {
 	select {
-	case c.Jobs[msg.ID.String()] <- msg:
+	case requestChan <- msg:
 		return nil
 	default: // do not accept any more requests if buffer is full
 		return fmt.Errorf("resquest skipped due to overflowing request channel")
