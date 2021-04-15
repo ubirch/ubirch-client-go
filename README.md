@@ -256,6 +256,130 @@ The response body consists of either an error message, or a JSON map with
 > UPPs (such as the backend response content) are [MessagePack](https://github.com/msgpack/msgpack/blob/master/spec.md) formatted
 > and can be decoded using an online tool like [this MessagePack to JSON Converter](https://toolslick.com/conversion/data/messagepack-to-json).
 
+#### Error Codes
+
+| HTTP response status code | orig. data | hash | description |
+|---------------------------|---------------------|---------------|-------------|
+| 200 - OK | x | x | success |
+| 400 - Bad Request | x | x | unable to read request body |
+|                   | x |   | invalid content-type for original data (≠ `application/octet-stream` or `application/json`) |
+|                   | x |   | unable to parse JSON request body (*only for content-type `application/json`*) |
+|                   |   | x | invalid content-type for hash (≠ `application/octet-stream` or `text/plain`) |
+|                   |   | x | decoding hash failed (*only for content-type `text/plain`*) |
+|                   |   | x | invalid SHA256 hash size (≠ 32 bytes) |
+| 401 - Unauthorized | x | x | unknown UUID |
+|                    | x | x | invalid auth token |
+| 404 - Not Found | x | x | invalid UUID  |
+|                 | x | x | invalid operation (≠ `anchor` / `disable` / `enable` / `delete`) |
+| 500 - Internal Server Error | x | x | signing failed |
+|                             | x | x | sending request to server failed |
+| 503 - Service Temporarily Unavailable | x | x | service busy |
+| 504 - Gateway Timeout | x | x | service was unable to produce a timely response |
+
+Internally, the client sends a request to the UBIRCH authentication service (*Niomon*) and forwards its response back to
+the sender (i.e. the `"response"`-filed in the JSON response body of the client). If no other errors occurred, the
+client will adopt the HTTP response status code of the backend response.
+
+> See
+the [swagger documentation](https://developer.ubirch.com/api.html?url=https://niomon.demo.ubirch.com/swagger/swagger.json#/Ubirch%20Protocol%20Packet/Receives%20Ubirch%20Protocol%20Packets)
+for *Niomon* error codes.
+
+#### Examples:
+
+1. original data (JSON):
+
+    <details>
+      <summary>(click to expand examples for sending JSON data packages)</summary>
+
+    - anchor hash (**chained**)
+        ```console
+        curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f \
+          -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
+          -H "Content-Type: application/json" \
+          -d '{"id": "ba70ad8b-a564-4e58-9a3b-224ac0f0153f", "ts": 1585838578, "data": "1234567890"}' \
+          -i
+      ```
+    - anchor hash (**unchained**)
+        ```console
+        curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/anchor \
+          -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
+          -H "Content-Type: application/json" \
+          -d '{"id": "ba70ad8b-a564-4e58-9a3b-224ac0f0153f", "ts": 1585838578, "data": "1234567890"}' \
+          -i
+      ```
+    - disable hash
+        ```console
+        curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/disable \
+          -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
+          -H "Content-Type: application/json" \
+          -d '{"id": "ba70ad8b-a564-4e58-9a3b-224ac0f0153f", "ts": 1585838578, "data": "1234567890"}' \
+          -i
+      ```
+    - enable hash
+        ```console
+        curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/enable \
+          -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
+          -H "Content-Type: application/json" \
+          -d '{"id": "ba70ad8b-a564-4e58-9a3b-224ac0f0153f", "ts": 1585838578, "data": "1234567890"}' \
+          -i
+      ```
+    - delete hash
+        ```console
+        curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/delete \
+          -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
+          -H "Content-Type: application/json" \
+          -d '{"id": "ba70ad8b-a564-4e58-9a3b-224ac0f0153f", "ts": 1585838578, "data": "1234567890"}' \
+          -i
+      ```
+    </details>
+
+1. direct data hash injection
+
+    <details>
+      <summary>(click to expand examples for direct data hash injection)</summary>
+
+    - anchor hash (**chained**)
+        ```console
+        curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/hash \
+          -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
+          -H "Content-Type: text/plain" \
+          -d "wp1WK/3z5yHiGBYUZReiMN4UVM2lUJzAtGg9kFtdy3A=" \
+          -i
+      ```
+    - anchor hash (**unchained**)
+        ```console
+        curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/anchor/hash \
+          -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
+          -H "Content-Type: text/plain" \
+          -d "wp1WK/3z5yHiGBYUZReiMN4UVM2lUJzAtGg9kFtdy3A=" \
+          -i
+      ```
+    - disable hash
+        ```console
+        curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/disable/hash \
+          -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
+          -H "Content-Type: text/plain" \
+          -d "wp1WK/3z5yHiGBYUZReiMN4UVM2lUJzAtGg9kFtdy3A=" \
+          -i
+      ```
+    - enable hash
+        ```console
+        curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/enable/hash \
+          -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
+          -H "Content-Type: text/plain" \
+          -d "wp1WK/3z5yHiGBYUZReiMN4UVM2lUJzAtGg9kFtdy3A=" \
+          -i
+      ```
+    - delete hash
+        ```console
+        curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/delete/hash \
+          -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
+          -H "Content-Type: text/plain" \
+          -d "wp1WK/3z5yHiGBYUZReiMN4UVM2lUJzAtGg9kFtdy3A=" \
+          -i
+      ```
+    </details>
+
 ### UPP Verification Service
 
 Verification service endpoints do not require an authentication token.
