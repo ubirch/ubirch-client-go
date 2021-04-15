@@ -49,7 +49,7 @@ const (
 	defaultReqBufSize = 20 // expected max. waiting time for accepted requests at a throughput of 3rps => ~7sec
 )
 
-var EnvIsProd bool
+var isDevelopment bool
 
 // configuration of the client
 type Config struct {
@@ -248,9 +248,9 @@ func (c *Config) setDefaultURLs() error {
 		c.Env = PROD_STAGE
 	}
 
-	// set flag for productive environments
-	if !(c.Env == DEV_STAGE || c.Env == DEMO_STAGE) {
-		EnvIsProd = true
+	// set flag for non-production environments
+	if c.Env == DEV_STAGE || c.Env == DEMO_STAGE {
+		isDevelopment = true
 	}
 
 	if c.KeyService == "" {
