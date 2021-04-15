@@ -328,7 +328,7 @@ func getOperation(r *http.Request) (operation, error) {
 	case anchorHash, disableHash, enableHash, deleteHash:
 		return operation(opParam), nil
 	default:
-		return "", fmt.Errorf("invalid update operation: "+
+		return "", fmt.Errorf("invalid operation: "+
 			"expected (\"%s\" | \"%s\" | \"%s\" | \"%s\"), got \"%s\"",
 			anchorHash, disableHash, enableHash, deleteHash, opParam)
 	}
