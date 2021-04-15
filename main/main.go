@@ -127,7 +127,7 @@ func main() {
 		certFile: conf.TLS_CertFile,
 		keyFile:  conf.TLS_KeyFile,
 	}
-	if conf.CORS && conf.Env != PROD_STAGE { // never enable CORS on production stage
+	if conf.CORS && !EnvIsProd { // never enable CORS on production stage
 		httpServer.SetUpCORS(conf.CORS_Origins, conf.Debug)
 	}
 

@@ -213,7 +213,7 @@ func (c *COSEService) handleRequest(w http.ResponseWriter, r *http.Request) {
 
 	resp := c.Sign(msg)
 
-	if isHashRequest(r) || ENV != PROD_STAGE { // never log original data on prod
+	if isHashRequest(r) || !EnvIsProd { // never log original data on prod
 		log.Debugf("%s: signed COSE: %x", msg.ID, resp.Content)
 	}
 
@@ -241,7 +241,7 @@ func (c *COSEService) getPayloadAndHashFromDataRequest(header http.Header, data 
 		if err != nil {
 			return nil, Sha256Sum{}, fmt.Errorf("unable to CBOR encode JSON object: %v", err)
 		}
-		if ENV != PROD_STAGE { // never log original data on prod
+		if !EnvIsProd { // never log original data on prod
 			log.Debugf("CBOR encoded JSON: %x", data)
 		}
 		fallthrough
@@ -250,7 +250,7 @@ func (c *COSEService) getPayloadAndHashFromDataRequest(header http.Header, data 
 		if err != nil {
 			return nil, Sha256Sum{}, err
 		}
-		if ENV != PROD_STAGE { // never log original data on prod
+		if !EnvIsProd { // never log original data on prod
 			log.Debugf("toBeSigned: %x", toBeSigned)
 		}
 		hash = sha256.Sum256(toBeSigned)
@@ -368,7 +368,7 @@ func getHashFromDataRequest(header http.Header, data []byte) (hash Sha256Sum, er
 			return Sha256Sum{}, err
 		}
 
-		if ENV != PROD_STAGE { // never log original data on prod
+		if !EnvIsProd { // never log original data on prod
 			log.Debugf("sorted compact JSON: %s", string(data))
 		}
 	case BinType:
