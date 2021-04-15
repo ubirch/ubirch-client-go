@@ -284,12 +284,9 @@ client will adopt the HTTP response status code of the backend response.
 the [swagger documentation](https://developer.ubirch.com/api.html?url=https://niomon.demo.ubirch.com/swagger/swagger.json#/Ubirch%20Protocol%20Packet/Receives%20Ubirch%20Protocol%20Packets)
 for *Niomon* error codes.
 
-#### Examples:
+#### CURL Request Examples:
 
 1. original data (JSON):
-
-    <details>
-      <summary>(click to expand examples for sending JSON data packages)</summary>
 
     - anchor hash (**chained**)
         ```console
@@ -331,12 +328,8 @@ for *Niomon* error codes.
           -d '{"id": "ba70ad8b-a564-4e58-9a3b-224ac0f0153f", "ts": 1585838578, "data": "1234567890"}' \
           -i
       ```
-    </details>
 
 1. direct data hash injection
-
-    <details>
-      <summary>(click to expand examples for direct data hash injection)</summary>
 
     - anchor hash (**chained**)
         ```console
@@ -378,7 +371,6 @@ for *Niomon* error codes.
           -d "wp1WK/3z5yHiGBYUZReiMN4UVM2lUJzAtGg9kFtdy3A=" \
           -i
       ```
-    </details>
 
 ### UPP Verification Service
 
