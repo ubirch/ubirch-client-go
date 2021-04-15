@@ -276,6 +276,13 @@ The response body consists of either an error message, or a JSON map with
 | 503 - Service Temporarily Unavailable | x | x | service busy |
 | 504 - Gateway Timeout | x | x | service was unable to produce a timely response |
 
+Internally, the client sends a request to the UBIRCH authentication service (*Niomon*) and forwards its response back to
+the sender (i.e. the `"response"`-filed in the JSON response body of the client). If no other errors occurred, the
+client will adopt the HTTP response status code of the backend response.
+
+See
+the [swagger documentation for Niomon](https://developer.ubirch.com/api.html?url=https://niomon.demo.ubirch.com/swagger/swagger.json#/Ubirch%20Protocol%20Packet/Receives%20Ubirch%20Protocol%20Packets)
+
 #### Examples:
 
 1. original data (JSON):
@@ -428,7 +435,10 @@ To send the **hex** string representation of the hash (instead of base64), the `
 used.
 
 ```json
-{"Content-Type": "text/plain", "Content-Transfer-Encoding": "hex"}
+{
+  "Content-Type": "text/plain",
+  "Content-Transfer-Encoding": "hex"
+}
 ```
 
 #### COSE Response
