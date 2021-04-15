@@ -256,6 +256,23 @@ The response body consists of either an error message, or a JSON map with
 > UPPs (such as the backend response content) are [MessagePack](https://github.com/msgpack/msgpack/blob/master/spec.md) formatted
 > and can be decoded using an online tool like [this MessagePack to JSON Converter](https://toolslick.com/conversion/data/messagepack-to-json).
 
+#### Error Codes
+
+| HTTP response status code | Description |
+|---------------------------|-------------|
+| 200 - OK | success |
+| 400 - Bad Request | unable to read request body |
+|                   | invalid content-type for hash (≠ `application/octet-stream` or `text/plain`) |
+|                   | decoding hash failed (*only for content-type `text/plain`*) |
+|                   | invalid hash size (≠ 32 bytes) |
+| 401 - Unauthorized | unknown UUID |
+|                    | invalid auth token |
+| 404 - Not Found | invalid UUID  |
+|                 | invalid operation (≠ `anchor` / `disable` / `enable` / `delete`) |
+| 500 - Internal Server Error | signing failed |
+|                             | sending request to server failed |
+| 504 - Gateway Timeout | service was unable to produce a timely response |
+
 ### UPP Verification Service
 
 Verification service endpoints do not require an authentication token.
