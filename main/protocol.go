@@ -45,10 +45,13 @@ type ContextManager interface {
 }
 
 func NewExtendedProtocol(cryptoCtx ubirch.Crypto, ctxManager ContextManager, configDir string) (*ExtendedProtocol, error) {
-	p := &ExtendedProtocol{}
-	p.Crypto = cryptoCtx
-	p.ctxManager = ctxManager
-	p.Signatures = map[uuid.UUID][]byte{}
+	p := &ExtendedProtocol{
+		Protocol: ubirch.Protocol{
+			Crypto: cryptoCtx,
+		},
+		ctxManager: ctxManager,
+		Signatures: map[uuid.UUID][]byte{},
+	}
 
 	err := p.portLegacyProtocolCtxFile(configDir)
 	if err != nil {
