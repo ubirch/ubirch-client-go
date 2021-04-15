@@ -49,7 +49,7 @@ const (
 	defaultReqBufSize = 20 // expected max. waiting time for accepted requests at a throughput of 3rps => ~7sec
 )
 
-var ENV string
+var isDevelopment bool
 
 // configuration of the client
 type Config struct {
@@ -248,12 +248,10 @@ func (c *Config) setDefaultURLs() error {
 		c.Env = PROD_STAGE
 	}
 
-	// assert Env variable value is a valid UBIRCH backend environment
-	if !(c.Env == DEV_STAGE || c.Env == DEMO_STAGE || c.Env == PROD_STAGE) {
-		return fmt.Errorf("invalid UBIRCH backend environment: \"%s\"", c.Env)
+	// set flag for non-production environments
+	if c.Env == DEV_STAGE || c.Env == DEMO_STAGE {
+		isDevelopment = true
 	}
-
-	ENV = c.Env
 
 	if c.KeyService == "" {
 		c.KeyService = fmt.Sprintf(defaultKeyURL, c.Env)
@@ -274,10 +272,10 @@ func (c *Config) setDefaultURLs() error {
 	}
 
 	log.Infof("UBIRCH backend environment: %s", c.Env)
-	log.Infof(" - Key Service:            %s", c.KeyService)
-	log.Infof(" - Identity Service:       %s", c.IdentityService)
-	log.Infof(" - Authentication Service: %s", c.Niomon)
-	log.Infof(" - Verification Service:   %s", c.VerifyService)
+	log.Debugf(" - Key Service:            %s", c.KeyService)
+	log.Debugf(" - Identity Service:       %s", c.IdentityService)
+	log.Debugf(" - Authentication Service: %s", c.Niomon)
+	log.Debugf(" - Verification Service:   %s", c.VerifyService)
 
 	return nil
 }

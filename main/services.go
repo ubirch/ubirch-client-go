@@ -213,10 +213,6 @@ func (c *COSEService) handleRequest(w http.ResponseWriter, r *http.Request) {
 
 	resp := c.Sign(msg)
 
-	if isHashRequest(r) || ENV != PROD_STAGE { // never log original data on prod
-		log.Debugf("%s: signed COSE: %x", msg.ID, resp.Content)
-	}
-
 	sendResponse(w, resp)
 }
 
@@ -241,18 +237,16 @@ func (c *COSEService) getPayloadAndHashFromDataRequest(header http.Header, data 
 		if err != nil {
 			return nil, Sha256Sum{}, fmt.Errorf("unable to CBOR encode JSON object: %v", err)
 		}
-		if ENV != PROD_STAGE { // never log original data on prod
-			log.Debugf("CBOR encoded JSON: %x", data)
-		}
+		log.Debugf("CBOR encoded JSON: %x", data)
+
 		fallthrough
 	case CBORType:
 		toBeSigned, err := c.GetSigStructBytes(data)
 		if err != nil {
 			return nil, Sha256Sum{}, err
 		}
-		if ENV != PROD_STAGE { // never log original data on prod
-			log.Debugf("toBeSigned: %x", toBeSigned)
-		}
+		log.Debugf("toBeSigned: %x", toBeSigned)
+
 		hash = sha256.Sum256(toBeSigned)
 		return data, hash, err
 	default:
@@ -367,19 +361,16 @@ func getHashFromDataRequest(header http.Header, data []byte) (hash Sha256Sum, er
 		if err != nil {
 			return Sha256Sum{}, err
 		}
+		log.Debugf("sorted compact JSON: %s", string(data))
 
-		if ENV != PROD_STAGE { // never log original data on prod
-			log.Debugf("sorted compact JSON: %s", string(data))
-		}
+		fallthrough
 	case BinType:
-		// do nothing
+		// hash original data
+		return sha256.Sum256(data), nil
 	default:
 		return Sha256Sum{}, fmt.Errorf("invalid content-type for original data: "+
 			"expected (\"%s\" | \"%s\")", BinType, JSONType)
 	}
-
-	// hash original data
-	return sha256.Sum256(data), nil
 }
 
 func getHashFromHashRequest(header http.Header, data []byte) (hash Sha256Sum, err error) {
@@ -396,20 +387,19 @@ func getHashFromHashRequest(header http.Header, data []byte) (hash Sha256Sum, er
 				return Sha256Sum{}, fmt.Errorf("decoding base64 encoded hash failed: %v (%s)", err, string(data))
 			}
 		}
+		fallthrough
 	case BinType:
-		// do nothing
+		if len(data) != HashLen {
+			return Sha256Sum{}, fmt.Errorf("invalid SHA256 hash size: "+
+				"expected %d bytes, got %d bytes", HashLen, len(data))
+		}
+
+		copy(hash[:], data)
+		return hash, nil
 	default:
 		return Sha256Sum{}, fmt.Errorf("invalid content-type for hash: "+
 			"expected (\"%s\" | \"%s\")", BinType, TextType)
 	}
-
-	if len(data) != HashLen {
-		return Sha256Sum{}, fmt.Errorf("invalid hash size: "+
-			"expected %d bytes, got %d bytes", HashLen, len(data))
-	}
-
-	copy(hash[:], data)
-	return hash, nil
 }
 
 func getSortedCompactJSON(data []byte) ([]byte, error) {

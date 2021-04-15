@@ -81,6 +81,7 @@ func (c *CoseSigner) Sign(msg CBORRequest) HTTPResponse {
 		log.Errorf("%s: could not create signed COSE: %v", msg.ID, err)
 		return errorResponse(http.StatusInternalServerError, "")
 	}
+	log.Debugf("%s: signed COSE: %x", msg.ID, coseBytes)
 
 	return HTTPResponse{
 		StatusCode: http.StatusOK,
