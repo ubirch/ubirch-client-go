@@ -4,27 +4,28 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"sync"
 
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
 )
 
-type chainChecker struct {
-	Chan            chan []byte
-	signatures      map[string][]byte
-	signaturesMutex sync.RWMutex
-	ctx             context.Context
-	cancel          context.CancelFunc
+type ChainChecker struct {
+	UPPs       chan []byte
+	ctx        context.Context
+	cancel     context.CancelFunc
+	signatures map[string][]byte
 }
 
-func NewChainChecker() *chainChecker {
-	c := &chainChecker{
-		Chan:       make(chan []byte),
+func NewChainChecker() *ChainChecker {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	c := &ChainChecker{
+		UPPs:       make(chan []byte),
+		ctx:        ctx,
+		cancel:     cancel,
 		signatures: make(map[string][]byte, numberOfTestIDs),
 	}
-	c.ctx, c.cancel = context.WithCancel(context.Background())
 
 	// start chain checker routine
 	go c.checkChain()
@@ -32,25 +33,25 @@ func NewChainChecker() *chainChecker {
 	return c
 }
 
-func (c *chainChecker) finish() {
-	close(c.Chan)
+func (c *ChainChecker) finish() {
+	close(c.UPPs)
 	<-c.ctx.Done()
 }
 
-func (c *chainChecker) checkChain() {
+func (c *ChainChecker) checkChain() {
 	defer c.cancel()
 
-	for b := range c.Chan {
-		upp, err := ubirch.Decode(b)
+	for uppBytes := range c.UPPs {
+		upp, err := ubirch.Decode(uppBytes)
 		if err != nil {
 			log.Errorf("RESPONSE CONTAINED INVALID UPP: %v", err)
 		}
 
 		id := upp.GetUuid().String()
 		signatureUPP := upp.GetSignature()
-		prevSignatureLocal := c.GetSignature(id)
+		prevSignatureLocal, found := c.signatures[id]
 
-		if prevSignatureLocal == nil {
+		if !found {
 			c.SetSignature(id, signatureUPP)
 			continue
 		}
@@ -68,20 +69,10 @@ func (c *chainChecker) checkChain() {
 	}
 }
 
-func (c *chainChecker) GetSignature(id string) []byte {
-	c.signaturesMutex.RLock()
-	defer c.signaturesMutex.RUnlock()
-
-	return c.signatures[id]
-}
-
-func (c *chainChecker) SetSignature(id string, signature []byte) {
+func (c *ChainChecker) SetSignature(id string, signature []byte) {
 	if len(signature) != 64 {
 		log.Fatal("invalid signature length")
 	}
-
-	c.signaturesMutex.Lock()
-	defer c.signaturesMutex.Unlock()
 
 	c.signatures[id] = signature
 }

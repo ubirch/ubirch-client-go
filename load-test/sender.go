@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -27,7 +26,13 @@ type HTTPResponse struct {
 	Content    []byte      `json:"content"`
 }
 
-func sendRequests(id string, auth string, ccChan chan<- []byte, wg *sync.WaitGroup) {
+type Sender struct {
+	testCtx *TestCtx
+}
+
+func (s *Sender) sendRequests(id string, auth string) {
+	defer s.testCtx.wg.Done()
+
 	HTTPclient := &http.Client{Timeout: 25 * time.Second}
 	clientURL := clientBaseURL + id + "/hash"
 	header := http.Header{}
@@ -35,15 +40,15 @@ func sendRequests(id string, auth string, ccChan chan<- []byte, wg *sync.WaitGro
 	header.Set("X-Auth-Token", auth)
 
 	for i := 1; i <= numberOfRequestsPerID; i++ {
-		wg.Add(1)
-		go sendAndCheckResponse(HTTPclient, clientURL, header, ccChan, wg)
+		s.testCtx.wg.Add(1)
+		go s.sendAndCheckResponse(HTTPclient, clientURL, header)
 
-		time.Sleep(time.Second / numberOfRequestsPerID)
+		time.Sleep(time.Second / requestsPerSecondPerID)
 	}
 }
 
-func sendAndCheckResponse(HTTPclient *http.Client, clientURL string, header http.Header, ccChan chan<- []byte, wg *sync.WaitGroup) {
-	defer wg.Done()
+func (s *Sender) sendAndCheckResponse(HTTPclient *http.Client, clientURL string, header http.Header) {
+	defer s.testCtx.wg.Done()
 
 	hash := make([]byte, 32)
 	_, err := rand.Read(hash)
@@ -52,7 +57,7 @@ func sendAndCheckResponse(HTTPclient *http.Client, clientURL string, header http
 		return
 	}
 
-	resp, err := sendRequest(HTTPclient, clientURL, header, hash)
+	resp, err := s.sendRequest(HTTPclient, clientURL, header, hash)
 	if err != nil {
 		log.Error(err)
 		return
@@ -63,10 +68,10 @@ func sendAndCheckResponse(HTTPclient *http.Client, clientURL string, header http
 		log.Error("HASH MISMATCH")
 	}
 	// check resp -> chain
-	ccChan <- resp.UPP
+	s.testCtx.chainChecker.UPPs <- resp.UPP
 }
 
-func sendRequest(HTTPclient *http.Client, clientURL string, header http.Header, hash []byte) (SigningResponse, error) {
+func (s *Sender) sendRequest(HTTPclient *http.Client, clientURL string, header http.Header, hash []byte) (SigningResponse, error) {
 	req, err := http.NewRequest(http.MethodPost, clientURL, bytes.NewBuffer(hash))
 	if err != nil {
 		return SigningResponse{}, err
@@ -83,6 +88,7 @@ func sendRequest(HTTPclient *http.Client, clientURL string, header http.Header, 
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
+		s.testCtx.failCounter.StatusCodes <- resp.Status
 		return SigningResponse{}, fmt.Errorf(resp.Status)
 	}
 
