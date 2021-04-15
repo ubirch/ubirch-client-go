@@ -248,7 +248,7 @@ func (c *Config) setDefaultURLs() error {
 		c.Env = PROD_STAGE
 	}
 
-	// assert Env variable value is a valid UBIRCH backend environment
+	// set flag for productive environments
 	if !(c.Env == DEV_STAGE || c.Env == DEMO_STAGE) {
 		EnvIsProd = true
 	}
