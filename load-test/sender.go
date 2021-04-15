@@ -27,27 +27,34 @@ type HTTPResponse struct {
 }
 
 type Sender struct {
-	testCtx *TestCtx
+	testCtx    *TestCtx
+	httpClient *http.Client
+}
+
+func NewSender(testCtx *TestCtx) *Sender {
+	return &Sender{
+		testCtx:    testCtx,
+		httpClient: &http.Client{Timeout: 25 * time.Second},
+	}
 }
 
 func (s *Sender) sendRequests(id string, auth string) {
 	defer s.testCtx.wg.Done()
 
-	HTTPclient := &http.Client{Timeout: 25 * time.Second}
-	clientURL := clientBaseURL + id + "/hash"
+	url := baseURL + id + "/hash"
 	header := http.Header{}
 	header.Set("Content-Type", "application/octet-stream")
 	header.Set("X-Auth-Token", auth)
 
 	for i := 1; i <= numberOfRequestsPerID; i++ {
 		s.testCtx.wg.Add(1)
-		go s.sendAndCheckResponse(HTTPclient, clientURL, header)
+		go s.sendAndCheckResponse(url, header)
 
 		time.Sleep(time.Second / requestsPerSecondPerID)
 	}
 }
 
-func (s *Sender) sendAndCheckResponse(HTTPclient *http.Client, clientURL string, header http.Header) {
+func (s *Sender) sendAndCheckResponse(url string, header http.Header) {
 	defer s.testCtx.wg.Done()
 
 	hash := make([]byte, 32)
@@ -57,7 +64,7 @@ func (s *Sender) sendAndCheckResponse(HTTPclient *http.Client, clientURL string,
 		return
 	}
 
-	resp, err := s.sendRequest(HTTPclient, clientURL, header, hash)
+	resp, err := s.sendRequest(url, header, hash)
 	if err != nil {
 		log.Error(err)
 		return
@@ -71,15 +78,15 @@ func (s *Sender) sendAndCheckResponse(HTTPclient *http.Client, clientURL string,
 	s.testCtx.chainChecker.UPPs <- resp.UPP
 }
 
-func (s *Sender) sendRequest(HTTPclient *http.Client, clientURL string, header http.Header, hash []byte) (SigningResponse, error) {
-	req, err := http.NewRequest(http.MethodPost, clientURL, bytes.NewBuffer(hash))
+func (s *Sender) sendRequest(url string, header http.Header, hash []byte) (SigningResponse, error) {
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(hash))
 	if err != nil {
 		return SigningResponse{}, err
 	}
 
 	req.Header = header
 
-	resp, err := HTTPclient.Do(req)
+	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		return SigningResponse{}, err
 	}

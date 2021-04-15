@@ -25,7 +25,7 @@ func NewTestCtx() *TestCtx {
 	}
 }
 
-func (t *TestCtx) teardown() {
+func (t *TestCtx) finish() {
 	t.chainChecker.finish()
 	t.failCounter.finish()
 }

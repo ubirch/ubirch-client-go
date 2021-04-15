@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	clientBaseURL          = "http://localhost:8080/"
+	baseURL                = "http://localhost:8080/"
 	configFile             = "config.json"
 	numberOfTestIDs        = 100
 	numberOfRequestsPerID  = 10
@@ -16,7 +16,7 @@ const (
 
 func main() {
 	testCtx := NewTestCtx()
-	sender := &Sender{testCtx: testCtx}
+	sender := NewSender(testCtx)
 
 	log.Infof("%d identities, %d requests each => sending [ %d ] requests", len(testCtx.identities), numberOfRequestsPerID, len(testCtx.identities)*numberOfRequestsPerID)
 	log.Infof("%3d requests per second per identity", requestsPerSecondPerID)
@@ -31,5 +31,5 @@ func main() {
 
 	testCtx.wg.Wait()
 	log.Infof(" = = = => requests done after [ %7.3f ] seconds <= = = = ", time.Since(start).Seconds())
-	testCtx.teardown()
+	testCtx.finish()
 }
