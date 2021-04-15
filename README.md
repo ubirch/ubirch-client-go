@@ -280,8 +280,9 @@ Internally, the client sends a request to the UBIRCH authentication service (*Ni
 the sender (i.e. the `"response"`-filed in the JSON response body of the client). If no other errors occurred, the
 client will adopt the HTTP response status code of the backend response.
 
-See
-the [swagger documentation for Niomon](https://developer.ubirch.com/api.html?url=https://niomon.demo.ubirch.com/swagger/swagger.json#/Ubirch%20Protocol%20Packet/Receives%20Ubirch%20Protocol%20Packets)
+> See
+the [swagger documentation](https://developer.ubirch.com/api.html?url=https://niomon.demo.ubirch.com/swagger/swagger.json#/Ubirch%20Protocol%20Packet/Receives%20Ubirch%20Protocol%20Packets)
+for *Niomon* error codes.
 
 #### Examples:
 
@@ -435,10 +436,7 @@ To send the **hex** string representation of the hash (instead of base64), the `
 used.
 
 ```json
-{
-  "Content-Type": "text/plain",
-  "Content-Transfer-Encoding": "hex"
-}
+{"Content-Type": "text/plain", "Content-Transfer-Encoding": "hex"}
 ```
 
 #### COSE Response
