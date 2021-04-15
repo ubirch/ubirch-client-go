@@ -278,9 +278,10 @@ The response body consists of either an error message, or a JSON map with
 
 #### Examples:
 
-------------------------------------------------------------------------------------------------------------------------
-
 1. original data (JSON):
+
+    <details>
+      <summary>(click to expand examples for sending JSON data packages)</summary>
 
     - anchor hash (**chained**)
         ```console
@@ -322,10 +323,12 @@ The response body consists of either an error message, or a JSON map with
           -d '{"id": "ba70ad8b-a564-4e58-9a3b-224ac0f0153f", "ts": 1585838578, "data": "1234567890"}' \
           -i
       ```
+    </details>
 
-------------------------------------------------------------------------------------------------------------------------
+1. direct data hash injection
 
-2. direct data hash injection:
+    <details>
+      <summary>(click to expand examples for direct data hash injection)</summary>
 
     - anchor hash (**chained**)
         ```console
@@ -367,8 +370,7 @@ The response body consists of either an error message, or a JSON map with
           -d "wp1WK/3z5yHiGBYUZReiMN4UVM2lUJzAtGg9kFtdy3A=" \
           -i
       ```
-
-------------------------------------------------------------------------------------------------------------------------
+    </details>
 
 ### UPP Verification Service
 
