@@ -258,20 +258,23 @@ The response body consists of either an error message, or a JSON map with
 
 #### Error Codes
 
-| HTTP response status code | Description |
-|---------------------------|-------------|
-| 200 - OK | success |
-| 400 - Bad Request | unable to read request body |
-|                   | invalid content-type for hash (≠ `application/octet-stream` or `text/plain`) |
-|                   | decoding hash failed (*only for content-type `text/plain`*) |
-|                   | invalid hash size (≠ 32 bytes) |
-| 401 - Unauthorized | unknown UUID |
-|                    | invalid auth token |
-| 404 - Not Found | invalid UUID  |
-|                 | invalid operation (≠ `anchor` / `disable` / `enable` / `delete`) |
-| 500 - Internal Server Error | signing failed |
-|                             | sending request to server failed |
-| 504 - Gateway Timeout | service was unable to produce a timely response |
+| HTTP response status code | orig. data | hash | description |
+|---------------------------|---------------------|---------------|-------------|
+| 200 - OK | x | x | success |
+| 400 - Bad Request | x | x | unable to read request body |
+|                   | x |   | invalid content-type for original data (≠ `application/octet-stream` or `application/json`) |
+|                   | x |   | unable to parse JSON request body (*only for content-type `application/json`*) |
+|                   |   | x | invalid content-type for hash (≠ `application/octet-stream` or `text/plain`) |
+|                   |   | x | decoding hash failed (*only for content-type `text/plain`*) |
+|                   |   | x | invalid SHA256 hash size (≠ 32 bytes) |
+| 401 - Unauthorized | x | x | unknown UUID |
+|                    | x | x | invalid auth token |
+| 404 - Not Found | x | x | invalid UUID  |
+|                 | x | x | invalid operation (≠ `anchor` / `disable` / `enable` / `delete`) |
+| 500 - Internal Server Error | x | x | signing failed |
+|                             | x | x | sending request to server failed |
+| 503 - Service Temporarily Unavailable | x | x | service busy |
+| 504 - Gateway Timeout | x | x | service was unable to produce a timely response |
 
 ### UPP Verification Service
 
