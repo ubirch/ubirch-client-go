@@ -58,10 +58,6 @@ func (f *FileManager) PersistKeys(source interface{}) error {
 func (f *FileManager) LoadSignature(uid uuid.UUID) ([]byte, error) {
 	signatureFile := f.getSignatureFile(uid)
 
-	if _, err := os.Stat(signatureFile); os.IsNotExist(err) {
-		return make([]byte, 64), nil
-	}
-
 	return ioutil.ReadFile(signatureFile)
 }
 
