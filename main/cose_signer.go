@@ -73,7 +73,7 @@ func NewCoseSigner(cryptoCtx *ubirch.ECDSACryptoContext) (*CoseSigner, error) {
 	}, nil
 }
 
-func (c *CoseSigner) Sign(msg CBORRequest) HTTPResponse {
+func (c *CoseSigner) Sign(msg COSERequest) HTTPResponse {
 	log.Infof("%s: sign CBOR hash: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
 	coseBytes, err := c.getSignedCOSE(msg.ID, msg.Hash, msg.Payload)
