@@ -92,20 +92,28 @@ func main() {
 		staticKeys: conf.StaticKeys,
 	}
 
-	// initialize signer
+	// generate and register keys for known devices
+	err = idHandler.initIdentities(conf.Keys, conf.Devices)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	s := Signer{
 		protocol: p,
 		client:   c,
 	}
 
-	// initialize verifier
 	v := Verifier{
 		protocol:                      p,
 		client:                        c,
 		verifyFromKnownIdentitiesOnly: false, // TODO: make configurable
 	}
 
-	// set up HTTP server
+	coseSigner, err := NewCoseSigner(cryptoCtx)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	httpServer := HTTPServer{
 		router:   NewRouter(),
 		addr:     conf.TCP_addr,
@@ -115,17 +123,6 @@ func main() {
 	}
 	if conf.CORS && isDevelopment { // never enable CORS on production stage
 		httpServer.SetUpCORS(conf.CORS_Origins, conf.Debug)
-	}
-
-	// generate and register keys for known devices
-	err = idHandler.initIdentities(conf.Keys, conf.Devices)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	coseSigner, err := NewCoseSigner(cryptoCtx)
-	if err != nil {
-		log.Fatal(err)
 	}
 
 	// create a waitgroup that contains all asynchronous operations
