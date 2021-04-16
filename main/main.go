@@ -78,7 +78,7 @@ func main() {
 	}
 
 	// generate and register keys for known devices
-	err = initDeviceKeys(p, conf)
+	err = initIdentities(p, conf)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -178,7 +178,7 @@ func main() {
 	}
 
 	// wrap up
-	if err = p.Deinit(); err != nil {
+	if err = p.Close(); err != nil {
 		log.Error(err)
 	}
 
