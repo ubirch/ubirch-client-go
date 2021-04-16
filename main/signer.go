@@ -55,8 +55,8 @@ type signingResponse struct {
 }
 
 type Signer struct {
-	protocol       *ExtendedProtocol
-	authServiceURL string
+	protocol *ExtendedProtocol
+	client   *Client
 }
 
 // non-blocking sending to response channel. returns right away if there is no receiver
@@ -172,7 +172,7 @@ func (s *Signer) getSignedUPP(id uuid.UUID, hash [32]byte, op operation) ([]byte
 
 func (s *Signer) sendUPP(msg HTTPRequest, upp []byte) HTTPResponse {
 	// send UPP to ubirch backend
-	backendResp, err := post(s.authServiceURL, upp, ubirchHeader(msg.ID, msg.Auth))
+	backendResp, err := s.client.sendToAuthService(msg.ID, msg.Auth, upp)
 	if err != nil {
 		if os.IsTimeout(err) {
 			log.Errorf("%s: request to UBIRCH Authentication Service timed out after %s: %v", msg.ID, BackendRequestTimeout.String(), err)

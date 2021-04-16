@@ -77,26 +77,31 @@ func main() {
 		log.Fatal(err)
 	}
 
-	idHandler := &IdentityHandler{
-		protocol:            p,
-		staticKeys:          conf.StaticKeys,
-		keyService:          conf.KeyService,
-		identityService:     conf.IdentityService,
+	c := &Client{
+		authServiceURL:      conf.Niomon,
+		verifyServiceURL:    conf.VerifyService,
+		keyServiceURL:       conf.KeyService,
+		identityServiceURL:  conf.IdentityService,
 		subjectCountry:      conf.CSR_Country,
 		subjectOrganization: conf.CSR_Organization,
 	}
 
+	idHandler := &IdentityHandler{
+		protocol:   p,
+		client:     c,
+		staticKeys: conf.StaticKeys,
+	}
+
 	// initialize signer
 	s := Signer{
-		protocol:       p,
-		authServiceURL: conf.Niomon,
+		protocol: p,
+		client:   c,
 	}
 
 	// initialize verifier
 	v := Verifier{
 		protocol:                      p,
-		verifyServiceURL:              conf.VerifyService,
-		keyServiceURL:                 conf.KeyService,
+		client:                        c,
 		verifyFromKnownIdentitiesOnly: false, // TODO: make configurable
 	}
 
