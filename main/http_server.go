@@ -32,7 +32,7 @@ type Service interface {
 	handleRequest(w http.ResponseWriter, r *http.Request)
 }
 
-func (*ServerEndpoint) handleOptions(w http.ResponseWriter, r *http.Request) {
+func (*ServerEndpoint) handleOptions(http.ResponseWriter, *http.Request) {
 	return
 }
 
@@ -62,7 +62,7 @@ func (srv *HTTPServer) SetUpCORS(allowedOrigins []string, debug bool) {
 	}))
 }
 
-func (srv *HTTPServer) AddEndpoint(endpoint ServerEndpoint) {
+func (srv *HTTPServer) AddServiceEndpoint(endpoint ServerEndpoint) {
 	hashEndpointPath := path.Join(endpoint.Path, HashEndpoint)
 
 	srv.router.Post(endpoint.Path, endpoint.handleRequest)

@@ -132,7 +132,7 @@ func main() {
 	}
 
 	// set up endpoint for chaining
-	httpServer.AddEndpoint(ServerEndpoint{
+	httpServer.AddServiceEndpoint(ServerEndpoint{
 		Path: fmt.Sprintf("/{%s}", UUIDKey),
 		Service: &ChainingService{
 			Jobs:       chainingJobs,
@@ -141,7 +141,7 @@ func main() {
 	})
 
 	// set up endpoint for signing
-	httpServer.AddEndpoint(ServerEndpoint{
+	httpServer.AddServiceEndpoint(ServerEndpoint{
 		Path: fmt.Sprintf("/{%s}/{%s}", UUIDKey, OperationKey),
 		Service: &SigningService{
 			Signer:     &s,
@@ -150,7 +150,7 @@ func main() {
 	})
 
 	// set up endpoint for verification
-	httpServer.AddEndpoint(ServerEndpoint{
+	httpServer.AddServiceEndpoint(ServerEndpoint{
 		Path: fmt.Sprintf("/%s", VerifyPath),
 		Service: &VerificationService{
 			Verifier: &v,
@@ -158,7 +158,7 @@ func main() {
 	})
 
 	// set up endpoint for COSE signing
-	httpServer.AddEndpoint(ServerEndpoint{
+	httpServer.AddServiceEndpoint(ServerEndpoint{
 		Path: fmt.Sprintf("/{%s}/%s", UUIDKey, COSEPath),
 		Service: &COSEService{
 			CoseSigner: coseSigner,
