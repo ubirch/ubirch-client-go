@@ -117,11 +117,16 @@ func setUpKey(p *ExtendedProtocol, uid uuid.UUID, auth string, conf Config) erro
 		}
 	}
 
+	// TODO: only send CSR if it was not sent before
+	//  -> store CSRs in persistent storage
+	//  -> check if CSR exists, only create and send if not
 	// submit a X.509 Certificate Signing Request for the public key
-	err = submitCSR(p, uid, conf.CSR_Country, conf.CSR_Organization, conf.IdentityService)
-	if err != nil {
-		log.Errorf("submitting CSR for UUID %s failed: %v", uid, err)
-	}
+	go func(_p *ExtendedProtocol, _uid uuid.UUID, _subjectCountry string, _subjectOrganization string, _identityService string) {
+		err := submitCSR(_p, _uid, _subjectCountry, _subjectOrganization, _identityService)
+		if err != nil {
+			log.Errorf("submitting CSR for UUID %s failed: %v", _uid, err)
+		}
+	}(p, uid, conf.CSR_Country, conf.CSR_Organization, conf.IdentityService)
 
 	return nil
 }
