@@ -47,8 +47,7 @@ type verificationResponse struct {
 
 type Verifier struct {
 	protocol                      *ExtendedProtocol
-	verifyServiceURL              string
-	keyServiceURL                 string
+	client                        *Client
 	verifyFromKnownIdentitiesOnly bool
 }
 
@@ -86,7 +85,7 @@ func (v *Verifier) loadUPP(hash []byte) (int, []byte, error) {
 		case <-timeout:
 			stay = false
 		default:
-			resp, err = http.Post(v.verifyServiceURL, "text/plain", strings.NewReader(hashBase64String))
+			resp, err = http.Post(v.client.verifyServiceURL, "text/plain", strings.NewReader(hashBase64String))
 			if err != nil {
 				return http.StatusInternalServerError, nil, fmt.Errorf("error sending verification request: %v", err)
 			}
@@ -106,7 +105,7 @@ func (v *Verifier) loadUPP(hash []byte) (int, []byte, error) {
 		if err != nil {
 			log.Warnf("unable to decode verification response: %v", err)
 		}
-		return resp.StatusCode, nil, fmt.Errorf("could not retrieve certificate for hash %s from UBIRCH verification service (%s): - %s - %q", hashBase64String, v.verifyServiceURL, resp.Status, respBodyBytes)
+		return resp.StatusCode, nil, fmt.Errorf("could not retrieve certificate for hash %s from UBIRCH verification service: - %s - %q", hashBase64String, resp.Status, respBodyBytes)
 	}
 
 	vf := verification{}
@@ -152,15 +151,15 @@ func (v *Verifier) verifyUPP(upp []byte) (uuid.UUID, []byte, error) {
 
 // loadPublicKey retrieves the first valid public key associated with an identity from the key service
 func (v *Verifier) loadPublicKey(id uuid.UUID) ([]byte, error) {
-	log.Debugf("requesting public key for identity %s from key service (%s)", id.String(), v.keyServiceURL)
+	log.Debugf("requesting public key for identity %s from key service", id.String())
 
-	keys, err := requestPublicKeys(v.keyServiceURL, id)
+	keys, err := v.client.requestPublicKeys(id)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(keys) < 1 {
-		return nil, fmt.Errorf("no public key for identity %s registered at key service (%s)", id.String(), v.keyServiceURL)
+		return nil, fmt.Errorf("no public key for identity %s registered at key service", id.String())
 	} else if len(keys) > 1 {
 		log.Warnf("several public keys registered for identity %s", id.String())
 	}
