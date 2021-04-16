@@ -14,7 +14,8 @@ import (
 
 const (
 	keyFileName      = "keys.json"
-	SignatureDirName = "signatures"
+	signatureDirName = "signatures"
+	authTokenDirName = "tokens"
 	filePerm         = 0644
 	dirPerm          = 0755
 )
@@ -22,6 +23,7 @@ const (
 type FileManager struct {
 	keyFile      string
 	signatureDir string
+	authTokenDir string
 }
 
 // Ensure FileManager implements the ContextManager interface
@@ -30,7 +32,8 @@ var _ ContextManager = (*FileManager)(nil)
 func NewFileManager(configDir string) (*FileManager, error) {
 	f := &FileManager{
 		keyFile:      filepath.Join(configDir, keyFileName),
-		signatureDir: filepath.Join(configDir, SignatureDirName),
+		signatureDir: filepath.Join(configDir, signatureDirName),
+		authTokenDir: filepath.Join(configDir, authTokenDirName),
 	}
 
 	if _, err := os.Stat(f.signatureDir); os.IsNotExist(err) {
@@ -67,6 +70,23 @@ func (f *FileManager) PersistSignature(uid uuid.UUID, signature []byte) error {
 	return ioutil.WriteFile(signatureFile, signature, filePerm)
 }
 
+func (f *FileManager) LoadAuthToken(uid uuid.UUID) (string, error) {
+	tokenFile := f.getAuthTokenFile(uid)
+
+	tokenBytes, err := ioutil.ReadFile(tokenFile)
+	if err != nil {
+		return "", err
+	}
+
+	return string(tokenBytes), nil
+}
+
+func (f *FileManager) PersistAuthToken(uid uuid.UUID, authToken string) error {
+	tokenFile := f.getAuthTokenFile(uid)
+
+	return ioutil.WriteFile(tokenFile, []byte(authToken), filePerm)
+}
+
 func (f *FileManager) Close() error {
 	return nil
 }
@@ -74,6 +94,11 @@ func (f *FileManager) Close() error {
 func (f *FileManager) getSignatureFile(uid uuid.UUID) string {
 	signatureFileName := uid.String() + ".bin"
 	return filepath.Join(f.signatureDir, signatureFileName)
+}
+
+func (f *FileManager) getAuthTokenFile(uid uuid.UUID) string {
+	authTokenFileName := uid.String() + ".txt"
+	return filepath.Join(f.authTokenDir, authTokenFileName)
 }
 
 func loadFile(file string, dest interface{}) error {

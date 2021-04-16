@@ -41,6 +41,8 @@ type ContextManager interface {
 	PersistKeys(source interface{}) error
 	LoadSignature(uid uuid.UUID) ([]byte, error)
 	PersistSignature(uid uuid.UUID, signature []byte) error
+	LoadAuthToken(uid uuid.UUID) (string, error)
+	PersistAuthToken(uid uuid.UUID, authToken string) error
 	Close() error
 }
 
