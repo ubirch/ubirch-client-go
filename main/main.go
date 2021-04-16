@@ -72,12 +72,12 @@ func main() {
 		log.Fatal(err)
 	}
 
-	p, err := NewExtendedProtocol(cryptoCtx, ctxManager, configDir)
+	protocol, err := NewExtendedProtocol(cryptoCtx, ctxManager, configDir)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	c := &Client{
+	client := &Client{
 		authServiceURL:      conf.Niomon,
 		verifyServiceURL:    conf.VerifyService,
 		keyServiceURL:       conf.KeyService,
@@ -87,8 +87,8 @@ func main() {
 	}
 
 	idHandler := &IdentityHandler{
-		protocol:   p,
-		client:     c,
+		protocol:   protocol,
+		client:     client,
 		staticKeys: conf.StaticKeys,
 	}
 
@@ -98,14 +98,14 @@ func main() {
 		log.Fatal(err)
 	}
 
-	s := Signer{
-		protocol: p,
-		client:   c,
+	signer := Signer{
+		protocol: protocol,
+		client:   client,
 	}
 
-	v := Verifier{
-		protocol:                      p,
-		client:                        c,
+	verifier := Verifier{
+		protocol:                      protocol,
+		client:                        client,
 		verifyFromKnownIdentitiesOnly: false, // TODO: make configurable
 	}
 
@@ -139,7 +139,7 @@ func main() {
 	for id := range conf.Devices {
 		jobs := make(chan ChainingRequest, conf.RequestBufSize)
 		chainingJobs[id] = jobs
-		s.startChainer(g, id, jobs)
+		signer.startChainer(g, id, jobs)
 	}
 
 	// set up endpoint for chaining
@@ -155,7 +155,7 @@ func main() {
 	httpServer.AddServiceEndpoint(ServerEndpoint{
 		Path: fmt.Sprintf("/{%s}/{%s}", UUIDKey, OperationKey),
 		Service: &SigningService{
-			Signer:     &s,
+			Signer:     &signer,
 			AuthTokens: conf.Devices,
 		},
 	})
@@ -164,7 +164,7 @@ func main() {
 	httpServer.AddServiceEndpoint(ServerEndpoint{
 		Path: fmt.Sprintf("/%s", VerifyPath),
 		Service: &VerificationService{
-			Verifier: &v,
+			Verifier: &verifier,
 		},
 	})
 
@@ -189,7 +189,7 @@ func main() {
 	}
 
 	// wrap up
-	if err = p.Close(); err != nil {
+	if err = protocol.Close(); err != nil {
 		log.Error(err)
 	}
 
