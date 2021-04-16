@@ -49,6 +49,12 @@ type HTTPResponse struct {
 	Content    []byte      `json:"content"`
 }
 
+type ChainingRequest struct {
+	HTTPRequest
+	ResponseChan chan HTTPResponse
+	RequestCtx   context.Context
+}
+
 type ChainingService struct {
 	Jobs       map[string]chan ChainingRequest
 	AuthTokens map[string]string
@@ -56,42 +62,6 @@ type ChainingService struct {
 
 // Ensure ChainingService implements the Service interface
 var _ Service = (*ChainingService)(nil)
-
-type ChainingRequest struct {
-	HTTPRequest
-	ResponseChan chan HTTPResponse
-	RequestCtx   context.Context
-}
-
-type SigningService struct {
-	*Signer
-	AuthTokens map[string]string
-}
-
-var _ Service = (*SigningService)(nil)
-
-type SigningRequest struct {
-	HTTPRequest
-	Operation operation
-}
-
-type COSEService struct {
-	*CoseSigner
-	AuthTokens map[string]string
-}
-
-var _ Service = (*COSEService)(nil)
-
-type CBORRequest struct {
-	HTTPRequest
-	Payload []byte
-}
-
-type VerificationService struct {
-	*Verifier
-}
-
-var _ Service = (*VerificationService)(nil)
 
 func (c *ChainingService) handleRequest(w http.ResponseWriter, r *http.Request) {
 	var err error
@@ -150,6 +120,18 @@ func submitForChaining(requestChan chan<- ChainingRequest, msg ChainingRequest) 
 	}
 }
 
+type SigningRequest struct {
+	HTTPRequest
+	Operation operation
+}
+
+type SigningService struct {
+	*Signer
+	AuthTokens map[string]string
+}
+
+var _ Service = (*SigningService)(nil)
+
 func (s *SigningService) handleRequest(w http.ResponseWriter, r *http.Request) {
 	var msg SigningRequest
 	var err error
@@ -182,6 +164,12 @@ func (s *SigningService) handleRequest(w http.ResponseWriter, r *http.Request) {
 	sendResponse(w, resp)
 }
 
+type VerificationService struct {
+	*Verifier
+}
+
+var _ Service = (*VerificationService)(nil)
+
 func (v *VerificationService) handleRequest(w http.ResponseWriter, r *http.Request) {
 	hash, err := getHash(r)
 	if err != nil {
@@ -193,8 +181,20 @@ func (v *VerificationService) handleRequest(w http.ResponseWriter, r *http.Reque
 	sendResponse(w, resp)
 }
 
+type COSERequest struct {
+	HTTPRequest
+	Payload []byte
+}
+
+type COSEService struct {
+	*CoseSigner
+	AuthTokens map[string]string
+}
+
+var _ Service = (*COSEService)(nil)
+
 func (c *COSEService) handleRequest(w http.ResponseWriter, r *http.Request) {
-	var msg CBORRequest
+	var msg COSERequest
 	var err error
 
 	msg.ID, err = getUUID(r)
