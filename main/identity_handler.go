@@ -23,7 +23,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func initDeviceKeys(p *ExtendedProtocol, conf Config) error {
+func initIdentities(p *ExtendedProtocol, conf Config) error {
 	// inject keys from configuration to keystore
 	err := injectKeys(p, conf.Keys)
 	if err != nil {
@@ -40,9 +40,11 @@ func initDeviceKeys(p *ExtendedProtocol, conf Config) error {
 		}
 
 		// make sure identity has an auth token
-		if auth == "" {
+		if len(auth) == 0 {
 			return fmt.Errorf("no auth token found for identity \"%s\"", name)
 		}
+
+		err = p.PersistAuthToken(uid, auth)
 
 		err = setUpKey(p, uid, auth, conf)
 		if err != nil {
