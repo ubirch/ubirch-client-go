@@ -77,10 +77,13 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// generate and register keys for known devices
-	err = initIdentities(p, conf)
-	if err != nil {
-		log.Fatal(err)
+	idHandler := &IdentityHandler{
+		protocol:            p,
+		staticKeys:          conf.StaticKeys,
+		keyService:          conf.KeyService,
+		identityService:     conf.IdentityService,
+		subjectCountry:      conf.CSR_Country,
+		subjectOrganization: conf.CSR_Organization,
 	}
 
 	// initialize signer
@@ -95,6 +98,24 @@ func main() {
 		verifyServiceURL:              conf.VerifyService,
 		keyServiceURL:                 conf.KeyService,
 		verifyFromKnownIdentitiesOnly: false, // TODO: make configurable
+	}
+
+	// set up HTTP server
+	httpServer := HTTPServer{
+		router:   NewRouter(),
+		addr:     conf.TCP_addr,
+		TLS:      conf.TLS,
+		certFile: conf.TLS_CertFile,
+		keyFile:  conf.TLS_KeyFile,
+	}
+	if conf.CORS && isDevelopment { // never enable CORS on production stage
+		httpServer.SetUpCORS(conf.CORS_Origins, conf.Debug)
+	}
+
+	// generate and register keys for known devices
+	err = idHandler.initIdentities(conf.Keys, conf.Devices)
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	coseSigner, err := NewCoseSigner(cryptoCtx)
@@ -117,18 +138,6 @@ func main() {
 		jobs := make(chan ChainingRequest, conf.RequestBufSize)
 		chainingJobs[id] = jobs
 		s.startChainer(g, id, jobs)
-	}
-
-	// set up HTTP server
-	httpServer := HTTPServer{
-		router:   NewRouter(),
-		addr:     conf.TCP_addr,
-		TLS:      conf.TLS,
-		certFile: conf.TLS_CertFile,
-		keyFile:  conf.TLS_KeyFile,
-	}
-	if conf.CORS && isDevelopment { // never enable CORS on production stage
-		httpServer.SetUpCORS(conf.CORS_Origins, conf.Debug)
 	}
 
 	// set up endpoint for chaining

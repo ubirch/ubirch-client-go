@@ -23,35 +23,128 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func initIdentities(p *ExtendedProtocol, conf Config) error {
+type IdentityHandler struct {
+	protocol            *ExtendedProtocol
+	staticKeys          bool
+	identityService     string
+	keyService          string
+	subjectCountry      string
+	subjectOrganization string
+}
+
+func (i *IdentityHandler) initIdentities(keys map[string]string, identities map[string]string) error {
 	// inject keys from configuration to keystore
-	err := injectKeys(p, conf.Keys)
+	err := injectKeys(i.protocol, keys)
 	if err != nil {
 		return err
 	}
 
 	// create and register keys for identities
-	log.Infof("initializing %d identities...", len(conf.Devices))
-	for name, auth := range conf.Devices {
-		// make sure identity name is a valid UUID
-		uid, err := uuid.Parse(name)
-		if err != nil {
-			return fmt.Errorf("invalid identity name \"%s\" (not a UUID): %s", name, err)
-		}
-
-		// make sure identity has an auth token
-		if len(auth) == 0 {
-			return fmt.Errorf("no auth token found for identity \"%s\"", name)
-		}
-
-		err = p.PersistAuthToken(uid, auth)
-
-		err = setUpKey(p, uid, auth, conf)
+	log.Infof("initializing %d identities...", len(identities))
+	for name, auth := range identities {
+		err = i.initIdentity(name, auth)
 		if err != nil {
 			return err
 		}
 	}
 
+	return nil
+}
+
+func (i *IdentityHandler) initIdentity(name string, auth string) error {
+	// make sure identity name is a valid UUID
+	uid, err := uuid.Parse(name)
+	if err != nil {
+		return fmt.Errorf("invalid identity name \"%s\" (not a UUID): %s", name, err)
+	}
+
+	// make sure identity has an auth token
+	if len(auth) == 0 {
+		return fmt.Errorf("%s: auth token has zero length", uid)
+	}
+
+	err = i.protocol.PersistAuthToken(uid, auth)
+
+	err = i.setUpKey(uid, auth)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (i *IdentityHandler) setUpKey(uid uuid.UUID, auth string) error {
+	// check if there is a known signing key for the UUID
+	if !i.protocol.PrivateKeyExists(uid) {
+		if !i.staticKeys {
+			return fmt.Errorf("dynamic key generation is disabled")
+		}
+
+		// if dynamic key generation is enabled generate new key pair
+		log.Printf("generating new key pair for UUID %s", uid)
+		err := i.protocol.GenerateKey(uid)
+		if err != nil {
+			return fmt.Errorf("generating new key pair for UUID %s failed: %v", uid, err)
+		}
+
+		// store newly generated key in persistent storage
+		err = i.protocol.PersistKeys()
+		if err != nil {
+			return fmt.Errorf("unable to persist new key pair for UUID %s: %v", uid, err)
+		}
+	}
+
+	// get the public key
+	pubKey, err := i.protocol.GetPublicKey(uid)
+	if err != nil {
+		return err
+	}
+
+	// check if the key is already registered at the key service
+	isRegistered, err := isKeyRegistered(i.keyService, uid, pubKey)
+	if err != nil {
+		return err
+	}
+
+	if !isRegistered {
+		// register public key at the ubirch backend
+		err = registerPublicKey(i.protocol, uid, pubKey, i.keyService, auth)
+		if err != nil {
+			return fmt.Errorf("key registration for UUID %s failed: %v", uid, err)
+		}
+	}
+
+	// submit a X.509 Certificate Signing Request for the public key
+	go func(_uid uuid.UUID) {
+		err := i.submitCSR(_uid)
+		if err != nil {
+			log.Errorf("submitting CSR for UUID %s failed: %v", _uid, err)
+		}
+	}(uid)
+
+	return nil
+}
+
+// submitCSR submits a X.509 Certificate Signing Request for the public key to the identity service
+func (i *IdentityHandler) submitCSR(uid uuid.UUID) error {
+	log.Debugf("%s: submitting CSR to identity service", uid)
+
+	csr, err := i.protocol.GetCSR(uid, i.subjectCountry, i.subjectOrganization)
+	if err != nil {
+		return fmt.Errorf("error creating CSR: %v", err)
+	}
+	log.Debugf("%s: CSR [der]: %x", uid, csr)
+
+	CSRHeader := map[string]string{"content-type": "application/octet-stream"}
+
+	resp, err := post(i.identityService, csr, CSRHeader)
+	if err != nil {
+		return fmt.Errorf("error sending CSR: %v", err)
+	}
+	if httpFailed(resp.StatusCode) {
+		return fmt.Errorf("request to %s failed: (%d) %q", i.identityService, resp.StatusCode, resp.Content)
+	}
+	log.Debugf("%s: CSR submitted: (%d) %s", uid, resp.StatusCode, string(resp.Content))
 	return nil
 }
 
@@ -74,102 +167,5 @@ func injectKeys(p *ExtendedProtocol, keys map[string]string) error {
 			return fmt.Errorf("unable to persist injected key for UUID %s: %v", uid, err)
 		}
 	}
-
-	return nil
-}
-
-func setUpKey(p *ExtendedProtocol, uid uuid.UUID, auth string, conf Config) error {
-	// check if there is a known signing key for the UUID
-	if !p.PrivateKeyExists(uid) {
-		if conf.StaticKeys {
-			return fmt.Errorf("dynamic key generation is disabled and no injected signing key found for UUID %s", uid)
-		}
-
-		// if dynamic key generation is enabled generate new key pair
-		log.Printf("generating new key pair for UUID %s", uid)
-		err := p.GenerateKey(uid)
-		if err != nil {
-			return fmt.Errorf("generating new key pair for UUID %s failed: %v", uid, err)
-		}
-
-		// store newly generated key in persistent storage
-		err = p.PersistKeys()
-		if err != nil {
-			return fmt.Errorf("unable to persist new key pair for UUID %s: %v", uid, err)
-		}
-	}
-
-	// get the public key
-	pubKey, err := p.GetPublicKey(uid)
-	if err != nil {
-		return err
-	}
-
-	// check if the key is already registered at the key service
-	isRegistered, err := isKeyRegistered(conf.KeyService, uid, pubKey)
-	if err != nil {
-		return err
-	}
-
-	if !isRegistered {
-		// register public key at the ubirch backend
-		err = registerPublicKey(p, uid, pubKey, conf.KeyService, auth)
-		if err != nil {
-			return fmt.Errorf("key registration for UUID %s failed: %v", uid, err)
-		}
-
-		// submit a X.509 Certificate Signing Request for the public key
-		err = submitCSR(p, uid, conf.CSR_Country, conf.CSR_Organization, conf.IdentityService)
-		if err != nil {
-			log.Errorf("submitting CSR for UUID %s failed: %v", uid, err)
-		}
-	}
-
-	return nil
-}
-
-func registerPublicKey(p *ExtendedProtocol, uid uuid.UUID, pubKey []byte, keyService string, auth string) error {
-	log.Printf("%s: registering public key at key service: %s", uid, keyService)
-
-	cert, err := getSignedCertificate(p, uid, pubKey)
-	if err != nil {
-		return fmt.Errorf("error creating public key certificate: %v", err)
-	}
-	log.Debugf("%s: certificate: %s", uid, cert)
-
-	keyRegHeader := ubirchHeader(uid, auth)
-	keyRegHeader["content-type"] = "application/json"
-
-	resp, err := post(keyService, cert, keyRegHeader)
-	if err != nil {
-		return fmt.Errorf("error sending key registration: %v", err)
-	}
-	if httpFailed(resp.StatusCode) {
-		return fmt.Errorf("request to %s failed: (%d) %q", keyService, resp.StatusCode, resp.Content)
-	}
-	log.Debugf("%s: key registration successful: (%d) %s", uid, resp.StatusCode, string(resp.Content))
-	return nil
-}
-
-// submitCSR submits a X.509 Certificate Signing Request for the public key to the identity service
-func submitCSR(p *ExtendedProtocol, uid uuid.UUID, subjectCountry string, subjectOrganization string, identityService string) error {
-	log.Debugf("%s: submitting CSR to identity service", uid)
-
-	csr, err := p.GetCSR(uid, subjectCountry, subjectOrganization)
-	if err != nil {
-		return fmt.Errorf("error creating CSR: %v", err)
-	}
-	log.Debugf("%s: CSR [der]: %x", uid, csr)
-
-	CSRHeader := map[string]string{"content-type": "application/octet-stream"}
-
-	resp, err := post(identityService, csr, CSRHeader)
-	if err != nil {
-		return fmt.Errorf("error sending CSR: %v", err)
-	}
-	if httpFailed(resp.StatusCode) {
-		return fmt.Errorf("request to %s failed: (%d) %q", identityService, resp.StatusCode, resp.Content)
-	}
-	log.Debugf("%s: CSR submitted: (%d) %s", uid, resp.StatusCode, string(resp.Content))
 	return nil
 }
