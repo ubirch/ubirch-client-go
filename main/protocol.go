@@ -32,7 +32,7 @@ const contextFileName_Legacy = "protocol.json" // TODO: DEPRECATED
 
 type ExtendedProtocol struct {
 	ubirch.Protocol
-	ctxManager ContextManager
+	ContextManager
 	Signatures map[uuid.UUID][]byte // this is here only for the purpose of backwards compatibility TODO: DEPRECATED
 }
 
@@ -49,8 +49,8 @@ func NewExtendedProtocol(cryptoCtx ubirch.Crypto, ctxManager ContextManager, con
 		Protocol: ubirch.Protocol{
 			Crypto: cryptoCtx,
 		},
-		ctxManager: ctxManager,
-		Signatures: map[uuid.UUID][]byte{},
+		ContextManager: ctxManager,
+		Signatures:     map[uuid.UUID][]byte{},
 	}
 
 	err := p.portLegacyProtocolCtxFile(configDir)
@@ -66,28 +66,46 @@ func NewExtendedProtocol(cryptoCtx ubirch.Crypto, ctxManager ContextManager, con
 	return p, nil
 }
 
-func (p *ExtendedProtocol) Deinit() error {
-	return p.ctxManager.Close()
-}
-
 func (p *ExtendedProtocol) LoadKeys() error {
-	return p.ctxManager.LoadKeys(&p.Crypto)
+	return p.ContextManager.LoadKeys(&p.Crypto)
 }
 
 func (p *ExtendedProtocol) PersistKeys() error {
-	return p.ctxManager.PersistKeys(&p.Crypto)
+	return p.ContextManager.PersistKeys(&p.Crypto)
 }
 
 func (p *ExtendedProtocol) LoadSignature(uid uuid.UUID) ([]byte, error) {
-	return p.ctxManager.LoadSignature(uid)
+	signature, err := p.ContextManager.LoadSignature(uid)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return make([]byte, p.SignatureLength()), nil
+		} else {
+			return nil, err
+		}
+	}
+
+	err = p.checkSignatureLen(signature)
+	if err != nil {
+		return nil, err
+	}
+
+	return signature, nil
 }
 
 func (p *ExtendedProtocol) PersistSignature(uid uuid.UUID, signature []byte) error {
+	err := p.checkSignatureLen(signature)
+	if err != nil {
+		return err
+	}
+
+	return p.ContextManager.PersistSignature(uid, signature)
+}
+
+func (p *ExtendedProtocol) checkSignatureLen(signature []byte) error {
 	if len(signature) != p.SignatureLength() {
 		return fmt.Errorf("invalid signature length: expected %d, got %d", p.SignatureLength(), len(signature))
 	}
-
-	return p.ctxManager.PersistSignature(uid, signature)
+	return nil
 }
 
 // this is here only for the purpose of backwards compatibility TODO: DEPRECATED
