@@ -24,6 +24,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type KeyRegistration struct {
@@ -168,6 +170,29 @@ func isKeyRegistered(keyService string, id uuid.UUID, pubKey []byte) (bool, erro
 		}
 	}
 	return false, nil
+}
+
+func registerPublicKey(p *ExtendedProtocol, uid uuid.UUID, pubKey []byte, keyService string, auth string) error {
+	log.Infof("%s: registering public key at key service: %s", uid, keyService)
+
+	cert, err := getSignedCertificate(p, uid, pubKey)
+	if err != nil {
+		return fmt.Errorf("error creating public key certificate: %v", err)
+	}
+	log.Debugf("%s: certificate: %s", uid, cert)
+
+	keyRegHeader := ubirchHeader(uid, auth)
+	keyRegHeader["content-type"] = "application/json"
+
+	resp, err := post(keyService, cert, keyRegHeader)
+	if err != nil {
+		return fmt.Errorf("error sending key registration: %v", err)
+	}
+	if httpFailed(resp.StatusCode) {
+		return fmt.Errorf("key registration failed: (%d) %q", resp.StatusCode, resp.Content)
+	}
+	log.Debugf("%s: key registration successful: (%d) %s", uid, resp.StatusCode, string(resp.Content))
+	return nil
 }
 
 func httpFailed(StatusCode int) bool {
