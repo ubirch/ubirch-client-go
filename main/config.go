@@ -119,9 +119,7 @@ func (c *Config) Load(configDir string, filename string) error {
 
 func (c *Config) GetCtxManager() (ContextManager, error) {
 	if c.DSN != "" {
-		return nil, fmt.Errorf("database not supported in current client version")
-		// FIXME: use the database
-		// return NewPostgres(c.DSN)
+		return NewPostgres(c.DSN)
 	} else {
 		return NewFileManager(c.configDir)
 	}
