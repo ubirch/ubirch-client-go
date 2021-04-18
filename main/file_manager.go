@@ -50,6 +50,22 @@ func NewFileManager(configDir string) (*FileManager, error) {
 	return f, nil
 }
 
+func (f *FileManager) StartTransaction(uid uuid.UUID) error {
+	panic("implement me")
+}
+
+func (f *FileManager) EndTransaction(uid uuid.UUID) error {
+	panic("implement me")
+}
+
+func (f *FileManager) LoadKey(uid uuid.UUID) ([]byte, error) {
+	panic("implement me")
+}
+
+func (f *FileManager) PersistKey(uid uuid.UUID, key []byte) error {
+	panic("implement me")
+}
+
 func (f *FileManager) LoadKeys(dest interface{}) error {
 	return loadFile(f.keyFile, dest)
 }
