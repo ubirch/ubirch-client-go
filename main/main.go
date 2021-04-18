@@ -62,17 +62,17 @@ func main() {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
 
-	// initialize ubirch protocol
-	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: ubirch.NewEncryptedKeystore(conf.SecretBytes),
-	}
-
 	ctxManager, err := conf.GetCtxManager()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	protocol, err := NewExtendedProtocol(cryptoCtx, ctxManager, configDir)
+	// initialize ubirch protocol
+	cryptoCtx := &ubirch.ECDSACryptoContext{
+		Keystore: ctxManager,
+	}
+
+	protocol, err := NewExtendedProtocol(cryptoCtx, ctxManager)
 	if err != nil {
 		log.Fatal(err)
 	}

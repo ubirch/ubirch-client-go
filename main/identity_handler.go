@@ -68,16 +68,16 @@ func (i *IdentityHandler) initIdentity(name string, auth string) error {
 
 	err = i.initKey(uid, auth)
 	if err != nil {
+		// if something went wrong the generated key has to be removed from the context
+		err = i.protocol.DeleteIdentity(uid)
+		if err != nil {
+			log.Error(err)
+			log.Fatalf("unable to reset new key pair for UUID %s: %v", uid, err)
+		}
 		return err
 	}
 
-	// store newly generated key in persistent storage
-	err = i.protocol.PersistKeys()
-	if err != nil {
-		return fmt.Errorf("unable to persist new key pair for UUID %s: %v", uid, err)
-	}
-
-	err = i.protocol.PersistAuthToken(uid, auth)
+	err = i.protocol.SetAuthToken(uid, auth)
 	if err != nil {
 		return err
 	}
@@ -101,18 +101,7 @@ func (i *IdentityHandler) initKey(uid uuid.UUID, auth string) error {
 	}
 
 	// register public key at the ubirch backend
-	err = i.registerPublicKey(uid, auth)
-	if err != nil {
-		// if something went wrong the generated key has to be removed from the context
-		err = i.protocol.LoadKeys() // fixme this is a hacky quickfix as long as we can not set individual keys in the keystore
-		if err != nil {
-			log.Error(err)
-			log.Fatalf("unable to reset new key pair for UUID %s: %v", uid, err)
-		}
-		return err
-	}
-
-	return nil
+	return i.registerPublicKey(uid, auth)
 }
 
 func (i *IdentityHandler) registerPublicKey(uid uuid.UUID, auth string) error {

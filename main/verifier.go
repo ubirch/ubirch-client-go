@@ -177,11 +177,6 @@ func (v *Verifier) loadPublicKey(id uuid.UUID) ([]byte, error) {
 		return nil, fmt.Errorf("unable to set retrieved public key for verification: %v", err)
 	}
 
-	err = v.protocol.PersistKeys()
-	if err != nil {
-		log.Errorf("unable to persist retrieved public key for UUID %s: %v", id, err)
-	}
-
 	return pubkey, nil
 }
 
