@@ -18,7 +18,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -38,9 +37,6 @@ const (
 	defaultNiomonURL   = "https://niomon.%s.ubirch.com/"
 	defaultVerifyURL   = "https://verify.%s.ubirch.com/api/upp/verify"
 
-	authEnv  = "UBIRCH_AUTH_MAP" // {UUID: [key, token]} TODO: DEPRECATED
-	authFile = "auth.json"       // {UUID: [key, token]} TODO: DEPRECATED
-
 	identitiesFile = "identities.json" // [{ "uuid": "<uuid>", "password": "<auth>" }]
 
 	defaultTLSCertFile = "cert.pem"
@@ -57,8 +53,6 @@ type Config struct {
 	Secret           string            `json:"secret"`            // secret used to encrypt the key store (mandatory)
 	Env              string            `json:"env"`               // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
 	DSN              string            `json:"DSN"`               // "data source name" for database connection
-	StaticKeys       bool              `json:"staticKeys"`        // disable dynamic key generation, defaults to 'false'
-	Keys             map[string]string `json:"keys"`              // maps UUIDs to injected private keys
 	CSR_Country      string            `json:"CSR_country"`       // subject country for public key Certificate Signing Requests
 	CSR_Organization string            `json:"CSR_organization"`  // subject organization for public key Certificate Signing Requests
 	TCP_addr         string            `json:"TCP_addr"`          // the TCP address for the server to listen on, in the form "host:port", defaults to ":8080"
@@ -103,11 +97,6 @@ func (c *Config) Load(configDir string, filename string) error {
 	}
 	if c.LogTextFormat {
 		log.SetFormatter(&log.TextFormatter{FullTimestamp: true, TimestampFormat: "2006-01-02 15:04:05.000 -0700"})
-	}
-
-	err = c.loadAuthMap() // TODO: DEPRECATED
-	if err != nil {
-		return err
 	}
 
 	err = c.loadIdentitiesFile()
@@ -172,19 +161,6 @@ func (c *Config) checkMandatory() error {
 
 	if len(c.SecretBytes) != 16 {
 		return fmt.Errorf("secret length must be 16 bytes (is %d)", len(c.SecretBytes))
-	}
-
-	if len(c.Keys) != 0 {
-		log.Infof("%d injected key(s)", len(c.Keys))
-	}
-
-	if c.StaticKeys {
-		log.Debug("dynamic key generation disabled")
-		if len(c.Keys) == 0 {
-			return fmt.Errorf("dynamic key generation disabled but no injected signing keys found in configuration")
-		}
-	} else {
-		log.Debug("dynamic key generation enabled")
 	}
 
 	return nil
@@ -306,49 +282,6 @@ func (c *Config) loadIdentitiesFile() error {
 
 	for _, identity := range identities {
 		c.Devices[identity["uuid"]] = identity["password"]
-	}
-
-	return nil
-}
-
-// TODO: DEPRECATED
-//  loadAuthMap loads the auth map from the environment >> legacy <<
-//  Returns without error if neither env variable nor file exists.
-func (c *Config) loadAuthMap() error {
-	var err error
-	var authMapBytes []byte
-
-	authMap := os.Getenv(authEnv)
-	if authMap != "" {
-		authMapBytes = []byte(authMap)
-	} else {
-		// if file does not exist, return
-		if _, err := os.Stat(authFile); os.IsNotExist(err) {
-			return nil
-		}
-		authMapBytes, err = ioutil.ReadFile(filepath.Join(c.configDir, authFile))
-		if err != nil {
-			return err
-		}
-	}
-
-	buffer := make(map[string][]string)
-	err = json.Unmarshal(authMapBytes, &buffer)
-	if err != nil {
-		return err
-	}
-
-	if c.Keys == nil {
-		c.Keys = make(map[string]string, len(buffer))
-	}
-
-	if c.Devices == nil {
-		c.Devices = make(map[string]string, len(buffer))
-	}
-
-	for k, v := range buffer {
-		c.Keys[k] = v[0]
-		c.Devices[k] = v[1]
 	}
 
 	return nil
