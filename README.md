@@ -646,35 +646,6 @@ configuration.
     UBIRCH_DSN=<data source name for database>
     ```
 
-### Inject signing keys
-
-The `staticKeys`-flag may be used to disable dynamic key generation and only accept requests from UUIDs with injected
-signing key. The default value for this flag is `false`, which means the client will per default generate a new ECDSA
-(prime256v1) key pair if it receives a request from a UUID without a corresponding signing key in the keystore.
-
-Instead of having the client generate keys dynamically it is possible to inject signing keys as a map UUID to signing
-key.
-
-- add the following key-value pairs to your `config.json`:
-    ```json
-      "staticKeys": true,
-      "keys": {"<UUID>": "<ecdsa-prime256v1 private key (base64 encoded)>"}
-    ```
-- or set the following environment variables:
-    ```shell
-    UBIRCH_STATICKEYS=<boolean, defaults to ‘false’>
-    UBIRCH_KEYS=<UUID>:<ecdsa-prime256v1 private key (base64 encoded)>
-    ```
-
-ECDSA signing keys (prime256v1) can be generated on the command line using openssl:
-
-```console
-openssl ecparam -genkey -name prime256v1 -noout | openssl ec -text -noout | grep priv -A 3 | tail -n +2 | tr -d ': ' | xxd -r -p | base64
-```
-
-*The client will register dynamically generated as well as injected public keys at the UBIRCH key service and store the
-keys persistently in the encrypted keystore.*
-
 ### Customize X.509 Certificate Signing Requests
 
 The client creates X.509 Certificate Signing Requests (*CSRs*) for the public keys of the devices it is managing. The *
