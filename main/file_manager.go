@@ -37,11 +37,7 @@ func (f *FileManager) StartTransaction(uid uuid.UUID) error {
 	panic("implement me")
 }
 
-func (f *FileManager) EndTransaction(uid uuid.UUID) error {
-	panic("implement me")
-}
-
-func (f *FileManager) DeleteIdentity(uid uuid.UUID) error {
+func (f *FileManager) EndTransaction(uid uuid.UUID, success bool) error {
 	panic("implement me")
 }
 
