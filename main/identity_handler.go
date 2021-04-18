@@ -71,6 +71,12 @@ func (i *IdentityHandler) initIdentity(name string, auth string) error {
 		return err
 	}
 
+	// store newly generated key in persistent storage
+	err = i.protocol.PersistKeys()
+	if err != nil {
+		return fmt.Errorf("unable to persist new key pair for UUID %s: %v", uid, err)
+	}
+
 	err = i.protocol.PersistAuthToken(uid, auth)
 	if err != nil {
 		return err
@@ -106,12 +112,6 @@ func (i *IdentityHandler) initKey(uid uuid.UUID, auth string) error {
 		return err
 	}
 
-	// store newly generated key in persistent storage
-	err = i.protocol.PersistKeys()
-	if err != nil {
-		return fmt.Errorf("unable to persist new key pair for UUID %s: %v", uid, err)
-	}
-
 	return nil
 }
 
@@ -128,7 +128,7 @@ func (i *IdentityHandler) registerPublicKey(uid uuid.UUID, auth string) error {
 	}
 	log.Debugf("%s: key certificate: %s", uid, cert)
 
-	err = i.submitKeyRegistration(uid, cert, auth)
+	err = i.client.submitKeyRegistration(uid, cert, auth)
 	if err != nil {
 		return fmt.Errorf("key registration for UUID %s failed: %v", uid, err)
 	}
@@ -152,7 +152,7 @@ func (i *IdentityHandler) sendCSR(uid uuid.UUID) error {
 	}
 	log.Debugf("%s: CSR [der]: %x", uid, csr)
 
-	err = i.submitCSR(uid, csr)
+	err = i.client.submitCSR(uid, csr)
 	if err != nil {
 		return fmt.Errorf("submitting CSR for UUID %s failed: %v", uid, err)
 	}
