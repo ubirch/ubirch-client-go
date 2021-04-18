@@ -54,12 +54,12 @@ func (i *IdentityHandler) initIdentity(name string, auth string) error {
 		return fmt.Errorf("%s: auth token has zero length", uid)
 	}
 
-	// todo
-	//err = i.protocol.StartTransaction(uid)
-	//if err != nil {
-	//	return err
-	//}
-	//defer endTransactionOrPanic(i.protocol, uid)
+	err = i.protocol.StartTransaction(uid)
+	if err != nil {
+		return err
+	}
+	var success bool
+	defer endTransactionOrPanic(i.protocol, uid, success) // todo not sure if this works
 
 	// check if there is a known signing key for the UUID
 	if i.protocol.PrivateKeyExists(uid) {
@@ -68,12 +68,12 @@ func (i *IdentityHandler) initIdentity(name string, auth string) error {
 
 	err = i.initKey(uid, auth)
 	if err != nil {
-		// if something went wrong the generated key has to be removed from the context
-		err = i.protocol.DeleteIdentity(uid)
-		if err != nil {
-			log.Error(err)
-			log.Fatalf("unable to reset new key pair for UUID %s: %v", uid, err)
-		}
+		return err
+	}
+
+	genesisSignature := make([]byte, i.protocol.SignatureLength())
+	err = i.protocol.SetSignature(uid, genesisSignature)
+	if err != nil {
 		return err
 	}
 
@@ -82,11 +82,12 @@ func (i *IdentityHandler) initIdentity(name string, auth string) error {
 		return err
 	}
 
+	success = true
 	return nil
 }
 
-func endTransactionOrPanic(protocol *ExtendedProtocol, uid uuid.UUID) {
-	err := protocol.EndTransaction(uid)
+func endTransactionOrPanic(protocol *ExtendedProtocol, uid uuid.UUID, success bool) {
+	err := protocol.EndTransaction(uid, success)
 	if err != nil {
 		log.Panic(err)
 	}
