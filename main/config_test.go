@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-const expectedConfig = `{"devices":null,"secret":"MTIzNDU2Nzg5MDU2Nzg5MA==","env":"","DSN":"","CSR_country":"","CSR_organization":"","TCP_addr":"","TLS":false,"TLSCertFile":"","TLSKeyFile":"","CORS":false,"CORS_origins":null,"debug":false,"logTextFormat":false,"RequestBufferSize":0,"SecretBytes":null,"KeyService":"","IdentityService":"","Niomon":"","VerifyService":""}`
+const expectedConfig = `{"devices":null,"secret":"MTIzNDU2Nzg5MDU2Nzg5MA==","env":"","DSN":"","CSR_country":"","CSR_organization":"","TCP_addr":"","TLS":false,"TLSCertFile":"","TLSKeyFile":"","CORS":false,"CORS_origins":null,"debug":false,"logTextFormat":false,"RequestBufferSize":0,"KeyService":"","IdentityService":"","Niomon":"","VerifyService":""}`
 
 func TestConfig(t *testing.T) {
 	configBytes := []byte(expectedConfig)
@@ -18,7 +18,7 @@ func TestConfig(t *testing.T) {
 	}
 
 	// FIXME
-	//if !bytes.Equal(config.SecretBytes, []byte("1234567890567890")) {
+	//if !bytes.Equal(config.secretBytes, []byte("1234567890567890")) {
 	//	t.Errorf("Failed to load secret from config")
 	//}
 
