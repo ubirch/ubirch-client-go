@@ -29,15 +29,18 @@ type FileManager struct {
 	signatureDir      string
 	authTokenDir      string
 	EncryptedKeystore *ubirch.EncryptedKeystore
-	Signatures        map[uuid.UUID][]byte // this is here only for the purpose of backwards compatibility TODO: DEPRECATED
 }
 
 func (f *FileManager) StartTransaction(uid uuid.UUID) error {
-	panic("implement me")
+	// todo implement
+	log.Warn("transactions not implemented for file manager")
+	return nil
 }
 
 func (f *FileManager) EndTransaction(uid uuid.UUID, success bool) error {
-	panic("implement me")
+	// todo implement
+	log.Warn("transactions not implemented for file manager")
+	return nil
 }
 
 // Ensure FileManager implements the ContextManager interface
@@ -49,7 +52,6 @@ func NewFileManager(configDir string, secret []byte) (*FileManager, error) {
 		signatureDir:      filepath.Join(configDir, signatureDirName),
 		authTokenDir:      filepath.Join(configDir, authTokenDirName),
 		EncryptedKeystore: ubirch.NewEncryptedKeystore(secret),
-		Signatures:        map[uuid.UUID][]byte{},
 	}
 
 	err := initDirectories([]string{f.signatureDir, f.authTokenDir})
@@ -63,6 +65,11 @@ func NewFileManager(configDir string, secret []byte) (*FileManager, error) {
 	log.Debugf(" - token dir: %s", f.authTokenDir)
 
 	err = f.portLegacyProtocolCtxFile(configDir)
+	if err != nil {
+		return nil, err
+	}
+
+	err = f.portLegacyKeystoreFile()
 	if err != nil {
 		return nil, err
 	}
@@ -138,11 +145,11 @@ func (f *FileManager) authTokenFile(uid uuid.UUID) string {
 }
 
 func (f *FileManager) loadKeys() error {
-	return loadFile(f.keyFile, f.EncryptedKeystore)
+	return loadFile(f.keyFile, f.EncryptedKeystore.Keystore)
 }
 
 func (f *FileManager) persistKeys() error {
-	return persistFile(f.keyFile, f.EncryptedKeystore)
+	return persistFile(f.keyFile, f.EncryptedKeystore.Keystore)
 }
 
 func initDirectories(directories []string) error {
@@ -191,7 +198,16 @@ func persistFile(file string, source interface{}) error {
 	return ioutil.WriteFile(file, contextBytes, filePerm)
 }
 
-// this is here only for the purpose of backwards compatibility TODO: DEPRECATED
+// this is here only for the purpose of backwards compatibility TODO: DEPRECATE
+type legacyCryptoCtx struct {
+	Keystore map[string]string
+}
+
+type legacyProtocolCtx struct {
+	Crypto     legacyCryptoCtx
+	Signatures map[uuid.UUID][]byte
+}
+
 func (f *FileManager) portLegacyProtocolCtxFile(configDir string) error {
 	contextFile_Legacy := filepath.Join(configDir, contextFileName_Legacy)
 
@@ -199,20 +215,25 @@ func (f *FileManager) portLegacyProtocolCtxFile(configDir string) error {
 		return nil
 	}
 
+	p := &legacyProtocolCtx{
+		Crypto:     legacyCryptoCtx{Keystore: map[string]string{}},
+		Signatures: map[uuid.UUID][]byte{},
+	}
+
 	// read legacy protocol context from persistent storage
-	err := loadFile(contextFile_Legacy, &f)
+	err := loadFile(contextFile_Legacy, p)
 	if err != nil {
 		return fmt.Errorf("unable to load legacy protocol context: %v", err)
 	}
 
 	// persist loaded keys to new key storage
-	err = f.persistKeys()
+	err = persistFile(f.keyFile, p.Crypto.Keystore)
 	if err != nil {
 		return fmt.Errorf("unable to persist keys: %v", err)
 	}
 
 	// persist loaded signatures to new signature storage
-	err = f.persistSignatures()
+	err = f.persistSignatures(p.Signatures)
 	if err != nil {
 		return fmt.Errorf("unable to persist signatures: %v", err)
 	}
@@ -230,9 +251,8 @@ func (f *FileManager) portLegacyProtocolCtxFile(configDir string) error {
 	return nil
 }
 
-// this is here only for the purpose of backwards compatibility TODO: DEPRECATED
-func (f *FileManager) persistSignatures() error {
-	for uid, signature := range f.Signatures {
+func (f *FileManager) persistSignatures(signatures map[uuid.UUID][]byte) error {
+	for uid, signature := range signatures {
 
 		if len(signature) != 64 {
 			return fmt.Errorf("invalid signature length: expected 64, got %d", len(signature))
@@ -243,5 +263,27 @@ func (f *FileManager) persistSignatures() error {
 			return err
 		}
 	}
+	return nil
+}
+
+func (f *FileManager) portLegacyKeystoreFile() error {
+	legacyKeystoreFile := &legacyCryptoCtx{Keystore: map[string]string{}}
+
+	// read legacy protocol context from persistent storage
+	err := loadFile(f.keyFile, legacyKeystoreFile)
+	if err != nil {
+		return fmt.Errorf("unable to load legacy protocol context: %v", err)
+	}
+
+	if len(legacyKeystoreFile.Keystore) == 0 {
+		return nil
+	}
+
+	// persist loaded keys to new key storage
+	err = persistFile(f.keyFile, legacyKeystoreFile.Keystore)
+	if err != nil {
+		return fmt.Errorf("unable to persist keys: %v", err)
+	}
+
 	return nil
 }
