@@ -47,23 +47,23 @@ func (db *Postgres) StartTransaction(uid uuid.UUID) error {
 	panic("implement me")
 }
 
-func (db *Postgres) EndTransaction(uid uuid.UUID) error {
+func (db *Postgres) EndTransaction(uid uuid.UUID, success bool) error {
 	panic("implement me")
 }
 
-func (db *Postgres) GetPrivateKey(id uuid.UUID) ([]byte, error) {
+func (db *Postgres) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
 	panic("implement me")
 }
 
-func (db *Postgres) SetPrivateKey(id uuid.UUID, key []byte) error {
+func (db *Postgres) SetPrivateKey(uid uuid.UUID, key []byte) error {
 	panic("implement me")
 }
 
-func (db *Postgres) GetPublicKey(id uuid.UUID) ([]byte, error) {
+func (db *Postgres) GetPublicKey(uid uuid.UUID) ([]byte, error) {
 	panic("implement me")
 }
 
-func (db *Postgres) SetPublicKey(id uuid.UUID, key []byte) error {
+func (db *Postgres) SetPublicKey(uid uuid.UUID, key []byte) error {
 	panic("implement me")
 }
 
@@ -80,10 +80,6 @@ func (db *Postgres) GetAuthToken(uid uuid.UUID) (string, error) {
 }
 
 func (db *Postgres) SetAuthToken(uid uuid.UUID, authToken string) error {
-	panic("implement me")
-}
-
-func (db *Postgres) DeleteIdentity(uid uuid.UUID) error {
 	panic("implement me")
 }
 
