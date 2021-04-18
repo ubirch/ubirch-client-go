@@ -50,7 +50,7 @@ var isDevelopment bool
 // configuration of the client
 type Config struct {
 	Devices          map[string]string `json:"devices"`           // maps UUIDs to backend auth tokens (mandatory)
-	Secret           string            `json:"secret"`            // secret used to encrypt the key store (mandatory)
+	SecretBase64     string            `json:"secret"`            // secret used to encrypt the key store (mandatory)
 	Env              string            `json:"env"`               // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
 	DSN              string            `json:"DSN"`               // "data source name" for database connection
 	CSR_Country      string            `json:"CSR_country"`       // subject country for public key Certificate Signing Requests
@@ -64,7 +64,7 @@ type Config struct {
 	Debug            bool              `json:"debug"`             // enable extended debug output, defaults to 'false'
 	LogTextFormat    bool              `json:"logTextFormat"`     // log in text format for better human readability, default format is JSON
 	RequestBufSize   int               `json:"RequestBufferSize"` // number of requests to the client that will be buffered for chaining
-	SecretBytes      []byte            // the decoded key store secret (set automatically)
+	secretBytes      []byte            // the decoded key store secret (set automatically)
 	KeyService       string            // key service URL (set automatically)
 	IdentityService  string            // identity service URL (set automatically)
 	Niomon           string            // authentication service URL (set automatically)
@@ -87,9 +87,9 @@ func (c *Config) Load(configDir string, filename string) error {
 		return err
 	}
 
-	c.SecretBytes, err = base64.StdEncoding.DecodeString(c.Secret)
+	c.secretBytes, err = base64.StdEncoding.DecodeString(c.SecretBase64)
 	if err != nil {
-		return fmt.Errorf("unable to decode base64 encoded secret (%s): %v", c.Secret, err)
+		return fmt.Errorf("unable to decode base64 encoded secret (%s): %v", c.SecretBase64, err)
 	}
 
 	if c.Debug {
@@ -157,8 +157,8 @@ func (c *Config) checkMandatory() error {
 		}
 	}
 
-	if len(c.SecretBytes) != 16 {
-		return fmt.Errorf("secret length must be 16 bytes (is %d)", len(c.SecretBytes))
+	if len(c.secretBytes) != 16 {
+		return fmt.Errorf("secret length must be 16 bytes (is %d)", len(c.secretBytes))
 	}
 
 	return nil
