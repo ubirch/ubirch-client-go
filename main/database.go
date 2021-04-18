@@ -17,6 +17,9 @@ package main
 import (
 	"database/sql"
 	"database/sql/driver"
+	"fmt"
+
+	"github.com/google/uuid"
 
 	log "github.com/sirupsen/logrus"
 
@@ -30,9 +33,6 @@ type Database interface {
 	SetProtocolContext(proto driver.Valuer) error
 	GetProtocolContext(proto sql.Scanner) error
 
-	//PersistLastSignature(clientUUID string, signature []byte) error
-	//PersistKeystore(ubirch.Keystorer) error
-
 	Close() error
 }
 
@@ -42,12 +42,55 @@ type Postgres struct {
 	conn *sql.DB
 }
 
-// TODO: Ensure Postgres implements the ContextManager interface
-//var _ ContextManager = (*Postgres)(nil)
+// Ensure Postgres implements the ContextManager interface
+var _ ContextManager = (*Postgres)(nil)
+
+func (db *Postgres) StartTransaction(uid uuid.UUID) error {
+	panic("implement me")
+}
+
+func (db *Postgres) EndTransaction(uid uuid.UUID) error {
+	panic("implement me")
+}
+
+func (db *Postgres) LoadKey(uid uuid.UUID) ([]byte, error) {
+	panic("implement me")
+}
+
+func (db *Postgres) PersistKey(uid uuid.UUID, key []byte) error {
+	panic("implement me")
+}
+
+func (db *Postgres) LoadKeys(dest interface{}) error {
+	panic("implement me")
+}
+
+func (db *Postgres) PersistKeys(source interface{}) error {
+	panic("implement me")
+}
+
+func (db *Postgres) LoadSignature(uid uuid.UUID) ([]byte, error) {
+	panic("implement me")
+}
+
+func (db *Postgres) PersistSignature(uid uuid.UUID, signature []byte) error {
+	panic("implement me")
+}
+
+func (db *Postgres) LoadAuthToken(uid uuid.UUID) (string, error) {
+	panic("implement me")
+}
+
+func (db *Postgres) PersistAuthToken(uid uuid.UUID, authToken string) error {
+	panic("implement me")
+}
 
 // NewPostgres takes a database connection string, returns a new initialized
 // database.
 func NewPostgres(dsn string) (*Postgres, error) {
+	// FIXME: use the database
+	return nil, fmt.Errorf("database currently not supported")
+
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
 		return nil, err
@@ -86,9 +129,5 @@ func (db *Postgres) GetProtocolContext(proto sql.Scanner) error {
 
 // Close prevents new queries to open, and blocks until the running queries are finished.
 func (db *Postgres) Close() error {
-	if db == nil {
-		return nil
-	}
-
 	return db.conn.Close()
 }
