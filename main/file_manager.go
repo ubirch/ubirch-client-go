@@ -15,18 +15,17 @@ import (
 )
 
 const (
-	keyDirName       = "keys"
+	keyFileName      = "keys.json"
 	signatureDirName = "signatures"
 	authTokenDirName = "tokens"
 	filePerm         = 0644
 	dirPerm          = 0755
 
 	contextFileName_Legacy = "protocol.json" // TODO: DEPRECATED
-	keyFileName_Legacy     = "keys.json"     // TODO: DEPRECATED
 )
 
 type FileManager struct {
-	keyDir            string
+	keyFile           string
 	signatureDir      string
 	authTokenDir      string
 	EncryptedKeystore *ubirch.EncryptedKeystore
@@ -46,20 +45,20 @@ var _ ContextManager = (*FileManager)(nil)
 
 func NewFileManager(configDir string, secret []byte) (*FileManager, error) {
 	f := &FileManager{
-		keyDir:            filepath.Join(configDir, keyDirName),
+		keyFile:           filepath.Join(configDir, keyFileName),
 		signatureDir:      filepath.Join(configDir, signatureDirName),
 		authTokenDir:      filepath.Join(configDir, authTokenDirName),
 		EncryptedKeystore: ubirch.NewEncryptedKeystore(secret),
 		Signatures:        map[uuid.UUID][]byte{},
 	}
 
-	err := initDirectories([]string{f.keyDir, f.signatureDir, f.authTokenDir})
+	err := initDirectories([]string{f.signatureDir, f.authTokenDir})
 	if err != nil {
 		return nil, err
 	}
 
 	log.Info("protocol context will be stored in local file system")
-	log.Debugf(" - keystore dir: %s", f.keyDir)
+	log.Debugf(" - keystore file: %s", f.keyFile)
 	log.Debugf(" - signature dir: %s", f.signatureDir)
 	log.Debugf(" - token dir: %s", f.authTokenDir)
 
@@ -72,19 +71,35 @@ func NewFileManager(configDir string, secret []byte) (*FileManager, error) {
 }
 
 func (f *FileManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
-	return ioutil.ReadFile(f.privateKeyFile(uid))
+	err := f.loadKeys()
+	if err != nil {
+		return nil, err
+	}
+	return f.EncryptedKeystore.GetPrivateKey(uid)
 }
 
 func (f *FileManager) SetPrivateKey(uid uuid.UUID, key []byte) error {
-	return ioutil.WriteFile(f.privateKeyFile(uid), key, filePerm)
+	err := f.EncryptedKeystore.SetPrivateKey(uid, key)
+	if err != nil {
+		return err
+	}
+	return f.persistKeys()
 }
 
 func (f *FileManager) GetPublicKey(uid uuid.UUID) ([]byte, error) {
-	return ioutil.ReadFile(f.publicKeyFile(uid))
+	err := f.loadKeys()
+	if err != nil {
+		return nil, err
+	}
+	return f.EncryptedKeystore.GetPublicKey(uid)
 }
 
 func (f *FileManager) SetPublicKey(uid uuid.UUID, key []byte) error {
-	return ioutil.WriteFile(f.publicKeyFile(uid), key, filePerm)
+	err := f.EncryptedKeystore.SetPublicKey(uid, key)
+	if err != nil {
+		return err
+	}
+	return f.persistKeys()
 }
 
 func (f *FileManager) GetSignature(uid uuid.UUID) ([]byte, error) {
@@ -112,16 +127,6 @@ func (f *FileManager) Close() error {
 	return nil
 }
 
-func (f *FileManager) privateKeyFile(uid uuid.UUID) string {
-	privateKeyFileName := "_" + uid.String() + ".bin"
-	return filepath.Join(f.keyDir, privateKeyFileName)
-}
-
-func (f *FileManager) publicKeyFile(uid uuid.UUID) string {
-	publicKeyFileName := uid.String() + ".bin"
-	return filepath.Join(f.keyDir, publicKeyFileName)
-}
-
 func (f *FileManager) signatureFile(uid uuid.UUID) string {
 	signatureFileName := uid.String() + ".bin"
 	return filepath.Join(f.signatureDir, signatureFileName)
@@ -130,6 +135,14 @@ func (f *FileManager) signatureFile(uid uuid.UUID) string {
 func (f *FileManager) authTokenFile(uid uuid.UUID) string {
 	authTokenFileName := uid.String() + ".bin"
 	return filepath.Join(f.authTokenDir, authTokenFileName)
+}
+
+func (f *FileManager) loadKeys() error {
+	return loadFile(f.keyFile, f.EncryptedKeystore)
+}
+
+func (f *FileManager) persistKeys() error {
+	return persistFile(f.keyFile, f.EncryptedKeystore)
 }
 
 func initDirectories(directories []string) error {
@@ -181,7 +194,6 @@ func persistFile(file string, source interface{}) error {
 // this is here only for the purpose of backwards compatibility TODO: DEPRECATED
 func (f *FileManager) portLegacyProtocolCtxFile(configDir string) error {
 	contextFile_Legacy := filepath.Join(configDir, contextFileName_Legacy)
-	keyFile_Legacy := filepath.Join(configDir, keyFileName_Legacy)
 
 	if _, err := os.Stat(contextFile_Legacy); os.IsNotExist(err) { // if file does not exist, return right away
 		return nil
@@ -191,12 +203,6 @@ func (f *FileManager) portLegacyProtocolCtxFile(configDir string) error {
 	err := loadFile(contextFile_Legacy, &f)
 	if err != nil {
 		return fmt.Errorf("unable to load legacy protocol context: %v", err)
-	}
-
-	// read legacy key store from persistent storage
-	err = loadFile(keyFile_Legacy, &f.EncryptedKeystore)
-	if err != nil {
-		return fmt.Errorf("unable to load legacy key store: %v", err)
 	}
 
 	// persist loaded keys to new key storage
@@ -221,32 +227,6 @@ func (f *FileManager) portLegacyProtocolCtxFile(configDir string) error {
 		log.Warnf("unable to delete legacy protocol context backup file: %v", err)
 	}
 
-	// delete legacy key file + bckup
-	err = os.Remove(keyFile_Legacy)
-	if err != nil {
-		log.Warnf("unable to delete legacy key file: %v", err)
-	}
-	err = os.Remove(keyFile_Legacy + ".bck")
-	if err != nil {
-		log.Warnf("unable to delete legacy key backup file: %v", err)
-	}
-
-	return nil
-}
-
-// this is here only for the purpose of backwards compatibility TODO: DEPRECATED
-func (f *FileManager) persistKeys() error {
-	for name, encryptedKey := range *f.EncryptedKeystore.Keystore {
-
-		// todo sanity check?
-
-		keyFileName := name + ".bin"
-		keyFile := filepath.Join(f.keyDir, keyFileName)
-		err := ioutil.WriteFile(keyFile, []byte(encryptedKey), filePerm)
-		if err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
