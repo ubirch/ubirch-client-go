@@ -16,6 +16,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
@@ -86,7 +87,13 @@ func (p *ExtendedProtocol) SetPublicKey(uid uuid.UUID, key []byte) error {
 func (p *ExtendedProtocol) GetSignature(uid uuid.UUID) ([]byte, error) {
 	signature, err := p.ContextManager.GetSignature(uid)
 	if err != nil {
-		return nil, err
+		// todo this is a quick fix. in the future, we should make sure
+		//  that there is a signature for every known uuid
+		if os.IsNotExist(err) {
+			return make([]byte, p.SignatureLength()), nil
+		} else {
+			return nil, err
+		}
 	}
 
 	err = p.checkSignatureLen(signature)
@@ -120,7 +127,7 @@ func (p *ExtendedProtocol) GetAuthToken(uid uuid.UUID) (string, error) {
 	}
 
 	if len(authToken) == 0 {
-		return "", fmt.Errorf("empty auth token")
+		return "", fmt.Errorf("%s: empty auth token", uid)
 	}
 
 	return authToken, nil
@@ -128,7 +135,7 @@ func (p *ExtendedProtocol) GetAuthToken(uid uuid.UUID) (string, error) {
 
 func (p *ExtendedProtocol) SetAuthToken(uid uuid.UUID, authToken string) error {
 	if len(authToken) == 0 {
-		return fmt.Errorf("empty auth token")
+		return fmt.Errorf("%s: empty auth token", uid)
 	}
 
 	return p.ContextManager.SetAuthToken(uid, authToken)

@@ -33,7 +33,21 @@ func (i *IdentityHandler) initIdentities(identities map[string]string) error {
 	// create and register keys for identities
 	log.Infof("initializing %d identities...", len(identities))
 	for name, auth := range identities {
-		err := i.initIdentity(name, auth)
+		// make sure identity name is a valid UUID
+		uid, err := uuid.Parse(name)
+		if err != nil {
+			return fmt.Errorf("invalid identity name \"%s\" (not a UUID): %s", name, err)
+		}
+
+		// make sure that all auth tokens from config are being set (this is here for backwards compatibility)
+		if _, ok := i.protocol.ContextManager.(*FileManager); ok {
+			err = i.protocol.SetAuthToken(uid, auth)
+			if err != nil {
+				return err
+			}
+		}
+
+		err = i.initIdentity(uid, auth)
 		if err != nil {
 			return err
 		}
@@ -42,19 +56,13 @@ func (i *IdentityHandler) initIdentities(identities map[string]string) error {
 	return nil
 }
 
-func (i *IdentityHandler) initIdentity(name string, auth string) error {
-	// make sure identity name is a valid UUID
-	uid, err := uuid.Parse(name)
-	if err != nil {
-		return fmt.Errorf("invalid identity name \"%s\" (not a UUID): %s", name, err)
-	}
-
+func (i *IdentityHandler) initIdentity(uid uuid.UUID, auth string) error {
 	// make sure identity has an auth token
 	if len(auth) == 0 {
 		return fmt.Errorf("%s: auth token has zero length", uid)
 	}
 
-	err = i.protocol.StartTransaction(uid)
+	err := i.protocol.StartTransaction(uid)
 	if err != nil {
 		return err
 	}
@@ -78,12 +86,12 @@ func (i *IdentityHandler) initIdentity(name string, auth string) error {
 }
 
 func (i *IdentityHandler) setIdentityAttributes(uid uuid.UUID, auth string) error {
-	// check if there is a known signing key for the UUID
+	// check if identity is already initialized
 	if i.protocol.PrivateKeyExists(uid) {
 		return nil
 	}
 
-	err := i.initKey(uid, auth)
+	err := i.protocol.SetAuthToken(uid, auth)
 	if err != nil {
 		return err
 	}
@@ -94,7 +102,7 @@ func (i *IdentityHandler) setIdentityAttributes(uid uuid.UUID, auth string) erro
 		return err
 	}
 
-	err = i.protocol.SetAuthToken(uid, auth)
+	err = i.initKey(uid, auth)
 	if err != nil {
 		return err
 	}
