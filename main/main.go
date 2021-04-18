@@ -78,22 +78,21 @@ func main() {
 	}
 
 	client := &Client{
-		authServiceURL:      conf.Niomon,
-		verifyServiceURL:    conf.VerifyService,
-		keyServiceURL:       conf.KeyService,
-		identityServiceURL:  conf.IdentityService,
+		authServiceURL:     conf.Niomon,
+		verifyServiceURL:   conf.VerifyService,
+		keyServiceURL:      conf.KeyService,
+		identityServiceURL: conf.IdentityService,
+	}
+
+	idHandler := &IdentityHandler{
+		protocol:            protocol,
+		client:              client,
 		subjectCountry:      conf.CSR_Country,
 		subjectOrganization: conf.CSR_Organization,
 	}
 
-	idHandler := &IdentityHandler{
-		protocol:   protocol,
-		client:     client,
-		staticKeys: conf.StaticKeys,
-	}
-
 	// generate and register keys for known devices
-	err = idHandler.initIdentities(conf.Keys, conf.Devices)
+	err = idHandler.initIdentities(conf.Devices)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -15,7 +15,6 @@
 package main
 
 import (
-	"encoding/base64"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -24,22 +23,17 @@ import (
 )
 
 type IdentityHandler struct {
-	protocol   *ExtendedProtocol
-	client     *Client
-	staticKeys bool
+	protocol            *ExtendedProtocol
+	client              *Client
+	subjectCountry      string
+	subjectOrganization string
 }
 
-func (i *IdentityHandler) initIdentities(keys map[string]string, identities map[string]string) error {
-	// inject keys from configuration to keystore
-	err := injectKeys(i.protocol, keys)
-	if err != nil {
-		return err
-	}
-
+func (i *IdentityHandler) initIdentities(identities map[string]string) error {
 	// create and register keys for identities
 	log.Infof("initializing %d identities...", len(identities))
 	for name, auth := range identities {
-		err = i.initIdentity(name, auth)
+		err := i.initIdentity(name, auth)
 		if err != nil {
 			return err
 		}
@@ -60,9 +54,24 @@ func (i *IdentityHandler) initIdentity(name string, auth string) error {
 		return fmt.Errorf("%s: auth token has zero length", uid)
 	}
 
-	err = i.protocol.PersistAuthToken(uid, auth)
+	// todo
+	//err = i.protocol.StartTransaction(uid)
+	//if err != nil {
+	//	return err
+	//}
+	//defer endTransactionOrPanic(i.protocol, uid)
 
-	err = i.setUpKey(uid, auth)
+	// check if there is a known signing key for the UUID
+	if i.protocol.PrivateKeyExists(uid) {
+		return nil
+	}
+
+	err = i.initKey(uid, auth)
+	if err != nil {
+		return err
+	}
+
+	err = i.protocol.PersistAuthToken(uid, auth)
 	if err != nil {
 		return err
 	}
@@ -70,84 +79,83 @@ func (i *IdentityHandler) initIdentity(name string, auth string) error {
 	return nil
 }
 
-func (i *IdentityHandler) setUpKey(uid uuid.UUID, auth string) error {
-	// check if there is a known signing key for the UUID
-	if !i.protocol.PrivateKeyExists(uid) {
-		if !i.staticKeys {
-			return fmt.Errorf("dynamic key generation is disabled")
-		}
+func endTransactionOrPanic(protocol *ExtendedProtocol, uid uuid.UUID) {
+	err := protocol.EndTransaction(uid)
+	if err != nil {
+		log.Panic(err)
+	}
+}
 
-		// if dynamic key generation is enabled generate new key pair
-		log.Printf("generating new key pair for UUID %s", uid)
-		err := i.protocol.GenerateKey(uid)
-		if err != nil {
-			return fmt.Errorf("generating new key pair for UUID %s failed: %v", uid, err)
-		}
-
-		// store newly generated key in persistent storage
-		err = i.protocol.PersistKeys()
-		if err != nil {
-			return fmt.Errorf("unable to persist new key pair for UUID %s: %v", uid, err)
-		}
+func (i *IdentityHandler) initKey(uid uuid.UUID, auth string) error {
+	// generate new key pair
+	log.Printf("generating new key pair for UUID %s", uid)
+	err := i.protocol.GenerateKey(uid)
+	if err != nil {
+		return fmt.Errorf("generating new key pair for UUID %s failed: %v", uid, err)
 	}
 
-	// get the public key
+	// register public key at the ubirch backend
+	err = i.registerPublicKey(uid, auth)
+	if err != nil {
+		// if something went wrong the generated key has to be removed from the context
+		err = i.protocol.LoadKeys() // fixme this is a hacky quickfix as long as we can not set individual keys in the keystore
+		if err != nil {
+			log.Error(err)
+			log.Fatalf("unable to reset new key pair for UUID %s: %v", uid, err)
+		}
+		return err
+	}
+
+	// store newly generated key in persistent storage
+	err = i.protocol.PersistKeys()
+	if err != nil {
+		return fmt.Errorf("unable to persist new key pair for UUID %s: %v", uid, err)
+	}
+
+	return nil
+}
+
+func (i *IdentityHandler) registerPublicKey(uid uuid.UUID, auth string) error {
 	pubKey, err := i.protocol.GetPublicKey(uid)
 	if err != nil {
 		return err
 	}
+	log.Debugf("%s: public key: %x", uid, pubKey)
 
-	// check if the key is already registered at the key service
-	isRegistered, err := i.client.isKeyRegistered(uid, pubKey)
+	cert, err := i.protocol.GetSignedKeyRegistration(uid, pubKey)
 	if err != nil {
-		return err
+		return fmt.Errorf("error creating public key certificate: %v", err)
+	}
+	log.Debugf("%s: key certificate: %s", uid, cert)
+
+	err = i.submitKeyRegistration(uid, cert, auth)
+	if err != nil {
+		return fmt.Errorf("key registration for UUID %s failed: %v", uid, err)
 	}
 
-	if !isRegistered {
-		// register public key at the ubirch backend
-		err = i.client.registerPublicKey(i.protocol, uid, pubKey, auth)
-		if err != nil {
-			return fmt.Errorf("key registration for UUID %s failed: %v", uid, err)
-		}
-	}
+	go i.sendCSROrLogError(uid)
 
+	return nil
+}
+func (i *IdentityHandler) sendCSROrLogError(uid uuid.UUID) {
+	err := i.sendCSR(uid)
+	if err != nil {
+		log.Error(err)
+	}
+}
+
+func (i *IdentityHandler) sendCSR(uid uuid.UUID) error {
 	// submit a X.509 Certificate Signing Request for the public key
-	go func(_uid uuid.UUID) {
-		err := i.client.submitCSR(i.protocol, _uid)
-		if err != nil {
-			log.Errorf("submitting CSR for UUID %s failed: %v", _uid, err)
-		}
-	}(uid)
+	csr, err := i.protocol.GetCSR(uid, i.subjectCountry, i.subjectOrganization)
+	if err != nil {
+		return fmt.Errorf("creating CSR for UUID %s failed: %v", uid, err)
+	}
+	log.Debugf("%s: CSR [der]: %x", uid, csr)
 
-	return nil
-}
+	err = i.submitCSR(uid, csr)
+	if err != nil {
+		return fmt.Errorf("submitting CSR for UUID %s failed: %v", uid, err)
+	}
 
-func injectKeys(p *ExtendedProtocol, keys map[string]string) error {
-	for name, key := range keys {
-		err := injectKey(p, name, key)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func injectKey(p *ExtendedProtocol, name string, key string) error {
-	uid, err := uuid.Parse(name)
-	if err != nil {
-		return fmt.Errorf("%s: invalid key name \"%s\" (not a UUID): %v", name, err)
-	}
-	keyBytes, err := base64.StdEncoding.DecodeString(key)
-	if err != nil {
-		return fmt.Errorf("unable to decode private key string for %s: %v, string was: %s", name, err, key)
-	}
-	err = p.SetKey(uid, keyBytes)
-	if err != nil {
-		return fmt.Errorf("unable to inject key to keystore: %v", err)
-	}
-	err = p.PersistKeys()
-	if err != nil {
-		return fmt.Errorf("unable to persist injected key for UUID %s: %v", uid, err)
-	}
 	return nil
 }

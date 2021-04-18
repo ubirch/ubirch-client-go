@@ -21,40 +21,23 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"time"
 
 	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
 )
 
-type KeyRegistration struct {
-	Algorithm      string `json:"algorithm"`
-	Created        string `json:"created"`
-	HwDeviceId     string `json:"hwDeviceId"`
-	PubKey         string `json:"pubKey"`
-	PubKeyId       string `json:"pubKeyId"`
-	ValidNotAfter  string `json:"validNotAfter"`
-	ValidNotBefore string `json:"validNotBefore"`
-}
-
-type SignedKeyRegistration struct {
-	PubKeyInfo KeyRegistration `json:"pubKeyInfo"`
-	Signature  string          `json:"signature"`
-}
-
 type Client struct {
-	authServiceURL      string
-	verifyServiceURL    string
-	keyServiceURL       string
-	identityServiceURL  string
-	subjectCountry      string
-	subjectOrganization string
+	authServiceURL     string
+	verifyServiceURL   string
+	keyServiceURL      string
+	identityServiceURL string
 }
 
 // requestPublicKeys requests a devices public keys at the identity service
 // returns a list of the retrieved public key certificates
-func (c *Client) requestPublicKeys(id uuid.UUID) ([]SignedKeyRegistration, error) {
+func (c *Client) requestPublicKeys(id uuid.UUID) ([]ubirch.SignedKeyRegistration, error) {
 	url := c.keyServiceURL + "/current/hardwareId/" + id.String()
 	resp, err := http.Get(url)
 	if err != nil {
@@ -64,7 +47,7 @@ func (c *Client) requestPublicKeys(id uuid.UUID) ([]SignedKeyRegistration, error
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return []SignedKeyRegistration{}, nil
+		return []ubirch.SignedKeyRegistration{}, nil
 	}
 
 	if httpFailed(resp.StatusCode) {
@@ -77,7 +60,7 @@ func (c *Client) requestPublicKeys(id uuid.UUID) ([]SignedKeyRegistration, error
 		return nil, fmt.Errorf("unable to read response body: %v", err)
 	}
 
-	var keys []SignedKeyRegistration
+	var keys []ubirch.SignedKeyRegistration
 	err = json.Unmarshal(respBodyBytes, &keys)
 	if err != nil {
 		return nil, fmt.Errorf("unable to decode key registration info: %v", err)
@@ -102,14 +85,8 @@ func (c *Client) isKeyRegistered(id uuid.UUID, pubKey []byte) (bool, error) {
 	return false, nil
 }
 
-func (c *Client) registerPublicKey(p *ExtendedProtocol, uid uuid.UUID, pubKey []byte, auth string) error {
+func (c *Client) submitKeyRegistration(uid uuid.UUID, cert []byte, auth string) error {
 	log.Infof("%s: registering public key at key service", uid)
-
-	cert, err := getSignedCertificate(p, uid, pubKey)
-	if err != nil {
-		return fmt.Errorf("error creating public key certificate: %v", err)
-	}
-	log.Debugf("%s: certificate: %s", uid, cert)
 
 	keyRegHeader := ubirchHeader(uid, auth)
 	keyRegHeader["content-type"] = "application/json"
@@ -126,14 +103,8 @@ func (c *Client) registerPublicKey(p *ExtendedProtocol, uid uuid.UUID, pubKey []
 }
 
 // submitCSR submits a X.509 Certificate Signing Request for the public key to the identity service
-func (c *Client) submitCSR(p *ExtendedProtocol, uid uuid.UUID) error {
+func (c *Client) submitCSR(uid uuid.UUID, csr []byte) error {
 	log.Debugf("%s: submitting CSR to identity service", uid)
-
-	csr, err := p.GetCSR(uid, c.subjectCountry, c.subjectOrganization)
-	if err != nil {
-		return fmt.Errorf("error creating CSR: %v", err)
-	}
-	log.Debugf("%s: CSR [der]: %x", uid, csr)
 
 	CSRHeader := map[string]string{"content-type": "application/octet-stream"}
 
@@ -150,43 +121,6 @@ func (c *Client) submitCSR(p *ExtendedProtocol, uid uuid.UUID) error {
 
 func (c *Client) sendToAuthService(uid uuid.UUID, auth string, upp []byte) (HTTPResponse, error) {
 	return post(c.authServiceURL, upp, ubirchHeader(uid, auth))
-}
-
-// getSignedCertificate creates a self-signed JSON key certificate
-// to be sent to the identity service for public key registration
-func getSignedCertificate(p *ExtendedProtocol, uid uuid.UUID, pubKey []byte) ([]byte, error) {
-	const timeFormat = "2006-01-02T15:04:05.000Z"
-
-	// put it all together
-	now := time.Now().UTC()
-	keyRegistration := KeyRegistration{
-		Algorithm:      "ecdsa-p256v1",
-		Created:        now.Format(timeFormat),
-		HwDeviceId:     uid.String(),
-		PubKey:         base64.StdEncoding.EncodeToString(pubKey),
-		PubKeyId:       base64.StdEncoding.EncodeToString(pubKey),
-		ValidNotAfter:  now.Add(10 * 365 * 24 * time.Hour).Format(timeFormat), // valid for 10 years
-		ValidNotBefore: now.Format(timeFormat),
-	}
-
-	// create string representation and sign it
-	jsonKeyReg, err := json.Marshal(keyRegistration)
-	if err != nil {
-		return nil, err
-	}
-
-	signature, err := p.Crypto.Sign(uid, jsonKeyReg)
-	if err != nil {
-		return nil, err
-	}
-
-	// fill the certificate
-	cert := SignedKeyRegistration{
-		PubKeyInfo: keyRegistration,
-		Signature:  base64.StdEncoding.EncodeToString(signature),
-	}
-
-	return json.Marshal(cert)
 }
 
 // post submits a message to a backend service
