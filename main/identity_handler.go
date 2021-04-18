@@ -58,15 +58,32 @@ func (i *IdentityHandler) initIdentity(name string, auth string) error {
 	if err != nil {
 		return err
 	}
-	var success bool
-	defer endTransactionOrPanic(i.protocol, uid, success) // todo not sure if this works
 
+	err = i.setIdentityAttributes(uid, auth)
+	if err != nil {
+		ctxErr := i.protocol.EndTransaction(uid, false)
+		if ctxErr != nil {
+			log.Error(err)
+			log.Fatalf("can not reset context: %v", ctxErr) // todo dont panic ?
+		}
+		return err
+	}
+
+	ctxErr := i.protocol.EndTransaction(uid, true)
+	if ctxErr != nil {
+		log.Fatalf("can not end transaction: %v", ctxErr) // todo dont panic ?
+	}
+
+	return nil
+}
+
+func (i *IdentityHandler) setIdentityAttributes(uid uuid.UUID, auth string) error {
 	// check if there is a known signing key for the UUID
 	if i.protocol.PrivateKeyExists(uid) {
 		return nil
 	}
 
-	err = i.initKey(uid, auth)
+	err := i.initKey(uid, auth)
 	if err != nil {
 		return err
 	}
@@ -82,15 +99,7 @@ func (i *IdentityHandler) initIdentity(name string, auth string) error {
 		return err
 	}
 
-	success = true
 	return nil
-}
-
-func endTransactionOrPanic(protocol *ExtendedProtocol, uid uuid.UUID, success bool) {
-	err := protocol.EndTransaction(uid, success)
-	if err != nil {
-		log.Panic(err)
-	}
 }
 
 func (i *IdentityHandler) initKey(uid uuid.UUID, auth string) error {
