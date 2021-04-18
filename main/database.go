@@ -39,11 +39,9 @@ type Database interface {
 // Postgres contains the postgres database connection, and offers methods
 // for interacting with the database.
 type Postgres struct {
-	conn *sql.DB
+	conn   *sql.DB
+	secret []byte
 }
-
-// Ensure Postgres implements the ContextManager interface
-var _ ContextManager = (*Postgres)(nil)
 
 func (db *Postgres) StartTransaction(uid uuid.UUID) error {
 	panic("implement me")
@@ -53,41 +51,48 @@ func (db *Postgres) EndTransaction(uid uuid.UUID) error {
 	panic("implement me")
 }
 
-func (db *Postgres) LoadKey(uid uuid.UUID) ([]byte, error) {
+func (db *Postgres) GetPrivateKey(id uuid.UUID) ([]byte, error) {
 	panic("implement me")
 }
 
-func (db *Postgres) PersistKey(uid uuid.UUID, key []byte) error {
+func (db *Postgres) SetPrivateKey(id uuid.UUID, key []byte) error {
 	panic("implement me")
 }
 
-func (db *Postgres) LoadKeys(dest interface{}) error {
+func (db *Postgres) GetPublicKey(id uuid.UUID) ([]byte, error) {
 	panic("implement me")
 }
 
-func (db *Postgres) PersistKeys(source interface{}) error {
+func (db *Postgres) SetPublicKey(id uuid.UUID, key []byte) error {
 	panic("implement me")
 }
 
-func (db *Postgres) LoadSignature(uid uuid.UUID) ([]byte, error) {
+func (db *Postgres) GetSignature(uid uuid.UUID) ([]byte, error) {
 	panic("implement me")
 }
 
-func (db *Postgres) PersistSignature(uid uuid.UUID, signature []byte) error {
+func (db *Postgres) SetSignature(uid uuid.UUID, signature []byte) error {
 	panic("implement me")
 }
 
-func (db *Postgres) LoadAuthToken(uid uuid.UUID) (string, error) {
+func (db *Postgres) GetAuthToken(uid uuid.UUID) (string, error) {
 	panic("implement me")
 }
 
-func (db *Postgres) PersistAuthToken(uid uuid.UUID, authToken string) error {
+func (db *Postgres) SetAuthToken(uid uuid.UUID, authToken string) error {
 	panic("implement me")
 }
+
+func (db *Postgres) DeleteIdentity(uid uuid.UUID) error {
+	panic("implement me")
+}
+
+// Ensure Postgres implements the ContextManager interface
+var _ ContextManager = (*Postgres)(nil)
 
 // NewPostgres takes a database connection string, returns a new initialized
 // database.
-func NewPostgres(dsn string) (*Postgres, error) {
+func NewPostgres(dsn string, secret []byte) (*Postgres, error) {
 	// FIXME: use the database
 	return nil, fmt.Errorf("database currently not supported")
 
@@ -98,7 +103,7 @@ func NewPostgres(dsn string) (*Postgres, error) {
 
 	log.Print("Initialized database connection")
 
-	return &Postgres{conn: db}, nil
+	return &Postgres{conn: db, secret: secret}, nil
 }
 
 // SetProtocolContext stores the current protocol context.

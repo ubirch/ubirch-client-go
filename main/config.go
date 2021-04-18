@@ -119,9 +119,9 @@ func (c *Config) Load(configDir string, filename string) error {
 
 func (c *Config) GetCtxManager() (ContextManager, error) {
 	if c.DSN != "" {
-		return NewPostgres(c.DSN)
+		return NewPostgres(c.DSN, c.secretBytes)
 	} else {
-		return NewFileManager(c.configDir)
+		return NewFileManager(c.configDir, c.secretBytes)
 	}
 }
 

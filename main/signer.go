@@ -108,7 +108,7 @@ func (s *Signer) chainer(chainerID string, jobs <-chan ChainingRequest) error {
 		// persist last signature only if UPP was successfully received by ubirch backend
 		if httpSuccess(resp.StatusCode) {
 			signature := uppBytes[len(uppBytes)-s.protocol.SignatureLength():]
-			err = s.protocol.PersistSignature(msg.ID, signature)
+			err = s.protocol.SetSignature(msg.ID, signature)
 			if err != nil {
 				log.Errorf("unable to persist last signature: %v [\"%s\": \"%s\"]",
 					err, msg.ID, base64.StdEncoding.EncodeToString(signature))
@@ -140,7 +140,7 @@ func (s *Signer) Sign(msg SigningRequest) HTTPResponse {
 }
 
 func (s *Signer) getChainedUPP(id uuid.UUID, hash [32]byte) ([]byte, error) {
-	prevSignature, err := s.protocol.LoadSignature(id)
+	prevSignature, err := s.protocol.GetSignature(id)
 	if err != nil {
 		return nil, err
 	}
