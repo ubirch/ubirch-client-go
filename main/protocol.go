@@ -37,6 +37,10 @@ type ExtendedProtocol struct {
 }
 
 type ContextManager interface {
+	StartTransaction(uid uuid.UUID) error
+	EndTransaction(uid uuid.UUID) error
+	LoadKey(uid uuid.UUID) ([]byte, error)
+	PersistKey(uid uuid.UUID, key []byte) error
 	LoadKeys(dest interface{}) error
 	PersistKeys(source interface{}) error
 	LoadSignature(uid uuid.UUID) ([]byte, error)
