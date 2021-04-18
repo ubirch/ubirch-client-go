@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-const expectedConfig = `{"devices":null,"secret":"MTIzNDU2Nzg5MDU2Nzg5MA==","env":"","DSN":"","staticKeys":false,"keys":null,"CSR_country":"","CSR_organization":"","TCP_addr":"","TLS":false,"TLSCertFile":"","TLSKeyFile":"","CORS":false,"CORS_origins":null,"debug":false,"logTextFormat":false,"RequestBufferSize":0,"SecretBytes":null,"KeyService":"","IdentityService":"","Niomon":"","VerifyService":""}`
+const expectedConfig = `{"devices":null,"secret":"MTIzNDU2Nzg5MDU2Nzg5MA==","env":"","DSN":"","CSR_country":"","CSR_organization":"","TCP_addr":"","TLS":false,"TLSCertFile":"","TLSKeyFile":"","CORS":false,"CORS_origins":null,"debug":false,"logTextFormat":false,"RequestBufferSize":0,"SecretBytes":null,"KeyService":"","IdentityService":"","Niomon":"","VerifyService":""}`
 
 func TestConfig(t *testing.T) {
 	configBytes := []byte(expectedConfig)
