@@ -16,7 +16,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
@@ -27,9 +26,17 @@ type ExtendedProtocol struct {
 	ContextManager
 }
 
+type Identity struct {
+	uid        uuid.UUID
+	privateKey []byte
+	publicKey  []byte
+	signature  []byte
+	authToken  string
+}
+
 type ContextManager interface {
 	StartTransaction(uid uuid.UUID) error
-	EndTransaction(uid uuid.UUID) error
+	EndTransaction(uid uuid.UUID, success bool) error
 
 	GetPrivateKey(uid uuid.UUID) ([]byte, error)
 	SetPrivateKey(uid uuid.UUID, key []byte) error
@@ -43,7 +50,6 @@ type ContextManager interface {
 	GetAuthToken(uid uuid.UUID) (string, error)
 	SetAuthToken(uid uuid.UUID, authToken string) error
 
-	DeleteIdentity(uid uuid.UUID) error
 	Close() error
 }
 
@@ -58,14 +64,29 @@ func NewExtendedProtocol(cryptoCtx ubirch.Crypto, ctxManager ContextManager) (*E
 	return p, nil
 }
 
+func (p *ExtendedProtocol) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
+	// todo sanity checks
+	return p.ContextManager.GetPrivateKey(uid)
+}
+func (p *ExtendedProtocol) SetPrivateKey(uid uuid.UUID, key []byte) error {
+	// todo sanity checks
+	return p.ContextManager.SetPrivateKey(uid, key)
+}
+
+func (p *ExtendedProtocol) GetPublicKey(uid uuid.UUID) ([]byte, error) {
+	// todo sanity checks
+	return p.ContextManager.GetPublicKey(uid)
+
+}
+func (p *ExtendedProtocol) SetPublicKey(uid uuid.UUID, key []byte) error {
+	// todo sanity checks
+	return p.ContextManager.SetPublicKey(uid, key)
+}
+
 func (p *ExtendedProtocol) GetSignature(uid uuid.UUID) ([]byte, error) {
 	signature, err := p.ContextManager.GetSignature(uid)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return make([]byte, p.SignatureLength()), nil
-		} else {
-			return nil, err
-		}
+		return nil, err
 	}
 
 	err = p.checkSignatureLen(signature)
@@ -90,4 +111,25 @@ func (p *ExtendedProtocol) checkSignatureLen(signature []byte) error {
 		return fmt.Errorf("invalid signature length: expected %d, got %d", p.SignatureLength(), len(signature))
 	}
 	return nil
+}
+
+func (p *ExtendedProtocol) GetAuthToken(uid uuid.UUID) (string, error) {
+	authToken, err := p.ContextManager.GetAuthToken(uid)
+	if err != nil {
+		return "", err
+	}
+
+	if len(authToken) == 0 {
+		return "", fmt.Errorf("empty auth token")
+	}
+
+	return authToken, nil
+}
+
+func (p *ExtendedProtocol) SetAuthToken(uid uuid.UUID, authToken string) error {
+	if len(authToken) == 0 {
+		return fmt.Errorf("empty auth token")
+	}
+
+	return p.ContextManager.SetAuthToken(uid, authToken)
 }
