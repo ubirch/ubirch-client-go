@@ -105,8 +105,6 @@ func (s *Signer) chainer(chainerID string, jobs <-chan ChainingRequest) error {
 
 		resp := s.sendUPP(msg.HTTPRequest, uppBytes)
 
-		msg.respond(resp)
-
 		// persist last signature only if UPP was successfully received by ubirch backend
 		if httpSuccess(resp.StatusCode) {
 			signature := uppBytes[len(uppBytes)-s.protocol.SignatureLength():]
@@ -117,6 +115,8 @@ func (s *Signer) chainer(chainerID string, jobs <-chan ChainingRequest) error {
 				return err
 			}
 		}
+
+		msg.respond(resp)
 	}
 
 	log.Debugf("%s: shut down chainer", chainerID)
