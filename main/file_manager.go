@@ -33,13 +33,13 @@ type FileManager struct {
 
 func (f *FileManager) StartTransaction(uid uuid.UUID) error {
 	// todo implement
-	log.Warn("transactions not implemented for file manager")
+	log.Warnf("transactions not implemented for file manager: StartTransaction(%s)", uid)
 	return nil
 }
 
 func (f *FileManager) EndTransaction(uid uuid.UUID, success bool) error {
 	// todo implement
-	log.Warn("transactions not implemented for file manager")
+	log.Warnf("transactions not implemented for file manager: EndTransaction(%s, %v)", uid, success)
 	return nil
 }
 
