@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
 
@@ -39,8 +40,8 @@ type Database interface {
 // Postgres contains the postgres database connection, and offers methods
 // for interacting with the database.
 type Postgres struct {
-	conn   *sql.DB
-	secret []byte
+	conn              *sql.DB
+	EncryptedKeystore *ubirch.EncryptedKeystore
 }
 
 func (db *Postgres) StartTransaction(uid uuid.UUID) error {
@@ -99,7 +100,10 @@ func NewPostgres(dsn string, secret []byte) (*Postgres, error) {
 
 	log.Print("Initialized database connection")
 
-	return &Postgres{conn: db, secret: secret}, nil
+	return &Postgres{
+		conn:              db,
+		EncryptedKeystore: ubirch.NewEncryptedKeystore(secret),
+	}, nil
 }
 
 // SetProtocolContext stores the current protocol context.
