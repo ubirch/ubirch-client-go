@@ -123,7 +123,7 @@ func (i *IdentityHandler) initKey(uid uuid.UUID, auth string) error {
 }
 
 func (i *IdentityHandler) registerPublicKey(uid uuid.UUID, auth string) error {
-	pubKey, err := i.protocol.GetPublicKey(uid)
+	pubKey, err := i.protocol.Crypto.GetPublicKey(uid)
 	if err != nil {
 		return err
 	}
