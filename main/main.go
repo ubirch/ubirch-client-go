@@ -108,11 +108,6 @@ func main() {
 		verifyFromKnownIdentitiesOnly: false, // TODO: make configurable
 	}
 
-	coseSigner, err := NewCoseSigner(cryptoCtx)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	httpServer := HTTPServer{
 		router:   NewRouter(),
 		addr:     conf.TCP_addr,
@@ -164,15 +159,6 @@ func main() {
 		Path: fmt.Sprintf("/%s", VerifyPath),
 		Service: &VerificationService{
 			Verifier: &verifier,
-		},
-	})
-
-	// set up endpoint for COSE signing
-	httpServer.AddServiceEndpoint(ServerEndpoint{
-		Path: fmt.Sprintf("/{%s}/%s", UUIDKey, COSEPath),
-		Service: &COSEService{
-			CoseSigner: coseSigner,
-			AuthTokens: conf.Devices,
 		},
 	})
 
