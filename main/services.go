@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -48,27 +47,16 @@ type HTTPResponse struct {
 	Content    []byte      `json:"content"`
 }
 
-type ChainingRequest struct {
-	HTTPRequest
-	ResponseChan chan HTTPResponse
-	RequestCtx   context.Context
-}
-
 type ChainingService struct {
-	Jobs       map[string]chan ChainingRequest
-	AuthTokens map[string]string
+	*Signer
 }
 
 // Ensure ChainingService implements the Service interface
 var _ Service = (*ChainingService)(nil)
 
 func (c *ChainingService) handleRequest(w http.ResponseWriter, r *http.Request) {
+	var msg HTTPRequest
 	var err error
-
-	msg := ChainingRequest{
-		ResponseChan: make(chan HTTPResponse),
-		RequestCtx:   r.Context(),
-	}
 
 	msg.ID, err = getUUID(r)
 	if err != nil {
@@ -76,7 +64,7 @@ func (c *ChainingService) handleRequest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	msg.Auth, err = checkAuth(r, msg.ID, c.AuthTokens)
+	msg.Auth, err = checkAuth(r, msg.ID, c.protocol)
 	if err != nil {
 		Error(msg.ID, w, err, http.StatusUnauthorized)
 		return
@@ -88,51 +76,18 @@ func (c *ChainingService) handleRequest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	requestChan, found := c.Jobs[msg.ID.String()]
-	if !found {
-		Error(msg.ID, w, fmt.Errorf("chaining not supported for identity"), http.StatusForbidden)
-		return
-	}
-
-	err = submitForChaining(requestChan, msg)
-	if err != nil {
-		log.Warnf("%s: %v", msg.ID, err)
-		http.Error(w, "Service Temporarily Unavailable", http.StatusServiceUnavailable)
-		return
-	}
-
-	resp, err := waitForResp(msg.ResponseChan, r.Context())
-	if err != nil {
-		log.Warnf("%s: %v", msg.ID, err)
-		return
-	}
-
+	resp := c.chain(msg)
 	sendResponse(w, resp)
-}
-
-func submitForChaining(requestChan chan<- ChainingRequest, msg ChainingRequest) error {
-	select {
-	case requestChan <- msg:
-		return nil
-	default: // do not accept any more requests if buffer is full
-		return fmt.Errorf("resquest skipped due to overflowing request channel")
-	}
-}
-
-type SigningRequest struct {
-	HTTPRequest
-	Operation operation
 }
 
 type SigningService struct {
 	*Signer
-	AuthTokens map[string]string
 }
 
 var _ Service = (*SigningService)(nil)
 
 func (s *SigningService) handleRequest(w http.ResponseWriter, r *http.Request) {
-	var msg SigningRequest
+	var msg HTTPRequest
 	var err error
 
 	msg.ID, err = getUUID(r)
@@ -141,13 +96,13 @@ func (s *SigningService) handleRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg.Auth, err = checkAuth(r, msg.ID, s.AuthTokens)
+	msg.Auth, err = checkAuth(r, msg.ID, s.protocol)
 	if err != nil {
 		Error(msg.ID, w, err, http.StatusUnauthorized)
 		return
 	}
 
-	msg.Operation, err = getOperation(r)
+	op, err := getOperation(r)
 	if err != nil {
 		Error(msg.ID, w, err, http.StatusNotFound)
 		return
@@ -159,7 +114,7 @@ func (s *SigningService) handleRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := s.Sign(msg)
+	resp := s.Sign(msg, op)
 	sendResponse(w, resp)
 }
 
@@ -213,10 +168,10 @@ func getUUID(r *http.Request) (uuid.UUID, error) {
 
 // checkAuth checks the auth token from the request header and returns it if valid
 // Returns error if UUID is unknown or auth token is invalid
-func checkAuth(r *http.Request, id uuid.UUID, authTokens map[string]string) (string, error) {
+func checkAuth(r *http.Request, id uuid.UUID, ctxManager ContextManager) (string, error) {
 	// check if UUID is known
-	idAuthToken, exists := authTokens[id.String()]
-	if !exists || idAuthToken == "" {
+	idAuthToken, err := ctxManager.GetAuthToken(id)
+	if err != nil || idAuthToken == "" {
 		return "", fmt.Errorf("unknown UUID")
 	}
 
@@ -345,17 +300,6 @@ func jsonMarshal(v interface{}) ([]byte, error) {
 	encoder.SetEscapeHTML(false)
 	err := encoder.Encode(v)
 	return buffer.Bytes(), err
-}
-
-// wait for response or context cancel
-// returns the response, if response comes first, or ctx.Err(), if context was canceled first
-func waitForResp(msgResp <-chan HTTPResponse, ctx context.Context) (HTTPResponse, error) {
-	select {
-	case resp := <-msgResp:
-		return resp, nil
-	case <-ctx.Done():
-		return HTTPResponse{}, ctx.Err()
-	}
 }
 
 // forwards response to sender
