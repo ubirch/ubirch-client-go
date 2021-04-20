@@ -28,7 +28,6 @@ const (
 	BinType  = "application/octet-stream"
 	TextType = "text/plain"
 	JSONType = "application/json"
-	CBORType = "application/cbor"
 
 	HexEncoding = "hex"
 
@@ -179,97 +178,6 @@ func (v *VerificationService) handleRequest(w http.ResponseWriter, r *http.Reque
 
 	resp := v.Verify(hash[:])
 	sendResponse(w, resp)
-}
-
-type COSERequest struct {
-	HTTPRequest
-	Payload []byte
-}
-
-type COSEService struct {
-	*CoseSigner
-	AuthTokens map[string]string
-}
-
-var _ Service = (*COSEService)(nil)
-
-func (c *COSEService) handleRequest(w http.ResponseWriter, r *http.Request) {
-	var msg COSERequest
-	var err error
-
-	msg.ID, err = getUUID(r)
-	if err != nil {
-		Error(msg.ID, w, err, http.StatusNotFound)
-		return
-	}
-
-	msg.Auth, err = checkAuth(r, msg.ID, c.AuthTokens)
-	if err != nil {
-		Error(msg.ID, w, err, http.StatusUnauthorized)
-		return
-	}
-
-	payload, hash, err := c.getPayloadAndHash(r)
-	if err != nil {
-		Error(msg.ID, w, err, http.StatusBadRequest)
-		return
-	}
-	msg.Payload = payload
-	msg.Hash = hash
-
-	resp := c.Sign(msg)
-
-	sendResponse(w, resp)
-}
-
-func (c *COSEService) getPayloadAndHash(r *http.Request) (payload []byte, hash Sha256Sum, err error) {
-	rBody, err := readBody(r)
-	if err != nil {
-		return nil, Sha256Sum{}, err
-	}
-
-	if isHashRequest(r) { // request contains hash
-		hash, err = getHashFromHashRequest(r.Header, rBody)
-		return rBody, hash, err
-	} else { // request contains original data
-		return c.getPayloadAndHashFromDataRequest(r.Header, rBody)
-	}
-}
-
-func (c *COSEService) getPayloadAndHashFromDataRequest(header http.Header, data []byte) (payload []byte, hash Sha256Sum, err error) {
-	switch ContentType(header) {
-	case JSONType:
-		data, err = c.getCBORFromJSON(data)
-		if err != nil {
-			return nil, Sha256Sum{}, fmt.Errorf("unable to CBOR encode JSON object: %v", err)
-		}
-		log.Debugf("CBOR encoded JSON: %x", data)
-
-		fallthrough
-	case CBORType:
-		toBeSigned, err := c.GetSigStructBytes(data)
-		if err != nil {
-			return nil, Sha256Sum{}, err
-		}
-		log.Debugf("toBeSigned: %x", toBeSigned)
-
-		hash = sha256.Sum256(toBeSigned)
-		return data, hash, err
-	default:
-		return nil, Sha256Sum{}, fmt.Errorf("invalid content-type for original data: "+
-			"expected (\"%s\" | \"%s\")", CBORType, JSONType)
-	}
-}
-
-func (c *COSEService) getCBORFromJSON(data []byte) ([]byte, error) {
-	var reqDump interface{}
-
-	err := json.Unmarshal(data, &reqDump)
-	if err != nil {
-		return nil, fmt.Errorf("unable to parse JSON request body: %v", err)
-	}
-
-	return c.encMode.Marshal(reqDump)
 }
 
 // wrapper for http.Error that additionally logs the error message to std.Output
