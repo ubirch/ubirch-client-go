@@ -76,7 +76,24 @@ func (c *ChainingService) handleRequest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// todo here goes the waiting loop
+	err = c.protocol.StartTransaction(msg.ID)
+	if err != nil {
+		log.Warnf("%s: %v", msg.ID, err)
+		http.Error(w, "Service Temporarily Unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
 	resp := c.chain(msg)
+
+	err = c.protocol.EndTransaction(msg.ID, true)
+	if err != nil {
+		log.Errorf("%s: %v", msg.ID, err)
+		http.Error(w, "", http.StatusInternalServerError)
+		// todo error handling! panic?
+		return
+	}
+
 	sendResponse(w, resp)
 }
 
