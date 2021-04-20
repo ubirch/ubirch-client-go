@@ -23,7 +23,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
-	"golang.org/x/sync/errgroup"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -59,82 +58,45 @@ type Signer struct {
 	client   *Client
 }
 
-// non-blocking sending to response channel. returns right away if there is no receiver
-func (msg ChainingRequest) respond(resp HTTPResponse) {
-	select {
-	case msg.ResponseChan <- resp:
-	default:
-		log.Warnf("%s: request has been processed, but response could not be sent: (%d) %s",
-			msg.ID, resp.StatusCode, string(resp.Content))
-	}
-}
-
-// start chainer in go routine
-func (s *Signer) startChainer(g *errgroup.Group, id string, jobs <-chan ChainingRequest) {
-	g.Go(func() error {
-		return s.chainer(id, jobs)
-	})
-}
-
 // handle incoming messages, create, sign and send a chained ubirch protocol packet (UPP) to the ubirch backend
-func (s *Signer) chainer(chainerID string, jobs <-chan ChainingRequest) error {
-	log.Debugf("%s: starting chainer", chainerID)
+func (s *Signer) chain(msg HTTPRequest) HTTPResponse {
+	log.Infof("%s: anchor hash [chained]: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
-	for msg := range jobs {
-		// the message might have waited in the channel for a while
-		// check if the context is expired or canceled by now
-		if msg.RequestCtx.Err() != nil {
-			continue
-		}
+	uppBytes, err := s.getChainedUPP(msg.ID, msg.Hash)
+	if err != nil {
+		log.Errorf("%s: could not create chained UPP: %v", msg.ID, err)
+		return errorResponse(http.StatusInternalServerError, "")
+	}
+	log.Debugf("%s: chained UPP: %x", msg.ID, uppBytes)
 
-		if msg.ID.String() != chainerID {
-			log.Errorf("%s: chainer received request with wrong ID: %s", chainerID, msg.ID)
-			msg.respond(errorResponse(http.StatusInternalServerError, ""))
-			continue
-		}
+	resp := s.sendUPP(msg, uppBytes)
 
-		log.Infof("%s: anchor hash [chained]: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
-
-		uppBytes, err := s.getChainedUPP(msg.ID, msg.Hash)
+	// persist last signature only if UPP was successfully received by ubirch backend
+	if httpSuccess(resp.StatusCode) {
+		signature := uppBytes[len(uppBytes)-s.protocol.SignatureLength():]
+		err = s.protocol.SetSignature(msg.ID, signature)
 		if err != nil {
-			log.Errorf("%s: could not create chained UPP: %v", msg.ID, err)
-			msg.respond(errorResponse(http.StatusInternalServerError, ""))
-			continue // todo should this be fatal?
+			log.Errorf("unable to persist last signature: %v [\"%s\": \"%s\"]",
+				err, msg.ID, base64.StdEncoding.EncodeToString(signature))
+			// todo error handling! panic?
+			return errorResponse(http.StatusInternalServerError, "")
 		}
-		log.Debugf("%s: chained UPP: %x", msg.ID, uppBytes)
-
-		resp := s.sendUPP(msg.HTTPRequest, uppBytes)
-
-		// persist last signature only if UPP was successfully received by ubirch backend
-		if httpSuccess(resp.StatusCode) {
-			signature := uppBytes[len(uppBytes)-s.protocol.SignatureLength():]
-			err = s.protocol.SetSignature(msg.ID, signature)
-			if err != nil {
-				log.Errorf("unable to persist last signature: %v [\"%s\": \"%s\"]",
-					err, msg.ID, base64.StdEncoding.EncodeToString(signature))
-				msg.respond(errorResponse(http.StatusInternalServerError, ""))
-				return err
-			}
-		}
-
-		msg.respond(resp)
 	}
 
-	log.Debugf("%s: shut down chainer", chainerID)
-	return nil
+	return resp
 }
 
-func (s *Signer) Sign(msg SigningRequest) HTTPResponse {
-	log.Infof("%s: %s hash: %s", msg.ID, msg.Operation, base64.StdEncoding.EncodeToString(msg.Hash[:]))
+func (s *Signer) Sign(msg HTTPRequest, op operation) HTTPResponse {
+	log.Infof("%s: %s hash: %s", msg.ID, op, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
-	uppBytes, err := s.getSignedUPP(msg.ID, msg.Hash, msg.Operation)
+	uppBytes, err := s.getSignedUPP(msg.ID, msg.Hash, op)
 	if err != nil {
 		log.Errorf("%s: could not create signed UPP: %v", msg.ID, err)
 		return errorResponse(http.StatusInternalServerError, "")
 	}
 	log.Debugf("%s: signed UPP: %x", msg.ID, uppBytes)
 
-	resp := s.sendUPP(msg.HTTPRequest, uppBytes)
+	resp := s.sendUPP(msg, uppBytes)
 
 	return resp
 }
