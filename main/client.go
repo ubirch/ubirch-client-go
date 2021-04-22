@@ -86,7 +86,7 @@ func (c *Client) isKeyRegistered(id uuid.UUID, pubKey []byte) (bool, error) {
 }
 
 func (c *Client) submitKeyRegistration(uid uuid.UUID, cert []byte, auth string) error {
-	log.Infof("%s: registering public key at key service", uid)
+	log.Debugf("%s: registering public key at key service", uid)
 
 	keyRegHeader := ubirchHeader(uid, auth)
 	keyRegHeader["content-type"] = "application/json"
