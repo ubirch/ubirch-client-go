@@ -28,6 +28,8 @@ import (
 )
 
 const (
+	secretLength = 16
+
 	DEV_STAGE  = "dev"
 	DEMO_STAGE = "demo"
 	PROD_STAGE = "prod"
@@ -43,31 +45,30 @@ const (
 
 	identitiesFile = "identities.json" // [{ "uuid": "<uuid>", "password": "<auth>" }]
 
+	defaultTCPAddr = ":8080"
+
 	defaultTLSCertFile = "cert.pem"
 	defaultTLSKeyFile  = "key.pem"
-
-	defaultReqBufSize = 20 // expected max. waiting time for accepted requests at a throughput of 3rps => ~7sec
 )
 
 var IsDevelopment bool
 
 // configuration of the client
 type Config struct {
-	Devices          map[string]string `json:"devices"`           // maps UUIDs to backend auth tokens (mandatory)
-	SecretBase64     string            `json:"secret"`            // secret used to encrypt the key store (mandatory)
-	Env              string            `json:"env"`               // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
-	Dsn              DSN               `json:"DSN"`               // "data source name" for database connection
-	CSR_Country      string            `json:"CSR_country"`       // subject country for public key Certificate Signing Requests
-	CSR_Organization string            `json:"CSR_organization"`  // subject organization for public key Certificate Signing Requests
-	TCP_addr         string            `json:"TCP_addr"`          // the TCP address for the server to listen on, in the form "host:port", defaults to ":8080"
-	TLS              bool              `json:"TLS"`               // enable serving HTTPS endpoints, defaults to 'false'
-	TLS_CertFile     string            `json:"TLSCertFile"`       // filename of TLS certificate file name, defaults to "cert.pem"
-	TLS_KeyFile      string            `json:"TLSKeyFile"`        // filename of TLS key file name, defaults to "key.pem"
-	CORS             bool              `json:"CORS"`              // enable CORS, defaults to 'false'
-	CORS_Origins     []string          `json:"CORS_origins"`      // list of allowed origin hosts, defaults to ["*"]
-	Debug            bool              `json:"debug"`             // enable extended debug output, defaults to 'false'
-	LogTextFormat    bool              `json:"logTextFormat"`     // log in text format for better human readability, default format is JSON
-	RequestBufSize   int               `json:"RequestBufferSize"` // number of requests to the client that will be buffered for chaining
+	Devices          map[string]string `json:"devices"`          // maps UUIDs to backend auth tokens (mandatory)
+	SecretBase64     string            `json:"secret"`           // secret used to encrypt the key store (mandatory)
+	Env              string            `json:"env"`              // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
+	Dsn              DSN               `json:"DSN"`              // "data source name" for database connection
+	CSR_Country      string            `json:"CSR_country"`      // subject country for public key Certificate Signing Requests
+	CSR_Organization string            `json:"CSR_organization"` // subject organization for public key Certificate Signing Requests
+	TCP_addr         string            `json:"TCP_addr"`         // the TCP address for the server to listen on, in the form "host:port", defaults to ":8080"
+	TLS              bool              `json:"TLS"`              // enable serving HTTPS endpoints, defaults to 'false'
+	TLS_CertFile     string            `json:"TLSCertFile"`      // filename of TLS certificate file name, defaults to "cert.pem"
+	TLS_KeyFile      string            `json:"TLSKeyFile"`       // filename of TLS key file name, defaults to "key.pem"
+	CORS             bool              `json:"CORS"`             // enable CORS, defaults to 'false'
+	CORS_Origins     []string          `json:"CORS_origins"`     // list of allowed origin hosts, defaults to ["*"]
+	Debug            bool              `json:"debug"`            // enable extended debug output, defaults to 'false'
+	LogTextFormat    bool              `json:"logTextFormat"`    // log in text format for better human readability, default format is JSON
 	SecretBytes      []byte            // the decoded key store secret (set automatically)
 	KeyService       string            // key service URL (set automatically)
 	IdentityService  string            // identity service URL (set automatically)
@@ -124,7 +125,6 @@ func (c *Config) Load(configDir string, filename string) error {
 	c.setDefaultCSR()
 	c.setDefaultTLS()
 	c.setDefaultCORS()
-	c.setDefaultReqBufSize()
 	return c.setDefaultURLs()
 }
 
@@ -161,8 +161,8 @@ func (c *Config) checkMandatory() error {
 		}
 	}
 
-	if len(c.SecretBytes) != 16 {
-		return fmt.Errorf("secret length must be 16 bytes (is %d)", len(c.SecretBytes))
+	if len(c.SecretBytes) != secretLength {
+		return fmt.Errorf("secret length must be %d bytes (is %d)", secretLength, len(c.SecretBytes))
 	}
 
 	return nil
@@ -182,7 +182,7 @@ func (c *Config) setDefaultCSR() {
 
 func (c *Config) setDefaultTLS() {
 	if c.TCP_addr == "" {
-		c.TCP_addr = ":8080"
+		c.TCP_addr = defaultTCPAddr
 	}
 	log.Debugf("TCP address: %s", c.TCP_addr)
 
@@ -212,13 +212,6 @@ func (c *Config) setDefaultCORS() {
 		}
 		log.Debugf(" - Allowed Origins: %v", c.CORS_Origins)
 	}
-}
-
-func (c *Config) setDefaultReqBufSize() {
-	if c.RequestBufSize == 0 {
-		c.RequestBufSize = defaultReqBufSize
-	}
-	log.Debugf("request buffer size: %d", c.RequestBufSize)
 }
 
 func (c *Config) setDefaultURLs() error {
