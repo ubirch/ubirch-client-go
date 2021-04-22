@@ -12,27 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package todo
 
 import (
+	"context"
 	"fmt"
-	"os"
-
 	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-client-go/main/config"
+	"github.com/ubirch/ubirch-client-go/main/ent"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
+	"os"
 )
 
 type ExtendedProtocol struct {
 	ubirch.Protocol
 	ContextManager
-}
-
-type Identity struct {
-	uid        uuid.UUID
-	privateKey []byte
-	publicKey  []byte
-	signature  []byte
-	authToken  string
 }
 
 type ContextManager interface {
@@ -41,6 +35,9 @@ type ContextManager interface {
 
 	GetPrivateKey(uid uuid.UUID) ([]byte, error)
 	SetPrivateKey(uid uuid.UUID, key []byte) error
+
+	StoreIdentity(ctx context.Context, identity ent.Identity) error
+	FetchIdentity(ctx context.Context, uid uuid.UUID) (*ent.Identity, error)
 
 	GetPublicKey(uid uuid.UUID) ([]byte, error)
 	SetPublicKey(uid uuid.UUID, key []byte) error
@@ -52,6 +49,14 @@ type ContextManager interface {
 	SetAuthToken(uid uuid.UUID, authToken string) error
 
 	Close() error
+}
+
+func GetCtxManager(c config.Config) (ContextManager, error) {
+	if c.Dsn.Host != "" && c.Dsn.Db != "" && c.Dsn.User != "" {
+		return NewSqlDatabaseInfo(c.Dsn, c.SecretBytes)
+	} else {
+		return NewFileManager(c.ConfigDir, c.SecretBytes)
+	}
 }
 
 func NewExtendedProtocol(cryptoCtx ubirch.Crypto, ctxManager ContextManager) (*ExtendedProtocol, error) {

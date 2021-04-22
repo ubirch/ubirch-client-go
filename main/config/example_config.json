@@ -1,7 +1,6 @@
 {
   "devices": {
-    "e1aead08-1fcb-47b3-bf2c-d3343cb979da": "cefa0c34-8448-44f2-9330-27c66519a2d3",
-    "8a70ad8b-a564-4e58-9a3b-224ac0f0153f": "f728ddb3-d504-4925-b216-b7842a2f1a6b"
+    "b07c32c6-4525-43f8-ab94-9383bf585ef0": "ad3e073b-9ead-437c-9e09-853e9a508dca"
   },
   "secret": "MTIzNDU2Nzg5MDEyMzQ1Ng==",
   "env": "prod",

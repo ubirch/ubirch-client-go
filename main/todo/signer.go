@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package todo
 
 import (
 	"encoding/base64"
@@ -54,8 +54,8 @@ type signingResponse struct {
 }
 
 type Signer struct {
-	protocol *ExtendedProtocol
-	client   *Client
+	Protocol *ExtendedProtocol
+	Client   *Client
 }
 
 // handle incoming messages, create, sign and send a chained ubirch protocol packet (UPP) to the ubirch backend
@@ -73,8 +73,8 @@ func (s *Signer) chain(msg HTTPRequest) HTTPResponse {
 
 	// persist last signature only if UPP was successfully received by ubirch backend
 	if httpSuccess(resp.StatusCode) {
-		signature := uppBytes[len(uppBytes)-s.protocol.SignatureLength():]
-		err = s.protocol.SetSignature(msg.ID, signature)
+		signature := uppBytes[len(uppBytes)-s.Protocol.SignatureLength():]
+		err = s.Protocol.SetSignature(msg.ID, signature)
 		if err != nil {
 			log.Errorf("unable to persist last signature: %v [\"%s\": \"%s\"]",
 				err, msg.ID, base64.StdEncoding.EncodeToString(signature))
@@ -102,12 +102,12 @@ func (s *Signer) Sign(msg HTTPRequest, op operation) HTTPResponse {
 }
 
 func (s *Signer) getChainedUPP(id uuid.UUID, hash [32]byte) ([]byte, error) {
-	prevSignature, err := s.protocol.GetSignature(id)
+	prevSignature, err := s.Protocol.GetSignature(id)
 	if err != nil {
 		return nil, err
 	}
 
-	return s.protocol.Sign(
+	return s.Protocol.Sign(
 		&ubirch.ChainedUPP{
 			Version:       ubirch.Chained,
 			Uuid:          id,
@@ -123,7 +123,7 @@ func (s *Signer) getSignedUPP(id uuid.UUID, hash [32]byte, op operation) ([]byte
 		return nil, fmt.Errorf("%s: invalid operation: \"%s\"", id, op)
 	}
 
-	return s.protocol.Sign(
+	return s.Protocol.Sign(
 		&ubirch.SignedUPP{
 			Version: ubirch.Signed,
 			Uuid:    id,
@@ -134,7 +134,7 @@ func (s *Signer) getSignedUPP(id uuid.UUID, hash [32]byte, op operation) ([]byte
 
 func (s *Signer) sendUPP(msg HTTPRequest, upp []byte) HTTPResponse {
 	// send UPP to ubirch backend
-	backendResp, err := s.client.sendToAuthService(msg.ID, msg.Auth, upp)
+	backendResp, err := s.Client.sendToAuthService(msg.ID, msg.Auth, upp)
 	if err != nil {
 		if os.IsTimeout(err) {
 			log.Errorf("%s: request to UBIRCH Authentication Service timed out after %s: %v", msg.ID, BackendRequestTimeout.String(), err)

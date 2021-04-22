@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package todo
 
 import (
 	"bytes"
@@ -29,16 +29,16 @@ import (
 )
 
 type Client struct {
-	authServiceURL     string
-	verifyServiceURL   string
-	keyServiceURL      string
-	identityServiceURL string
+	AuthServiceURL     string
+	VerifyServiceURL   string
+	KeyServiceURL      string
+	IdentityServiceURL string
 }
 
 // requestPublicKeys requests a devices public keys at the identity service
 // returns a list of the retrieved public key certificates
 func (c *Client) requestPublicKeys(id uuid.UUID) ([]ubirch.SignedKeyRegistration, error) {
-	url := c.keyServiceURL + "/current/hardwareId/" + id.String()
+	url := c.KeyServiceURL + "/current/hardwareId/" + id.String()
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("unable to retrieve public key info: %v", err)
@@ -91,7 +91,7 @@ func (c *Client) submitKeyRegistration(uid uuid.UUID, cert []byte, auth string) 
 	keyRegHeader := ubirchHeader(uid, auth)
 	keyRegHeader["content-type"] = "application/json"
 
-	resp, err := post(c.keyServiceURL, cert, keyRegHeader)
+	resp, err := post(c.KeyServiceURL, cert, keyRegHeader)
 	if err != nil {
 		return fmt.Errorf("error sending key registration: %v", err)
 	}
@@ -108,19 +108,19 @@ func (c *Client) submitCSR(uid uuid.UUID, csr []byte) error {
 
 	CSRHeader := map[string]string{"content-type": "application/octet-stream"}
 
-	resp, err := post(c.identityServiceURL, csr, CSRHeader)
+	resp, err := post(c.IdentityServiceURL, csr, CSRHeader)
 	if err != nil {
 		return fmt.Errorf("error sending CSR: %v", err)
 	}
 	if httpFailed(resp.StatusCode) {
-		return fmt.Errorf("request to %s failed: (%d) %q", c.identityServiceURL, resp.StatusCode, resp.Content)
+		return fmt.Errorf("request to %s failed: (%d) %q", c.IdentityServiceURL, resp.StatusCode, resp.Content)
 	}
 	log.Debugf("%s: CSR submitted: (%d) %s", uid, resp.StatusCode, string(resp.Content))
 	return nil
 }
 
 func (c *Client) sendToAuthService(uid uuid.UUID, auth string, upp []byte) (HTTPResponse, error) {
-	return post(c.authServiceURL, upp, ubirchHeader(uid, auth))
+	return post(c.AuthServiceURL, upp, ubirchHeader(uid, auth))
 }
 
 // post submits a message to a backend service

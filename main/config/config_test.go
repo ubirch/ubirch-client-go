@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"bytes"
@@ -18,7 +18,7 @@ func TestConfig(t *testing.T) {
 	}
 
 	// FIXME
-	//if !bytes.Equal(config.secretBytes, []byte("1234567890567890")) {
+	//if !bytes.Equal(config.SecretBytes, []byte("1234567890567890")) {
 	//	t.Errorf("Failed to load secret from config")
 	//}
 

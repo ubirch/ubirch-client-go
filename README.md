@@ -111,10 +111,10 @@ The only mandatory configurations are
 }
 ```
 
-> See [example_config.json](main/example_config.json) as an example for file-based configuration.
+> See [example_config.json](main/config/example_config.json) as an example for file-based configuration.
 
 Beside the `devices`-map, the device UUIDs and their corresponding authentication tokens can also be set through a file
-"`identities.json`". See example: [example_identities.json](main/example_identities.json)
+"`identities.json`". See example: [example_identities.json](main/config/example_identities.json)
 
 ### Environment Based Configuration
 
@@ -123,7 +123,7 @@ UBIRCH_DEVICES=<UUID>:<ubirch backend auth token>
 UBIRCH_SECRET=<16 byte secret used to encrypt the key store (base64 encoded)>
 ```
 
-> See [example.env](main/example.env) as an example for environment-based configuration.
+> See [example.env](main/config/example.env) as an example for environment-based configuration.
 
 All further configuration parameters have default values, that can be changed as described
 under [Optional Configurations](#optional-configurations).
@@ -802,7 +802,7 @@ By default, the log of the client is in JSON format. To change it to a (more hum
     - Replace `<YOUR_UUID>` with your UUID from step 1.i.
     - Replace `<YOUR_AUTH_TOKEN>` with your auth token from step 1.ii.
     - Replace `<YOUR_16_BYTE_SECRET(base64 encoded)>` with your secret from step 1.iii.
-   > Make sure you leave the quotes! [Here](main/example_config.json) is an example of how it should look like.
+   > Make sure you leave the quotes! [Here](main/config/example_config.json) is an example of how it should look like.
 
 1. To run the dockerized UBIRCH client, you will need to have [Docker](https://docs.docker.com/) installed on your
    computer. Then just enter the following two lines in your working directory:

@@ -17,6 +17,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/ubirch/ubirch-client-go/main/config"
+	"github.com/ubirch/ubirch-client-go/main/handlers"
+	"github.com/ubirch/ubirch-client-go/main/todo"
+	"github.com/ubirch/ubirch-client-go/main/uc"
 	"os"
 	"os/signal"
 	"syscall"
@@ -40,29 +44,25 @@ func shutdown(cancel context.CancelFunc) {
 	cancel()
 }
 
-func main() {
-	const (
-		Version    = "v2.0.0"
-		Build      = "local"
-		configFile = "config.json"
-	)
+const configFile = "./config/config.json"
 
+func main() {
 	var configDir string
 	if len(os.Args) > 1 {
 		configDir = os.Args[1]
 	}
 
 	log.SetFormatter(&log.JSONFormatter{})
-	log.Printf("UBIRCH client (%s, build=%s)", Version, Build)
+	log.Printf("UBIRCH client (%s, build=%s)", config.Version, config.Build)
 
 	// read configuration
-	conf := Config{}
+	conf := config.Config{}
 	err := conf.Load(configDir, configFile)
 	if err != nil {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
 
-	ctxManager, err := conf.GetCtxManager()
+	ctxManager, err := todo.GetCtxManager(conf)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -72,52 +72,58 @@ func main() {
 		Keystore: ctxManager,
 	}
 
-	protocol, err := NewExtendedProtocol(cryptoCtx, ctxManager)
+	protocol, err := todo.NewExtendedProtocol(cryptoCtx, ctxManager)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	client := &Client{
-		authServiceURL:     conf.Niomon,
-		verifyServiceURL:   conf.VerifyService,
-		keyServiceURL:      conf.KeyService,
-		identityServiceURL: conf.IdentityService,
+	client := &todo.Client{
+		AuthServiceURL:     conf.Niomon,
+		VerifyServiceURL:   conf.VerifyService,
+		KeyServiceURL:      conf.KeyService,
+		IdentityServiceURL: conf.IdentityService,
 	}
 
-	idHandler := &IdentityHandler{
-		protocol:            protocol,
-		client:              client,
-		subjectCountry:      conf.CSR_Country,
-		subjectOrganization: conf.CSR_Organization,
+	idHandler := &todo.IdentityHandler{
+		Protocol:            protocol,
+		Client:              client,
+		SubjectCountry:      conf.CSR_Country,
+		SubjectOrganization: conf.CSR_Organization,
 	}
 
 	// generate and register keys for known devices
-	err = idHandler.initIdentities(conf.Devices)
-	if err != nil {
-		log.Fatal(err)
+	if _, ok := ctxManager.(*todo.FileManager); ok {
+		err = idHandler.InitIdentities(conf.Devices)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+	signer := todo.Signer{
+		Protocol: protocol,
+		Client:   client,
 	}
 
-	signer := Signer{
-		protocol: protocol,
-		client:   client,
+	verifier := todo.Verifier{
+		Protocol:                      protocol,
+		Client:                        client,
+		VerifyFromKnownIdentitiesOnly: false, // TODO: make configurable
 	}
 
-	verifier := Verifier{
-		protocol:                      protocol,
-		client:                        client,
-		verifyFromKnownIdentitiesOnly: false, // TODO: make configurable
-	}
-
-	httpServer := HTTPServer{
-		router:   NewRouter(),
-		addr:     conf.TCP_addr,
+	httpServer := todo.HTTPServer{
+		Router:   todo.NewRouter(),
+		Addr:     conf.TCP_addr,
 		TLS:      conf.TLS,
-		certFile: conf.TLS_CertFile,
-		keyFile:  conf.TLS_KeyFile,
+		CertFile: conf.TLS_CertFile,
+		KeyFile:  conf.TLS_KeyFile,
 	}
-	if conf.CORS && isDevelopment { // never enable CORS on production stage
+	if conf.CORS && config.IsDevelopment { // never enable CORS on production stage
 		httpServer.SetUpCORS(conf.CORS_Origins, conf.Debug)
 	}
+
+	globals := handlers.Globals{
+		Version: config.Version,
+	}
+
 
 	// create a waitgroup that contains all asynchronous operations
 	// a cancellable context is used to stop the operations gracefully
@@ -127,26 +133,31 @@ func main() {
 	// set up graceful shutdown handling
 	go shutdown(cancel)
 
+	if _, ok := ctxManager.(*todo.DatabaseManager); ok {
+		identity := createIdentityUseCases(globals, ctxManager)
+		httpServer.Router.Put("/register", identity.handler.Put(identity.storeIdentity, identity.fetchIdentity))
+	}
+
 	// set up endpoint for chaining
-	httpServer.AddServiceEndpoint(ServerEndpoint{
-		Path: fmt.Sprintf("/{%s}", UUIDKey),
-		Service: &ChainingService{
+	httpServer.AddServiceEndpoint(todo.ServerEndpoint{
+		Path: fmt.Sprintf("/{%s}", todo.UUIDKey),
+		Service: &todo.ChainingService{
 			Signer: &signer,
 		},
 	})
 
 	// set up endpoint for signing
-	httpServer.AddServiceEndpoint(ServerEndpoint{
-		Path: fmt.Sprintf("/{%s}/{%s}", UUIDKey, OperationKey),
-		Service: &SigningService{
+	httpServer.AddServiceEndpoint(todo.ServerEndpoint{
+		Path: fmt.Sprintf("/{%s}/{%s}", todo.UUIDKey, todo.OperationKey),
+		Service: &todo.SigningService{
 			Signer: &signer,
 		},
 	})
 
 	// set up endpoint for verification
-	httpServer.AddServiceEndpoint(ServerEndpoint{
-		Path: fmt.Sprintf("/%s", VerifyPath),
-		Service: &VerificationService{
+	httpServer.AddServiceEndpoint(todo.ServerEndpoint{
+		Path: fmt.Sprintf("/%s", todo.VerifyPath),
+		Service: &todo.VerificationService{
 			Verifier: &verifier,
 		},
 	})
@@ -167,4 +178,18 @@ func main() {
 	}
 
 	log.Info("shut down client")
+}
+
+type identities struct {
+	handler       handlers.Identity
+	storeIdentity handlers.StoreIdentity
+	fetchIdentity handlers.FetchIdentity
+}
+
+func createIdentityUseCases(globals handlers.Globals, mng todo.ContextManager) identities {
+	return identities{
+		handler:       handlers.NewIdentity(globals),
+		storeIdentity: uc.NewIdentityStorer(mng),
+		fetchIdentity: uc.NewIdentityFetcher(mng),
+	}
 }

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package main
+package todo
 
 import (
 	"encoding/base64"
@@ -46,9 +46,9 @@ type verificationResponse struct {
 }
 
 type Verifier struct {
-	protocol                      *ExtendedProtocol
-	client                        *Client
-	verifyFromKnownIdentitiesOnly bool
+	Protocol                      *ExtendedProtocol
+	Client                        *Client
+	VerifyFromKnownIdentitiesOnly bool
 }
 
 func (v *Verifier) Verify(hash []byte) HTTPResponse {
@@ -85,7 +85,7 @@ func (v *Verifier) loadUPP(hash []byte) (int, []byte, error) {
 		case <-timeout:
 			stay = false
 		default:
-			resp, err = http.Post(v.client.verifyServiceURL, "text/plain", strings.NewReader(hashBase64String))
+			resp, err = http.Post(v.Client.VerifyServiceURL, "text/plain", strings.NewReader(hashBase64String))
 			if err != nil {
 				return http.StatusInternalServerError, nil, fmt.Errorf("error sending verification request: %v", err)
 			}
@@ -125,9 +125,9 @@ func (v *Verifier) verifyUPP(upp []byte) (uuid.UUID, []byte, error) {
 
 	id := uppStruct.GetUuid()
 
-	pubkey, err := v.protocol.GetPublicKey(id)
+	pubkey, err := v.Protocol.GetPublicKey(id)
 	if err != nil {
-		if v.verifyFromKnownIdentitiesOnly {
+		if v.VerifyFromKnownIdentitiesOnly {
 			return id, nil, fmt.Errorf("retrieved certificate for requested hash is from unknown identity")
 		} else {
 			log.Warnf("couldn't get public key for identity %s from local context", id)
@@ -138,7 +138,7 @@ func (v *Verifier) verifyUPP(upp []byte) (uuid.UUID, []byte, error) {
 		}
 	}
 
-	verified, err := v.protocol.Verify(id, upp)
+	verified, err := v.Protocol.Verify(id, upp)
 	if !verified {
 		if err != nil {
 			log.Error(err)
@@ -153,7 +153,7 @@ func (v *Verifier) verifyUPP(upp []byte) (uuid.UUID, []byte, error) {
 func (v *Verifier) loadPublicKey(id uuid.UUID) ([]byte, error) {
 	log.Debugf("requesting public key for identity %s from key service", id.String())
 
-	keys, err := v.client.requestPublicKeys(id)
+	keys, err := v.Client.requestPublicKeys(id)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +172,7 @@ func (v *Verifier) loadPublicKey(id uuid.UUID) ([]byte, error) {
 	}
 
 	// inject new public key into protocol context for verification
-	err = v.protocol.SetPublicKey(id, pubkey)
+	err = v.Protocol.SetPublicKey(id, pubkey)
 	if err != nil {
 		return nil, fmt.Errorf("unable to set retrieved public key for verification: %v", err)
 	}

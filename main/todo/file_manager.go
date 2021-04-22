@@ -1,8 +1,10 @@
-package main
+package todo
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/ubirch/ubirch-client-go/main/ent"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -28,7 +30,16 @@ type FileManager struct {
 	keyFile           string
 	signatureDir      string
 	authTokenDir      string
+	identities        []ent.Identity
 	EncryptedKeystore *ubirch.EncryptedKeystore
+}
+
+func (f *FileManager) FetchIdentity(ctx context.Context, uid uuid.UUID) (*ent.Identity, error) {
+	panic("implement me")
+}
+
+func (f *FileManager) StoreIdentity(ctx context.Context, identity ent.Identity) error {
+	panic("implement me")
 }
 
 func (f *FileManager) StartTransaction(uid uuid.UUID) error {

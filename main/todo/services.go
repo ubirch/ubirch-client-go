@@ -1,4 +1,4 @@
-package main
+package todo
 
 import (
 	"bytes"
@@ -47,6 +47,8 @@ type HTTPResponse struct {
 	Content    []byte      `json:"content"`
 }
 
+
+
 type ChainingService struct {
 	*Signer
 }
@@ -64,7 +66,7 @@ func (c *ChainingService) handleRequest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	msg.Auth, err = checkAuth(r, msg.ID, c.protocol)
+	msg.Auth, err = checkAuth(r, msg.ID, c.Protocol)
 	if err != nil {
 		Error(msg.ID, w, err, http.StatusUnauthorized)
 		return
@@ -77,7 +79,7 @@ func (c *ChainingService) handleRequest(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// todo here goes the waiting loop
-	err = c.protocol.StartTransaction(msg.ID)
+	err = c.Protocol.StartTransaction(msg.ID)
 	if err != nil {
 		log.Warnf("%s: %v", msg.ID, err)
 		http.Error(w, "Service Temporarily Unavailable", http.StatusServiceUnavailable)
@@ -86,7 +88,7 @@ func (c *ChainingService) handleRequest(w http.ResponseWriter, r *http.Request) 
 
 	resp := c.chain(msg)
 
-	err = c.protocol.EndTransaction(msg.ID, true)
+	err = c.Protocol.EndTransaction(msg.ID, true)
 	if err != nil {
 		log.Errorf("%s: %v", msg.ID, err)
 		http.Error(w, "", http.StatusInternalServerError)
@@ -113,7 +115,7 @@ func (s *SigningService) handleRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg.Auth, err = checkAuth(r, msg.ID, s.protocol)
+	msg.Auth, err = checkAuth(r, msg.ID, s.Protocol)
 	if err != nil {
 		Error(msg.ID, w, err, http.StatusUnauthorized)
 		return

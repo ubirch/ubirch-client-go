@@ -12,24 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package todo
 
 import (
 	"fmt"
-
 	"github.com/google/uuid"
-
 	log "github.com/sirupsen/logrus"
 )
 
 type IdentityHandler struct {
-	protocol            *ExtendedProtocol
-	client              *Client
-	subjectCountry      string
-	subjectOrganization string
+	Protocol            *ExtendedProtocol
+	Client              *Client
+	SubjectCountry      string
+	SubjectOrganization string
 }
 
-func (i *IdentityHandler) initIdentities(identities map[string]string) error {
+func (i *IdentityHandler) InitIdentities(identities map[string]string) error {
 	// create and register keys for identities
 	log.Infof("initializing %d identities...", len(identities))
 	for name, auth := range identities {
@@ -40,8 +38,8 @@ func (i *IdentityHandler) initIdentities(identities map[string]string) error {
 		}
 
 		// make sure that all auth tokens from config are being set (this is here for backwards compatibility)
-		if _, ok := i.protocol.ContextManager.(*FileManager); ok {
-			err = i.protocol.SetAuthToken(uid, auth)
+		if _, ok := i.Protocol.ContextManager.(*FileManager); ok {
+			err = i.Protocol.SetAuthToken(uid, auth)
 			if err != nil {
 				return err
 			}
@@ -62,14 +60,14 @@ func (i *IdentityHandler) initIdentity(uid uuid.UUID, auth string) error {
 		return fmt.Errorf("%s: auth token has zero length", uid)
 	}
 
-	err := i.protocol.StartTransaction(uid)
+	err := i.Protocol.StartTransaction(uid)
 	if err != nil {
 		return err
 	}
 
 	err = i.setIdentityAttributes(uid, auth)
 	if err != nil {
-		ctxErr := i.protocol.EndTransaction(uid, false)
+		ctxErr := i.Protocol.EndTransaction(uid, false)
 		if ctxErr != nil {
 			log.Error(err)
 			log.Fatalf("can not reset context: %v", ctxErr) // todo dont panic ?
@@ -77,7 +75,7 @@ func (i *IdentityHandler) initIdentity(uid uuid.UUID, auth string) error {
 		return err
 	}
 
-	ctxErr := i.protocol.EndTransaction(uid, true)
+	ctxErr := i.Protocol.EndTransaction(uid, true)
 	if ctxErr != nil {
 		log.Fatalf("can not end transaction: %v", ctxErr) // todo dont panic ?
 	}
@@ -87,17 +85,17 @@ func (i *IdentityHandler) initIdentity(uid uuid.UUID, auth string) error {
 
 func (i *IdentityHandler) setIdentityAttributes(uid uuid.UUID, auth string) error {
 	// check if identity is already initialized
-	if i.protocol.PrivateKeyExists(uid) {
+	if i.Protocol.PrivateKeyExists(uid) {
 		return nil
 	}
 
-	err := i.protocol.SetAuthToken(uid, auth)
+	err := i.Protocol.SetAuthToken(uid, auth)
 	if err != nil {
 		return err
 	}
 
-	genesisSignature := make([]byte, i.protocol.SignatureLength())
-	err = i.protocol.SetSignature(uid, genesisSignature)
+	genesisSignature := make([]byte, i.Protocol.SignatureLength())
+	err = i.Protocol.SetSignature(uid, genesisSignature)
 	if err != nil {
 		return err
 	}
@@ -113,7 +111,7 @@ func (i *IdentityHandler) setIdentityAttributes(uid uuid.UUID, auth string) erro
 func (i *IdentityHandler) initKey(uid uuid.UUID, auth string) error {
 	// generate new key pair
 	log.Printf("generating new key pair for UUID %s", uid)
-	err := i.protocol.GenerateKey(uid)
+	err := i.Protocol.GenerateKey(uid)
 	if err != nil {
 		return fmt.Errorf("generating new key pair for UUID %s failed: %v", uid, err)
 	}
@@ -123,19 +121,19 @@ func (i *IdentityHandler) initKey(uid uuid.UUID, auth string) error {
 }
 
 func (i *IdentityHandler) registerPublicKey(uid uuid.UUID, auth string) error {
-	pubKey, err := i.protocol.Crypto.GetPublicKey(uid)
+	pubKey, err := i.Protocol.Crypto.GetPublicKey(uid)
 	if err != nil {
 		return err
 	}
 	log.Debugf("%s: public key: %x", uid, pubKey)
 
-	cert, err := i.protocol.GetSignedKeyRegistration(uid, pubKey)
+	cert, err := i.Protocol.GetSignedKeyRegistration(uid, pubKey)
 	if err != nil {
 		return fmt.Errorf("error creating public key certificate: %v", err)
 	}
 	log.Debugf("%s: key certificate: %s", uid, cert)
 
-	err = i.client.submitKeyRegistration(uid, cert, auth)
+	err = i.Client.submitKeyRegistration(uid, cert, auth)
 	if err != nil {
 		return fmt.Errorf("key registration for UUID %s failed: %v", uid, err)
 	}
@@ -153,13 +151,13 @@ func (i *IdentityHandler) sendCSROrLogError(uid uuid.UUID) {
 
 func (i *IdentityHandler) sendCSR(uid uuid.UUID) error {
 	// submit a X.509 Certificate Signing Request for the public key
-	csr, err := i.protocol.GetCSR(uid, i.subjectCountry, i.subjectOrganization)
+	csr, err := i.Protocol.GetCSR(uid, i.SubjectCountry, i.SubjectOrganization)
 	if err != nil {
 		return fmt.Errorf("creating CSR for UUID %s failed: %v", uid, err)
 	}
 	log.Debugf("%s: CSR [der]: %x", uid, csr)
 
-	err = i.client.submitCSR(uid, csr)
+	err = i.Client.submitCSR(uid, csr)
 	if err != nil {
 		return fmt.Errorf("submitting CSR for UUID %s failed: %v", uid, err)
 	}
