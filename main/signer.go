@@ -102,12 +102,18 @@ func (s *Signer) Sign(msg HTTPRequest, op operation) HTTPResponse {
 }
 
 func (s *Signer) getChainedUPP(id uuid.UUID, hash [32]byte) ([]byte, error) {
+	privKeyPEM, err := s.protocol.GetPrivateKey(id)
+	if err != nil {
+		return nil, err
+	}
+
 	prevSignature, err := s.protocol.GetSignature(id)
 	if err != nil {
 		return nil, err
 	}
 
 	return s.protocol.Sign(
+		privKeyPEM,
 		&ubirch.ChainedUPP{
 			Version:       ubirch.Chained,
 			Uuid:          id,
@@ -118,12 +124,18 @@ func (s *Signer) getChainedUPP(id uuid.UUID, hash [32]byte) ([]byte, error) {
 }
 
 func (s *Signer) getSignedUPP(id uuid.UUID, hash [32]byte, op operation) ([]byte, error) {
+	privKeyPEM, err := s.protocol.GetPrivateKey(id)
+	if err != nil {
+		return nil, err
+	}
+
 	hint, found := hintLookup[op]
 	if !found {
 		return nil, fmt.Errorf("%s: invalid operation: \"%s\"", id, op)
 	}
 
 	return s.protocol.Sign(
+		privKeyPEM,
 		&ubirch.SignedUPP{
 			Version: ubirch.Signed,
 			Uuid:    id,
