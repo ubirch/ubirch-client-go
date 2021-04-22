@@ -30,7 +30,11 @@ main/main
 *.bck
 
 /venv/
+/main/certs/
+/main/signatures/
+/main/tokens/
 /main/config.json
+/main/keys.json
 /main/protocol.json
 /main/identities.json
 /main/test_config.json
