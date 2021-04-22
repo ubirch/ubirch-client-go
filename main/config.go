@@ -28,6 +28,8 @@ import (
 )
 
 const (
+	secretLength = 16
+
 	DEV_STAGE  = "dev"
 	DEMO_STAGE = "demo"
 	PROD_STAGE = "prod"
@@ -144,8 +146,8 @@ func (c *Config) loadFile(filename string) error {
 }
 
 func (c *Config) checkMandatory() error {
-	if len(c.secretBytes) != 16 {
-		return fmt.Errorf("secret length must be 16 bytes (is %d)", len(c.secretBytes))
+	if len(c.secretBytes) != secretLength {
+		return fmt.Errorf("secret length must be %d bytes (is %d)", secretLength, len(c.secretBytes))
 	}
 
 	return nil
