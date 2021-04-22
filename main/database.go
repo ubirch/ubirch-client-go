@@ -44,6 +44,10 @@ type Postgres struct {
 	EncryptedKeystore *ubirch.EncryptedKeystore
 }
 
+func (db *Postgres) Exists(uid uuid.UUID) (bool, error) {
+	panic("implement me")
+}
+
 func (db *Postgres) StartTransaction(uid uuid.UUID) error {
 	panic("implement me")
 }
