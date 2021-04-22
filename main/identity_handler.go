@@ -95,6 +95,8 @@ func (i *IdentityHandler) setIdentityAttributes(uid uuid.UUID, auth string) erro
 		return nil
 	}
 
+	log.Infof("%s: initializing new identity", uid)
+
 	// set auth token
 	err = i.protocol.SetAuthToken(uid, auth)
 	if err != nil {
@@ -109,7 +111,7 @@ func (i *IdentityHandler) setIdentityAttributes(uid uuid.UUID, auth string) erro
 	}
 
 	// generate a new private key
-	log.Printf("generating new key pair for UUID %s", uid)
+	log.Debugf("%s: generating new key pair", uid)
 	privKeyPEM, err := i.protocol.GenerateKey()
 	if err != nil {
 		return fmt.Errorf("generating new key for UUID %s failed: %v", uid, err)
