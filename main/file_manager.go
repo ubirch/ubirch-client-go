@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
@@ -29,18 +30,21 @@ type FileManager struct {
 	signatureDir      string
 	authTokenDir      string
 	EncryptedKeystore *ubirch.EncryptedKeystore
+	mutex             *sync.Mutex
 }
 
 func (f *FileManager) StartTransaction(uid uuid.UUID) error {
-	// todo implement
-	log.Warnf("transactions not implemented for file manager: StartTransaction(%s)", uid)
+	f.mutex.Lock()
 	return nil
 }
 
 func (f *FileManager) EndTransaction(uid uuid.UUID, success bool) error {
-	// todo implement
-	log.Warnf("transactions not implemented for file manager: EndTransaction(%s, %v)", uid, success)
-	return nil
+	defer f.mutex.Unlock()
+	if success {
+		return f.persistKeys()
+	} else {
+		return f.loadKeys()
+	}
 }
 
 // Ensure FileManager implements the ContextManager interface
@@ -52,6 +56,7 @@ func NewFileManager(configDir string, secret []byte) (*FileManager, error) {
 		signatureDir:      filepath.Join(configDir, signatureDirName),
 		authTokenDir:      filepath.Join(configDir, authTokenDirName),
 		EncryptedKeystore: ubirch.NewEncryptedKeystore(secret),
+		mutex:             &sync.Mutex{},
 	}
 
 	err := initDirectories([]string{f.signatureDir, f.authTokenDir})
@@ -74,39 +79,28 @@ func NewFileManager(configDir string, secret []byte) (*FileManager, error) {
 		return nil, err
 	}
 
+	err = f.loadKeys()
+	if err != nil {
+		return nil, err
+	}
+
 	return f, nil
 }
 
 func (f *FileManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
-	err := f.loadKeys()
-	if err != nil {
-		return nil, err
-	}
 	return f.EncryptedKeystore.GetPrivateKey(uid)
 }
 
 func (f *FileManager) SetPrivateKey(uid uuid.UUID, key []byte) error {
-	err := f.EncryptedKeystore.SetPrivateKey(uid, key)
-	if err != nil {
-		return err
-	}
-	return f.persistKeys()
+	return f.EncryptedKeystore.SetPrivateKey(uid, key)
 }
 
 func (f *FileManager) GetPublicKey(uid uuid.UUID) ([]byte, error) {
-	err := f.loadKeys()
-	if err != nil {
-		return nil, err
-	}
 	return f.EncryptedKeystore.GetPublicKey(uid)
 }
 
 func (f *FileManager) SetPublicKey(uid uuid.UUID, key []byte) error {
-	err := f.EncryptedKeystore.SetPublicKey(uid, key)
-	if err != nil {
-		return err
-	}
-	return f.persistKeys()
+	return f.EncryptedKeystore.SetPublicKey(uid, key)
 }
 
 func (f *FileManager) GetSignature(uid uuid.UUID) ([]byte, error) {
