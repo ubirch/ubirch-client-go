@@ -3,7 +3,6 @@ module github.com/ubirch/ubirch-client-go/main
 go 1.16
 
 require (
-	github.com/fxamacker/cbor/v2 v2.2.1-0.20200429214022-fc263b46c618
 	github.com/go-chi/chi v4.1.0+incompatible
 	github.com/go-chi/cors v1.1.1
 	github.com/google/uuid v1.1.1
