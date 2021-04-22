@@ -21,7 +21,6 @@ const (
 	UUIDKey      = "uuid"
 	OperationKey = "operation"
 	VerifyPath   = "verify"
-	COSEPath     = "cbor"
 	HashEndpoint = "hash"
 
 	BinType  = "application/octet-stream"
