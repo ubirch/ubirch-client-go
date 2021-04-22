@@ -33,6 +33,14 @@ type FileManager struct {
 	mutex             *sync.Mutex
 }
 
+func (f *FileManager) Exists(uid uuid.UUID) (bool, error) {
+	_, err := f.EncryptedKeystore.GetPrivateKey(uid)
+	if err != nil {
+		return false, nil
+	}
+	return true, nil
+}
+
 func (f *FileManager) StartTransaction(uid uuid.UUID) error {
 	f.mutex.Lock()
 	return nil

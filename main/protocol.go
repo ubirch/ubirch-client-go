@@ -36,14 +36,16 @@ type Identity struct {
 }
 
 type ContextManager interface {
+	Exists(uid uuid.UUID) (bool, error)
+
 	StartTransaction(uid uuid.UUID) error
 	EndTransaction(uid uuid.UUID, success bool) error
 
-	GetPrivateKey(uid uuid.UUID) ([]byte, error)
-	SetPrivateKey(uid uuid.UUID, key []byte) error
+	GetPrivateKey(uid uuid.UUID) (privKeyPEM []byte, err error)
+	SetPrivateKey(uid uuid.UUID, privKeyPEM []byte) error
 
-	GetPublicKey(uid uuid.UUID) ([]byte, error)
-	SetPublicKey(uid uuid.UUID, key []byte) error
+	GetPublicKey(uid uuid.UUID) (pubKeyPEM []byte, err error)
+	SetPublicKey(uid uuid.UUID, pubKeyPEM []byte) error
 
 	GetSignature(uid uuid.UUID) ([]byte, error)
 	SetSignature(uid uuid.UUID, signature []byte) error
@@ -65,23 +67,23 @@ func NewExtendedProtocol(cryptoCtx ubirch.Crypto, ctxManager ContextManager) (*E
 	return p, nil
 }
 
-func (p *ExtendedProtocol) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
+func (p *ExtendedProtocol) GetPrivateKey(uid uuid.UUID) (privKeyPEM []byte, err error) {
 	// todo sanity checks
 	return p.ContextManager.GetPrivateKey(uid)
 }
-func (p *ExtendedProtocol) SetPrivateKey(uid uuid.UUID, key []byte) error {
+func (p *ExtendedProtocol) SetPrivateKey(uid uuid.UUID, privKeyPEM []byte) error {
 	// todo sanity checks
-	return p.ContextManager.SetPrivateKey(uid, key)
+	return p.ContextManager.SetPrivateKey(uid, privKeyPEM)
 }
 
-func (p *ExtendedProtocol) GetPublicKey(uid uuid.UUID) ([]byte, error) {
+func (p *ExtendedProtocol) GetPublicKey(uid uuid.UUID) (pubKeyPEM []byte, err error) {
 	// todo sanity checks
 	return p.ContextManager.GetPublicKey(uid)
 
 }
-func (p *ExtendedProtocol) SetPublicKey(uid uuid.UUID, key []byte) error {
+func (p *ExtendedProtocol) SetPublicKey(uid uuid.UUID, pubKeyPEM []byte) error {
 	// todo sanity checks
-	return p.ContextManager.SetPublicKey(uid, key)
+	return p.ContextManager.SetPublicKey(uid, pubKeyPEM)
 }
 
 func (p *ExtendedProtocol) GetSignature(uid uuid.UUID) ([]byte, error) {
