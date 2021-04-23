@@ -68,9 +68,7 @@ func main() {
 	}
 
 	// initialize ubirch protocol
-	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: ctxManager,
-	}
+	cryptoCtx := &ubirch.ECDSACryptoContext{}
 
 	protocol, err := NewExtendedProtocol(cryptoCtx, ctxManager)
 	if err != nil {
