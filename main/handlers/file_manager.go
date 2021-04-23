@@ -36,7 +36,7 @@ type FileManager struct {
 	mutex             *sync.Mutex
 }
 
-func (f *FileManager) SendChainedUpp(ctx context.Context, msg HTTPRequest, s *Signer) error {
+func (f *FileManager) SendChainedUpp(ctx context.Context, msg HTTPRequest, s *Signer) (*HTTPResponse, error) {
 	//log.Infof("%s: anchor hash [chained]: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 	//
 	//uppBytes, err := s.GetChainedUPP(ctx, msg.ID, msg.Hash)

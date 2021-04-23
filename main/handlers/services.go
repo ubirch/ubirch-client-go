@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	h "github.com/ubirch/ubirch-client-go/main/handlers/httphelper"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -86,13 +85,13 @@ func (c *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// todo here goes the waiting loop
-	err = c.Protocol.ContextManager.SendChainedUpp(ctx, msg, c.Signer)
+	resp, err := c.Protocol.ContextManager.SendChainedUpp(ctx, msg, c.Signer)
 	if err != nil {
 		Error(msg.ID, w, err, http.StatusInternalServerError)
 		return
 	}
 
-	h.Ok(w, "chaining service successful")
+	sendResponse(w, *resp)
 }
 
 type SigningService struct {
@@ -186,8 +185,8 @@ func getUUID(r *http.Request) (uuid.UUID, error) {
 func checkAuth(r *http.Request, id uuid.UUID, ctxManager ContextManager) (string, error) {
 	// check if UUID is known
 	idAuthToken, err := ctxManager.GetAuthToken(id)
-	if err != nil || idAuthToken == "" {
-		return "", fmt.Errorf("unknown UUID")
+	if err != nil {
+		return "", err
 	}
 
 	// check auth token from request header

@@ -28,7 +28,7 @@ func (i Identity) Put(storeId StoreIdentity, fetchId FetchIdentity) http.Handler
 		defer cancel()
 
 		//TODO: Create a correct auth handler
-		authKey := r.Header.Get(h.XAuthHeader)
+		r.Header.Get(h.XAuthHeader)
 
 		idPayload, err := IdentityFromBody(r.Body)
 		if err != nil {
@@ -52,7 +52,7 @@ func (i Identity) Put(storeId StoreIdentity, fetchId FetchIdentity) http.Handler
 			return
 		}
 
-		if err := storeId(ctx, parseUuid, authKey); err != nil {
+		if err := storeId(ctx, parseUuid, idPayload.Pwd); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -68,5 +68,8 @@ func IdentityFromBody(in io.ReadCloser) (IdentityPayload, error) {
 		return IdentityPayload{}, err
 	}
 	fmt.Println(payload)
+	if len(payload.Pwd) == 0 {
+		return IdentityPayload{}, fmt.Errorf("empty password")
+	}
 	return payload, nil
 }

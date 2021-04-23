@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"github.com/youmark/pkcs8"
 )
 
@@ -23,8 +24,12 @@ func NewEncryptedKeystore(secret []byte) *EncryptedKeystore {
 	}
 }
 
-func (enc *EncryptedKeystore) Encryt(key []byte) ([]byte, error) {
-	return pkcs8.ConvertPrivateKeyToPKCS8(key, enc.Secret)
+func (enc *EncryptedKeystore) Encrypt(privateKeyPem []byte) ([]byte, error) {
+	privateKey, err := decodePrivateKey(privateKeyPem)
+	if err != nil {
+		return nil, err
+	}
+	return pkcs8.ConvertPrivateKeyToPKCS8(privateKey, enc.Secret)
 }
 
 func (enc *EncryptedKeystore) Decrypt(encryptedPrivateKey []byte) ([]byte, error) {
@@ -45,12 +50,12 @@ func encodePrivateKey(privateKey *ecdsa.PrivateKey) ([]byte, error) {
 	return pemEncoded, nil
 }
 
-// encodePublicKey encodes the Public Key as x509 and returns the encoded PEM
-func encodePublicKey(publicKey *ecdsa.PublicKey) ([]byte, error) {
-	x509EncodedPub, err := x509.MarshalPKIXPublicKey(publicKey)
-	if err != nil {
-		return nil, err
+// decodePrivateKey decodes a Private Key from the x509 PEM format and returns the Private Key
+func decodePrivateKey(pemEncoded []byte) (*ecdsa.PrivateKey, error) {
+	block, _ := pem.Decode(pemEncoded)
+	if block == nil {
+		return nil, fmt.Errorf("unable to parse PEM block")
 	}
-	pemEncoded := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: x509EncodedPub})
-	return pemEncoded, nil
+	x509Encoded := block.Bytes
+	return x509.ParseECPrivateKey(x509Encoded)
 }

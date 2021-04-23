@@ -167,7 +167,7 @@ func (dm *DatabaseManager) StoreIdentity(ctx context.Context, identity ent.Ident
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	var existingId ent.Identity
@@ -189,7 +189,7 @@ func (dm *DatabaseManager) StoreIdentity(ctx context.Context, identity ent.Ident
 	}
 
 	genesisSignature := make([]byte, idHandler.Protocol.SignatureLength())
-	encryptedPrivateKey, err := dm.encKeyStore.Encryt(identity.PrivateKey)
+	encryptedPrivateKey, err := dm.encKeyStore.Encrypt(identity.PrivateKey)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -206,12 +206,12 @@ func (dm *DatabaseManager) StoreIdentity(ctx context.Context, identity ent.Ident
 }
 
 // handle incoming messages, create, sign and send a chained ubirch protocol packet (UPP) to the ubirch backend
-func (dm *DatabaseManager) SendChainedUpp(ctx context.Context, msg HTTPRequest, s *Signer) error {
+func (dm *DatabaseManager) SendChainedUpp(ctx context.Context, msg HTTPRequest, s *Signer) (*HTTPResponse, error) {
 	log.Infof("%s: anchor hash [chained]: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
 	db, err := sql.Open(vars.PostgreSql, dm.conn)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer db.Close()
 
@@ -224,44 +224,42 @@ func (dm *DatabaseManager) SendChainedUpp(ctx context.Context, msg HTTPRequest, 
 	if err = tx.QueryRow("SELECT * FROM identity WHERE uid = $1", msg.ID).Scan(
 		&id.Uid, &id.PrivateKey, &id.PublicKey, &id.Signature, &id.AuthToken); err != nil {
 		tx.Rollback()
-		return err
+		return nil, err
 	}
 
 	decryptedPrivateKey, err := dm.encKeyStore.Decrypt(id.PrivateKey)
 	if err != nil {
 		tx.Rollback()
-		return err
+		return nil, err
 	}
 
 	uppBytes, err := s.GetChainedUPP(msg.ID, msg.Hash, decryptedPrivateKey, id.Signature)
 	if err != nil {
 		tx.Rollback()
 		log.Errorf("%s: could not create chained UPP: %v", msg.ID, err)
-		return err
+		return nil, err
 	}
 	log.Debugf("%s: chained UPP: %x", msg.ID, uppBytes)
-
 
 	resp := s.SendUPP(msg, uppBytes)
 	// persist last signature only if UPP was successfully received by ubirch backend
 	if !HttpSuccess(resp.StatusCode) {
-			tx.Rollback()
-			log.Errorf("send upp failed: %v", resp.Content)
-			return fmt.Errorf("send upp failed: %+v", resp)
+		tx.Rollback()
+		log.Errorf("send upp failed: %v", resp.Content)
+		return &resp, nil
 	}
 
 	signature := uppBytes[len(uppBytes)-s.Protocol.SignatureLength():]
 
 	_, err = tx.ExecContext(ctx,
-		"UPDATE identity SET signature = $1 WHERE id = $2;",
+		"UPDATE identity SET signature = $1 WHERE uid = $2;",
 		&signature, &id.Uid)
 	if err != nil {
 		tx.Rollback()
-		return err
+		return nil, err
 	}
 
-	return tx.Commit()
-
+	return &resp, tx.Commit()
 }
 
 // NewSqlDatabaseInfo takes a database connection string, returns a new initialized

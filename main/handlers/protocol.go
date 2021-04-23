@@ -31,7 +31,6 @@ type ExtendedProtocol struct {
 }
 
 type ContextManager interface {
-
 	GetPrivateKey(uid uuid.UUID) ([]byte, error)
 
 	StoreIdentity(ctx context.Context, identity ent.Identity, handler *IdentityHandler) error
@@ -41,7 +40,7 @@ type ContextManager interface {
 
 	GetSignature(uid uuid.UUID) ([]byte, error)
 
-	SendChainedUpp(ctx context.Context, msg HTTPRequest, s *Signer) error
+	SendChainedUpp(ctx context.Context, msg HTTPRequest, s *Signer) (*HTTPResponse, error)
 
 	GetAuthToken(uid uuid.UUID) (string, error)
 
@@ -117,4 +116,3 @@ func (p *ExtendedProtocol) GetAuthToken(uid uuid.UUID) (string, error) {
 
 	return authToken, nil
 }
-
