@@ -1,8 +1,10 @@
-package main
+package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/ubirch/ubirch-client-go/main/ent"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -29,8 +31,37 @@ type FileManager struct {
 	keyFile           string
 	signatureDir      string
 	authTokenDir      string
+	identities        []ent.Identity
 	EncryptedKeystore *ubirch.EncryptedKeystore
 	mutex             *sync.Mutex
+}
+
+func (f *FileManager) SendChainedUpp(ctx context.Context, msg HTTPRequest, s *Signer) (*HTTPResponse, error) {
+	//log.Infof("%s: anchor hash [chained]: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
+	//
+	//uppBytes, err := s.GetChainedUPP(ctx, msg.ID, msg.Hash)
+	//if err != nil {
+	//	log.Errorf("%s: could not create chained UPP: %v", msg.ID, err)
+	//	return ErrorResponse(http.StatusInternalServerError, "")
+	//}
+	//log.Debugf("%s: chained UPP: %x", msg.ID, uppBytes)
+	//
+	//resp := s.SendUPP(msg, uppBytes)
+	//
+	//// persist last signature only if UPP was successfully received by ubirch backend
+	//if HttpSuccess(resp.StatusCode) {
+	//	signature := uppBytes[len(uppBytes)-s.Protocol.SignatureLength():]
+	//	err = s.Protocol.SetSignature(msg.ID, signature)
+	//	if err != nil {
+	//		log.Errorf("unable to persist last signature: %v [\"%s\": \"%s\"]",
+	//			err, msg.ID, base64.StdEncoding.EncodeToString(signature))
+	//		// todo error handling! panic?
+	//		return ErrorResponse(http.StatusInternalServerError, "")
+	//	}
+	//}
+	//
+	//return resp
+	panic("not implemented")
 }
 
 func (f *FileManager) Exists(uid uuid.UUID) (bool, error) {
@@ -41,19 +72,27 @@ func (f *FileManager) Exists(uid uuid.UUID) (bool, error) {
 	return true, nil
 }
 
-func (f *FileManager) StartTransaction(uid uuid.UUID) error {
-	f.mutex.Lock()
-	return nil
+func (f *FileManager) FetchIdentity(ctx context.Context, uid uuid.UUID) (*ent.Identity, error) {
+	panic("implement me")
 }
 
-func (f *FileManager) EndTransaction(uid uuid.UUID, success bool) error {
-	defer f.mutex.Unlock()
-	if success {
-		return f.persistKeys()
-	} else {
-		return f.loadKeys()
-	}
+func (f *FileManager) StoreIdentity(ctx context.Context, identity ent.Identity, handler *IdentityHandler) error {
+	panic("implement me")
 }
+
+//func (f *FileManager) StartTransaction(uid uuid.UUID) error {
+//	f.mutex.Lock()
+//	return nil
+//}
+//
+//func (f *FileManager) EndTransaction(uid uuid.UUID, success bool) error {
+//	defer f.mutex.Unlock()
+//	if success {
+//		return f.persistKeys()
+//	} else {
+//		return f.loadKeys()
+//	}
+//}
 
 // Ensure FileManager implements the ContextManager interface
 var _ ContextManager = (*FileManager)(nil)
@@ -211,9 +250,9 @@ type legacyProtocolCtx struct {
 }
 
 func (f *FileManager) portLegacyProtocolCtxFile(configDir string) error {
-	contextFile_Legacy := filepath.Join(configDir, contextFileName_Legacy)
+	contextFileLegacy := filepath.Join(configDir, contextFileName_Legacy)
 
-	if _, err := os.Stat(contextFile_Legacy); os.IsNotExist(err) { // if file does not exist, return right away
+	if _, err := os.Stat(contextFileLegacy); os.IsNotExist(err) { // if file does not exist, return right away
 		return nil
 	}
 
@@ -223,7 +262,7 @@ func (f *FileManager) portLegacyProtocolCtxFile(configDir string) error {
 	}
 
 	// read legacy protocol context from persistent storage
-	err := loadFile(contextFile_Legacy, p)
+	err := loadFile(contextFileLegacy, p)
 	if err != nil {
 		return fmt.Errorf("unable to load legacy protocol context: %v", err)
 	}
@@ -241,11 +280,11 @@ func (f *FileManager) portLegacyProtocolCtxFile(configDir string) error {
 	}
 
 	// delete legacy protocol ctx file + bckup
-	err = os.Remove(contextFile_Legacy)
+	err = os.Remove(contextFileLegacy)
 	if err != nil {
 		log.Warnf("unable to delete legacy protocol context file: %v", err)
 	}
-	err = os.Remove(contextFile_Legacy + ".bck")
+	err = os.Remove(contextFileLegacy + ".bck")
 	if err != nil {
 		log.Warnf("unable to delete legacy protocol context backup file: %v", err)
 	}

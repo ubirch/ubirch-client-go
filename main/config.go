@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	secretLength = 16
+	secretLength = 32
 
 	DEV_STAGE  = "dev"
 	DEMO_STAGE = "demo"
