@@ -65,8 +65,11 @@ func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
 			return nil, err
 		}
 	}
-
-	return identity.PrivateKey, nil
+	decryptedPrivatekey, err := dm.encKeyStore.Decrypt(identity.PrivateKey)
+	if err != nil {
+		return nil, err
+	}
+	return decryptedPrivatekey, nil
 }
 
 func (dm *DatabaseManager) SetPrivateKey(uid uuid.UUID, key []byte) error {
@@ -167,8 +170,8 @@ func (dm *DatabaseManager) StoreIdentity(ctx context.Context, identity ent.Ident
 		log.Fatal(err)
 	}
 
-	var exitingId ent.Identity
-	if err = tx.QueryRow("SELECT uid FROM identity WHERE uid = $1", identity.Uid).Scan(&exitingId.Uid); err != nil {
+	var existingId ent.Identity
+	if err = tx.QueryRow("SELECT uid FROM identity WHERE uid = $1", identity.Uid).Scan(&existingId.Uid); err != nil {
 		if err == sql.ErrNoRows {
 			// there were no rows, but otherwise no error occurred
 		} else {
@@ -186,9 +189,14 @@ func (dm *DatabaseManager) StoreIdentity(ctx context.Context, identity ent.Ident
 	}
 
 	genesisSignature := make([]byte, idHandler.Protocol.SignatureLength())
+	encryptedPrivateKey, err := dm.encKeyStore.Encryt(identity.PrivateKey)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
 	_, err = tx.ExecContext(ctx,
 		"INSERT INTO identity (uid, private_key, public_key, signature, auth_token) VALUES ($1, $2, $3, $4, $5);",
-		&identity.Uid, &identity.PrivateKey, &identity.PublicKey, &genesisSignature, &identity.AuthToken)
+		&identity.Uid, encryptedPrivateKey, &identity.PublicKey, &genesisSignature, &identity.AuthToken)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -219,7 +227,13 @@ func (dm *DatabaseManager) SendChainedUpp(ctx context.Context, msg HTTPRequest, 
 		return err
 	}
 
-	uppBytes, err := s.GetChainedUPP(ctx, id, msg.Hash)
+	decryptedPrivateKey, err := dm.encKeyStore.Decrypt(id.PrivateKey)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	uppBytes, err := s.GetChainedUPP(ctx, id, msg.Hash, decryptedPrivateKey)
 	if err != nil {
 		tx.Rollback()
 		log.Errorf("%s: could not create chained UPP: %v", msg.ID, err)
@@ -227,8 +241,8 @@ func (dm *DatabaseManager) SendChainedUpp(ctx context.Context, msg HTTPRequest, 
 	}
 	log.Debugf("%s: chained UPP: %x", msg.ID, uppBytes)
 
-	resp := s.SendUPP(msg, uppBytes)
 
+	resp := s.SendUPP(msg, uppBytes)
 	// persist last signature only if UPP was successfully received by ubirch backend
 	if !HttpSuccess(resp.StatusCode) {
 			tx.Rollback()

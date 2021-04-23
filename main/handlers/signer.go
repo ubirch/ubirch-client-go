@@ -75,14 +75,14 @@ func (s *Signer) Sign(msg HTTPRequest, op operation) HTTPResponse {
 	return resp
 }
 
-func (s *Signer) GetChainedUPP(ctx context.Context, id ent.Identity, hash [32]byte) ([]byte, error) {
+func (s *Signer) GetChainedUPP(ctx context.Context, id ent.Identity, hash [32]byte, decryptedPrivate []byte) ([]byte, error) {
 
 	parseUuid, err := uuid.Parse(id.Uid)
 	if err != nil {
 		return nil, err
 	}
 	return s.Protocol.Sign(
-		id.PrivateKey,
+		decryptedPrivate,
 		&ubirch.ChainedUPP{
 			Version:       ubirch.Chained,
 			Uuid:          parseUuid,

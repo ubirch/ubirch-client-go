@@ -8,4 +8,4 @@ import (
 
 type FetchIdentity func(ctx context.Context, uid uuid.UUID) (*ent.Identity, error)
 
-type StoreIdentity func(ctx context.Context, uid uuid.UUID) error
+type StoreIdentity func(ctx context.Context, uid uuid.UUID, authKey string) error

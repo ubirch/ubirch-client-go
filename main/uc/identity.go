@@ -7,8 +7,8 @@ import (
 	"github.com/ubirch/ubirch-client-go/main/handlers"
 )
 
-func NewIdentityStorer(ctxMng handlers.ContextManager, idHandler *handlers.IdentityHandler) func(ctx context.Context, uid uuid.UUID) error {
-	return func(ctx context.Context, uid uuid.UUID) error {
+func NewIdentityStorer(ctxMng handlers.ContextManager, idHandler *handlers.IdentityHandler) func(ctx context.Context, uid uuid.UUID, authKey string) error {
+	return func(ctx context.Context, uid uuid.UUID, authKey string) error {
 
 		prvKey, err := idHandler.Protocol.GenerateKey()
 		if err != nil {
@@ -24,7 +24,7 @@ func NewIdentityStorer(ctxMng handlers.ContextManager, idHandler *handlers.Ident
 			Uid:        uid.String(),
 			PrivateKey: prvKey,
 			PublicKey:  pubKey,
-			AuthToken: "dsd",
+			AuthToken:  authKey,
 		}
 
 		return ctxMng.StoreIdentity(ctx, identity, idHandler)

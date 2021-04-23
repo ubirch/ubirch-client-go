@@ -2,7 +2,7 @@
   "devices": {
     "b07c32c6-4525-43f8-ab94-9383bf585ef0": "ad3e073b-9ead-437c-9e09-853e9a508dca"
   },
-  "secret": "MTIzNDU2Nzg5MDEyMzQ1Ng==",
+  "secret": "1kjZItJ/GTq8YXW86JfTfHWRuvzCbuqvOA9nNMYMbBY=",
   "env": "prod",
   "DSN": "postgres://username:password@hostname:5432/database?sslmode=disable",
   "CSR_country": "DE",
