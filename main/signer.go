@@ -15,11 +15,9 @@
 package handlers
 
 import (
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/ubirch/ubirch-client-go/main/ent"
 	"net/http"
 	"os"
 
@@ -63,7 +61,13 @@ type Signer struct {
 func (s *Signer) Sign(msg HTTPRequest, op operation) HTTPResponse {
 	log.Infof("%s: %s hash: %s", msg.ID, op, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
-	uppBytes, err := s.getSignedUPP(msg.ID, msg.Hash, op)
+	pemPrivateKey, err := s.Protocol.GetPrivateKey(msg.ID)
+	if err != nil {
+		log.Errorf("%s: could not fetch private Key for UUID: %v", msg.ID, err)
+		return ErrorResponse(http.StatusInternalServerError, "")
+	}
+
+	uppBytes, err := s.getSignedUPP(msg.ID, msg.Hash, pemPrivateKey, op)
 	if err != nil {
 		log.Errorf("%s: could not create signed UPP: %v", msg.ID, err)
 		return ErrorResponse(http.StatusInternalServerError, "")
@@ -75,28 +79,19 @@ func (s *Signer) Sign(msg HTTPRequest, op operation) HTTPResponse {
 	return resp
 }
 
-func (s *Signer) GetChainedUPP(ctx context.Context, id ent.Identity, hash [32]byte, decryptedPrivate []byte) ([]byte, error) {
-
-	parseUuid, err := uuid.Parse(id.Uid)
-	if err != nil {
-		return nil, err
-	}
+func (s *Signer) GetChainedUPP(id uuid.UUID, hash [32]byte, decryptedPrivate, signature []byte) ([]byte, error) {
 	return s.Protocol.Sign(
 		decryptedPrivate,
 		&ubirch.ChainedUPP{
 			Version:       ubirch.Chained,
-			Uuid:          parseUuid,
-			PrevSignature: id.Signature,
+			Uuid:          id,
+			PrevSignature: signature,
 			Hint:          ubirch.Binary,
 			Payload:       hash[:],
 		})
 }
 
-func (s *Signer) getSignedUPP(id uuid.UUID, hash [32]byte, op operation) ([]byte, error) {
-	privKeyPEM, err := s.Protocol.GetPrivateKey(id)
-	if err != nil {
-		return nil, err
-	}
+func (s *Signer) getSignedUPP(id uuid.UUID, hash [32]byte, decryptedPrivate []byte, op operation) ([]byte, error) {
 
 	hint, found := hintLookup[op]
 	if !found {
@@ -104,7 +99,7 @@ func (s *Signer) getSignedUPP(id uuid.UUID, hash [32]byte, op operation) ([]byte
 	}
 
 	return s.Protocol.Sign(
-		privKeyPEM,
+		decryptedPrivate,
 		&ubirch.SignedUPP{
 			Version: ubirch.Signed,
 			Uuid:    id,

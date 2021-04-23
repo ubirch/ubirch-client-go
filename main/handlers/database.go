@@ -233,7 +233,7 @@ func (dm *DatabaseManager) SendChainedUpp(ctx context.Context, msg HTTPRequest, 
 		return err
 	}
 
-	uppBytes, err := s.GetChainedUPP(ctx, id, msg.Hash, decryptedPrivateKey)
+	uppBytes, err := s.GetChainedUPP(msg.ID, msg.Hash, decryptedPrivateKey, id.Signature)
 	if err != nil {
 		tx.Rollback()
 		log.Errorf("%s: could not create chained UPP: %v", msg.ID, err)
