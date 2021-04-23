@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package todo
+package handlers
 
 import (
 	"bytes"
@@ -85,8 +85,8 @@ func (c *Client) isKeyRegistered(id uuid.UUID, pubKey []byte) (bool, error) {
 	return false, nil
 }
 
-func (c *Client) submitKeyRegistration(uid uuid.UUID, cert []byte, auth string) error {
-	log.Infof("%s: registering public key at key service", uid)
+func (c *Client) SubmitKeyRegistration(uid uuid.UUID, cert []byte, auth string) error {
+	log.Debugf("%s: registering public key at key service", uid)
 
 	keyRegHeader := ubirchHeader(uid, auth)
 	keyRegHeader["content-type"] = "application/json"
@@ -102,8 +102,8 @@ func (c *Client) submitKeyRegistration(uid uuid.UUID, cert []byte, auth string) 
 	return nil
 }
 
-// submitCSR submits a X.509 Certificate Signing Request for the public key to the identity service
-func (c *Client) submitCSR(uid uuid.UUID, csr []byte) error {
+// SubmitCSR submits a X.509 Certificate Signing Request for the public key to the identity service
+func (c *Client) SubmitCSR(uid uuid.UUID, csr []byte) error {
 	log.Debugf("%s: submitting CSR to identity service", uid)
 
 	CSRHeader := map[string]string{"content-type": "application/octet-stream"}
@@ -166,9 +166,9 @@ func ubirchHeader(uid uuid.UUID, auth string) map[string]string {
 }
 
 func httpFailed(StatusCode int) bool {
-	return !httpSuccess(StatusCode)
+	return !HttpSuccess(StatusCode)
 }
 
-func httpSuccess(StatusCode int) bool {
+func HttpSuccess(StatusCode int) bool {
 	return StatusCode >= 200 && StatusCode < 300
 }

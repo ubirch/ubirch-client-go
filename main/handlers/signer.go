@@ -12,12 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package todo
+package handlers
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/ubirch/ubirch-client-go/main/ent"
 	"net/http"
 	"os"
 
@@ -58,72 +60,51 @@ type Signer struct {
 	Client   *Client
 }
 
-// handle incoming messages, create, sign and send a chained ubirch protocol packet (UPP) to the ubirch backend
-func (s *Signer) chain(msg HTTPRequest) HTTPResponse {
-	log.Infof("%s: anchor hash [chained]: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
-
-	uppBytes, err := s.getChainedUPP(msg.ID, msg.Hash)
-	if err != nil {
-		log.Errorf("%s: could not create chained UPP: %v", msg.ID, err)
-		return errorResponse(http.StatusInternalServerError, "")
-	}
-	log.Debugf("%s: chained UPP: %x", msg.ID, uppBytes)
-
-	resp := s.sendUPP(msg, uppBytes)
-
-	// persist last signature only if UPP was successfully received by ubirch backend
-	if httpSuccess(resp.StatusCode) {
-		signature := uppBytes[len(uppBytes)-s.Protocol.SignatureLength():]
-		err = s.Protocol.SetSignature(msg.ID, signature)
-		if err != nil {
-			log.Errorf("unable to persist last signature: %v [\"%s\": \"%s\"]",
-				err, msg.ID, base64.StdEncoding.EncodeToString(signature))
-			// todo error handling! panic?
-			return errorResponse(http.StatusInternalServerError, "")
-		}
-	}
-
-	return resp
-}
-
 func (s *Signer) Sign(msg HTTPRequest, op operation) HTTPResponse {
 	log.Infof("%s: %s hash: %s", msg.ID, op, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
 	uppBytes, err := s.getSignedUPP(msg.ID, msg.Hash, op)
 	if err != nil {
 		log.Errorf("%s: could not create signed UPP: %v", msg.ID, err)
-		return errorResponse(http.StatusInternalServerError, "")
+		return ErrorResponse(http.StatusInternalServerError, "")
 	}
 	log.Debugf("%s: signed UPP: %x", msg.ID, uppBytes)
 
-	resp := s.sendUPP(msg, uppBytes)
+	resp := s.SendUPP(msg, uppBytes)
 
 	return resp
 }
 
-func (s *Signer) getChainedUPP(id uuid.UUID, hash [32]byte) ([]byte, error) {
-	prevSignature, err := s.Protocol.GetSignature(id)
+func (s *Signer) GetChainedUPP(ctx context.Context, id ent.Identity, hash [32]byte) ([]byte, error) {
+
+	parseUuid, err := uuid.Parse(id.Uid)
 	if err != nil {
 		return nil, err
 	}
-
 	return s.Protocol.Sign(
+		id.PrivateKey,
 		&ubirch.ChainedUPP{
 			Version:       ubirch.Chained,
-			Uuid:          id,
-			PrevSignature: prevSignature,
+			Uuid:          parseUuid,
+			PrevSignature: id.Signature,
 			Hint:          ubirch.Binary,
 			Payload:       hash[:],
 		})
 }
 
 func (s *Signer) getSignedUPP(id uuid.UUID, hash [32]byte, op operation) ([]byte, error) {
+	privKeyPEM, err := s.Protocol.GetPrivateKey(id)
+	if err != nil {
+		return nil, err
+	}
+
 	hint, found := hintLookup[op]
 	if !found {
 		return nil, fmt.Errorf("%s: invalid operation: \"%s\"", id, op)
 	}
 
 	return s.Protocol.Sign(
+		privKeyPEM,
 		&ubirch.SignedUPP{
 			Version: ubirch.Signed,
 			Uuid:    id,
@@ -132,16 +113,16 @@ func (s *Signer) getSignedUPP(id uuid.UUID, hash [32]byte, op operation) ([]byte
 		})
 }
 
-func (s *Signer) sendUPP(msg HTTPRequest, upp []byte) HTTPResponse {
+func (s *Signer) SendUPP(msg HTTPRequest, upp []byte) HTTPResponse {
 	// send UPP to ubirch backend
 	backendResp, err := s.Client.sendToAuthService(msg.ID, msg.Auth, upp)
 	if err != nil {
 		if os.IsTimeout(err) {
 			log.Errorf("%s: request to UBIRCH Authentication Service timed out after %s: %v", msg.ID, BackendRequestTimeout.String(), err)
-			return errorResponse(http.StatusGatewayTimeout, "")
+			return ErrorResponse(http.StatusGatewayTimeout, "")
 		} else {
 			log.Errorf("%s: sending request to UBIRCH Authentication Service failed: %v", msg.ID, err)
-			return errorResponse(http.StatusInternalServerError, "")
+			return ErrorResponse(http.StatusInternalServerError, "")
 		}
 	}
 	log.Debugf("%s: backend response: (%d) %x", msg.ID, backendResp.StatusCode, backendResp.Content)
@@ -176,7 +157,7 @@ func getRequestID(respUPP ubirch.UPP) (string, error) {
 	return requestID.String(), nil
 }
 
-func errorResponse(code int, message string) HTTPResponse {
+func ErrorResponse(code int, message string) HTTPResponse {
 	if message == "" {
 		message = http.StatusText(code)
 	}

@@ -1,9 +1,7 @@
 package ent
 
-import "github.com/google/uuid"
-
 type Identity struct {
-	Uid        uuid.UUID
+	Uid        string
 	PrivateKey []byte
 	PublicKey  []byte
 	Signature  []byte

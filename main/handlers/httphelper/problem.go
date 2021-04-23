@@ -41,6 +41,22 @@ func Respond400(w http.ResponseWriter, detail string) {
 	RespondProblem(w, pi)
 }
 
+// Respond406 sends a HTTP status 406 response to the provided
+// HTTP response writer using application/problem+json media type
+// and constructs the details property from the supplied problem
+func Respond406(w http.ResponseWriter, detail string) {
+
+	pi := HttpProblemInstance{
+		HttpProblem: HttpProblem{
+			"about:blank",
+			"Not Acceptable",
+			http.StatusNotAcceptable,
+		},
+		Detail: detail,
+	}
+	RespondProblem(w, pi)
+}
+
 // Respond409 sends a HTTP status 409 response to the provided
 // HTTP response writer using application/problem+json media type
 // and constructs the details property from the supplied conflict

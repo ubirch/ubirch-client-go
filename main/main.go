@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"github.com/ubirch/ubirch-client-go/main/config"
 	"github.com/ubirch/ubirch-client-go/main/handlers"
-	"github.com/ubirch/ubirch-client-go/main/todo"
 	"github.com/ubirch/ubirch-client-go/main/uc"
 	"os"
 	"os/signal"
@@ -62,29 +61,27 @@ func main() {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
 
-	ctxManager, err := todo.GetCtxManager(conf)
+	ctxManager, err := handlers.GetCtxManager(conf)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// initialize ubirch protocol
-	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: ctxManager,
-	}
+	cryptoCtx := &ubirch.ECDSACryptoContext{}
 
-	protocol, err := todo.NewExtendedProtocol(cryptoCtx, ctxManager)
+	protocol, err := handlers.NewExtendedProtocol(cryptoCtx, ctxManager)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	client := &todo.Client{
+	client := &handlers.Client{
 		AuthServiceURL:     conf.Niomon,
 		VerifyServiceURL:   conf.VerifyService,
 		KeyServiceURL:      conf.KeyService,
 		IdentityServiceURL: conf.IdentityService,
 	}
 
-	idHandler := &todo.IdentityHandler{
+	idHandler := &handlers.IdentityHandler{
 		Protocol:            protocol,
 		Client:              client,
 		SubjectCountry:      conf.CSR_Country,
@@ -92,25 +89,26 @@ func main() {
 	}
 
 	// generate and register keys for known devices
-	if _, ok := ctxManager.(*todo.FileManager); ok {
-		err = idHandler.InitIdentities(conf.Devices)
-		if err != nil {
-			log.Fatal(err)
-		}
+	if _, ok := ctxManager.(*handlers.FileManager); ok {
+		log.Panic("needs to be implemented")
+		//err = idHandler.InitIdentities(conf.Devices)
+		//if err != nil {
+		//	log.Fatal(err)
+		//}
 	}
-	signer := todo.Signer{
+	signer := handlers.Signer{
 		Protocol: protocol,
 		Client:   client,
 	}
 
-	verifier := todo.Verifier{
+	verifier := handlers.Verifier{
 		Protocol:                      protocol,
 		Client:                        client,
 		VerifyFromKnownIdentitiesOnly: false, // TODO: make configurable
 	}
 
-	httpServer := todo.HTTPServer{
-		Router:   todo.NewRouter(),
+	httpServer := handlers.HTTPServer{
+		Router:   handlers.NewRouter(),
 		Addr:     conf.TCP_addr,
 		TLS:      conf.TLS,
 		CertFile: conf.TLS_CertFile,
@@ -133,31 +131,32 @@ func main() {
 	// set up graceful shutdown handling
 	go shutdown(cancel)
 
-	if _, ok := ctxManager.(*todo.DatabaseManager); ok {
-		identity := createIdentityUseCases(globals, ctxManager)
+	if _, ok := ctxManager.(*handlers.DatabaseManager); ok {
+		identity := createIdentityUseCases(globals, ctxManager, idHandler)
 		httpServer.Router.Put("/register", identity.handler.Put(identity.storeIdentity, identity.fetchIdentity))
 	}
 
 	// set up endpoint for chaining
-	httpServer.AddServiceEndpoint(todo.ServerEndpoint{
-		Path: fmt.Sprintf("/{%s}", todo.UUIDKey),
-		Service: &todo.ChainingService{
+	httpServer.AddServiceEndpoint(handlers.ServerEndpoint{
+		Path: fmt.Sprintf("/{%s}", handlers.UUIDKey),
+		Service: &handlers.ChainingService{
 			Signer: &signer,
 		},
 	})
 
 	// set up endpoint for signing
-	httpServer.AddServiceEndpoint(todo.ServerEndpoint{
-		Path: fmt.Sprintf("/{%s}/{%s}", todo.UUIDKey, todo.OperationKey),
-		Service: &todo.SigningService{
+	httpServer.AddServiceEndpoint(handlers.ServerEndpoint{
+		Path: fmt.Sprintf("/{%s}/{%s}", handlers.UUIDKey, handlers.OperationKey),
+		Service: &handlers.SigningService{
+
 			Signer: &signer,
 		},
 	})
 
 	// set up endpoint for verification
-	httpServer.AddServiceEndpoint(todo.ServerEndpoint{
-		Path: fmt.Sprintf("/%s", todo.VerifyPath),
-		Service: &todo.VerificationService{
+	httpServer.AddServiceEndpoint(handlers.ServerEndpoint{
+		Path: fmt.Sprintf("/%s", handlers.VerifyPath),
+		Service: &handlers.VerificationService{
 			Verifier: &verifier,
 		},
 	})
@@ -186,10 +185,10 @@ type identities struct {
 	fetchIdentity handlers.FetchIdentity
 }
 
-func createIdentityUseCases(globals handlers.Globals, mng todo.ContextManager) identities {
+func createIdentityUseCases(globals handlers.Globals, mng handlers.ContextManager, handler *handlers.IdentityHandler) identities {
 	return identities{
 		handler:       handlers.NewIdentity(globals),
-		storeIdentity: uc.NewIdentityStorer(mng),
+		storeIdentity: uc.NewIdentityStorer(mng, handler),
 		fetchIdentity: uc.NewIdentityFetcher(mng),
 	}
 }

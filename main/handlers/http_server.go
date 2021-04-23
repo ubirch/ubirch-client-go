@@ -1,4 +1,4 @@
-package todo
+package handlers
 
 import (
 	"context"
@@ -28,11 +28,7 @@ type ServerEndpoint struct {
 	Service
 }
 
-type Service interface {
-	handleRequest(w http.ResponseWriter, r *http.Request)
-}
-
-func (*ServerEndpoint) handleOptions(http.ResponseWriter, *http.Request) {
+func (*ServerEndpoint) HandleOptions(http.ResponseWriter, *http.Request) {
 	return
 }
 
@@ -65,11 +61,11 @@ func (srv *HTTPServer) SetUpCORS(allowedOrigins []string, debug bool) {
 func (srv *HTTPServer) AddServiceEndpoint(endpoint ServerEndpoint) {
 	hashEndpointPath := path.Join(endpoint.Path, HashEndpoint)
 
-	srv.Router.Post(endpoint.Path, endpoint.handleRequest)
-	srv.Router.Post(hashEndpointPath, endpoint.handleRequest)
+	srv.Router.Post(endpoint.Path, endpoint.HandleRequest)
+	srv.Router.Post(hashEndpointPath, endpoint.HandleRequest)
 
-	srv.Router.Options(endpoint.Path, endpoint.handleOptions)
-	srv.Router.Options(hashEndpointPath, endpoint.handleOptions)
+	srv.Router.Options(endpoint.Path, endpoint.HandleOptions)
+	srv.Router.Options(hashEndpointPath, endpoint.HandleOptions)
 }
 
 func (srv *HTTPServer) Serve(ctx context.Context) error {

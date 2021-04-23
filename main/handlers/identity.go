@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/google/uuid"
 	h "github.com/ubirch/ubirch-client-go/main/handlers/httphelper"
 	"io"
@@ -13,8 +14,8 @@ type Identity struct {
 }
 
 type IdentityPayload struct {
-	uid uuid.UUID `json:"organisation"`
-	pwd string    `json:"password"`
+	Uid string `json:"uuid"`
+	Pwd string `json:"password"`
 }
 
 func NewIdentity(globals Globals) Identity {
@@ -35,17 +36,28 @@ func (i Identity) Put(storeId StoreIdentity, fetchId FetchIdentity) http.Handler
 			return
 		}
 
-		if _, err = fetchId(ctx, idPayload.uid); err == nil {
-			h.Respond409(w, err.Error())
+		parseUuid, err := uuid.Parse(idPayload.Uid)
+		if err != nil {
+			h.Respond406(w, err.Error())
 			return
 		}
 
-		if err := storeId(ctx, idPayload.uid); err != nil {
+		id, err := fetchId(ctx, parseUuid)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if id != nil {
+			h.Respond406(w, fmt.Errorf("uuid already exists in database: %v", id.Uid).Error())
+			return
+		}
+
+		if err := storeId(ctx, parseUuid); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		h.EmptyOk(w)
+		h.Ok(w, fmt.Sprintf("successfully created new entry with uuid %s", parseUuid.String()))
 	}
 }
 
@@ -55,6 +67,6 @@ func IdentityFromBody(in io.ReadCloser) (IdentityPayload, error) {
 	if err := decoder.Decode(&payload); err != nil {
 		return IdentityPayload{}, err
 	}
+	fmt.Println(payload)
 	return payload, nil
 }
-

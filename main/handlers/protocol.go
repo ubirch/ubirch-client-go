@@ -12,16 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package todo
+package handlers
 
 import (
 	"context"
 	"fmt"
+	"os"
+
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/config"
 	"github.com/ubirch/ubirch-client-go/main/ent"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
-	"os"
 )
 
 type ExtendedProtocol struct {
@@ -30,23 +31,19 @@ type ExtendedProtocol struct {
 }
 
 type ContextManager interface {
-	StartTransaction(uid uuid.UUID) error
-	EndTransaction(uid uuid.UUID, success bool) error
 
 	GetPrivateKey(uid uuid.UUID) ([]byte, error)
-	SetPrivateKey(uid uuid.UUID, key []byte) error
 
-	StoreIdentity(ctx context.Context, identity ent.Identity) error
+	StoreIdentity(ctx context.Context, identity ent.Identity, handler *IdentityHandler) error
 	FetchIdentity(ctx context.Context, uid uuid.UUID) (*ent.Identity, error)
 
 	GetPublicKey(uid uuid.UUID) ([]byte, error)
-	SetPublicKey(uid uuid.UUID, key []byte) error
 
 	GetSignature(uid uuid.UUID) ([]byte, error)
-	SetSignature(uid uuid.UUID, signature []byte) error
+
+	SendChainedUpp(ctx context.Context, msg HTTPRequest, s *Signer) error
 
 	GetAuthToken(uid uuid.UUID) (string, error)
-	SetAuthToken(uid uuid.UUID, authToken string) error
 
 	Close() error
 }
@@ -70,23 +67,15 @@ func NewExtendedProtocol(cryptoCtx ubirch.Crypto, ctxManager ContextManager) (*E
 	return p, nil
 }
 
-func (p *ExtendedProtocol) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
+func (p *ExtendedProtocol) GetPrivateKey(uid uuid.UUID) (privKeyPEM []byte, err error) {
 	// todo sanity checks
 	return p.ContextManager.GetPrivateKey(uid)
 }
-func (p *ExtendedProtocol) SetPrivateKey(uid uuid.UUID, key []byte) error {
-	// todo sanity checks
-	return p.ContextManager.SetPrivateKey(uid, key)
-}
 
-func (p *ExtendedProtocol) GetPublicKey(uid uuid.UUID) ([]byte, error) {
+func (p *ExtendedProtocol) GetPublicKey(uid uuid.UUID) (pubKeyPEM []byte, err error) {
 	// todo sanity checks
 	return p.ContextManager.GetPublicKey(uid)
 
-}
-func (p *ExtendedProtocol) SetPublicKey(uid uuid.UUID, key []byte) error {
-	// todo sanity checks
-	return p.ContextManager.SetPublicKey(uid, key)
 }
 
 func (p *ExtendedProtocol) GetSignature(uid uuid.UUID) ([]byte, error) {
@@ -109,15 +98,6 @@ func (p *ExtendedProtocol) GetSignature(uid uuid.UUID) ([]byte, error) {
 	return signature, nil
 }
 
-func (p *ExtendedProtocol) SetSignature(uid uuid.UUID, signature []byte) error {
-	err := p.checkSignatureLen(signature)
-	if err != nil {
-		return err
-	}
-
-	return p.ContextManager.SetSignature(uid, signature)
-}
-
 func (p *ExtendedProtocol) checkSignatureLen(signature []byte) error {
 	if len(signature) != p.SignatureLength() {
 		return fmt.Errorf("invalid signature length: expected %d, got %d", p.SignatureLength(), len(signature))
@@ -138,10 +118,3 @@ func (p *ExtendedProtocol) GetAuthToken(uid uuid.UUID) (string, error) {
 	return authToken, nil
 }
 
-func (p *ExtendedProtocol) SetAuthToken(uid uuid.UUID, authToken string) error {
-	if len(authToken) == 0 {
-		return fmt.Errorf("%s: empty auth token", uid)
-	}
-
-	return p.ContextManager.SetAuthToken(uid, authToken)
-}

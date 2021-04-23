@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package todo
+package handlers
 
 import (
 	"encoding/base64"
@@ -58,7 +58,7 @@ func (v *Verifier) Verify(hash []byte) HTTPResponse {
 	code, upp, err := v.loadUPP(hash)
 	if err != nil {
 		log.Error(err)
-		return errorResponse(code, err.Error())
+		return ErrorResponse(code, err.Error())
 	}
 	log.Debugf("retrieved UPP %x", upp)
 
@@ -125,32 +125,32 @@ func (v *Verifier) verifyUPP(upp []byte) (uuid.UUID, []byte, error) {
 
 	id := uppStruct.GetUuid()
 
-	pubkey, err := v.Protocol.GetPublicKey(id)
+	pubKeyPEM, err := v.Protocol.GetPublicKey(id)
 	if err != nil {
 		if v.VerifyFromKnownIdentitiesOnly {
 			return id, nil, fmt.Errorf("retrieved certificate for requested hash is from unknown identity")
 		} else {
 			log.Warnf("couldn't get public key for identity %s from local context", id)
-			pubkey, err = v.loadPublicKey(id)
+			pubKeyPEM, err = v.loadPublicKey(id)
 			if err != nil {
 				return id, nil, err
 			}
 		}
 	}
 
-	verified, err := v.Protocol.Verify(id, upp)
+	verified, err := v.Protocol.Verify(pubKeyPEM, upp)
 	if !verified {
 		if err != nil {
 			log.Error(err)
 		}
-		return id, pubkey, fmt.Errorf("signature of retrieved certificate for requested hash could not be verified")
+		return id, pubKeyPEM, fmt.Errorf("signature of retrieved certificate for requested hash could not be verified")
 	}
 
-	return id, pubkey, nil
+	return id, pubKeyPEM, nil // todo return bytes
 }
 
 // loadPublicKey retrieves the first valid public key associated with an identity from the key service
-func (v *Verifier) loadPublicKey(id uuid.UUID) ([]byte, error) {
+func (v *Verifier) loadPublicKey(id uuid.UUID) (pubKeyPEM []byte, err error) {
 	log.Debugf("requesting public key for identity %s from key service", id.String())
 
 	keys, err := v.Client.requestPublicKeys(id)
@@ -166,18 +166,26 @@ func (v *Verifier) loadPublicKey(id uuid.UUID) ([]byte, error) {
 
 	log.Printf("retrieved public key for identity %s: %s", keys[0].PubKeyInfo.HwDeviceId, keys[0].PubKeyInfo.PubKey)
 
-	pubkey, err := base64.StdEncoding.DecodeString(keys[0].PubKeyInfo.PubKey)
+	pubKeyBytes, err := base64.StdEncoding.DecodeString(keys[0].PubKeyInfo.PubKey)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding retrieved public key: %v", err)
 	}
 
-	// inject new public key into protocol context for verification
-	err = v.Protocol.SetPublicKey(id, pubkey)
+	// FIXME export methods through crypto interface
+	cryptoCtx, _ := v.Protocol.Crypto.(*ubirch.ECDSACryptoContext)
+
+	pubKeyPEM, err = cryptoCtx.PublicKeyToPEM(pubKeyBytes)
 	if err != nil {
-		return nil, fmt.Errorf("unable to set retrieved public key for verification: %v", err)
+		return nil, err
 	}
 
-	return pubkey, nil
+	//// inject new public key into protocol context for verification
+	//err = v.Protocol.SetPublicKey(id, pubKeyPEM)
+	//if err != nil {
+	//	return nil, fmt.Errorf("unable to set retrieved public key for verification: %v", err)
+	//}
+
+	return pubKeyPEM, nil
 }
 
 func getVerificationResponse(respCode int, hash []byte, upp []byte, id uuid.UUID, pkey []byte, errMsg string) HTTPResponse {

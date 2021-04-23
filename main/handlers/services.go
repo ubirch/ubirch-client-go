@@ -1,4 +1,4 @@
-package todo
+package handlers
 
 import (
 	"bytes"
@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	h "github.com/ubirch/ubirch-client-go/main/handlers/httphelper"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -21,7 +22,6 @@ const (
 	UUIDKey      = "uuid"
 	OperationKey = "operation"
 	VerifyPath   = "verify"
-	COSEPath     = "cbor"
 	HashEndpoint = "hash"
 
 	BinType  = "application/octet-stream"
@@ -32,6 +32,10 @@ const (
 
 	HashLen = 32
 )
+
+type Service interface {
+	HandleRequest(w http.ResponseWriter, r *http.Request)
+}
 
 type Sha256Sum [HashLen]byte
 
@@ -56,9 +60,12 @@ type ChainingService struct {
 // Ensure ChainingService implements the Service interface
 var _ Service = (*ChainingService)(nil)
 
-func (c *ChainingService) handleRequest(w http.ResponseWriter, r *http.Request) {
+func (c *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) {
 	var msg HTTPRequest
 	var err error
+
+	ctx, cancel := contextFromRequest(r)
+	defer cancel()
 
 	msg.ID, err = getUUID(r)
 	if err != nil {
@@ -79,24 +86,13 @@ func (c *ChainingService) handleRequest(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// todo here goes the waiting loop
-	err = c.Protocol.StartTransaction(msg.ID)
+	err = c.Protocol.ContextManager.SendChainedUpp(ctx, msg, c.Signer)
 	if err != nil {
-		log.Warnf("%s: %v", msg.ID, err)
-		http.Error(w, "Service Temporarily Unavailable", http.StatusServiceUnavailable)
+		Error(msg.ID, w, err, http.StatusInternalServerError)
 		return
 	}
 
-	resp := c.chain(msg)
-
-	err = c.Protocol.EndTransaction(msg.ID, true)
-	if err != nil {
-		log.Errorf("%s: %v", msg.ID, err)
-		http.Error(w, "", http.StatusInternalServerError)
-		// todo error handling! panic?
-		return
-	}
-
-	sendResponse(w, resp)
+	h.Ok(w, "chaining service successful")
 }
 
 type SigningService struct {
@@ -105,7 +101,7 @@ type SigningService struct {
 
 var _ Service = (*SigningService)(nil)
 
-func (s *SigningService) handleRequest(w http.ResponseWriter, r *http.Request) {
+func (s *SigningService) HandleRequest(w http.ResponseWriter, r *http.Request) {
 	var msg HTTPRequest
 	var err error
 
@@ -143,7 +139,7 @@ type VerificationService struct {
 
 var _ Service = (*VerificationService)(nil)
 
-func (v *VerificationService) handleRequest(w http.ResponseWriter, r *http.Request) {
+func (v *VerificationService) HandleRequest(w http.ResponseWriter, r *http.Request) {
 	hash, err := getHash(r)
 	if err != nil {
 		Error(uuid.Nil, w, err, http.StatusBadRequest)
@@ -245,7 +241,7 @@ func getHash(r *http.Request) (Sha256Sum, error) {
 func getHashFromDataRequest(header http.Header, data []byte) (hash Sha256Sum, err error) {
 	switch ContentType(header) {
 	case JSONType:
-		data, err = getSortedCompactJSON(data)
+		data, err = GetSortedCompactJSON(data)
 		if err != nil {
 			return Sha256Sum{}, err
 		}
@@ -290,7 +286,7 @@ func getHashFromHashRequest(header http.Header, data []byte) (hash Sha256Sum, er
 	}
 }
 
-func getSortedCompactJSON(data []byte) ([]byte, error) {
+func GetSortedCompactJSON(data []byte) ([]byte, error) {
 	var reqDump interface{}
 	var sortedCompactJson bytes.Buffer
 
