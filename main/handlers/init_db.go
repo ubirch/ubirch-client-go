@@ -9,6 +9,7 @@ import (
 	"github.com/ubirch/ubirch-client-go/main/ent"
 	"github.com/ubirch/ubirch-client-go/main/keystr"
 	"github.com/ubirch/ubirch-client-go/main/vars"
+	"os"
 )
 
 const (
@@ -34,18 +35,75 @@ type Table struct {
 }
 
 func Migrate(c config.Config) error {
-	fileManager, err := NewFileManager(c.ConfigDir, c.SecretBytes16)
+	identitiesToPort, err := getAllIdentitiesFromLegacyCtx(c)
 	if err != nil {
 		return err
 	}
+	// todo ^^^ port these identities ^^^
+
 	dbManager, err := NewSqlDatabaseInfo(c)
 	if err != nil {
 		return err
 	}
-	checkForTable(fileManager, dbManager)
+	checkForTable(dbManager)
 }
 
-func checkForTable(fm *FileManager, dm *DatabaseManager) error {
+func getAllIdentitiesFromLegacyCtx(c config.Config) (*[]ent.Identity, error) {
+	fileManager, err := NewFileManager(c.ConfigDir, c.SecretBytes16)
+	if err != nil {
+		return nil, err
+	}
+
+	uids, err := fileManager.EncryptedKeystore.GetIDs()
+	if err != nil {
+		return nil, err
+	}
+
+	var allIdentities []ent.Identity
+
+	for _, uid := range uids {
+
+		priv, err := fileManager.GetPrivateKey(uid)
+		if err != nil {
+			return nil, err
+		}
+
+		pub, err := fileManager.GetPublicKey(uid)
+		if err != nil {
+			return nil, err
+		}
+
+		sign, err := fileManager.GetSignature(uid)
+		if err != nil {
+			if !os.IsNotExist(err) { // file exists but something went wrong
+				return nil, err
+			} else { // if file does not exist -> create genesis signature
+				sign = make([]byte, 64)
+			}
+		}
+
+		auth, err := fileManager.GetAuthToken(uid)
+		if !os.IsNotExist(err) { // file exists but something went wrong
+			return nil, err
+		} else { // if file does not exist -> get auth token from config
+			auth = c.Devices[uid.String()]
+		}
+
+		i := ent.Identity{
+			Uid:        uid.String(),
+			PrivateKey: priv,
+			PublicKey:  pub,
+			Signature:  sign,
+			AuthToken:  auth,
+		}
+
+		allIdentities = append(allIdentities, i)
+	}
+
+	return &allIdentities, nil
+}
+
+func checkForTable(dm *DatabaseManager) error {
 	pg, err := sql.Open(vars.PostgreSql, dm.conn)
 	if err != nil {
 		return err
@@ -79,7 +137,7 @@ func checkForTable(fm *FileManager, dm *DatabaseManager) error {
 }
 
 func migrateIdentities(c config.Config, dsn string) error {
-	ks := keystr.NewEncryptedKeystore(c.SecretBytes)
+	ks := keystr.NewEncryptedKeystore(c.SecretBytes32)
 	pg, err := sql.Open(vars.PostgreSql, dsn)
 	if err != nil {
 		return err
