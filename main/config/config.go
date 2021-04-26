@@ -28,7 +28,8 @@ import (
 )
 
 const (
-	secretLength = 32
+	secretLength16 = 16
+	secretLength32 = 32
 
 	DEV_STAGE  = "dev"
 	DEMO_STAGE = "demo"
@@ -58,7 +59,9 @@ var IsDevelopment bool
 // configuration of the client
 type Config struct {
 	Devices          map[string]string `json:"devices"`          // maps UUIDs to backend auth tokens (mandatory)
-	SecretBase64     string            `json:"secret"`           // secret used to encrypt the key store (mandatory)
+	Secret16Base64   string            `json:"secret"`           // secret used to encrypt the key store (mandatory) LEGACY
+	Secret32Base64   string            `json:"secret32"`         // secret used to encrypt the key store for DatabaseManager (mandatory)
+	Migrate          bool              `json:"migrate"`           // will be written if argumet of the calling process contains migrate
 	Env              string            `json:"env"`              // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
 	Dsn              DSN               `json:"DSN"`              // "data source name" for database connection
 	CSR_Country      string            `json:"CSR_country"`      // subject country for public key Certificate Signing Requests
@@ -71,7 +74,8 @@ type Config struct {
 	CORS_Origins     []string          `json:"CORS_origins"`     // list of allowed origin hosts, defaults to ["*"]
 	Debug            bool              `json:"debug"`            // enable extended debug output, defaults to 'false'
 	LogTextFormat    bool              `json:"logTextFormat"`    // log in text format for better human readability, default format is JSON
-	SecretBytes      []byte            // the decoded key store secret (set automatically)
+	SecretBytes16    []byte            // the decoded key store secret for filesmanager (set automatically) LEGACY
+	SecretBytes32    []byte            // the decoded key store secret for database (set automatically)
 	KeyService       string            // key service URL (set automatically)
 	IdentityService  string            // identity service URL (set automatically)
 	Niomon           string            // authentication service URL (set automatically)
@@ -80,13 +84,14 @@ type Config struct {
 }
 
 type DSN struct { //postgres://username:Password@hostname:5432/database?sslmode=disable",
-	Host     string `json:"Host"`
-	User     string `json:"User"`
-	Password string `json:"Password"`
-	Db       string `json:"database"`
+	InitContainer bool   `json:"initDb"`
+	Host          string `json:"Host"`
+	User          string `json:"User"`
+	Password      string `json:"Password"`
+	Db            string `json:"database"`
 }
 
-func (c *Config) Load(configDir string, filename string) error {
+func (c *Config) Load(configDir, filename string, migrate bool) error {
 	c.ConfigDir = configDir
 
 	// assume that we want to load from env instead of config files, if
@@ -101,9 +106,14 @@ func (c *Config) Load(configDir string, filename string) error {
 		return err
 	}
 
-	c.SecretBytes, err = base64.StdEncoding.DecodeString(c.SecretBase64)
+	c.SecretBytes16, err = base64.StdEncoding.DecodeString(c.Secret16Base64)
 	if err != nil {
-		return fmt.Errorf("unable to decode base64 encoded secret (%s): %v", c.SecretBase64, err)
+		return fmt.Errorf("unable to decode base64 encoded secret (%s): %v", c.Secret16Base64, err)
+	}
+
+	c.SecretBytes32, err = base64.StdEncoding.DecodeString(c.Secret32Base64)
+	if err != nil {
+		return fmt.Errorf("unable to decode base64 encoded secret (%s): %v", c.Secret32Base64, err)
 	}
 
 	if c.Debug {
@@ -124,6 +134,7 @@ func (c *Config) Load(configDir string, filename string) error {
 	}
 
 	// set defaults
+	c.Migrate = migrate
 	c.setDefaultCSR()
 	c.setDefaultTLS()
 	c.setDefaultCORS()
@@ -163,8 +174,12 @@ func (c *Config) checkMandatory() error {
 		}
 	}
 
-	if len(c.SecretBytes) != secretLength {
-		return fmt.Errorf("secret length must be %d bytes (is %d)", secretLength, len(c.SecretBytes))
+	if len(c.SecretBytes16) != secretLength16 {
+		return fmt.Errorf("secret length must be %d bytes (is %d)", secretLength16, len(c.SecretBytes16))
+	}
+
+	if len(c.SecretBytes32) != secretLength32 {
+		return fmt.Errorf("secret length must be %d bytes (is %d)", secretLength32, len(c.SecretBytes32))
 	}
 
 	return nil

@@ -17,15 +17,57 @@ package handlers
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"encoding/base64"
 	"fmt"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
+	"github.com/ubirch/ubirch-client-go/main/config"
 	"github.com/ubirch/ubirch-client-go/main/ent"
+	"github.com/ubirch/ubirch-client-go/main/keystr"
 	"github.com/ubirch/ubirch-client-go/main/vars"
 	// postgres driver is imported for side effects
 	_ "github.com/lib/pq"
 )
+
+// Database is the interface that defines what methods a database has to
+// implement.
+type Database interface {
+	SetProtocolContext(proto driver.Valuer) error
+	GetProtocolContext(proto sql.Scanner) error
+
+	Close() error
+}
+
+// Database contains the postgres database connection, and offers methods
+// for interacting with the database.
+type DatabaseManager struct {
+	options     *sql.TxOptions
+	conn        string
+	client      Client
+	encKeyStore *keystr.EncryptedKeystore
+}
+
+// Ensure Database implements the ContextManager interface
+var _ ContextManager = (*DatabaseManager)(nil)
+
+// NewSqlDatabaseInfo takes a database connection string, returns a new initialized
+// database.
+func NewSqlDatabaseInfo(c config.Config) (*DatabaseManager, error) {
+	dataSourceName := fmt.Sprintf("host=%s user=%s password=%s port=%d dbname=%s sslmode=disable",
+		c.Dsn.Host, c.Dsn.User, c.Dsn.Password, vars.PostgreSqlPort, c.Dsn.Db)
+
+	log.Print("preparing postgres usage")
+
+	return &DatabaseManager{
+		options: &sql.TxOptions{
+			Isolation: sql.LevelRepeatableRead,
+			ReadOnly:  false,
+		},
+
+		conn:        dataSourceName,
+		encKeyStore: keystr.NewEncryptedKeystore(c.SecretBytes32)}, nil
+}
 
 func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
 	pg, err := sql.Open(vars.PostgreSql, dm.conn)

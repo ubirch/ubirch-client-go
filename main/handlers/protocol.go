@@ -42,7 +42,11 @@ type ContextManager interface {
 }
 
 func GetCtxManager(c config.Config) (ContextManager, error) {
-		return NewSqlDatabaseInfo(c.Dsn, c.SecretBytes)
+	if c.Dsn.Host != "" && c.Dsn.Db != "" && c.Dsn.User != ""  {
+		return NewSqlDatabaseInfo(c)
+	} else {
+		return NewFileManager(c.ConfigDir, c.SecretBytes)
+	}
 }
 
 func NewExtendedProtocol(cryptoCtx ubirch.Crypto, ctxManager ContextManager) (*ExtendedProtocol, error) {
