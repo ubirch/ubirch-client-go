@@ -88,14 +88,6 @@ func main() {
 		SubjectOrganization: conf.CSR_Organization,
 	}
 
-	// generate and register keys for known devices
-	if _, ok := ctxManager.(*handlers.FileManager); ok {
-		log.Panic("needs to be implemented")
-		//err = idHandler.InitIdentities(conf.Devices)
-		//if err != nil {
-		//	log.Fatal(err)
-		//}
-	}
 	signer := handlers.Signer{
 		Protocol: protocol,
 		Client:   client,
@@ -168,11 +160,6 @@ func main() {
 
 	// wait for all go routines of the waitgroup to return
 	if err = g.Wait(); err != nil {
-		log.Error(err)
-	}
-
-	// wrap up
-	if err = protocol.Close(); err != nil {
 		log.Error(err)
 	}
 

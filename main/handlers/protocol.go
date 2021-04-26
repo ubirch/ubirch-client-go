@@ -17,8 +17,6 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"os"
-
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/config"
 	"github.com/ubirch/ubirch-client-go/main/ent"
@@ -38,21 +36,13 @@ type ContextManager interface {
 
 	GetPublicKey(uid uuid.UUID) ([]byte, error)
 
-	GetSignature(uid uuid.UUID) ([]byte, error)
-
 	SendChainedUpp(ctx context.Context, msg HTTPRequest, s *Signer) (*HTTPResponse, error)
 
 	GetAuthToken(uid uuid.UUID) (string, error)
-
-	Close() error
 }
 
 func GetCtxManager(c config.Config) (ContextManager, error) {
-	if c.Dsn.Host != "" && c.Dsn.Db != "" && c.Dsn.User != "" {
 		return NewSqlDatabaseInfo(c.Dsn, c.SecretBytes)
-	} else {
-		return NewFileManager(c.ConfigDir, c.SecretBytes)
-	}
 }
 
 func NewExtendedProtocol(cryptoCtx ubirch.Crypto, ctxManager ContextManager) (*ExtendedProtocol, error) {
@@ -75,26 +65,6 @@ func (p *ExtendedProtocol) GetPublicKey(uid uuid.UUID) (pubKeyPEM []byte, err er
 	// todo sanity checks
 	return p.ContextManager.GetPublicKey(uid)
 
-}
-
-func (p *ExtendedProtocol) GetSignature(uid uuid.UUID) ([]byte, error) {
-	signature, err := p.ContextManager.GetSignature(uid)
-	if err != nil {
-		// todo this is a quick fix. in the future, we should make sure
-		//  that there is a signature for every known uuid
-		if os.IsNotExist(err) {
-			return make([]byte, p.SignatureLength()), nil
-		} else {
-			return nil, err
-		}
-	}
-
-	err = p.checkSignatureLen(signature)
-	if err != nil {
-		return nil, err
-	}
-
-	return signature, nil
 }
 
 func (p *ExtendedProtocol) checkSignatureLen(signature []byte) error {

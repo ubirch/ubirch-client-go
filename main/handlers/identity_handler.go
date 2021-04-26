@@ -103,10 +103,10 @@ type IdentityHandler struct {
 //	}
 //
 //	// register public key at the ubirch backend
-//	return i.registerPublicKey(privKeyPEM, uid, auth)
+//	return i.RegisterPublicKey(privKeyPEM, uid, auth)
 //}
 
-func (i *IdentityHandler) registerPublicKey(privKeyPEM []byte, uid uuid.UUID, auth string) error {
+func (i *IdentityHandler) RegisterPublicKey(privKeyPEM []byte, uid uuid.UUID, auth string) error {
 	cert, err := i.Protocol.GetSignedKeyRegistration(privKeyPEM, uid)
 	if err != nil {
 		return fmt.Errorf("error creating public key certificate: %v", err)

@@ -17,38 +17,15 @@ package handlers
 import (
 	"context"
 	"database/sql"
-	"database/sql/driver"
 	"encoding/base64"
 	"fmt"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
-	"github.com/ubirch/ubirch-client-go/main/config"
 	"github.com/ubirch/ubirch-client-go/main/ent"
-	"github.com/ubirch/ubirch-client-go/main/keystr"
 	"github.com/ubirch/ubirch-client-go/main/vars"
 	// postgres driver is imported for side effects
 	_ "github.com/lib/pq"
 )
-
-// Database is the interface that defines what methods a database has to
-// implement.
-type Database interface {
-	SetProtocolContext(proto driver.Valuer) error
-	GetProtocolContext(proto sql.Scanner) error
-
-	Close() error
-}
-
-// Database contains the postgres database connection, and offers methods
-// for interacting with the database.
-type DatabaseManager struct {
-	conn        string
-	client      Client
-	encKeyStore *keystr.EncryptedKeystore
-}
-
-// Ensure Database implements the ContextManager interface
-var _ ContextManager = (*DatabaseManager)(nil)
 
 func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
 	pg, err := sql.Open(vars.PostgreSql, dm.conn)
@@ -72,10 +49,6 @@ func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
 	return decryptedPrivatekey, nil
 }
 
-func (dm *DatabaseManager) SetPrivateKey(uid uuid.UUID, key []byte) error {
-	return nil
-}
-
 func (dm *DatabaseManager) GetPublicKey(uid uuid.UUID) ([]byte, error) {
 	pg, err := sql.Open(vars.PostgreSql, dm.conn)
 	if err != nil {
@@ -94,24 +67,6 @@ func (dm *DatabaseManager) GetPublicKey(uid uuid.UUID) ([]byte, error) {
 	return identity.PublicKey, nil
 }
 
-func (dm *DatabaseManager) GetSignature(uid uuid.UUID) ([]byte, error) {
-	pg, err := sql.Open(vars.PostgreSql, dm.conn)
-	if err != nil {
-		return nil, err
-	}
-	defer pg.Close()
-	var identity ent.Identity
-	if err = pg.QueryRow("SELECT * FROM identity WHERE uid = $1", uid.String()).
-		Scan(&identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.Signature, &identity.AuthToken); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil
-		} else {
-			return nil, err
-		}
-	}
-	return identity.Signature, nil
-}
-
 func (dm *DatabaseManager) GetAuthToken(uid uuid.UUID) (string, error) {
 	pg, err := sql.Open(vars.PostgreSql, dm.conn)
 	if err != nil {
@@ -128,10 +83,6 @@ func (dm *DatabaseManager) GetAuthToken(uid uuid.UUID) (string, error) {
 		}
 	}
 	return identity.AuthToken, nil
-}
-
-func (dm *DatabaseManager) Close() error {
-	panic("implement me")
 }
 
 func (dm *DatabaseManager) FetchIdentity(ctx context.Context, uid uuid.UUID) (*ent.Identity, error) {
@@ -165,7 +116,7 @@ func (dm *DatabaseManager) StoreIdentity(ctx context.Context, identity ent.Ident
 		return err
 	}
 
-	tx, err := db.BeginTx(ctx, nil)
+	tx, err := db.BeginTx(ctx, dm.options)
 	if err != nil {
 		return err
 	}
@@ -183,7 +134,7 @@ func (dm *DatabaseManager) StoreIdentity(ctx context.Context, identity ent.Ident
 		return fmt.Errorf("entry not unique, uuid already exits %s", identity.Uid)
 	}
 
-	if err = idHandler.registerPublicKey(identity.PrivateKey, parsedUuid, identity.AuthToken); err != nil {
+	if err = idHandler.RegisterPublicKey(identity.PrivateKey, parsedUuid, identity.AuthToken); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -215,7 +166,7 @@ func (dm *DatabaseManager) SendChainedUpp(ctx context.Context, msg HTTPRequest, 
 	}
 	defer db.Close()
 
-	tx, err := db.BeginTx(ctx, nil)
+	tx, err := db.BeginTx(ctx, dm.options)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -260,15 +211,4 @@ func (dm *DatabaseManager) SendChainedUpp(ctx context.Context, msg HTTPRequest, 
 	}
 
 	return &resp, tx.Commit()
-}
-
-// NewSqlDatabaseInfo takes a database connection string, returns a new initialized
-// database.
-func NewSqlDatabaseInfo(dsn config.DSN, secret []byte) (*DatabaseManager, error) {
-	dataSourceName := fmt.Sprintf("host=%s user=%s password=%s port=%d dbname=%s sslmode=disable",
-		dsn.Host, dsn.User, dsn.Password, vars.PostgreSqlPort, dsn.Db)
-
-	log.Print("preparing postgres usage")
-
-	return &DatabaseManager{conn: dataSourceName, encKeyStore: keystr.NewEncryptedKeystore(secret)}, nil
 }
