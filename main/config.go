@@ -284,7 +284,7 @@ func (c *Config) setDefaultURLs() error {
 // Returns without error if file does not exist.
 func (c *Config) loadIdentitiesFile() error {
 	// if file does not exist, return right away
-	if _, err := os.Stat(identitiesFile); os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(c.configDir, identitiesFile)); os.IsNotExist(err) {
 		return nil
 	}
 
