@@ -68,7 +68,7 @@ func createHashRequest(address string, authToken string, uuidString string, hash
 // or exits with error message
 func TestMain(m *testing.M) {
 	const (
-		configFile = "test_config.json"
+		configFile = "config/test_config.json"
 	)
 	// load the configuration
 	conf := Config{}
@@ -76,7 +76,7 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		log.Fatalf("\r\n" +
 			"###\r\n" +
-			"ERROR loading the configuration file,\r\n" +
+			"ERROR loading the configuration file: \r\n" + err.Error() + "'\r\n" +
 			"Please copy the 'sample_test_config.json' to '" + configFile + "'\r\n" +
 			"and enter the correct <UUID:AuthToken>, you want to test.\r\n\n" +
 			"The same configuration has to be used in the docker container,\r\n" +
