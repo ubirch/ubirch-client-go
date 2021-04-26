@@ -41,7 +41,7 @@ const (
 	authEnv  = "UBIRCH_AUTH_MAP" // {UUID: [key, token]} TODO: DEPRECATED
 	authFile = "auth.json"       // {UUID: [key, token]} TODO: DEPRECATED
 
-	identitiesFile = "identities.json" // [{ "uuid": "<uuid>", "password": "<auth>" }]
+	identitiesFileName = "identities.json" // [{ "uuid": "<uuid>", "password": "<auth>" }]
 
 	defaultTLSCertFile = "cert.pem"
 	defaultTLSKeyFile  = "key.pem"
@@ -283,12 +283,14 @@ func (c *Config) setDefaultURLs() error {
 // loadIdentitiesFile loads device identities from the identities JSON file.
 // Returns without error if file does not exist.
 func (c *Config) loadIdentitiesFile() error {
+	identitiesFile := filepath.Join(c.configDir, identitiesFileName)
+
 	// if file does not exist, return right away
 	if _, err := os.Stat(identitiesFile); os.IsNotExist(err) {
 		return nil
 	}
 
-	fileHandle, err := os.Open(filepath.Join(c.configDir, identitiesFile))
+	fileHandle, err := os.Open(identitiesFile)
 	if err != nil {
 		return err
 	}
