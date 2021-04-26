@@ -17,6 +17,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/ubirch/ubirch-client-go/main/config"
+	"github.com/ubirch/ubirch-client-go/main/handlers"
+	"github.com/ubirch/ubirch-client-go/main/uc"
 	"os"
 	"os/signal"
 	"syscall"
@@ -40,84 +43,77 @@ func shutdown(cancel context.CancelFunc) {
 	cancel()
 }
 
-func main() {
-	const (
-		Version    = "v2.0.0"
-		Build      = "local"
-		configFile = "config.json"
-	)
+const configFile = "./config/config.json"
 
+func main() {
 	var configDir string
 	if len(os.Args) > 1 {
 		configDir = os.Args[1]
 	}
 
 	log.SetFormatter(&log.JSONFormatter{})
-	log.Printf("UBIRCH client (%s, build=%s)", Version, Build)
+	log.Printf("UBIRCH client (%s, build=%s)", config.Version, config.Build)
 
 	// read configuration
-	conf := Config{}
+	conf := config.Config{}
 	err := conf.Load(configDir, configFile)
 	if err != nil {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
 
-	ctxManager, err := conf.GetCtxManager()
+	ctxManager, err := handlers.GetCtxManager(conf)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// initialize ubirch protocol
-	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: ctxManager,
-	}
+	cryptoCtx := &ubirch.ECDSACryptoContext{}
 
-	protocol, err := NewExtendedProtocol(cryptoCtx, ctxManager)
+	protocol, err := handlers.NewExtendedProtocol(cryptoCtx, ctxManager)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	client := &Client{
-		authServiceURL:     conf.Niomon,
-		verifyServiceURL:   conf.VerifyService,
-		keyServiceURL:      conf.KeyService,
-		identityServiceURL: conf.IdentityService,
+	client := &handlers.Client{
+		AuthServiceURL:     conf.Niomon,
+		VerifyServiceURL:   conf.VerifyService,
+		KeyServiceURL:      conf.KeyService,
+		IdentityServiceURL: conf.IdentityService,
 	}
 
-	idHandler := &IdentityHandler{
-		protocol:            protocol,
-		client:              client,
-		subjectCountry:      conf.CSR_Country,
-		subjectOrganization: conf.CSR_Organization,
+	idHandler := &handlers.IdentityHandler{
+		Protocol:            protocol,
+		Client:              client,
+		SubjectCountry:      conf.CSR_Country,
+		SubjectOrganization: conf.CSR_Organization,
 	}
 
-	// generate and register keys for known devices
-	err = idHandler.initIdentities(conf.Devices)
-	if err != nil {
-		log.Fatal(err)
+	signer := handlers.Signer{
+		Protocol: protocol,
+		Client:   client,
 	}
 
-	signer := Signer{
-		protocol: protocol,
-		client:   client,
+	verifier := handlers.Verifier{
+		Protocol:                      protocol,
+		Client:                        client,
+		VerifyFromKnownIdentitiesOnly: false, // TODO: make configurable
 	}
 
-	verifier := Verifier{
-		protocol:                      protocol,
-		client:                        client,
-		verifyFromKnownIdentitiesOnly: false, // TODO: make configurable
-	}
-
-	httpServer := HTTPServer{
-		router:   NewRouter(),
-		addr:     conf.TCP_addr,
+	httpServer := handlers.HTTPServer{
+		Router:   handlers.NewRouter(),
+		Addr:     conf.TCP_addr,
 		TLS:      conf.TLS,
-		certFile: conf.TLS_CertFile,
-		keyFile:  conf.TLS_KeyFile,
+		CertFile: conf.TLS_CertFile,
+		KeyFile:  conf.TLS_KeyFile,
 	}
-	if conf.CORS && isDevelopment { // never enable CORS on production stage
+	if conf.CORS && config.IsDevelopment { // never enable CORS on production stage
 		httpServer.SetUpCORS(conf.CORS_Origins, conf.Debug)
 	}
+
+	globals := handlers.Globals{
+		Version: config.Version,
+	}
+
 
 	// create a waitgroup that contains all asynchronous operations
 	// a cancellable context is used to stop the operations gracefully
@@ -127,26 +123,32 @@ func main() {
 	// set up graceful shutdown handling
 	go shutdown(cancel)
 
+	if _, ok := ctxManager.(*handlers.DatabaseManager); ok {
+		identity := createIdentityUseCases(globals, ctxManager, idHandler)
+		httpServer.Router.Put("/register", identity.handler.Put(identity.storeIdentity, identity.fetchIdentity))
+	}
+
 	// set up endpoint for chaining
-	httpServer.AddServiceEndpoint(ServerEndpoint{
-		Path: fmt.Sprintf("/{%s}", UUIDKey),
-		Service: &ChainingService{
+	httpServer.AddServiceEndpoint(handlers.ServerEndpoint{
+		Path: fmt.Sprintf("/{%s}", handlers.UUIDKey),
+		Service: &handlers.ChainingService{
 			Signer: &signer,
 		},
 	})
 
 	// set up endpoint for signing
-	httpServer.AddServiceEndpoint(ServerEndpoint{
-		Path: fmt.Sprintf("/{%s}/{%s}", UUIDKey, OperationKey),
-		Service: &SigningService{
+	httpServer.AddServiceEndpoint(handlers.ServerEndpoint{
+		Path: fmt.Sprintf("/{%s}/{%s}", handlers.UUIDKey, handlers.OperationKey),
+		Service: &handlers.SigningService{
+
 			Signer: &signer,
 		},
 	})
 
 	// set up endpoint for verification
-	httpServer.AddServiceEndpoint(ServerEndpoint{
-		Path: fmt.Sprintf("/%s", VerifyPath),
-		Service: &VerificationService{
+	httpServer.AddServiceEndpoint(handlers.ServerEndpoint{
+		Path: fmt.Sprintf("/%s", handlers.VerifyPath),
+		Service: &handlers.VerificationService{
 			Verifier: &verifier,
 		},
 	})
@@ -161,10 +163,19 @@ func main() {
 		log.Error(err)
 	}
 
-	// wrap up
-	if err = protocol.Close(); err != nil {
-		log.Error(err)
-	}
-
 	log.Info("shut down client")
+}
+
+type identities struct {
+	handler       handlers.Identity
+	storeIdentity handlers.StoreIdentity
+	fetchIdentity handlers.FetchIdentity
+}
+
+func createIdentityUseCases(globals handlers.Globals, mng handlers.ContextManager, handler *handlers.IdentityHandler) identities {
+	return identities{
+		handler:       handlers.NewIdentity(globals),
+		storeIdentity: uc.NewIdentityStorer(mng, handler),
+		fetchIdentity: uc.NewIdentityFetcher(mng),
+	}
 }
