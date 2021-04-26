@@ -2,6 +2,5 @@
   "devices": {
     "12345678-abcd-bcde-cdef-123456789abc": "12345678-abcd-bcde-cdef-123456789abc"
   },
-  "secret": "MTIzNDU2Nzg5MDEyMzQ1Ng==",
-  "env": "demo"
+  "secret": "sdSjtMh6C2oNgsiVcPx89RgcNYl8L6R9PhWU3iGIL+k="
 }
