@@ -33,7 +33,7 @@ type FileManager struct {
 	authTokenDir      string
 	identities        []ent.Identity
 	EncryptedKeystore *ubirch.EncryptedKeystore
-	mutex             *sync.Mutex
+	keystoreMutex     *sync.RWMutex
 }
 
 func (f *FileManager) SendChainedUpp(ctx context.Context, msg HTTPRequest, s *Signer) (*HTTPResponse, error) {
@@ -41,6 +41,9 @@ func (f *FileManager) SendChainedUpp(ctx context.Context, msg HTTPRequest, s *Si
 }
 
 func (f *FileManager) Exists(uid uuid.UUID) (bool, error) {
+	f.keystoreMutex.RLock()
+	defer f.keystoreMutex.RUnlock()
+
 	_, err := f.EncryptedKeystore.GetPrivateKey(uid)
 	if err != nil {
 		return false, nil
@@ -65,7 +68,7 @@ func NewFileManager(configDir string, secret []byte) (*FileManager, error) {
 		signatureDir:      filepath.Join(configDir, signatureDirName),
 		authTokenDir:      filepath.Join(configDir, authTokenDirName),
 		EncryptedKeystore: ubirch.NewEncryptedKeystore(secret),
-		mutex:             &sync.Mutex{},
+		keystoreMutex:     &sync.RWMutex{},
 	}
 
 	err := initDirectories([]string{f.signatureDir, f.authTokenDir})
@@ -93,22 +96,40 @@ func NewFileManager(configDir string, secret []byte) (*FileManager, error) {
 		return nil, err
 	}
 
+	ids, err := f.EncryptedKeystore.GetIDs()
+	if err != nil {
+		return nil, err
+	}
+	log.Infof("loaded %d existing keys from local file system", len(ids))
+
 	return f, nil
 }
 
 func (f *FileManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
+	f.keystoreMutex.RLock()
+	defer f.keystoreMutex.RUnlock()
+
 	return f.EncryptedKeystore.GetPrivateKey(uid)
 }
 
 func (f *FileManager) SetPrivateKey(uid uuid.UUID, key []byte) error {
+	f.keystoreMutex.Lock()
+	defer f.keystoreMutex.Unlock()
+
 	return f.EncryptedKeystore.SetPrivateKey(uid, key)
 }
 
 func (f *FileManager) GetPublicKey(uid uuid.UUID) ([]byte, error) {
+	f.keystoreMutex.RLock()
+	defer f.keystoreMutex.RUnlock()
+
 	return f.EncryptedKeystore.GetPublicKey(uid)
 }
 
 func (f *FileManager) SetPublicKey(uid uuid.UUID, key []byte) error {
+	f.keystoreMutex.Lock()
+	defer f.keystoreMutex.Unlock()
+
 	return f.EncryptedKeystore.SetPublicKey(uid, key)
 }
 
