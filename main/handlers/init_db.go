@@ -2,12 +2,13 @@ package handlers
 
 import (
 	"database/sql"
-	"database/sql/driver"
 	"fmt"
+	"github.com/google/uuid"
+	log "github.com/sirupsen/logrus"
 	"github.com/ubirch/ubirch-client-go/main/config"
+	"github.com/ubirch/ubirch-client-go/main/ent"
 	"github.com/ubirch/ubirch-client-go/main/keystr"
 	"github.com/ubirch/ubirch-client-go/main/vars"
-	"log"
 )
 
 const (
@@ -28,53 +29,24 @@ var CREATE = map[int]string{
 	//SQLite:   "CREATE TABLE identity (id INTEGER, datetime TEXT)",
 }
 
-// Database is the interface that defines what methods a database has to
-// implement.
-type Database interface {
-	SetProtocolContext(proto driver.Valuer) error
-	GetProtocolContext(proto sql.Scanner) error
-
-	Close() error
-}
-
-// Database contains the postgres database connection, and offers methods
-// for interacting with the database.
-type DatabaseManager struct {
-	options     *sql.TxOptions
-	conn        string
-	client      Client
-	encKeyStore *keystr.EncryptedKeystore
-}
-
 type Table struct {
 	exists bool
 }
-// Ensure Database implements the ContextManager interface
-var _ ContextManager = (*DatabaseManager)(nil)
 
-// NewSqlDatabaseInfo takes a database connection string, returns a new initialized
-// database.
-func NewSqlDatabaseInfo(dsn config.DSN, secret []byte) (*DatabaseManager, error) {
-	dataSourceName := fmt.Sprintf("host=%s user=%s password=%s port=%d dbname=%s sslmode=disable",
-		dsn.Host, dsn.User, dsn.Password, vars.PostgreSqlPort, dsn.Db)
-
-	log.Print("preparing postgres usage")
-
-	if err := checkForTable(dataSourceName); err != nil {
-		log.Panicf("could not create missing table in database: %v", err)
+func Migrate(c config.Config) error {
+	fileManager, err := NewFileManager(c.ConfigDir, c.SecretBytes16)
+	if err != nil {
+		return err
 	}
-
-	return &DatabaseManager{
-		options: &sql.TxOptions{
-			Isolation: sql.LevelRepeatableRead,
-			ReadOnly:  false,
-		},
-		conn:        dataSourceName,
-		encKeyStore: keystr.NewEncryptedKeystore(secret)}, nil
+	dbManager, err := NewSqlDatabaseInfo(c)
+	if err != nil {
+		return err
+	}
+	checkForTable(fileManager, dbManager)
 }
 
-func checkForTable(dsn string) error {
-	pg, err := sql.Open(vars.PostgreSql, dsn)
+func checkForTable(fm *FileManager, dm *DatabaseManager) error {
+	pg, err := sql.Open(vars.PostgreSql, dm.conn)
 	if err != nil {
 		return err
 	}
@@ -95,7 +67,7 @@ func checkForTable(dsn string) error {
 			return fmt.Errorf("scan rows error: %v", err)
 		}
 		if !table.exists {
-			log.Printf("database table %s doesn't exist creating table",vars.PostgreSqlTableName)
+			log.Printf("database table %s doesn't exist creating table", vars.PostgreSqlTableName)
 			if _, err = pg.Exec(CREATE[Postgres]); err != nil {
 				return err
 			}
@@ -104,4 +76,79 @@ func checkForTable(dsn string) error {
 		return fmt.Errorf("expected row not found")
 	}
 	return nil
+}
+
+func migrateIdentities(c config.Config, dsn string) error {
+	ks := keystr.NewEncryptedKeystore(c.SecretBytes)
+	pg, err := sql.Open(vars.PostgreSql, dsn)
+	if err != nil {
+		return err
+	}
+	defer pg.Close()
+	// create and register keys for identities
+	log.Infof("initializing %d identities...", len(c.Devices))
+	for name, auth := range c.Devices {
+		// make sure identity name is a valid UUID
+		uid, err := uuid.Parse(name)
+		if err != nil {
+			return fmt.Errorf("invalid identity name \"%s\" (not a UUID): %s", name, err)
+		}
+		id := ent.Identity{
+			Uid:        name,
+			PrivateKey: nil,
+			PublicKey:  nil,
+			Signature:  nil,
+			AuthToken:  auth,
+		}
+
+		err = decrypt8BitKey()
+		if err != nil {
+			return err
+		}
+
+		err = migrateIdentityToPostgres(id, ks)
+		if err != nil {
+			return err
+		}
+
+		// make sure that all auth tokens from config are being set (this is here for backwards compatibility)
+		//if _, ok := i.Protocol.ContextManager.(*FileManager); ok {
+		//	err = i.Protocol.SetAuthToken(uid, auth)
+		//	if err != nil {
+		//		return err
+		//	}
+		//}
+		//
+		//err = i.setIdentityAttributes(uid, auth)
+		//if err != nil {
+		//	return err
+		//}
+	}
+
+	return nil
+}
+
+func transformKeysToPkcs8() error {
+	return nil
+}
+
+func migrateIdentityToPostgres(identity ent.Identity, ks *keystr.EncryptedKeystore) error {
+	db, err := sql.Open(vars.PostgreSql, dm.conn)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	encryptedPrivateKey, err := ks.Encrypt(identity.PrivateKey)
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec("INSERT INTO identity (uid, private_key, public_key, signature, auth_token) VALUES ($1, $2, $3, $4, $5);",
+		&identity.Uid, encryptedPrivateKey, &identity.PublicKey, &genesisSignature, &identity.AuthToken)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit()
 }

@@ -20,6 +20,7 @@ import (
 	"github.com/ubirch/ubirch-client-go/main/config"
 	"github.com/ubirch/ubirch-client-go/main/handlers"
 	"github.com/ubirch/ubirch-client-go/main/uc"
+	"github.com/ubirch/ubirch-client-go/main/vars"
 	"os"
 	"os/signal"
 	"syscall"
@@ -47,8 +48,16 @@ const configFile = "./config/config.json"
 
 func main() {
 	var configDir string
+	migrate := false
+
 	if len(os.Args) > 1 {
-		configDir = os.Args[1]
+		for _, arg := range os.Args {
+			if arg == vars.MigrateArg {
+				migrate = true
+			} else {
+				configDir = arg
+			}
+		}
 	}
 
 	log.SetFormatter(&log.JSONFormatter{})
@@ -56,11 +65,17 @@ func main() {
 
 	// read configuration
 	conf := config.Config{}
-	err := conf.Load(configDir, configFile)
+	err := conf.Load(configDir, configFile, migrate)
 	if err != nil {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
-
+	if migrate {
+		err := handlers.Migrate(conf)
+		if err != nil {
+			log.Panicf("could not migrate, error %v", err)
+		}
+		os.Exit(0)
+	}
 	ctxManager, err := handlers.GetCtxManager(conf)
 	if err != nil {
 		log.Fatal(err)
@@ -113,7 +128,6 @@ func main() {
 	globals := handlers.Globals{
 		Version: config.Version,
 	}
-
 
 	// create a waitgroup that contains all asynchronous operations
 	// a cancellable context is used to stop the operations gracefully
