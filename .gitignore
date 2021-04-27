@@ -31,11 +31,10 @@ main/main
 
 /venv/
 /main/certs/
-/main/config/config.json
+/main/config.json
 /main/config/test_config.json
-/main/config/keys.json
+/main/keys.json
 /main/signatures/
 /main/tokens/
-/main/keys.json
 /main/protocol.json
 /main/identities.json
