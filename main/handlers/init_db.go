@@ -44,7 +44,8 @@ func Migrate(c config.Config) error {
 		return err
 	}
 
-	if err = checkForTable(dbManager); err != nil {
+	err = checkForTable(dbManager)
+	if err != nil {
 		return err
 	}
 
@@ -66,38 +67,36 @@ func getAllIdentitiesFromLegacyCtx(c config.Config) ([]ent.Identity, error) {
 
 	for _, uid := range uids {
 
-		priv, err := fileManager.GetPrivateKey(uid)
-		if err != nil {
-			return nil, err
+		i := ent.Identity{
+			Uid: uid.String(),
 		}
 
-		pub, err := fileManager.GetPublicKey(uid)
+		i.PrivateKey, err = fileManager.GetPrivateKey(uid)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%s: %v", uid, err)
 		}
 
-		sign, err := fileManager.GetSignature(uid)
+		i.PublicKey, err = fileManager.GetPublicKey(uid)
 		if err != nil {
-			if !os.IsNotExist(err) { // file exists but something went wrong
-				return nil, err
-			} else { // if file does not exist -> create genesis signature
-				sign = make([]byte, 64)
+			return nil, fmt.Errorf("%s: %v", uid, err)
+		}
+
+		i.Signature, err = fileManager.GetSignature(uid)
+		if err != nil {
+			if os.IsNotExist(err) { // if file does not exist -> create genesis signature
+				i.Signature = make([]byte, 64)
+			} else { // file exists but something went wrong
+				return nil, fmt.Errorf("%s: %v", uid, err)
 			}
 		}
 
-		auth, err := fileManager.GetAuthToken(uid)
-		if !os.IsNotExist(err) { // file exists but something went wrong
-			return nil, err
-		} else { // if file does not exist -> get auth token from config
-			auth = c.Devices[uid.String()]
-		}
-
-		i := ent.Identity{
-			Uid:        uid.String(),
-			PrivateKey: priv,
-			PublicKey:  pub,
-			Signature:  sign,
-			AuthToken:  auth,
+		i.AuthToken, err = fileManager.GetAuthToken(uid)
+		if err != nil {
+			if os.IsNotExist(err) { // if file does not exist -> get auth token from config
+				i.AuthToken = c.Devices[uid.String()]
+			} else { // file exists but something went wrong
+				return nil, fmt.Errorf("%s: %v", uid, err)
+			}
 		}
 
 		allIdentities = append(allIdentities, i)
@@ -149,12 +148,16 @@ func migrateIdentities(c config.Config, dbManager *DatabaseManager, identities [
 	}
 	defer pg.Close()
 
-	log.Infof("initializing %d identities...", len(c.Devices))
 	for _, id := range identities {
+
+		log.Infof("private key PEM: \n%+v", id.PrivateKey)
 		encryptedPrivateKey, err := ks.Encrypt(id.PrivateKey)
 		if err != nil {
 			return err
 		}
+
+		log.Infof("private key PEM: \n%+v", id.PrivateKey)
+
 		_, err = pg.Exec("INSERT INTO identity (uid, private_key, public_key, signature, auth_token) VALUES ($1, $2, $3, $4, $5);",
 			&id.Uid, encryptedPrivateKey, &id.PublicKey, &id.Signature, &id.AuthToken)
 		if err != nil {
