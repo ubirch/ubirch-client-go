@@ -149,15 +149,10 @@ func migrateIdentities(c config.Config, dbManager *DatabaseManager, identities [
 	defer pg.Close()
 
 	for _, id := range identities {
-
-		log.Infof("private key PEM: \n%+v", id.PrivateKey)
 		encryptedPrivateKey, err := ks.Encrypt(id.PrivateKey)
 		if err != nil {
 			return err
 		}
-
-		log.Infof("private key PEM: \n%+v", id.PrivateKey)
-
 		_, err = pg.Exec("INSERT INTO identity (uid, private_key, public_key, signature, auth_token) VALUES ($1, $2, $3, $4, $5);",
 			&id.Uid, encryptedPrivateKey, &id.PublicKey, &id.Signature, &id.AuthToken)
 		if err != nil {
