@@ -27,8 +27,10 @@ func (i Identity) Put(storeId StoreIdentity, fetchId FetchIdentity) http.Handler
 		ctx, cancel := contextFromRequest(r)
 		defer cancel()
 
-		//TODO: Create a correct auth handler
-		r.Header.Get(h.XAuthHeader)
+		authHeader := r.Header.Get(h.XAuthHeader)
+		if authHeader != i.globals.Config.AuthToken {
+			http.Error(w, fmt.Errorf("not authorized").Error(), http.StatusUnauthorized)
+		}
 
 		idPayload, err := IdentityFromBody(r.Body)
 		if err != nil {
