@@ -41,16 +41,18 @@ func NewSender(testCtx *TestCtx) *Sender {
 func (s *Sender) sendRequests(id string, auth string) {
 	defer s.testCtx.wg.Done()
 
-	url := baseURL + id + "/hash"
+	url1 := baseURL1 + id + "/hash"
+	url2 := baseURL2 + id + "/hash"
 	header := http.Header{}
 	header.Set("Content-Type", "application/octet-stream")
 	header.Set("X-Auth-Token", auth)
 
-	for i := 1; i <= numberOfRequestsPerID; i++ {
-		s.testCtx.wg.Add(1)
-		go s.sendAndCheckResponse(url, header)
+	for i := 1; i <= numberOfRequestsPerID/2; i++ {
+		s.testCtx.wg.Add(2)
+		go s.sendAndCheckResponse(url1, header)
+		go s.sendAndCheckResponse(url2, header)
 
-		time.Sleep(time.Second / requestsPerSecondPerID)
+		time.Sleep(2 * time.Second / requestsPerSecondPerID)
 	}
 }
 
