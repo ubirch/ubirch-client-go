@@ -44,14 +44,22 @@ func shutdown(cancel context.CancelFunc) {
 	cancel()
 }
 
-const configFile = "./config/config.json"
-
 func main() {
+	const (
+		Version    = "v2.0.0"
+		Build      = "local"
+		configFile = "config.json"
+	)
+
 	var configDir string
 	migrate := false
 
 	if len(os.Args) > 1 {
-		for _, arg := range os.Args {
+		for i, arg := range os.Args {
+			if i == 0 {
+				continue
+			}
+			log.Info(arg)
 			if arg == vars.MigrateArg {
 				migrate = true
 			} else {
@@ -61,7 +69,7 @@ func main() {
 	}
 
 	log.SetFormatter(&log.JSONFormatter{})
-	log.Printf("UBIRCH client (%s, build=%s)", config.Version, config.Build)
+	log.Printf("UBIRCH client (%s, build=%s)", Version, Build)
 
 	// read configuration
 	conf := config.Config{}
@@ -126,7 +134,7 @@ func main() {
 	}
 
 	globals := handlers.Globals{
-		Version: config.Version,
+		Version: Version,
 	}
 
 	// create a waitgroup that contains all asynchronous operations

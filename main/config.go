@@ -35,23 +35,17 @@ const (
 	DEMO_STAGE = "demo"
 	PROD_STAGE = "prod"
 
-	Version    = "v2.0.0"
-	Build      = "local"
-	configFile = "config.json"
-
 	defaultKeyURL      = "https://key.%s.ubirch.com/api/keyService/v1/pubkey"
 	defaultIdentityURL = "https://identity.%s.ubirch.com/api/certs/v1/csr/register"
 	defaultNiomonURL   = "https://niomon.%s.ubirch.com/"
 	defaultVerifyURL   = "https://verify.%s.ubirch.com/api/upp/verify"
 
-	identitiesFile = "identities.json" // [{ "uuid": "<uuid>", "password": "<auth>" }]
+	identitiesFileName = "identities.json" // [{ "uuid": "<uuid>", "password": "<auth>" }]
 
 	defaultTCPAddr = ":8080"
 
 	defaultTLSCertFile = "cert.pem"
 	defaultTLSKeyFile  = "key.pem"
-
-	defaultReqBufSize = 20 // expected max. waiting time for accepted requests at a throughput of 3rps => ~7sec
 )
 
 var IsDevelopment bool
@@ -61,7 +55,7 @@ type Config struct {
 	Devices          map[string]string `json:"devices"`          // maps UUIDs to backend auth tokens (mandatory)
 	Secret16Base64   string            `json:"secret"`           // secret used to encrypt the key store (mandatory) LEGACY
 	Secret32Base64   string            `json:"secret32"`         // secret used to encrypt the key store for DatabaseManager (mandatory)
-	Migrate          bool              `json:"migrate"`           // will be written if argumet of the calling process contains migrate
+	Migrate          bool              `json:"migrate"`          // will be written if argumet of the calling process contains migrate
 	Env              string            `json:"env"`              // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
 	Dsn              DSN               `json:"DSN"`              // "data source name" for database connection
 	CSR_Country      string            `json:"CSR_country"`      // subject country for public key Certificate Signing Requests
@@ -271,12 +265,14 @@ func (c *Config) setDefaultURLs() error {
 // loadIdentitiesFile loads device identities from the identities JSON file.
 // Returns without error if file does not exist.
 func (c *Config) loadIdentitiesFile() error {
+	identitiesFile := filepath.Join(c.ConfigDir, identitiesFileName)
+
 	// if file does not exist, return right away
 	if _, err := os.Stat(identitiesFile); os.IsNotExist(err) {
 		return nil
 	}
 
-	fileHandle, err := os.Open(filepath.Join(c.ConfigDir, identitiesFile))
+	fileHandle, err := os.Open(identitiesFile)
 	if err != nil {
 		return err
 	}
