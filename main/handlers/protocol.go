@@ -60,15 +60,25 @@ func NewExtendedProtocol(cryptoCtx ubirch.Crypto, ctxManager ContextManager) (*E
 	return p, nil
 }
 
-func (p *ExtendedProtocol) GetPrivateKey(uid uuid.UUID) (privKeyPEM []byte, err error) {
+func (p *ExtendedProtocol) StoreIdentity(ctx context.Context, identity ent.Identity, handler *IdentityHandler) error {
+	// check valid attributes
+	if len(identity.AuthToken) == 0 {
+		return fmt.Errorf("%s: empty token", identity.Uid)
+	}
+
+	err := p.checkSignatureLen(identity.Signature)
+	if err != nil {
+		return fmt.Errorf("%s: %v", identity.Uid, err)
+	}
+
 	// todo sanity checks
-	return p.ContextManager.GetPrivateKey(uid)
+
+	return p.ContextManager.StoreIdentity(ctx, identity, handler)
 }
 
 func (p *ExtendedProtocol) GetPublicKey(uid uuid.UUID) (pubKeyPEM []byte, err error) {
 	// todo sanity checks
 	return p.ContextManager.GetPublicKey(uid)
-
 }
 
 func (p *ExtendedProtocol) checkSignatureLen(signature []byte) error {
