@@ -174,7 +174,7 @@ func (v *Verifier) loadPublicKey(id uuid.UUID) (pubKeyPEM []byte, err error) {
 	// FIXME export methods through crypto interface
 	cryptoCtx, _ := v.Protocol.Crypto.(*ubirch.ECDSACryptoContext)
 
-	pubKeyPEM, err = cryptoCtx.PublicKeyToPEM(pubKeyBytes)
+	pubKeyPEM, err = cryptoCtx.PublicKeyBytesToPEM(pubKeyBytes)
 	if err != nil {
 		return nil, err
 	}
