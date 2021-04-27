@@ -7,10 +7,11 @@ import (
 )
 
 const (
-	baseURL                = "http://localhost:8080/"
+	baseURL1               = "http://localhost:8080/"
+	baseURL2               = "http://localhost:8088/"
 	configFile             = "config.json"
-	numberOfTestIDs        = 100
-	numberOfRequestsPerID  = 10
+	numberOfTestIDs        = 4
+	numberOfRequestsPerID  = 2
 	requestsPerSecondPerID = 1
 )
 
