@@ -84,11 +84,11 @@ func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
 			return nil, err
 		}
 	}
-	decryptedPrivatekey, err := dm.encKeyStore.Decrypt(identity.PrivateKey)
+	decryptedPrivateKey, err := dm.encKeyStore.Decrypt(identity.PrivateKey)
 	if err != nil {
 		return nil, err
 	}
-	return decryptedPrivatekey, nil
+	return decryptedPrivateKey, nil
 }
 
 func (dm *DatabaseManager) GetPublicKey(uid uuid.UUID) ([]byte, error) {
@@ -97,15 +97,15 @@ func (dm *DatabaseManager) GetPublicKey(uid uuid.UUID) ([]byte, error) {
 		return nil, err
 	}
 	defer pg.Close()
+
 	var identity ent.Identity
-	if err = pg.QueryRow("SELECT * FROM identity WHERE uid = $1", uid.String()).
-		Scan(&identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.Signature, &identity.AuthToken); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil
-		} else {
-			return nil, err
-		}
+
+	err = pg.QueryRow("SELECT * FROM identity WHERE uid = $1", uid.String()).
+		Scan(&identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.Signature, &identity.AuthToken)
+	if err != nil {
+		return nil, err
 	}
+
 	return identity.PublicKey, nil
 }
 
@@ -115,32 +115,31 @@ func (dm *DatabaseManager) GetAuthToken(uid uuid.UUID) (string, error) {
 		return "", err
 	}
 	defer pg.Close()
+
 	var identity ent.Identity
-	if err = pg.QueryRow("SELECT * FROM identity WHERE uid = $1", uid.String()).
-		Scan(&identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.Signature, &identity.AuthToken); err != nil {
-		if err == sql.ErrNoRows {
-			return "", nil
-		} else {
-			return "", err
-		}
+
+	err = pg.QueryRow("SELECT * FROM identity WHERE uid = $1", uid.String()).
+		Scan(&identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.Signature, &identity.AuthToken)
+	if err != nil {
+		return "", err
 	}
+
 	return identity.AuthToken, nil
 }
 
-func (dm *DatabaseManager) FetchIdentity(ctx context.Context, uid uuid.UUID) (*ent.Identity, error) {
+func (dm *DatabaseManager) FetchIdentity(uid uuid.UUID) (*ent.Identity, error) {
 	pg, err := sql.Open(vars.PostgreSql, dm.conn)
 	if err != nil {
 		return nil, err
 	}
 	defer pg.Close()
+
 	var identity ent.Identity
-	if err = pg.QueryRow("SELECT * FROM identity WHERE uid = $1", uid.String()).
-		Scan(&identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.Signature, &identity.AuthToken); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil
-		} else {
-			return nil, err
-		}
+
+	err = pg.QueryRow("SELECT * FROM identity WHERE uid = $1", uid.String()).
+		Scan(&identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.Signature, &identity.AuthToken)
+	if err != nil {
+		return nil, err
 	}
 
 	return &identity, nil

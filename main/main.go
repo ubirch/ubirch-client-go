@@ -134,6 +134,7 @@ func main() {
 	}
 
 	globals := handlers.Globals{
+		Config: conf,
 		Version: Version,
 	}
 

@@ -32,7 +32,7 @@ type ContextManager interface {
 	GetPrivateKey(uid uuid.UUID) ([]byte, error)
 
 	StoreIdentity(ctx context.Context, identity ent.Identity, handler *IdentityHandler) error
-	FetchIdentity(ctx context.Context, uid uuid.UUID) (*ent.Identity, error)
+	FetchIdentity(uid uuid.UUID) (*ent.Identity, error)
 
 	GetPublicKey(uid uuid.UUID) ([]byte, error)
 
@@ -60,24 +60,29 @@ func NewExtendedProtocol(cryptoCtx ubirch.Crypto, ctxManager ContextManager) (*E
 	return p, nil
 }
 
-func (p *ExtendedProtocol) StoreIdentity(ctx context.Context, identity ent.Identity, handler *IdentityHandler) error {
+func (p *ExtendedProtocol) StoreIdentity(ctx context.Context, id ent.Identity, handler *IdentityHandler) error {
 	// check valid attributes
-	if len(identity.AuthToken) == 0 {
-		return fmt.Errorf("%s: empty token", identity.Uid)
+	if len(id.AuthToken) == 0 {
+		return fmt.Errorf("%s: empty token", id.Uid)
 	}
 
-	err := p.checkSignatureLen(identity.Signature)
+	err := p.checkSignatureLen(id.Signature)
 	if err != nil {
-		return fmt.Errorf("%s: %v", identity.Uid, err)
+		return fmt.Errorf("%s: %v", id.Uid, err)
 	}
 
-	// todo sanity checks
+	if id.PrivateKey == nil || len(id.PrivateKey) == 0 {
+		return fmt.Errorf("private key is empty")
+	}
 
-	return p.ContextManager.StoreIdentity(ctx, identity, handler)
+	if id.PublicKey == nil || len(id.PublicKey) == 0 {
+		return fmt.Errorf("public key is empty")
+	}
+
+	return p.ContextManager.StoreIdentity(ctx, id, handler)
 }
 
 func (p *ExtendedProtocol) GetPublicKey(uid uuid.UUID) (pubKeyPEM []byte, err error) {
-	// todo sanity checks
 	return p.ContextManager.GetPublicKey(uid)
 }
 

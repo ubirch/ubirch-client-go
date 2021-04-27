@@ -51,7 +51,7 @@ func (f *FileManager) Exists(uid uuid.UUID) (bool, error) {
 	return true, nil
 }
 
-func (f *FileManager) FetchIdentity(ctx context.Context, uid uuid.UUID) (*ent.Identity, error) {
+func (f *FileManager) FetchIdentity(uid uuid.UUID) (*ent.Identity, error) {
 	panic("implement me")
 }
 
