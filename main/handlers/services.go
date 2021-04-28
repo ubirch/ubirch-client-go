@@ -63,8 +63,7 @@ func (c *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) 
 	var msg HTTPRequest
 	var err error
 
-	ctx, cancel := contextFromRequest(r)
-	defer cancel()
+	ctx := r.Context()
 
 	msg.ID, err = getUUID(r)
 	if err != nil {
@@ -74,12 +73,14 @@ func (c *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) 
 
 	msg.Auth, err = checkAuth(r, msg.ID, c.Protocol)
 	if err != nil {
+		log.Errorf("something went wrong: %v",err)
 		Error(msg.ID, w, err, http.StatusUnauthorized)
 		return
 	}
 
 	msg.Hash, err = getHash(r)
 	if err != nil {
+		log.Errorf("something went wrong get hash: %v",err)
 		Error(msg.ID, w, err, http.StatusBadRequest)
 		return
 	}
@@ -87,6 +88,7 @@ func (c *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) 
 	// todo here goes the waiting loop
 	resp, err := c.Protocol.ContextManager.SendChainedUpp(ctx, msg, c.Signer)
 	if err != nil {
+		log.Errorf("something went wrong send chain: %v",err)
 		Error(msg.ID, w, err, http.StatusInternalServerError)
 		return
 	}

@@ -55,7 +55,7 @@ type Config struct {
 	Devices          map[string]string `json:"devices"`          // maps UUIDs to backend auth tokens (mandatory)
 	Secret16Base64   string            `json:"secret"`           // secret used to encrypt the key store (mandatory) LEGACY
 	Secret32Base64   string            `json:"secret32"`         // secret used to encrypt the key store for DatabaseManager (mandatory)
-	AuthToken        string            `json:"authToken"`         // secret used to encrypt the key store for DatabaseManager (mandatory)
+	RegisterAuth     string            `json:"registerAuth"`     // auth token needed for new identity registration
 	Migrate          bool              `json:"migrate"`          // will be written if argumet of the calling process contains migrate
 	Env              string            `json:"env"`              // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
 	Dsn              DSN               `json:"DSN"`              // "data source name" for database connection
@@ -175,6 +175,10 @@ func (c *Config) checkMandatory() error {
 
 	if len(c.SecretBytes32) != secretLength32 {
 		return fmt.Errorf("secret length must be %d bytes (is %d)", secretLength32, len(c.SecretBytes32))
+	}
+
+	if len(c.RegisterAuth) == 0 {
+		return fmt.Errorf("auth token for register wasn't set")
 	}
 
 	return nil

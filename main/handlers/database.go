@@ -61,6 +61,9 @@ func NewSqlDatabaseInfo(c config.Config) (*DatabaseManager, error) {
 	if err != nil {
 		return nil, err
 	}
+	//pg.SetMaxOpenConns(100)
+	//pg.SetMaxIdleConns(100)
+	//pg.SetConnMaxLifetime(5*time.Minute)
 	if err = pg.Ping(); err != nil {
 		return nil, err
 	}
@@ -84,8 +87,8 @@ func NewSqlDatabaseInfo(c config.Config) (*DatabaseManager, error) {
 func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
 
 	var identity ent.Identity
-	if err := dm.db.QueryRow("SELECT * FROM identity WHERE uid = $1", uid.String()).
-		Scan(&identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.Signature, &identity.AuthToken); err != nil {
+	if err := dm.db.QueryRow("SELECT private_key FROM identity WHERE uid = $1", uid.String()).
+		Scan(&identity.PrivateKey); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		} else {
@@ -103,8 +106,8 @@ func (dm *DatabaseManager) GetPublicKey(uid uuid.UUID) ([]byte, error) {
 
 	var identity ent.Identity
 
-	err := dm.db.QueryRow("SELECT * FROM identity WHERE uid = $1", uid.String()).
-		Scan(&identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.Signature, &identity.AuthToken)
+	err := dm.db.QueryRow("SELECT public_key FROM identity WHERE uid = $1", uid.String()).
+		Scan(&identity.PublicKey)
 	if err != nil {
 		return nil, err
 	}
@@ -116,8 +119,8 @@ func (dm *DatabaseManager) GetAuthToken(uid uuid.UUID) (string, error) {
 
 	var identity ent.Identity
 
-	err := dm.db.QueryRow("SELECT * FROM identity WHERE uid = $1", uid.String()).
-		Scan(&identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.Signature, &identity.AuthToken)
+	err := dm.db.QueryRow("SELECT auth_token FROM identity WHERE uid = $1", uid.String()).
+		Scan(&identity.AuthToken)
 	if err != nil {
 		return "", err
 	}
@@ -131,6 +134,9 @@ func (dm *DatabaseManager) FetchIdentity(uid uuid.UUID) (*ent.Identity, error) {
 	err := dm.db.QueryRow("SELECT * FROM identity WHERE uid = $1", uid.String()).
 		Scan(&identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.Signature, &identity.AuthToken)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
 		return nil, err
 	}
 

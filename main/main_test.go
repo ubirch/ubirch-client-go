@@ -73,7 +73,7 @@ func TestMain(m *testing.M) {
 	)
 	// load the configuration
 	conf := config.Config{}
-	err := conf.Load(".", configFile)
+	err := conf.Load(".", configFile, false)
 	if err != nil {
 		log.Fatalf("\r\n" +
 			"###\r\n" +

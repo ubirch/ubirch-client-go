@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -11,8 +12,8 @@ const (
 	baseURL2               = "http://localhost:8088/"
 	configFile             = "config.json"
 	numberOfTestIDs        = 4
-	numberOfRequestsPerID  = 2
-	requestsPerSecondPerID = 1
+	numberOfRequestsPerID  = 100
+	requestsPerSecondPerID = 20
 )
 
 func main() {
@@ -20,6 +21,7 @@ func main() {
 	sender := NewSender(testCtx)
 
 	for id, auth := range testCtx.identities {
+		fmt.Println(id)
 		err := sender.register(id, auth, testCtx.registerAuth)
 		if err != nil {
 			log.Fatal(err)

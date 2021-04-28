@@ -39,7 +39,7 @@ func NewSender(testCtx *TestCtx) *Sender {
 }
 
 func (s *Sender) register(id string, auth string, registerAuth string) error {
-	url := baseURL1 + "/register"
+	url := baseURL1 + "register"
 
 	header := http.Header{}
 	header.Set("Content-Type", "application/json")
@@ -55,7 +55,7 @@ func (s *Sender) register(id string, auth string, registerAuth string) error {
 		return err
 	}
 
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(data))
+	req, err := http.NewRequest(http.MethodPut, url, bytes.NewBuffer(data))
 	if err != nil {
 		return err
 	}
@@ -70,9 +70,7 @@ func (s *Sender) register(id string, auth string, registerAuth string) error {
 	//noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
-		return fmt.Errorf(resp.Status)
-	}
+	log.Infof("id:%s resp:%s",id,resp.Status)
 
 	return nil
 }
@@ -137,7 +135,7 @@ func (s *Sender) sendRequest(url string, header http.Header, hash []byte) (Signi
 
 	if resp.StatusCode != 200 {
 		s.testCtx.failCounter.StatusCodes <- resp.Status
-		return SigningResponse{}, fmt.Errorf(resp.Status)
+		return SigningResponse{}, fmt.Errorf(resp.Status,":",resp.Body,":", resp.Header)
 	}
 
 	clientResponse := SigningResponse{}

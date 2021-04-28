@@ -53,16 +53,16 @@ func main() {
 
 	var configDir string
 	migrate := false
+	diffPort := false
 
 	if len(os.Args) > 1 {
-		for i, arg := range os.Args {
-			if i == 0 {
-				continue
-			}
+		for _, arg := range os.Args[1:] {
 			log.Info(arg)
 			if arg == vars.MigrateArg {
 				migrate = true
-			} else {
+			} else if arg == "88"{
+				diffPort = true
+			}else {
 				configDir = arg
 			}
 		}
@@ -76,6 +76,9 @@ func main() {
 	err := conf.Load(configDir, configFile, migrate)
 	if err != nil {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
+	}
+	if diffPort {
+		conf.TCP_addr = ":8088"
 	}
 	if migrate {
 		err := handlers.Migrate(conf)
@@ -147,6 +150,7 @@ func main() {
 	go shutdown(cancel)
 
 	if _, ok := ctxManager.(*handlers.DatabaseManager); ok {
+		fmt.Println("dataBaseManager")
 		identity := createIdentityUseCases(globals, ctxManager, idHandler)
 		httpServer.Router.Put("/register", identity.handler.Put(identity.storeIdentity, identity.fetchIdentity))
 	}
