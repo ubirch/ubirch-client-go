@@ -43,7 +43,7 @@ type Database interface {
 // for interacting with the database.
 type DatabaseManager struct {
 	options     *sql.TxOptions
-	conn        string
+	db          *sql.DB
 	client      Client
 	encKeyStore *keystr.EncryptedKeystore
 }
@@ -57,6 +57,14 @@ func NewSqlDatabaseInfo(c config.Config) (*DatabaseManager, error) {
 	dataSourceName := fmt.Sprintf("host=%s user=%s password=%s port=%d dbname=%s sslmode=disable",
 		c.Dsn.Host, c.Dsn.User, c.Dsn.Password, vars.PostgreSqlPort, c.Dsn.Db)
 
+	pg, err := sql.Open(vars.PostgreSql, dataSourceName)
+	if err != nil {
+		return nil, err
+	}
+	defer pg.Close()
+	if err = pg.Ping(); err != nil {
+		return nil, err
+	}
 	log.Print("preparing postgres usage")
 
 	return &DatabaseManager{
@@ -65,18 +73,14 @@ func NewSqlDatabaseInfo(c config.Config) (*DatabaseManager, error) {
 			ReadOnly:  false,
 		},
 
-		conn:        dataSourceName,
+		db:          pg,
 		encKeyStore: keystr.NewEncryptedKeystore(c.SecretBytes32)}, nil
 }
 
 func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
-	pg, err := sql.Open(vars.PostgreSql, dm.conn)
-	if err != nil {
-		return nil, err
-	}
-	defer pg.Close()
+
 	var identity ent.Identity
-	if err = pg.QueryRow("SELECT * FROM identity WHERE uid = $1", uid.String()).
+	if err := dm.db.QueryRow("SELECT * FROM identity WHERE uid = $1", uid.String()).
 		Scan(&identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.Signature, &identity.AuthToken); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -92,15 +96,10 @@ func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
 }
 
 func (dm *DatabaseManager) GetPublicKey(uid uuid.UUID) ([]byte, error) {
-	pg, err := sql.Open(vars.PostgreSql, dm.conn)
-	if err != nil {
-		return nil, err
-	}
-	defer pg.Close()
 
 	var identity ent.Identity
 
-	err = pg.QueryRow("SELECT * FROM identity WHERE uid = $1", uid.String()).
+	err := dm.db.QueryRow("SELECT * FROM identity WHERE uid = $1", uid.String()).
 		Scan(&identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.Signature, &identity.AuthToken)
 	if err != nil {
 		return nil, err
@@ -110,15 +109,10 @@ func (dm *DatabaseManager) GetPublicKey(uid uuid.UUID) ([]byte, error) {
 }
 
 func (dm *DatabaseManager) GetAuthToken(uid uuid.UUID) (string, error) {
-	pg, err := sql.Open(vars.PostgreSql, dm.conn)
-	if err != nil {
-		return "", err
-	}
-	defer pg.Close()
 
 	var identity ent.Identity
 
-	err = pg.QueryRow("SELECT * FROM identity WHERE uid = $1", uid.String()).
+	err := dm.db.QueryRow("SELECT * FROM identity WHERE uid = $1", uid.String()).
 		Scan(&identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.Signature, &identity.AuthToken)
 	if err != nil {
 		return "", err
@@ -128,15 +122,9 @@ func (dm *DatabaseManager) GetAuthToken(uid uuid.UUID) (string, error) {
 }
 
 func (dm *DatabaseManager) FetchIdentity(uid uuid.UUID) (*ent.Identity, error) {
-	pg, err := sql.Open(vars.PostgreSql, dm.conn)
-	if err != nil {
-		return nil, err
-	}
-	defer pg.Close()
-
 	var identity ent.Identity
 
-	err = pg.QueryRow("SELECT * FROM identity WHERE uid = $1", uid.String()).
+	err := dm.db.QueryRow("SELECT * FROM identity WHERE uid = $1", uid.String()).
 		Scan(&identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.Signature, &identity.AuthToken)
 	if err != nil {
 		return nil, err
@@ -146,18 +134,13 @@ func (dm *DatabaseManager) FetchIdentity(uid uuid.UUID) (*ent.Identity, error) {
 }
 
 func (dm *DatabaseManager) StoreIdentity(ctx context.Context, identity ent.Identity, idHandler *IdentityHandler) error {
-	db, err := sql.Open(vars.PostgreSql, dm.conn)
-	if err != nil {
-		return err
-	}
-	defer db.Close()
 
 	parsedUuid, err := uuid.Parse(identity.Uid)
 	if err != nil {
 		return err
 	}
 
-	tx, err := db.BeginTx(ctx, dm.options)
+	tx, err := dm.db.BeginTx(ctx, dm.options)
 	if err != nil {
 		return err
 	}
@@ -201,13 +184,7 @@ func (dm *DatabaseManager) StoreIdentity(ctx context.Context, identity ent.Ident
 func (dm *DatabaseManager) SendChainedUpp(ctx context.Context, msg HTTPRequest, s *Signer) (*HTTPResponse, error) {
 	log.Infof("%s: anchor hash [chained]: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
-	db, err := sql.Open(vars.PostgreSql, dm.conn)
-	if err != nil {
-		return nil, err
-	}
-	defer db.Close()
-
-	tx, err := db.BeginTx(ctx, dm.options)
+	tx, err := dm.db.BeginTx(ctx, dm.options)
 	if err != nil {
 		log.Fatal(err)
 	}
