@@ -13,7 +13,7 @@ const (
 	configFile             = "config.json"
 	numberOfTestIDs        = 4
 	numberOfRequestsPerID  = 100
-	requestsPerSecondPerID = 20
+	requestsPerSecondPerID = 25
 )
 
 func main() {
