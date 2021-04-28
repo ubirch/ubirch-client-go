@@ -19,6 +19,13 @@ func main() {
 	testCtx := NewTestCtx()
 	sender := NewSender(testCtx)
 
+	for id, auth := range testCtx.identities {
+		err := sender.register(id, auth, testCtx.registerAuth)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
 	log.Infof("%d identities, %d requests each => sending [ %d ] requests", len(testCtx.identities), numberOfRequestsPerID, len(testCtx.identities)*numberOfRequestsPerID)
 	log.Infof("%3d requests per second per identity", requestsPerSecondPerID)
 	log.Infof("%3d requests per second overall", requestsPerSecondPerID*numberOfTestIDs)

@@ -3,12 +3,11 @@ package main
 import (
 	"encoding/json"
 	"os"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type Config struct {
-	Devices map[string]string `json:"devices"`
+	Devices      map[string]string `json:"devices"`
+	RegisterAuth string            `json:"registerAuth"`
 }
 
 func (c *Config) Load(filename string) error {
@@ -21,13 +20,7 @@ func (c *Config) Load(filename string) error {
 	return json.NewDecoder(fileHandle).Decode(c)
 }
 
-func getTestIdentities() map[string]string {
-	c := Config{}
-	err := c.Load(configFile)
-	if err != nil {
-		log.Fatalf("ERROR: unable to load configuration: %s", err)
-	}
-
+func getTestIdentities(c *Config) map[string]string {
 	testIdentities := make(map[string]string, numberOfTestIDs)
 
 	for uid, auth := range c.Devices {

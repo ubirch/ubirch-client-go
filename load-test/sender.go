@@ -38,6 +38,45 @@ func NewSender(testCtx *TestCtx) *Sender {
 	}
 }
 
+func (s *Sender) register(id string, auth string, registerAuth string) error {
+	url := baseURL1 + "/register"
+
+	header := http.Header{}
+	header.Set("Content-Type", "application/json")
+	header.Set("X-Auth-Token", registerAuth)
+
+	data_map := map[string]string{
+		"uuid":     id,
+		"password": auth,
+	}
+
+	data, err := json.Marshal(data_map)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(data))
+	if err != nil {
+		return err
+	}
+
+	req.Header = header
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+
+	//noinspection GoUnhandledErrorResult
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return fmt.Errorf(resp.Status)
+	}
+
+	return nil
+}
+
 func (s *Sender) sendRequests(id string, auth string) {
 	defer s.testCtx.wg.Done()
 
