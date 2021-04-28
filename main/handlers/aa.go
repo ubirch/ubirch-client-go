@@ -6,6 +6,6 @@ import (
 	"github.com/ubirch/ubirch-client-go/main/ent"
 )
 
-type FetchIdentity func(ctx context.Context, uid uuid.UUID) (*ent.Identity, error)
+type FetchIdentity func(uid uuid.UUID) (*ent.Identity, error)
 
 type StoreIdentity func(ctx context.Context, uid uuid.UUID, authKey string) error

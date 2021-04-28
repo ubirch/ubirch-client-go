@@ -34,10 +34,10 @@ type Table struct {
 }
 
 func Migrate(c config.Config) error {
-	identitiesToPort, err := getAllIdentitiesFromLegacyCtx(c)
-	if err != nil {
-		return err
-	}
+	//identitiesToPort, err := getAllIdentitiesFromLegacyCtx(c)
+	//if err != nil {
+	//	return err
+	//}
 
 	dbManager, err := NewSqlDatabaseInfo(c)
 	if err != nil {
@@ -48,8 +48,8 @@ func Migrate(c config.Config) error {
 	if err != nil {
 		return err
 	}
-
-	return migrateIdentities(c, dbManager, identitiesToPort)
+	return err
+	//return migrateIdentities(c, dbManager, identitiesToPort)
 }
 
 func getAllIdentitiesFromLegacyCtx(c config.Config) ([]ent.Identity, error) {
