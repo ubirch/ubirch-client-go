@@ -38,3 +38,4 @@ main/main
 /main/tokens/
 /main/protocol.json
 /main/identities.json
+/load-test/config.json
