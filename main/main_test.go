@@ -10,6 +10,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/ubirch/ubirch-client-go/main/config"
 	"io/ioutil"
 	insecuremathrand "math/rand"
 	"net/http"
@@ -71,8 +72,8 @@ func TestMain(m *testing.M) {
 		configFile = "config/test_config.json"
 	)
 	// load the configuration
-	conf := Config{}
-	err := conf.Load(".", configFile)
+	conf := config.Config{}
+	err := conf.Load(".", configFile, false)
 	if err != nil {
 		log.Fatalf("\r\n" +
 			"###\r\n" +

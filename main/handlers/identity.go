@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/google/uuid"
+	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-client-go/main/handlers/httphelper"
 	"io"
 	"net/http"
@@ -28,7 +29,7 @@ func (i Identity) Put(storeId StoreIdentity, fetchId FetchIdentity) http.Handler
 		defer cancel()
 
 		authHeader := r.Header.Get(h.XAuthHeader)
-		if authHeader != i.globals.Config.AuthToken {
+		if authHeader != i.globals.Config.RegisterAuth {
 			http.Error(w, fmt.Errorf("not authorized").Error(), http.StatusUnauthorized)
 		}
 
@@ -50,11 +51,13 @@ func (i Identity) Put(storeId StoreIdentity, fetchId FetchIdentity) http.Handler
 			return
 		}
 		if id != nil {
-			h.Respond406(w, fmt.Errorf("uuid already exists in database: %v", id.Uid).Error())
+			http.Error(w, fmt.Errorf("uuid already exists in database: %v", id.Uid).Error(), http.StatusConflict)
 			return
 		}
 
+		log.Infof("register new identity")
 		if err := storeId(ctx, parseUuid, idPayload.Pwd); err != nil {
+			log.Errorf("store new identity error: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -69,7 +72,6 @@ func IdentityFromBody(in io.ReadCloser) (IdentityPayload, error) {
 	if err := decoder.Decode(&payload); err != nil {
 		return IdentityPayload{}, err
 	}
-	fmt.Println(payload)
 	if len(payload.Pwd) == 0 {
 		return IdentityPayload{}, fmt.Errorf("empty password")
 	}
