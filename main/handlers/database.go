@@ -61,7 +61,7 @@ func NewSqlDatabaseInfo(c config.Config) (*DatabaseManager, error) {
 
 	return &DatabaseManager{
 		options: &sql.TxOptions{
-			Isolation: sql.LevelRepeatableRead,
+			Isolation: sql.LevelReadCommitted,
 			ReadOnly:  false,
 		},
 
@@ -163,7 +163,7 @@ func (dm *DatabaseManager) StoreIdentity(ctx context.Context, identity ent.Ident
 	}
 
 	var existingId ent.Identity
-	if err = tx.QueryRow("SELECT uid FROM identity WHERE uid = $1", identity.Uid).Scan(&existingId.Uid); err != nil {
+	if err = tx.QueryRow("SELECT uid FROM identity WHERE uid = $1 FOR UPDATE", identity.Uid).Scan(&existingId.Uid); err != nil {
 		if err == sql.ErrNoRows {
 			// there were no rows, but otherwise no error occurred
 		} else {
@@ -213,7 +213,7 @@ func (dm *DatabaseManager) SendChainedUpp(ctx context.Context, msg HTTPRequest, 
 	}
 
 	var id ent.Identity
-	if err = tx.QueryRow("SELECT * FROM identity WHERE uid = $1", msg.ID).Scan(
+	if err = tx.QueryRow("SELECT * FROM identity WHERE uid = $1 FOR NO KEY UPDATE", msg.ID).Scan(
 		&id.Uid, &id.PrivateKey, &id.PublicKey, &id.Signature, &id.AuthToken); err != nil {
 		tx.Rollback()
 		return nil, err
