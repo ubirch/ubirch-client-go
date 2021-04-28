@@ -61,20 +61,24 @@ func NewSqlDatabaseInfo(c config.Config) (*DatabaseManager, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer pg.Close()
 	if err = pg.Ping(); err != nil {
 		return nil, err
 	}
+
 	log.Print("preparing postgres usage")
+
+	keystore, err := keystr.NewEncryptedKeystore(c.SecretBytes32)
+	if err != nil {
+		return nil, err
+	}
 
 	return &DatabaseManager{
 		options: &sql.TxOptions{
 			Isolation: sql.LevelReadCommitted,
 			ReadOnly:  false,
 		},
-
 		db:          pg,
-		encKeyStore: keystr.NewEncryptedKeystore(c.SecretBytes32)}, nil
+		encKeyStore: keystore}, nil
 }
 
 func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
