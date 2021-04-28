@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"database/sql"
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/ubirch/ubirch-client-go/main/config"
@@ -34,10 +33,10 @@ type Table struct {
 }
 
 func Migrate(c config.Config) error {
-	//identitiesToPort, err := getAllIdentitiesFromLegacyCtx(c)
-	//if err != nil {
-	//	return err
-	//}
+	identitiesToPort, err := getAllIdentitiesFromLegacyCtx(c)
+	if err != nil {
+		return err
+	}
 
 	dbManager, err := NewSqlDatabaseInfo(c)
 	if err != nil {
@@ -48,8 +47,8 @@ func Migrate(c config.Config) error {
 	if err != nil {
 		return err
 	}
-	return err
-	//return migrateIdentities(c, dbManager, identitiesToPort)
+
+	return migrateIdentities(c, dbManager, identitiesToPort)
 }
 
 func getAllIdentitiesFromLegacyCtx(c config.Config) ([]ent.Identity, error) {
@@ -107,44 +106,32 @@ func getAllIdentitiesFromLegacyCtx(c config.Config) ([]ent.Identity, error) {
 
 // TODO: check if there is not an more elegant way of checking for tables
 func checkForTable(dm *DatabaseManager) error {
-	pg, err := sql.Open(vars.PostgreSql, dm.conn)
-	if err != nil {
-		return err
-	}
-	defer pg.Close()
-	if err = pg.Ping(); err != nil {
-		return err
-	}
+
 	var table Table
 	query := fmt.Sprintf("SELECT to_regclass('%s') IS NOT NULL", vars.PostgreSqlTableName)
 
-	if err = pg.QueryRow(query).Scan(&table.exists); err != nil {
+	if err := dm.db.QueryRow(query).Scan(&table.exists); err != nil {
 		return fmt.Errorf("scan rows error: %v", err)
 	}
 	if !table.exists {
 		log.Printf("database table %s doesn't exist creating table", vars.PostgreSqlTableName)
-		if _, err = pg.Exec(CREATE[Postgres]); err != nil {
+		if _, err := dm.db.Exec(CREATE[Postgres]); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func migrateIdentities(c config.Config, dbManager *DatabaseManager, identities []ent.Identity) error {
+func migrateIdentities(c config.Config, dm *DatabaseManager, identities []ent.Identity) error {
 
 	ks := keystr.NewEncryptedKeystore(c.SecretBytes32)
-	pg, err := sql.Open(vars.PostgreSql, dbManager.conn)
-	if err != nil {
-		return err
-	}
-	defer pg.Close()
 
 	for _, id := range identities {
 		encryptedPrivateKey, err := ks.Encrypt(id.PrivateKey)
 		if err != nil {
 			return err
 		}
-		_, err = pg.Exec("INSERT INTO identity (uid, private_key, public_key, signature, auth_token) VALUES ($1, $2, $3, $4, $5);",
+		_, err = dm.db.Exec("INSERT INTO identity (uid, private_key, public_key, signature, auth_token) VALUES ($1, $2, $3, $4, $5);",
 			&id.Uid, encryptedPrivateKey, &id.PublicKey, &id.Signature, &id.AuthToken)
 		if err != nil {
 			return err
