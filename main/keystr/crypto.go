@@ -15,13 +15,13 @@ type EncryptedKeystore struct {
 }
 
 // NewEncryptedKeystore returns a new freshly initialized Keystore
-func NewEncryptedKeystore(secret []byte) *EncryptedKeystore {
+func NewEncryptedKeystore(secret []byte) (*EncryptedKeystore, error) {
 	if len(secret) != 32 {
-		return nil
+		return nil,  fmt.Errorf("secret length must be 32 bytes (is %d)", len(secret))
 	}
 	return &EncryptedKeystore{
 		Secret:   secret,
-	}
+	}, nil
 }
 
 func (enc *EncryptedKeystore) Encrypt(privateKeyPem []byte) ([]byte, error) {
