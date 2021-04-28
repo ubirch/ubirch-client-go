@@ -50,8 +50,6 @@ type HTTPResponse struct {
 	Content    []byte      `json:"content"`
 }
 
-
-
 type ChainingService struct {
 	*Signer
 }
@@ -71,16 +69,24 @@ func (c *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	msg.Auth, err = checkAuth(r, msg.ID, c.Protocol)
+	// todo here we need to check if the UUID is known
+
+	idAuth, err := c.Protocol.GetAuthToken(msg.ID)
 	if err != nil {
-		log.Errorf("something went wrong: %v",err)
+		Error(msg.ID, w, err, http.StatusInternalServerError)
+		return
+	}
+
+	msg.Auth, err = checkAuth(r, idAuth)
+	if err != nil {
+		log.Errorf("something went wrong: %v", err)
 		Error(msg.ID, w, err, http.StatusUnauthorized)
 		return
 	}
 
 	msg.Hash, err = getHash(r)
 	if err != nil {
-		log.Errorf("something went wrong get hash: %v",err)
+		log.Errorf("something went wrong get hash: %v", err)
 		Error(msg.ID, w, err, http.StatusBadRequest)
 		return
 	}
@@ -88,7 +94,7 @@ func (c *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) 
 	// todo here goes the waiting loop
 	resp, err := c.Protocol.ContextManager.SendChainedUpp(ctx, msg, c.Signer)
 	if err != nil {
-		log.Errorf("something went wrong send chain: %v",err)
+		log.Errorf("something went wrong send chain: %v", err)
 		Error(msg.ID, w, err, http.StatusInternalServerError)
 		return
 	}
@@ -112,7 +118,15 @@ func (s *SigningService) HandleRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg.Auth, err = checkAuth(r, msg.ID, s.Protocol)
+	// todo here we need to check if the UUID is known
+
+	idAuth, err := s.Protocol.GetAuthToken(msg.ID)
+	if err != nil {
+		Error(msg.ID, w, err, http.StatusInternalServerError)
+		return
+	}
+
+	msg.Auth, err = checkAuth(r, idAuth)
 	if err != nil {
 		Error(msg.ID, w, err, http.StatusUnauthorized)
 		return
@@ -184,16 +198,10 @@ func getUUID(r *http.Request) (uuid.UUID, error) {
 
 // checkAuth checks the auth token from the request header and returns it if valid
 // Returns error if UUID is unknown or auth token is invalid
-func checkAuth(r *http.Request, id uuid.UUID, ctxManager ContextManager) (string, error) {
-	// check if UUID is known
-	idAuthToken, err := ctxManager.GetAuthToken(id)
-	if err != nil {
-		return "", err
-	}
-
+func checkAuth(r *http.Request, actualAuth string) (string, error) {
 	// check auth token from request header
 	headerAuthToken := AuthToken(r.Header)
-	if idAuthToken != headerAuthToken {
+	if actualAuth != headerAuthToken {
 		return "", fmt.Errorf("invalid auth token")
 	}
 
