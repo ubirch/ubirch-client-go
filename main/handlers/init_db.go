@@ -115,26 +115,17 @@ func checkForTable(dm *DatabaseManager) error {
 	if err = pg.Ping(); err != nil {
 		return err
 	}
-
+	var table Table
 	query := fmt.Sprintf("SELECT to_regclass('%s') IS NOT NULL", vars.PostgreSqlTableName)
-	row, err := pg.Query(query)
-	if err != nil {
-		return err
+
+	if err = pg.QueryRow(query).Scan(&table.exists); err != nil {
+		return fmt.Errorf("scan rows error: %v", err)
 	}
-	if row.Next() {
-		var table Table
-		err := row.Scan(&table.exists)
-		if err != nil {
-			return fmt.Errorf("scan rows error: %v", err)
+	if !table.exists {
+		log.Printf("database table %s doesn't exist creating table", vars.PostgreSqlTableName)
+		if _, err = pg.Exec(CREATE[Postgres]); err != nil {
+			return err
 		}
-		if !table.exists {
-			log.Printf("database table %s doesn't exist creating table", vars.PostgreSqlTableName)
-			if _, err = pg.Exec(CREATE[Postgres]); err != nil {
-				return err
-			}
-		}
-	} else {
-		return fmt.Errorf("expected row not found")
 	}
 	return nil
 }
