@@ -122,6 +122,9 @@ func (dm *DatabaseManager) GetAuthToken(uid uuid.UUID) (string, error) {
 	err := dm.db.QueryRow("SELECT auth_token FROM identity WHERE uid = $1", uid.String()).
 		Scan(&identity.AuthToken)
 	if err != nil {
+		//if err.Error() == pq.ErrorCode("53300").Name() {
+		//
+		//}
 		return "", err
 	}
 

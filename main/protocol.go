@@ -42,7 +42,7 @@ type ContextManager interface {
 }
 
 func GetCtxManager(c config.Config) (ContextManager, error) {
-	if c.Dsn.Host != "" && c.Dsn.Db != "" && c.Dsn.User != "" {
+	if c.Dsn.Db != "" && c.Dsn.User != "" {
 		return NewSqlDatabaseInfo(c)
 	} else {
 		return NewFileManager(c.ConfigDir, c.SecretBytes16)
