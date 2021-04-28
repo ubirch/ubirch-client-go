@@ -61,10 +61,10 @@ func NewSqlDatabaseInfo(c config.Config) (*DatabaseManager, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer pg.Close()
 	if err = pg.Ping(); err != nil {
 		return nil, err
 	}
+
 	log.Print("preparing postgres usage")
 
 	return &DatabaseManager{
