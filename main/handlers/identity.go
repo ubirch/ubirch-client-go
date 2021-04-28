@@ -44,7 +44,7 @@ func (i Identity) Put(storeId StoreIdentity, fetchId FetchIdentity) http.Handler
 			return
 		}
 
-		id, err := fetchId(ctx, parseUuid)
+		id, err := fetchId(parseUuid)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

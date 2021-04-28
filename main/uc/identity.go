@@ -31,8 +31,8 @@ func NewIdentityStorer(ctxMng handlers.ContextManager, idHandler *handlers.Ident
 	}
 }
 
-func NewIdentityFetcher(ctxMng handlers.ContextManager) func(ctx context.Context, uid uuid.UUID) (*ent.Identity, error) {
-	return func(ctx context.Context, uid uuid.UUID) (*ent.Identity, error) {
-		return ctxMng.FetchIdentity(ctx, uid)
+func NewIdentityFetcher(ctxMng handlers.ContextManager) func(uid uuid.UUID) (*ent.Identity, error) {
+	return func(uid uuid.UUID) (*ent.Identity, error) {
+		return ctxMng.FetchIdentity(uid)
 	}
 }
