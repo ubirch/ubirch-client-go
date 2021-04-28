@@ -124,7 +124,10 @@ func checkForTable(dm *DatabaseManager) error {
 
 func migrateIdentities(c config.Config, dm *DatabaseManager, identities []ent.Identity) error {
 
-	ks := keystr.NewEncryptedKeystore(c.SecretBytes32)
+	ks, err := keystr.NewEncryptedKeystore(c.SecretBytes32)
+	if err != nil {
+		return err
+	}
 
 	for _, id := range identities {
 		encryptedPrivateKey, err := ks.Encrypt(id.PrivateKey)
