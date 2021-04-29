@@ -45,17 +45,17 @@ func (s *Sender) register(id string, auth string, registerAuth string) error {
 	header.Set("Content-Type", "application/json")
 	header.Set("X-Auth-Token", registerAuth)
 
-	data_map := map[string]string{
+	registrationData := map[string]string{
 		"uuid":     id,
 		"password": auth,
 	}
 
-	data, err := json.Marshal(data_map)
+	body, err := json.Marshal(registrationData)
 	if err != nil {
 		return err
 	}
 
-	req, err := http.NewRequest(http.MethodPut, url, bytes.NewBuffer(data))
+	req, err := http.NewRequest(http.MethodPut, url, bytes.NewBuffer(body))
 	if err != nil {
 		return err
 	}
@@ -70,7 +70,11 @@ func (s *Sender) register(id string, auth string, registerAuth string) error {
 	//noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()
 
-	log.Infof("id:%s resp:%s",id,resp.Status)
+	if resp.StatusCode != 200 {
+		log.Warnf("%s: registration returned: %s", id, resp.Status)
+	} else {
+		log.Infof("registered new identity: %s", id)
+	}
 
 	return nil
 }
@@ -135,7 +139,7 @@ func (s *Sender) sendRequest(url string, header http.Header, hash []byte) (Signi
 
 	if resp.StatusCode != 200 {
 		s.testCtx.failCounter.StatusCodes <- resp.Status
-		return SigningResponse{}, fmt.Errorf(resp.Status,":",resp.Body,":", resp.Header)
+		return SigningResponse{}, fmt.Errorf(resp.Status, ":", resp.Body, ":", resp.Header)
 	}
 
 	clientResponse := SigningResponse{}

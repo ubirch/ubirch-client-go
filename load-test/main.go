@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -21,7 +20,6 @@ func main() {
 	sender := NewSender(testCtx)
 
 	for id, auth := range testCtx.identities {
-		fmt.Println(id)
 		err := sender.register(id, auth, testCtx.registerAuth)
 		if err != nil {
 			log.Fatal(err)
