@@ -17,15 +17,14 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/ubirch/ubirch-client-go/main/config"
-	"github.com/ubirch/ubirch-client-go/main/handlers"
-	"github.com/ubirch/ubirch-client-go/main/uc"
-	"github.com/ubirch/ubirch-client-go/main/vars"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
+	"github.com/ubirch/ubirch-client-go/main/config"
+	"github.com/ubirch/ubirch-client-go/main/handlers"
+	"github.com/ubirch/ubirch-client-go/main/uc"
+	"github.com/ubirch/ubirch-client-go/main/vars"
 	"golang.org/x/sync/errgroup"
 
 	log "github.com/sirupsen/logrus"
@@ -60,9 +59,9 @@ func main() {
 			log.Info(arg)
 			if arg == vars.MigrateArg {
 				migrate = true
-			} else if arg == "88"{
+			} else if arg == "88" {
 				diffPort = true
-			}else {
+			} else {
 				configDir = arg
 			}
 		}
@@ -73,13 +72,15 @@ func main() {
 
 	// read configuration
 	conf := config.Config{}
-	err := conf.Load(configDir, configFile, migrate)
+	err := conf.Load(configDir, configFile)
 	if err != nil {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
+
 	if diffPort {
 		conf.TCP_addr = ":8088"
 	}
+
 	if migrate {
 		err := handlers.Migrate(conf)
 		if err != nil {
@@ -87,15 +88,8 @@ func main() {
 		}
 		os.Exit(0)
 	}
+
 	ctxManager, err := handlers.GetCtxManager(conf)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// initialize ubirch protocol
-	cryptoCtx := &ubirch.ECDSACryptoContext{}
-
-	protocol, err := handlers.NewExtendedProtocol(cryptoCtx, ctxManager)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -107,21 +101,24 @@ func main() {
 		IdentityServiceURL: conf.IdentityService,
 	}
 
+	// initialize ubirch protocol
+	protocol, err := handlers.NewExtendedProtocol(ctxManager, conf.SecretBytes32, client)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	idHandler := &handlers.IdentityHandler{
 		Protocol:            protocol,
-		Client:              client,
 		SubjectCountry:      conf.CSR_Country,
 		SubjectOrganization: conf.CSR_Organization,
 	}
 
 	signer := handlers.Signer{
 		Protocol: protocol,
-		Client:   client,
 	}
 
 	verifier := handlers.Verifier{
 		Protocol:                      protocol,
-		Client:                        client,
 		VerifyFromKnownIdentitiesOnly: false, // TODO: make configurable
 	}
 
@@ -137,7 +134,7 @@ func main() {
 	}
 
 	globals := handlers.Globals{
-		Config: conf,
+		Config:  conf,
 		Version: Version,
 	}
 
@@ -149,11 +146,8 @@ func main() {
 	// set up graceful shutdown handling
 	go shutdown(cancel)
 
-	if _, ok := ctxManager.(*handlers.DatabaseManager); ok {
-		fmt.Println("dataBaseManager")
-		identity := createIdentityUseCases(globals, ctxManager, idHandler)
-		httpServer.Router.Put("/register", identity.handler.Put(identity.storeIdentity, identity.fetchIdentity))
-	}
+	identity := createIdentityUseCases(globals, idHandler)
+	httpServer.Router.Put("/register", identity.handler.Put(identity.storeIdentity, identity.checkIdentity))
 
 	// set up endpoint for chaining
 	httpServer.AddServiceEndpoint(handlers.ServerEndpoint{
@@ -167,7 +161,6 @@ func main() {
 	httpServer.AddServiceEndpoint(handlers.ServerEndpoint{
 		Path: fmt.Sprintf("/{%s}/{%s}", handlers.UUIDKey, handlers.OperationKey),
 		Service: &handlers.SigningService{
-
 			Signer: &signer,
 		},
 	})
@@ -197,12 +190,14 @@ type identities struct {
 	handler       handlers.Identity
 	storeIdentity handlers.StoreIdentity
 	fetchIdentity handlers.FetchIdentity
+	checkIdentity handlers.CheckIdentityExists
 }
 
-func createIdentityUseCases(globals handlers.Globals, mng handlers.ContextManager, handler *handlers.IdentityHandler) identities {
+func createIdentityUseCases(globals handlers.Globals, handler *handlers.IdentityHandler) identities {
 	return identities{
 		handler:       handlers.NewIdentity(globals),
-		storeIdentity: uc.NewIdentityStorer(mng, handler),
-		fetchIdentity: uc.NewIdentityFetcher(mng),
+		storeIdentity: uc.NewIdentityStorer(handler),
+		fetchIdentity: uc.NewIdentityFetcher(handler),
+		checkIdentity: uc.NewIdentityChecker(handler),
 	}
 }
