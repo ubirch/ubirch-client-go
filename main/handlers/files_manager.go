@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/ubirch/ubirch-client-go/main/ent"
@@ -35,32 +34,6 @@ type FileManager struct {
 	EncryptedKeystore *ubirch.EncryptedKeystore
 	keystoreMutex     *sync.RWMutex
 }
-
-func (f *FileManager) SendChainedUpp(ctx context.Context, msg HTTPRequest, s *Signer) (*HTTPResponse, error) {
-	panic("not implemented")
-}
-
-func (f *FileManager) Exists(uid uuid.UUID) (bool, error) {
-	f.keystoreMutex.RLock()
-	defer f.keystoreMutex.RUnlock()
-
-	_, err := f.EncryptedKeystore.GetPrivateKey(uid)
-	if err != nil {
-		return false, nil
-	}
-	return true, nil
-}
-
-func (f *FileManager) FetchIdentity(uid uuid.UUID) (*ent.Identity, error) {
-	panic("implement me")
-}
-
-func (f *FileManager) StoreIdentity(ctx context.Context, identity ent.Identity, handler *IdentityHandler) error {
-	panic("implement me")
-}
-
-// Ensure FileManager implements the ContextManager interface
-var _ ContextManager = (*FileManager)(nil)
 
 func NewFileManager(configDir string, secret []byte) (*FileManager, error) {
 	f := &FileManager{
@@ -103,6 +76,17 @@ func NewFileManager(configDir string, secret []byte) (*FileManager, error) {
 	log.Infof("loaded %d existing keys from local file system", len(ids))
 
 	return f, nil
+}
+
+func (f *FileManager) Exists(uid uuid.UUID) (bool, error) {
+	f.keystoreMutex.RLock()
+	defer f.keystoreMutex.RUnlock()
+
+	_, err := f.EncryptedKeystore.GetPrivateKey(uid)
+	if err != nil {
+		return false, nil
+	}
+	return true, nil
 }
 
 func (f *FileManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
