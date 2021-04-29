@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/ubirch/ubirch-client-go/main/config"
@@ -51,6 +52,8 @@ func Migrate(c config.Config) error {
 }
 
 func getAllIdentitiesFromLegacyCtx(c config.Config) ([]ent.Identity, error) {
+	log.Infof("getting existing identities from file system")
+
 	fileManager, err := NewFileManager(c.ConfigDir, c.SecretBytes16)
 	if err != nil {
 		return nil, err
@@ -122,22 +125,29 @@ func checkForTable(dm *DatabaseManager) error {
 }
 
 func migrateIdentities(c config.Config, dm *DatabaseManager, identities []ent.Identity) error {
+	log.Infof("starting migration...")
 
-	ks, err := keystr.NewEncryptedKeystore(c.SecretBytes32)
+	p, err := NewExtendedProtocol(dm, c.SecretBytes32, nil)
 	if err != nil {
 		return err
 	}
 
-	for _, id := range identities {
-		encryptedPrivateKey, err := ks.Encrypt(id.PrivateKey)
-		if err != nil {
-			return err
-		}
-		_, err = dm.db.Exec("INSERT INTO identity (uid, private_key, public_key, signature, auth_token) VALUES ($1, $2, $3, $4, $5);",
-			&id.Uid, encryptedPrivateKey, &id.PublicKey, &id.Signature, &id.AuthToken)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := dm.db.BeginTx(ctx, dm.options)
+	if err != nil {
+		return err
+	}
+
+	for i, id := range identities {
+		log.Infof("%4d: %s", i+1, id.Uid)
+
+		err = p.StoreNewIdentity(tx, &id)
 		if err != nil {
 			return err
 		}
 	}
-	return nil
+
+	return tx.Commit()
 }
