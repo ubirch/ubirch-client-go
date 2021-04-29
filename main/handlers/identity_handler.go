@@ -15,8 +15,11 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-client-go/main/ent"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -45,7 +48,7 @@ type IdentityHandler struct {
 //			}
 //		}
 //
-//		err = i.setIdentityAttributes(uid, auth)
+//		err = i.InitIdentity(uid, auth)
 //		if err != nil {
 //			return err
 //		}
@@ -54,59 +57,60 @@ type IdentityHandler struct {
 //	return nil
 //}
 
-//func (i *IdentityHandler) setIdentityAttributes(uid uuid.UUID, auth string) error {
-//	if len(auth) == 0 {
-//		return fmt.Errorf("%s: auth token has zero length", uid)
-//	}
-//	// check if identity is already initialized
-//	exists, err := i.Protocol.Exists(uid)
-//	if err != nil {
-//		log.Fatal(err)
-//	}
-//	if exists {
-//		return nil
-//	}
-//
-//	log.Infof("%s: initializing new identity", uid)
-//
-//	// set auth token
-//	err = i.Protocol.SetAuthToken(uid, auth)
-//	if err != nil {
-//		return err
-//	}
-//
-//	// set signature
-//	genesisSignature := make([]byte, i.Protocol.SignatureLength())
-//	err = i.Protocol.SetSignature(uid, genesisSignature)
-//	if err != nil {
-//		return err
-//	}
-//
-//	// generate a new private key
-//	log.Debugf("%s: generating new key pair", uid)
-//	privKeyPEM, err := i.Protocol.GenerateKey()
-//	if err != nil {
-//		return fmt.Errorf("generating new key for UUID %s failed: %v", uid, err)
-//	}
-//
-//	// set private key
-//	err = i.Protocol.SetPrivateKey(uid, privKeyPEM)
-//	if err != nil {
-//		return err
-//	}
-//
-//
-//
-//	err = i.Protocol.SetPublicKey(uid, pubKeyPEM)
-//	if err != nil {
-//		return err
-//	}
-//
-//	// register public key at the ubirch backend
-//	return i.RegisterPublicKey(privKeyPEM, uid, auth)
-//}
+func (i *IdentityHandler) InitIdentity(ctx context.Context, uid uuid.UUID, auth string) error {
+	// do not overwrite existing identities
+	exists, err := i.Protocol.Exists(uid)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if exists {
+		return fmt.Errorf("identity already exists")
+	}
 
-func (i *IdentityHandler) RegisterPublicKey(privKeyPEM []byte, uid uuid.UUID, auth string) error {
+	log.Infof("initializing new identity %s", uid)
+
+	// generate a new private key
+	log.Debugf("%s: generating new key pair", uid)
+	privKeyPEM, err := i.Protocol.GenerateKey()
+	if err != nil {
+		return fmt.Errorf("generating new key for UUID %s failed: %v", uid, err)
+	}
+
+	pubKeyPEM, err := i.Protocol.GetPublicKeyFromPrivateKey(privKeyPEM)
+	if err != nil {
+		return err
+	}
+
+	newIdentity := &ent.Identity{
+		Uid:        uid.String(),
+		PrivateKey: privKeyPEM,
+		PublicKey:  pubKeyPEM,
+		Signature:  make([]byte, i.Protocol.SignatureLength()),
+		AuthToken:  auth,
+	}
+
+	tx, err := i.Protocol.StartTransaction(ctx, uid)
+	if err != nil {
+		return err
+	}
+
+	err = i.Protocol.StoreNewIdentity(tx, newIdentity)
+	if err != nil {
+		_ = i.Protocol.CloseTransaction(tx, rollback)
+		return err
+	}
+
+	// register public key at the ubirch backend
+	err = i.registerPublicKey(privKeyPEM, uid, auth)
+	if err != nil {
+		_ = i.Protocol.CloseTransaction(tx, rollback)
+		return err
+	}
+
+	return i.Protocol.CloseTransaction(tx, commit)
+}
+
+func (i *IdentityHandler) registerPublicKey(privKeyPEM []byte, uid uuid.UUID, auth string) error {
 	cert, err := i.Protocol.GetSignedKeyRegistration(privKeyPEM, uid)
 	if err != nil {
 		return fmt.Errorf("error creating public key certificate: %v", err)

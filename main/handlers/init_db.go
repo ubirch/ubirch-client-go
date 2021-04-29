@@ -5,7 +5,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/ubirch/ubirch-client-go/main/config"
 	"github.com/ubirch/ubirch-client-go/main/ent"
-	"github.com/ubirch/ubirch-client-go/main/keystr"
 	"github.com/ubirch/ubirch-client-go/main/vars"
 	"os"
 )
@@ -38,7 +37,7 @@ func Migrate(c config.Config) error {
 		return err
 	}
 
-	dbManager, err := NewSqlDatabaseInfo(c)
+	dbManager, err := NewSqlDatabaseInfo(c.Dsn)
 	if err != nil {
 		return err
 	}

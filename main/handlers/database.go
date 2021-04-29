@@ -17,35 +17,22 @@ package handlers
 import (
 	"context"
 	"database/sql"
-	"database/sql/driver"
-	"encoding/base64"
 	"fmt"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/ubirch/ubirch-client-go/main/config"
 	"github.com/ubirch/ubirch-client-go/main/ent"
-	"github.com/ubirch/ubirch-client-go/main/keystr"
 	"github.com/ubirch/ubirch-client-go/main/vars"
 	// postgres driver is imported for side effects
 	_ "github.com/lib/pq"
 )
 
-// Database is the interface that defines what methods a database has to
-// implement.
-type Database interface {
-	SetProtocolContext(proto driver.Valuer) error
-	GetProtocolContext(proto sql.Scanner) error
-
-	Close() error
-}
-
-// Database contains the postgres database connection, and offers methods
+// DatabaseManager contains the postgres database connection, and offers methods
 // for interacting with the database.
 type DatabaseManager struct {
-	options     *sql.TxOptions
-	db          *sql.DB
-	client      Client
-	encKeyStore *keystr.EncryptedKeystore
+	options *sql.TxOptions
+	db      *sql.DB
+	client  Client
 }
 
 // Ensure Database implements the ContextManager interface
@@ -53,9 +40,9 @@ var _ ContextManager = (*DatabaseManager)(nil)
 
 // NewSqlDatabaseInfo takes a database connection string, returns a new initialized
 // database.
-func NewSqlDatabaseInfo(c config.Config) (*DatabaseManager, error) {
+func NewSqlDatabaseInfo(dsn config.DSN) (*DatabaseManager, error) {
 	dataSourceName := fmt.Sprintf("host=%s user=%s password=%s port=%d dbname=%s sslmode=disable",
-		c.Dsn.Host, c.Dsn.User, c.Dsn.Password, vars.PostgreSqlPort, c.Dsn.Db)
+		dsn.Host, dsn.User, dsn.Password, vars.PostgreSqlPort, dsn.Db)
 
 	pg, err := sql.Open(vars.PostgreSql, dataSourceName)
 	if err != nil {
@@ -70,57 +57,93 @@ func NewSqlDatabaseInfo(c config.Config) (*DatabaseManager, error) {
 
 	log.Print("preparing postgres usage")
 
-	keystore, err := keystr.NewEncryptedKeystore(c.SecretBytes32)
-	if err != nil {
-		return nil, err
-	}
-
 	return &DatabaseManager{
 		options: &sql.TxOptions{
 			Isolation: sql.LevelReadCommitted,
 			ReadOnly:  false,
 		},
-		db:          pg,
-		encKeyStore: keystore}, nil
+		db: pg,
+	}, nil
+}
+
+func (dm *DatabaseManager) StartTransaction(ctx context.Context, uid uuid.UUID) (transactionCtx interface{}, err error) {
+	return dm.db.BeginTx(ctx, dm.options)
+}
+
+func (dm *DatabaseManager) CloseTransaction(transactionCtx interface{}, commit bool) error {
+	tx, ok := transactionCtx.(*sql.Tx)
+	if !ok {
+		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
+	}
+
+	if commit {
+		return tx.Commit()
+	} else {
+		return tx.Rollback()
+	}
+}
+
+func (dm *DatabaseManager) Exists(uid uuid.UUID) (bool, error) {
+	var id string
+
+	err := dm.db.QueryRow("SELECT uid FROM identity WHERE uid = $1", uid.String()).
+		Scan(&id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil
+		} else {
+			return false, err
+		}
+	} else {
+		return true, nil
+	}
+}
+
+func (dm *DatabaseManager) SetSignature(transactionCtx interface{}, uid uuid.UUID, signature []byte) error {
+	tx, ok := transactionCtx.(*sql.Tx)
+	if !ok {
+		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
+	}
+
+	_, err := tx.Exec(
+		"UPDATE identity SET signature = $1 WHERE uid = $2;",
+		&signature, uid.String())
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
+	var privateKey []byte
 
-	var identity ent.Identity
-	if err := dm.db.QueryRow("SELECT private_key FROM identity WHERE uid = $1", uid.String()).
-		Scan(&identity.PrivateKey); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil
-		} else {
-			return nil, err
-		}
-	}
-	decryptedPrivateKey, err := dm.encKeyStore.Decrypt(identity.PrivateKey)
+	err := dm.db.QueryRow("SELECT private_key FROM identity WHERE uid = $1", uid.String()).
+		Scan(&privateKey)
 	if err != nil {
 		return nil, err
 	}
-	return decryptedPrivateKey, nil
+
+	return privateKey, nil
 }
 
 func (dm *DatabaseManager) GetPublicKey(uid uuid.UUID) ([]byte, error) {
-
-	var identity ent.Identity
+	var publicKey []byte
 
 	err := dm.db.QueryRow("SELECT public_key FROM identity WHERE uid = $1", uid.String()).
-		Scan(&identity.PublicKey)
+		Scan(&publicKey)
 	if err != nil {
 		return nil, err
 	}
 
-	return identity.PublicKey, nil
+	return publicKey, nil
 }
 
 func (dm *DatabaseManager) GetAuthToken(uid uuid.UUID) (string, error) {
-
-	var identity ent.Identity
+	var authToken string
 
 	err := dm.db.QueryRow("SELECT auth_token FROM identity WHERE uid = $1", uid.String()).
-		Scan(&identity.AuthToken)
+		Scan(&authToken)
 	if err != nil {
 		//if err.Error() == pq.ErrorCode("53300").Name() {
 		//
@@ -128,118 +151,57 @@ func (dm *DatabaseManager) GetAuthToken(uid uuid.UUID) (string, error) {
 		return "", err
 	}
 
-	return identity.AuthToken, nil
+	return authToken, nil
 }
 
-func (dm *DatabaseManager) FetchIdentity(uid uuid.UUID) (*ent.Identity, error) {
-	var identity ent.Identity
-
-	err := dm.db.QueryRow("SELECT * FROM identity WHERE uid = $1", uid.String()).
-		Scan(&identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.Signature, &identity.AuthToken)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil
-		}
-		return nil, err
-	}
-
-	return &identity, nil
-}
-
-func (dm *DatabaseManager) StoreIdentity(ctx context.Context, identity ent.Identity, idHandler *IdentityHandler) error {
-
-	parsedUuid, err := uuid.Parse(identity.Uid)
-	if err != nil {
-		return err
-	}
-
-	tx, err := dm.db.BeginTx(ctx, dm.options)
-	if err != nil {
-		return err
-	}
-
-	var existingId ent.Identity
-	if err = tx.QueryRow("SELECT uid FROM identity WHERE uid = $1 FOR UPDATE", identity.Uid).Scan(&existingId.Uid); err != nil {
-		if err == sql.ErrNoRows {
-			// there were no rows, but otherwise no error occurred
-		} else {
-			tx.Rollback()
-			return err
-		}
-	} else {
-		tx.Rollback()
-		return fmt.Errorf("entry not unique, uuid already exits %s", identity.Uid)
-	}
-
-	if err = idHandler.RegisterPublicKey(identity.PrivateKey, parsedUuid, identity.AuthToken); err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	genesisSignature := make([]byte, idHandler.Protocol.SignatureLength())
-	encryptedPrivateKey, err := dm.encKeyStore.Encrypt(identity.PrivateKey)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	_, err = tx.ExecContext(ctx,
-		"INSERT INTO identity (uid, private_key, public_key, signature, auth_token) VALUES ($1, $2, $3, $4, $5);",
-		&identity.Uid, encryptedPrivateKey, &identity.PublicKey, &genesisSignature, &identity.AuthToken)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	return tx.Commit()
-}
-
-// handle incoming messages, create, sign and send a chained ubirch protocol packet (UPP) to the ubirch backend
-func (dm *DatabaseManager) SendChainedUpp(ctx context.Context, msg HTTPRequest, s *Signer) (*HTTPResponse, error) {
-	log.Infof("%s: anchor hash [chained]: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
-
-	tx, err := dm.db.BeginTx(ctx, dm.options)
-	if err != nil {
-		log.Fatal(err)
+func (dm *DatabaseManager) FetchIdentity(transactionCtx interface{}, uid uuid.UUID) (*ent.Identity, error) {
+	tx, ok := transactionCtx.(*sql.Tx)
+	if !ok {
+		return nil, fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
 	var id ent.Identity
-	if err = tx.QueryRow("SELECT * FROM identity WHERE uid = $1 FOR NO KEY UPDATE", msg.ID).Scan(
-		&id.Uid, &id.PrivateKey, &id.PublicKey, &id.Signature, &id.AuthToken); err != nil {
-		tx.Rollback()
-		return nil, err
-	}
 
-	decryptedPrivateKey, err := dm.encKeyStore.Decrypt(id.PrivateKey)
+	err := tx.QueryRow("SELECT * FROM identity WHERE uid = $1 FOR NO KEY UPDATE", uid.String()).Scan(
+		&id.Uid, &id.PrivateKey, &id.PublicKey, &id.Signature, &id.AuthToken)
 	if err != nil {
-		tx.Rollback()
 		return nil, err
 	}
 
-	uppBytes, err := s.GetChainedUPP(msg.ID, msg.Hash, decryptedPrivateKey, id.Signature)
+	return &id, nil
+}
+
+func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity *ent.Identity) error {
+	tx, ok := transactionCtx.(*sql.Tx)
+	if !ok {
+		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
+	}
+
+	// make sure identity does not exist yet
+	var id string
+
+	err := tx.QueryRow("SELECT uid FROM identity WHERE uid = $1 FOR UPDATE", identity.Uid).
+		Scan(&id)
 	if err != nil {
-		tx.Rollback()
-		log.Errorf("%s: could not create chained UPP: %v", msg.ID, err)
-		return nil, err
-	}
-	log.Debugf("%s: chained UPP: %x", msg.ID, uppBytes)
-
-	resp := s.SendUPP(msg, uppBytes)
-	// persist last signature only if UPP was successfully received by ubirch backend
-	if !HttpSuccess(resp.StatusCode) {
-		tx.Rollback()
-		log.Errorf("send upp failed: %v", resp.Content)
-		return &resp, nil
+		if err == sql.ErrNoRows {
+			// there were no rows, but otherwise no error occurred
+		} else {
+			return err
+		}
+	} else {
+		return fmt.Errorf("entry not unique, uuid already exits %s", identity.Uid)
 	}
 
-	signature := uppBytes[len(uppBytes)-s.Protocol.SignatureLength():]
+	return dm.storeIdentity(tx, identity)
+}
 
-	_, err = tx.ExecContext(ctx,
-		"UPDATE identity SET signature = $1 WHERE uid = $2;",
-		&signature, &id.Uid)
+func (dm *DatabaseManager) storeIdentity(tx *sql.Tx, identity *ent.Identity) error {
+	_, err := tx.Exec(
+		"INSERT INTO identity (uid, private_key, public_key, signature, auth_token) VALUES ($1, $2, $3, $4, $5);",
+		&identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.Signature, &identity.AuthToken)
 	if err != nil {
-		tx.Rollback()
-		return nil, err
+		return err
 	}
 
-	return &resp, tx.Commit()
+	return nil
 }

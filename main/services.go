@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -42,6 +43,7 @@ type HTTPRequest struct {
 	ID   uuid.UUID
 	Auth string
 	Hash Sha256Sum
+	ctx  context.Context
 }
 
 type HTTPResponse struct {
@@ -58,10 +60,11 @@ type ChainingService struct {
 var _ Service = (*ChainingService)(nil)
 
 func (c *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) {
-	var msg HTTPRequest
 	var err error
 
-	ctx := r.Context()
+	msg := HTTPRequest{
+		ctx: r.Context(),
+	}
 
 	msg.ID, err = getUUID(r)
 	if err != nil {
@@ -91,15 +94,10 @@ func (c *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// todo here goes the waiting loop
-	resp, err := c.Protocol.ContextManager.SendChainedUpp(ctx, msg, c.Signer)
-	if err != nil {
-		log.Errorf("something went wrong send chain: %v", err)
-		Error(msg.ID, w, err, http.StatusInternalServerError)
-		return
-	}
+	// todo here goes the waiting queue
 
-	sendResponse(w, *resp)
+	resp := c.chain(msg)
+	sendResponse(w, resp)
 }
 
 type SigningService struct {
