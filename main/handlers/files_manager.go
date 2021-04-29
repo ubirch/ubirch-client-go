@@ -49,7 +49,6 @@ func NewFileManager(configDir string, secret []byte) (*FileManager, error) {
 		return nil, err
 	}
 
-	log.Info("protocol context will be stored in local file system")
 	log.Debugf(" - keystore file: %s", f.keyFile)
 	log.Debugf(" - signature dir: %s", f.signatureDir)
 	log.Debugf(" - token dir: %s", f.authTokenDir)
@@ -73,7 +72,7 @@ func NewFileManager(configDir string, secret []byte) (*FileManager, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Infof("loaded %d existing keys from local file system", len(ids))
+	log.Debugf("loaded %d existing keys from local file system", len(ids))
 
 	return f, nil
 }

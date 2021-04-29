@@ -84,8 +84,9 @@ func main() {
 	if migrate {
 		err := handlers.Migrate(conf)
 		if err != nil {
-			log.Panicf("could not migrate, error %v", err)
+			log.Fatalf("could not migrate: %v", err)
 		}
+		log.Infof("migration done")
 		os.Exit(0)
 	}
 
