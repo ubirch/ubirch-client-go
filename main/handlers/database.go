@@ -67,7 +67,21 @@ func NewSqlDatabaseInfo(dsn config.DSN) (*DatabaseManager, error) {
 }
 
 func (dm *DatabaseManager) StartTransaction(ctx context.Context, uid uuid.UUID) (transactionCtx interface{}, err error) {
-	return dm.db.BeginTx(ctx, dm.options)
+	tx, err := dm.db.BeginTx(ctx, dm.options)
+	if err != nil {
+		return nil, err
+	}
+
+	var id string
+
+	// lock row FOR UPDATE
+	err = tx.QueryRow("SELECT uid FROM identity WHERE uid = $1 FOR UPDATE", uid).
+		Scan(&id)
+	if err != nil && err != sql.ErrNoRows {
+		return nil, err
+	}
+
+	return tx, nil
 }
 
 func (dm *DatabaseManager) CloseTransaction(transactionCtx interface{}, commit bool) error {
@@ -106,7 +120,7 @@ func (dm *DatabaseManager) SetSignature(transactionCtx interface{}, uid uuid.UUI
 	}
 
 	_, err := tx.Exec(
-		"UPDATE identity SET signature = $1 WHERE uid = $2;",
+		"UPDATE identity SET signature = $1 WHERE uid = $2 FOR UPDATE;",
 		&signature, uid.String())
 	if err != nil {
 		return err
@@ -162,8 +176,8 @@ func (dm *DatabaseManager) FetchIdentity(transactionCtx interface{}, uid uuid.UU
 
 	var id ent.Identity
 
-	err := tx.QueryRow("SELECT * FROM identity WHERE uid = $1 FOR NO KEY UPDATE", uid.String()).Scan(
-		&id.Uid, &id.PrivateKey, &id.PublicKey, &id.Signature, &id.AuthToken)
+	err := tx.QueryRow("SELECT * FROM identity WHERE uid = $1 FOR UPDATE", uid.String()).
+		Scan(&id.Uid, &id.PrivateKey, &id.PublicKey, &id.Signature, &id.AuthToken)
 	if err != nil {
 		return nil, err
 	}
