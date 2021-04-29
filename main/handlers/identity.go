@@ -23,14 +23,12 @@ func NewIdentity(globals Globals) Identity {
 	return Identity{globals: globals}
 }
 
-func (i Identity) Put(storeId StoreIdentity, fetchId FetchIdentity) http.HandlerFunc {
+func (i *Identity) Put(storeId StoreIdentity, idExists CheckIdentityExists) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := contextFromRequest(r)
-		defer cancel()
-
 		authHeader := r.Header.Get(h.XAuthHeader)
 		if authHeader != i.globals.Config.RegisterAuth {
-			http.Error(w, fmt.Errorf("not authorized").Error(), http.StatusUnauthorized)
+			log.Warnf("unauthorized registration attempt")
+			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		}
 
 		idPayload, err := IdentityFromBody(r.Body)
@@ -41,24 +39,22 @@ func (i Identity) Put(storeId StoreIdentity, fetchId FetchIdentity) http.Handler
 
 		parseUuid, err := uuid.Parse(idPayload.Uid)
 		if err != nil {
-			h.Respond406(w, err.Error())
+			h.Respond400(w, err.Error())
 			return
 		}
 
-		id, err := fetchId(parseUuid)
+		exists, err := idExists(parseUuid)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			Error(parseUuid, w, err, http.StatusInternalServerError)
 			return
 		}
-		if id != nil {
-			http.Error(w, fmt.Errorf("uuid already exists in database: %v", id.Uid).Error(), http.StatusConflict)
+		if exists {
+			Error(parseUuid, w, fmt.Errorf("identity already registered"), http.StatusConflict)
 			return
 		}
 
-		log.Infof("register new identity")
-		if err := storeId(ctx, parseUuid, idPayload.Pwd); err != nil {
-			log.Errorf("store new identity error: %v", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+		if err := storeId(parseUuid, idPayload.Pwd); err != nil {
+			Error(parseUuid, w, err, http.StatusInternalServerError)
 			return
 		}
 

@@ -99,6 +99,22 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) error {
 	return i.Protocol.CloseTransaction(tx, commit)
 }
 
+func (i *IdentityHandler) FetchIdentity(uid uuid.UUID) (*ent.Identity, error) {
+	tx, err := i.Protocol.StartTransaction(context.Background(), uid)
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() {
+		txErr := i.Protocol.CloseTransaction(tx, commit)
+		if txErr != nil {
+			log.Errorf("closing transaction failed: %v", txErr)
+		}
+	}()
+
+	return i.Protocol.FetchIdentity(tx, uid)
+}
+
 func (i *IdentityHandler) registerPublicKey(privKeyPEM []byte, uid uuid.UUID, auth string) error {
 	cert, err := i.Protocol.GetSignedKeyRegistration(privKeyPEM, uid)
 	if err != nil {

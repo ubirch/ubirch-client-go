@@ -1,38 +1,25 @@
 package uc
 
 import (
-	"context"
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/ent"
 	"github.com/ubirch/ubirch-client-go/main/handlers"
 )
 
-func NewIdentityStorer(ctxMng handlers.ContextManager, idHandler *handlers.IdentityHandler) func(ctx context.Context, uid uuid.UUID, authKey string) error {
-	return func(ctx context.Context, uid uuid.UUID, authKey string) error {
-
-		prvKey, err := idHandler.Protocol.GenerateKey()
-		if err != nil {
-			return err
-		}
-
-		pubKey, err := idHandler.Protocol.GetPublicKeyFromPrivateKey(prvKey)
-		if err != nil {
-			return err
-		}
-
-		identity := ent.Identity{
-			Uid:        uid.String(),
-			PrivateKey: prvKey,
-			PublicKey:  pubKey,
-			AuthToken:  authKey,
-		}
-
-		return ctxMng.StoreIdentity(ctx, identity, idHandler)
+func NewIdentityStorer(idHandler *handlers.IdentityHandler) handlers.StoreIdentity {
+	return func(uid uuid.UUID, auth string) error {
+		return idHandler.InitIdentity(uid, auth)
 	}
 }
 
-func NewIdentityFetcher(ctxMng handlers.ContextManager) func(uid uuid.UUID) (*ent.Identity, error) {
+func NewIdentityFetcher(idHandler *handlers.IdentityHandler) handlers.FetchIdentity {
 	return func(uid uuid.UUID) (*ent.Identity, error) {
-		return ctxMng.FetchIdentity(uid)
+		return idHandler.FetchIdentity(uid)
+	}
+}
+
+func NewIdentityChecker(idHandler *handlers.IdentityHandler) handlers.CheckIdentityExists {
+	return func(uid uuid.UUID) (bool, error) {
+		return idHandler.Protocol.Exists(uid)
 	}
 }
