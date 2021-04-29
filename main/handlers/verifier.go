@@ -47,7 +47,6 @@ type verificationResponse struct {
 
 type Verifier struct {
 	Protocol                      *ExtendedProtocol
-	Client                        *Client
 	VerifyFromKnownIdentitiesOnly bool
 }
 
@@ -58,7 +57,7 @@ func (v *Verifier) Verify(hash []byte) HTTPResponse {
 	code, upp, err := v.loadUPP(hash)
 	if err != nil {
 		log.Error(err)
-		return ErrorResponse(code, err.Error())
+		return errorResponse(code, err.Error())
 	}
 	log.Debugf("retrieved UPP %x", upp)
 
@@ -85,7 +84,7 @@ func (v *Verifier) loadUPP(hash []byte) (int, []byte, error) {
 		case <-timeout:
 			stay = false
 		default:
-			resp, err = http.Post(v.Client.VerifyServiceURL, "text/plain", strings.NewReader(hashBase64String))
+			resp, err = http.Post(v.Protocol.VerifyServiceURL, "text/plain", strings.NewReader(hashBase64String))
 			if err != nil {
 				return http.StatusInternalServerError, nil, fmt.Errorf("error sending verification request: %v", err)
 			}
@@ -153,7 +152,7 @@ func (v *Verifier) verifyUPP(upp []byte) (uuid.UUID, []byte, error) {
 func (v *Verifier) loadPublicKey(id uuid.UUID) (pubKeyPEM []byte, err error) {
 	log.Debugf("requesting public key for identity %s from key service", id.String())
 
-	keys, err := v.Client.requestPublicKeys(id)
+	keys, err := v.Protocol.requestPublicKeys(id)
 	if err != nil {
 		return nil, err
 	}

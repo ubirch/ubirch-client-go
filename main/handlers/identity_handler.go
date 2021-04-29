@@ -25,7 +25,6 @@ import (
 
 type IdentityHandler struct {
 	Protocol            *ExtendedProtocol
-	Client              *Client
 	SubjectCountry      string
 	SubjectOrganization string
 }
@@ -57,20 +56,10 @@ type IdentityHandler struct {
 //	return nil
 //}
 
-func (i *IdentityHandler) InitIdentity(ctx context.Context, uid uuid.UUID, auth string) error {
-	// do not overwrite existing identities
-	exists, err := i.Protocol.Exists(uid)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if exists {
-		return fmt.Errorf("identity already exists")
-	}
-
+func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) error {
 	log.Infof("initializing new identity %s", uid)
 
 	// generate a new private key
-	log.Debugf("%s: generating new key pair", uid)
 	privKeyPEM, err := i.Protocol.GenerateKey()
 	if err != nil {
 		return fmt.Errorf("generating new key for UUID %s failed: %v", uid, err)
@@ -89,7 +78,7 @@ func (i *IdentityHandler) InitIdentity(ctx context.Context, uid uuid.UUID, auth 
 		AuthToken:  auth,
 	}
 
-	tx, err := i.Protocol.StartTransaction(ctx, uid)
+	tx, err := i.Protocol.StartTransaction(context.Background(), uid)
 	if err != nil {
 		return err
 	}
@@ -117,7 +106,7 @@ func (i *IdentityHandler) registerPublicKey(privKeyPEM []byte, uid uuid.UUID, au
 	}
 	log.Debugf("%s: key certificate: %s", uid, cert)
 
-	err = i.Client.SubmitKeyRegistration(uid, cert, auth)
+	err = i.Protocol.SubmitKeyRegistration(uid, cert, auth)
 	if err != nil {
 		return fmt.Errorf("key registration for UUID %s failed: %v", uid, err)
 	}
@@ -142,7 +131,7 @@ func (i *IdentityHandler) sendCSR(privKeyPEM []byte, uid uuid.UUID) error {
 	}
 	log.Debugf("%s: CSR [der]: %x", uid, csr)
 
-	err = i.Client.SubmitCSR(uid, csr)
+	err = i.Protocol.SubmitCSR(uid, csr)
 	if err != nil {
 		return fmt.Errorf("submitting CSR for UUID %s failed: %v", uid, err)
 	}
