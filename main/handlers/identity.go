@@ -64,7 +64,7 @@ func (i *Identity) Put(storeId StoreIdentity, idExists CheckIdentityExists) http
 			return
 		}
 
-		h.Ok(w, fmt.Sprintf("successfully created new entry with uuid %s", uid))
+		h.Ok(w, fmt.Sprintf("successfully created new entry with uuid %s\n", uid))
 	}
 }
 
