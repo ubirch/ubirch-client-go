@@ -139,7 +139,7 @@ func (s *Sender) sendRequest(url string, header http.Header, hash []byte) (Signi
 
 	if resp.StatusCode != 200 {
 		s.testCtx.failCounter.StatusCodes <- resp.Status
-		return SigningResponse{}, fmt.Errorf(resp.Status, ":", resp.Body, ":", resp.Header)
+		return SigningResponse{}, fmt.Errorf(resp.Status)
 	}
 
 	clientResponse := SigningResponse{}
