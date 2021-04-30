@@ -61,19 +61,11 @@ type Signer struct {
 func (s *Signer) chain(msg HTTPRequest) HTTPResponse {
 	log.Infof("%s: anchor hash [chained]: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
-	tx, err := s.Protocol.StartTransaction(msg.ctx, msg.ID)
+	tx, err := s.Protocol.StartTransactionWithLock(msg.ctx, msg.ID)
 	if err != nil {
 		log.Errorf("%s: starting transaction failed: %v", msg.ID, err)
 		return errorResponse(http.StatusInternalServerError, "")
 	}
-
-	defer func() {
-		// we can always commit since we only set the new signature if sending succeeded
-		txErr := s.Protocol.CloseTransaction(tx, commit)
-		if txErr != nil {
-			log.Errorf("closing transaction failed: %v", txErr)
-		}
-	}()
 
 	identity, err := s.Protocol.FetchIdentity(tx, msg.ID)
 	if err != nil {
@@ -93,11 +85,17 @@ func (s *Signer) chain(msg HTTPRequest) HTTPResponse {
 	// persist last signature only if UPP was successfully received by ubirch backend
 	if HttpSuccess(resp.StatusCode) {
 		signature := uppBytes[len(uppBytes)-s.Protocol.SignatureLength():]
+
 		err = s.Protocol.SetSignature(tx, msg.ID, signature)
 		if err != nil {
 			log.Errorf("unable to persist last signature: %v [\"%s\": \"%s\"]",
 				err, msg.ID, base64.StdEncoding.EncodeToString(signature))
-			// todo error handling! panic?
+			return errorResponse(http.StatusInternalServerError, "")
+		}
+
+		err = s.Protocol.CloseTransaction(tx, commit)
+		if err != nil {
+			log.Errorf("%s: committing transaction failed: %v", msg.ID, err)
 			return errorResponse(http.StatusInternalServerError, "")
 		}
 	}

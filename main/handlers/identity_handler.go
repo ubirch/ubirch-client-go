@@ -78,21 +78,22 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) error {
 		AuthToken:  auth,
 	}
 
-	tx, err := i.Protocol.StartTransaction(context.Background(), uid)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := i.Protocol.StartTransaction(ctx)
 	if err != nil {
 		return err
 	}
 
 	err = i.Protocol.StoreNewIdentity(tx, newIdentity)
 	if err != nil {
-		_ = i.Protocol.CloseTransaction(tx, rollback)
 		return err
 	}
 
 	// register public key at the ubirch backend
 	err = i.registerPublicKey(privKeyPEM, uid, auth)
 	if err != nil {
-		_ = i.Protocol.CloseTransaction(tx, rollback)
 		return err
 	}
 
@@ -100,17 +101,13 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) error {
 }
 
 func (i *IdentityHandler) FetchIdentity(uid uuid.UUID) (*ent.Identity, error) {
-	tx, err := i.Protocol.StartTransaction(context.Background(), uid)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := i.Protocol.StartTransaction(ctx)
 	if err != nil {
 		return nil, err
 	}
-
-	defer func() {
-		txErr := i.Protocol.CloseTransaction(tx, commit)
-		if txErr != nil {
-			log.Errorf("closing transaction after fetch failed: %v", txErr)
-		}
-	}()
 
 	return i.Protocol.FetchIdentity(tx, uid)
 }
