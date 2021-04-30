@@ -33,32 +33,43 @@ func (i *Identity) Put(storeId StoreIdentity, idExists CheckIdentityExists) http
 
 		idPayload, err := IdentityFromBody(r.Body)
 		if err != nil {
+			log.Warn(err)
 			h.Respond400(w, err.Error())
 			return
 		}
 
-		parseUuid, err := uuid.Parse(idPayload.Uid)
+		uid, err := uuid.Parse(idPayload.Uid)
 		if err != nil {
+			log.Warnf("%s: %v", idPayload.Uid, err)
 			h.Respond400(w, err.Error())
 			return
 		}
 
-		exists, err := idExists(parseUuid)
+		exists, err := idExists(uid)
 		if err != nil {
-			Error(parseUuid, w, err, http.StatusInternalServerError)
+			log.Errorf("%s: %v", uid, err)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
+
 		if exists {
-			Error(parseUuid, w, fmt.Errorf("identity already registered"), http.StatusConflict)
+			Error(uid, w, fmt.Errorf("identity already registered"), http.StatusConflict)
 			return
 		}
 
-		if err := storeId(parseUuid, idPayload.Pwd); err != nil {
-			Error(parseUuid, w, err, http.StatusInternalServerError)
+		if len(idPayload.Pwd) == 0 {
+			Error(uid, w, fmt.Errorf("empty auth token"), http.StatusBadRequest)
 			return
 		}
 
-		h.Ok(w, fmt.Sprintf("successfully created new entry with uuid %s", parseUuid.String()))
+		err = storeId(uid, idPayload.Pwd)
+		if err != nil {
+			log.Errorf("%s: %v", uid, err)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+
+		h.Ok(w, fmt.Sprintf("successfully created new entry with uuid %s", uid))
 	}
 }
 

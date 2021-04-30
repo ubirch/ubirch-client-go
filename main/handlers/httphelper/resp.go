@@ -1,20 +1,25 @@
 package httphelper
 
 import (
-	"fmt"
 	"net/http"
+
+	log "github.com/sirupsen/logrus"
 )
 
-func EmptyOk(w http.ResponseWriter) error {
+func EmptyOk(w http.ResponseWriter) {
 	w.Header().Set(HeaderContentType, MimeTextPlain)
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, "")
-	return nil
+	_, err := w.Write([]byte{})
+	if err != nil {
+		log.Errorf("unable to write response: %s", err)
+	}
 }
 
-func Ok(w http.ResponseWriter, rsp string) error {
+func Ok(w http.ResponseWriter, rsp string) {
 	w.Header().Set(HeaderContentType, MimeTextPlain)
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, rsp)
-	return nil
+	_, err := w.Write([]byte(rsp))
+	if err != nil {
+		log.Errorf("unable to write response: %s", err)
+	}
 }
