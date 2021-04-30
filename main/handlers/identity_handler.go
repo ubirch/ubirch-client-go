@@ -108,7 +108,7 @@ func (i *IdentityHandler) FetchIdentity(uid uuid.UUID) (*ent.Identity, error) {
 	defer func() {
 		txErr := i.Protocol.CloseTransaction(tx, commit)
 		if txErr != nil {
-			log.Errorf("closing transaction failed: %v", txErr)
+			log.Errorf("closing transaction after fetch failed: %v", txErr)
 		}
 	}()
 
