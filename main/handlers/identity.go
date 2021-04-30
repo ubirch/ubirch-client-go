@@ -6,7 +6,6 @@ import (
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-client-go/main/handlers/httphelper"
-	"io"
 	"net/http"
 )
 
@@ -31,7 +30,7 @@ func (i *Identity) Put(storeId StoreIdentity, idExists CheckIdentityExists) http
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		}
 
-		idPayload, err := IdentityFromBody(r.Body)
+		idPayload, err := IdentityFromBody(r)
 		if err != nil {
 			log.Warn(err)
 			h.Respond400(w, err.Error())
@@ -68,9 +67,14 @@ func (i *Identity) Put(storeId StoreIdentity, idExists CheckIdentityExists) http
 	}
 }
 
-func IdentityFromBody(in io.ReadCloser) (IdentityPayload, error) {
+func IdentityFromBody(r *http.Request) (IdentityPayload, error) {
+	contentType := r.Header.Get(h.HeaderContentType)
+	if contentType != JSONType {
+		return IdentityPayload{}, fmt.Errorf("invalid content-type: expected %s, got %s", JSONType, contentType)
+	}
+
 	var payload IdentityPayload
-	decoder := json.NewDecoder(in)
+	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&payload); err != nil {
 		return IdentityPayload{}, err
 	}
