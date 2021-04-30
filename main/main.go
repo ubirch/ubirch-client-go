@@ -53,12 +53,14 @@ func main() {
 
 	var configDir string
 	migrate := false
+	initIdentities := false
 
 	if len(os.Args) > 1 {
 		for _, arg := range os.Args[1:] {
-			log.Info(arg)
 			if arg == vars.MigrateArg {
 				migrate = true
+			} else if arg == vars.InitArg {
+				initIdentities = true
 			} else {
 				configDir = arg
 			}
@@ -80,7 +82,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("migration failed: %v", err)
 		}
-		log.Infof("migration done")
+		log.Infof("successfully migrated file based context into database")
 		os.Exit(0)
 	}
 
@@ -106,6 +108,14 @@ func main() {
 		Protocol:            protocol,
 		SubjectCountry:      conf.CSR_Country,
 		SubjectOrganization: conf.CSR_Organization,
+	}
+
+	if initIdentities {
+		err = idHandler.InitIdentities(conf.Devices)
+		if err != nil {
+			log.Fatalf("initialization of identities from configuration failed: %v", err)
+		}
+		log.Infof("successfully initialized identities from configuration")
 	}
 
 	signer := handlers.Signer{

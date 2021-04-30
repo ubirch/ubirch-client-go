@@ -29,32 +29,41 @@ type IdentityHandler struct {
 	SubjectOrganization string
 }
 
-//func (i *IdentityHandler) InitIdentities(identities map[string]string) error {
-//	// create and register keys for identities
-//	log.Infof("initializing %d identities...", len(identities))
-//	for name, auth := range identities {
-//		// make sure identity name is a valid UUID
-//		uid, err := uuid.Parse(name)
-//		if err != nil {
-//			return fmt.Errorf("invalid identity name \"%s\" (not a UUID): %s", name, err)
-//		}
-//
-//		// make sure that all auth tokens from config are being set (this is here for backwards compatibility)
-//		if _, ok := i.Protocol.ContextManager.(*FileManager); ok {
-//			err = i.Protocol.SetAuthToken(uid, auth)
-//			if err != nil {
-//				return err
-//			}
-//		}
-//
-//		err = i.InitIdentity(uid, auth)
-//		if err != nil {
-//			return err
-//		}
-//	}
-//
-//	return nil
-//}
+func (i *IdentityHandler) InitIdentities(identities map[string]string) error {
+	// create and register keys for identities
+	log.Debugf("initializing %d identities...", len(identities))
+	for name, auth := range identities {
+		// make sure identity name is a valid UUID
+		uid, err := uuid.Parse(name)
+		if err != nil {
+			return fmt.Errorf("invalid identity name \"%s\" (not a UUID): %s", name, err)
+		}
+
+		// check if identity is already initialized
+		exists, err := i.Protocol.Exists(uid)
+		if err != nil {
+			return fmt.Errorf("can not check existing context for %s: %s", name, err)
+		}
+
+		if exists {
+			// already initialized
+			log.Debugf("%s already initialized (skip)", uid)
+			continue
+		}
+
+		// make sure identity has an auth token
+		if len(auth) == 0 {
+			return fmt.Errorf("missing auth token for identity %s", name)
+		}
+
+		err = i.InitIdentity(uid, auth)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
 
 func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) error {
 	log.Infof("initializing new identity %s", uid)
