@@ -66,37 +66,6 @@ func NewSqlDatabaseInfo(dsn config.DSN) (*DatabaseManager, error) {
 	}, nil
 }
 
-func (dm *DatabaseManager) StartTransaction(ctx context.Context, uid uuid.UUID) (transactionCtx interface{}, err error) {
-	tx, err := dm.db.BeginTx(ctx, dm.options)
-	if err != nil {
-		return nil, err
-	}
-
-	var id string
-
-	// lock row FOR UPDATE
-	err = tx.QueryRow("SELECT uid FROM identity WHERE uid = $1 FOR UPDATE", uid).
-		Scan(&id)
-	if err != nil && err != sql.ErrNoRows {
-		return nil, err
-	}
-
-	return tx, nil
-}
-
-func (dm *DatabaseManager) CloseTransaction(transactionCtx interface{}, commit bool) error {
-	tx, ok := transactionCtx.(*sql.Tx)
-	if !ok {
-		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
-	}
-
-	if commit {
-		return tx.Commit()
-	} else {
-		return tx.Rollback()
-	}
-}
-
 func (dm *DatabaseManager) Exists(uid uuid.UUID) (bool, error) {
 	var id string
 
@@ -111,22 +80,6 @@ func (dm *DatabaseManager) Exists(uid uuid.UUID) (bool, error) {
 	} else {
 		return true, nil
 	}
-}
-
-func (dm *DatabaseManager) SetSignature(transactionCtx interface{}, uid uuid.UUID, signature []byte) error {
-	tx, ok := transactionCtx.(*sql.Tx)
-	if !ok {
-		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
-	}
-
-	_, err := tx.Exec(
-		"UPDATE identity SET signature = $1 WHERE uid = $2 FOR UPDATE;",
-		&signature, uid.String())
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
@@ -168,6 +121,37 @@ func (dm *DatabaseManager) GetAuthToken(uid uuid.UUID) (string, error) {
 	return authToken, nil
 }
 
+func (dm *DatabaseManager) StartTransaction(ctx context.Context, uid uuid.UUID) (transactionCtx interface{}, err error) {
+	tx, err := dm.db.BeginTx(ctx, dm.options)
+	if err != nil {
+		return nil, err
+	}
+
+	var id string
+
+	// lock row FOR UPDATE
+	err = tx.QueryRow("SELECT uid FROM identity WHERE uid = $1 FOR UPDATE", uid).
+		Scan(&id)
+	if err != nil && err != sql.ErrNoRows {
+		return nil, err
+	}
+
+	return tx, nil
+}
+
+func (dm *DatabaseManager) CloseTransaction(transactionCtx interface{}, commit bool) error {
+	tx, ok := transactionCtx.(*sql.Tx)
+	if !ok {
+		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
+	}
+
+	if commit {
+		return tx.Commit()
+	} else {
+		return tx.Rollback()
+	}
+}
+
 func (dm *DatabaseManager) FetchIdentity(transactionCtx interface{}, uid uuid.UUID) (*ent.Identity, error) {
 	tx, ok := transactionCtx.(*sql.Tx)
 	if !ok {
@@ -176,13 +160,29 @@ func (dm *DatabaseManager) FetchIdentity(transactionCtx interface{}, uid uuid.UU
 
 	var id ent.Identity
 
-	err := tx.QueryRow("SELECT * FROM identity WHERE uid = $1 FOR UPDATE", uid.String()).
+	err := tx.QueryRow("SELECT * FROM identity WHERE uid = $1", uid.String()).
 		Scan(&id.Uid, &id.PrivateKey, &id.PublicKey, &id.Signature, &id.AuthToken)
 	if err != nil {
 		return nil, err
 	}
 
 	return &id, nil
+}
+
+func (dm *DatabaseManager) SetSignature(transactionCtx interface{}, uid uuid.UUID, signature []byte) error {
+	tx, ok := transactionCtx.(*sql.Tx)
+	if !ok {
+		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
+	}
+
+	_, err := tx.Exec(
+		"UPDATE identity SET signature = $1 WHERE uid = $2;",
+		&signature, uid.String())
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity *ent.Identity) error {
