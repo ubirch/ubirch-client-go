@@ -28,6 +28,7 @@ func (i *Identity) Put(storeId StoreIdentity, idExists CheckIdentityExists) http
 		if authHeader != i.globals.Config.RegisterAuth {
 			log.Warnf("unauthorized registration attempt")
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+			return
 		}
 
 		idPayload, err := IdentityFromBody(r)
