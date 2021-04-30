@@ -17,11 +17,15 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/google/uuid"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
+	"github.com/ubirch/ubirch-client-go/main/config"
+	"github.com/ubirch/ubirch-client-go/main/handlers"
+	"github.com/ubirch/ubirch-client-go/main/uc"
+	"github.com/ubirch/ubirch-client-go/main/vars"
 	"golang.org/x/sync/errgroup"
 
 	log "github.com/sirupsen/logrus"
@@ -48,58 +52,96 @@ func main() {
 	)
 
 	var configDir string
+	migrate := false
+	initIdentities := false
+
 	if len(os.Args) > 1 {
-		configDir = os.Args[1]
+		for _, arg := range os.Args[1:] {
+			if arg == vars.MigrateArg {
+				migrate = true
+			} else if arg == vars.InitArg {
+				initIdentities = true
+			} else {
+				configDir = arg
+			}
+		}
 	}
 
 	log.SetFormatter(&log.JSONFormatter{})
 	log.Printf("UBIRCH client (%s, build=%s)", Version, Build)
 
 	// read configuration
-	conf := Config{}
+	conf := config.Config{}
 	err := conf.Load(configDir, configFile)
 	if err != nil {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
 
+	if migrate {
+		err := handlers.Migrate(conf)
+		if err != nil {
+			log.Fatalf("migration failed: %v", err)
+		}
+		log.Infof("successfully migrated file based context into database")
+		os.Exit(0)
+	}
+
+	ctxManager, err := handlers.GetCtxManager(conf)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	client := &handlers.Client{
+		AuthServiceURL:     conf.Niomon,
+		VerifyServiceURL:   conf.VerifyService,
+		KeyServiceURL:      conf.KeyService,
+		IdentityServiceURL: conf.IdentityService,
+	}
+
 	// initialize ubirch protocol
-	cryptoCtx := &ubirch.ECDSACryptoContext{
-		Keystore: ubirch.NewEncryptedKeystore(conf.SecretBytes),
-	}
-
-	ctxManager, err := conf.GetCtxManager()
+	protocol, err := handlers.NewExtendedProtocol(ctxManager, conf.SecretBytes32, client)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	p, err := NewExtendedProtocol(cryptoCtx, ctxManager, configDir)
-	if err != nil {
-		log.Fatal(err)
+	idHandler := &handlers.IdentityHandler{
+		Protocol:            protocol,
+		SubjectCountry:      conf.CSR_Country,
+		SubjectOrganization: conf.CSR_Organization,
 	}
 
-	// generate and register keys for known devices
-	err = initDeviceKeys(p, conf)
-	if err != nil {
-		log.Fatal(err)
+	if initIdentities {
+		err = idHandler.InitIdentities(conf.Devices)
+		if err != nil {
+			log.Fatalf("initialization of identities from configuration failed: %v", err)
+		}
+		log.Infof("successfully initialized identities from configuration")
 	}
 
-	// initialize signer
-	s := Signer{
-		protocol:       p,
-		authServiceURL: conf.Niomon,
+	signer := handlers.Signer{
+		Protocol:         protocol,
+		AuthTokensBuffer: map[uuid.UUID]string{},
 	}
 
-	// initialize verifier
-	v := Verifier{
-		protocol:                      p,
-		verifyServiceURL:              conf.VerifyService,
-		keyServiceURL:                 conf.KeyService,
-		verifyFromKnownIdentitiesOnly: false, // TODO: make configurable
+	verifier := handlers.Verifier{
+		Protocol:                      protocol,
+		VerifyFromKnownIdentitiesOnly: false, // TODO: make configurable
 	}
 
-	coseSigner, err := NewCoseSigner(cryptoCtx)
-	if err != nil {
-		log.Fatal(err)
+	httpServer := handlers.HTTPServer{
+		Router:   handlers.NewRouter(),
+		Addr:     conf.TCP_addr,
+		TLS:      conf.TLS,
+		CertFile: conf.TLS_CertFile,
+		KeyFile:  conf.TLS_KeyFile,
+	}
+	if conf.CORS && config.IsDevelopment { // never enable CORS on production stage
+		httpServer.SetUpCORS(conf.CORS_Origins, conf.Debug)
+	}
+
+	globals := handlers.Globals{
+		Config:  conf,
+		Version: Version,
 	}
 
 	// create a waitgroup that contains all asynchronous operations
@@ -110,65 +152,35 @@ func main() {
 	// set up graceful shutdown handling
 	go shutdown(cancel)
 
-	// set up synchronous chaining routines for each identity
-	chainingJobs := make(map[string]chan ChainingRequest, len(conf.Devices))
-
-	for id := range conf.Devices {
-		jobs := make(chan ChainingRequest, conf.RequestBufSize)
-		chainingJobs[id] = jobs
-		s.startChainer(g, id, jobs)
-	}
-
-	// set up HTTP server
-	httpServer := HTTPServer{
-		router:   NewRouter(),
-		addr:     conf.TCP_addr,
-		TLS:      conf.TLS,
-		certFile: conf.TLS_CertFile,
-		keyFile:  conf.TLS_KeyFile,
-	}
-	if conf.CORS && isDevelopment { // never enable CORS on production stage
-		httpServer.SetUpCORS(conf.CORS_Origins, conf.Debug)
-	}
+	identity := createIdentityUseCases(globals, idHandler)
+	httpServer.Router.Put("/register", identity.handler.Put(identity.storeIdentity, identity.checkIdentity))
 
 	// set up endpoint for chaining
-	httpServer.AddEndpoint(ServerEndpoint{
-		Path: fmt.Sprintf("/{%s}", UUIDKey),
-		Service: &ChainingService{
-			Jobs:       chainingJobs,
-			AuthTokens: conf.Devices,
+	httpServer.AddServiceEndpoint(handlers.ServerEndpoint{
+		Path: fmt.Sprintf("/{%s}", handlers.UUIDKey),
+		Service: &handlers.ChainingService{
+			Signer: &signer,
 		},
 	})
 
 	// set up endpoint for signing
-	httpServer.AddEndpoint(ServerEndpoint{
-		Path: fmt.Sprintf("/{%s}/{%s}", UUIDKey, OperationKey),
-		Service: &SigningService{
-			Signer:     &s,
-			AuthTokens: conf.Devices,
+	httpServer.AddServiceEndpoint(handlers.ServerEndpoint{
+		Path: fmt.Sprintf("/{%s}/{%s}", handlers.UUIDKey, handlers.OperationKey),
+		Service: &handlers.SigningService{
+			Signer: &signer,
 		},
 	})
 
 	// set up endpoint for verification
-	httpServer.AddEndpoint(ServerEndpoint{
-		Path: fmt.Sprintf("/%s", VerifyPath),
-		Service: &VerificationService{
-			Verifier: &v,
-		},
-	})
-
-	// set up endpoint for COSE signing
-	httpServer.AddEndpoint(ServerEndpoint{
-		Path: fmt.Sprintf("/{%s}/%s", UUIDKey, COSEPath),
-		Service: &COSEService{
-			CoseSigner: coseSigner,
-			AuthTokens: conf.Devices,
+	httpServer.AddServiceEndpoint(handlers.ServerEndpoint{
+		Path: fmt.Sprintf("/%s", handlers.VerifyPath),
+		Service: &handlers.VerificationService{
+			Verifier: &verifier,
 		},
 	})
 
 	// start HTTP server
 	g.Go(func() error {
-		defer closeAll(chainingJobs) // when server is shut down, close all chaining jobs, so chainers return
 		return httpServer.Serve(ctx)
 	})
 
@@ -177,16 +189,21 @@ func main() {
 		log.Error(err)
 	}
 
-	// wrap up
-	if err = p.Deinit(); err != nil {
-		log.Error(err)
-	}
-
 	log.Info("shut down client")
 }
 
-func closeAll(jobs map[string]chan ChainingRequest) {
-	for _, job := range jobs {
-		close(job)
+type identities struct {
+	handler       handlers.Identity
+	storeIdentity handlers.StoreIdentity
+	fetchIdentity handlers.FetchIdentity
+	checkIdentity handlers.CheckIdentityExists
+}
+
+func createIdentityUseCases(globals handlers.Globals, handler *handlers.IdentityHandler) identities {
+	return identities{
+		handler:       handlers.NewIdentity(globals),
+		storeIdentity: uc.NewIdentityStorer(handler),
+		fetchIdentity: uc.NewIdentityFetcher(handler),
+		checkIdentity: uc.NewIdentityChecker(handler),
 	}
 }

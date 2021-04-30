@@ -38,19 +38,62 @@ func NewSender(testCtx *TestCtx) *Sender {
 	}
 }
 
+func (s *Sender) register(id string, auth string, registerAuth string) error {
+	url := baseURL1 + "register"
+
+	header := http.Header{}
+	header.Set("Content-Type", "application/json")
+	header.Set("X-Auth-Token", registerAuth)
+
+	registrationData := map[string]string{
+		"uuid":     id,
+		"password": auth,
+	}
+
+	body, err := json.Marshal(registrationData)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, url, bytes.NewBuffer(body))
+	if err != nil {
+		return err
+	}
+
+	req.Header = header
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+
+	//noinspection GoUnhandledErrorResult
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		log.Warnf("%s: registration returned: %s", id, resp.Status)
+	} else {
+		log.Infof("registered new identity: %s", id)
+	}
+
+	return nil
+}
+
 func (s *Sender) sendRequests(id string, auth string) {
 	defer s.testCtx.wg.Done()
 
-	url := baseURL + id + "/hash"
+	url1 := baseURL1 + id + "/hash"
+	url2 := baseURL2 + id + "/hash"
 	header := http.Header{}
 	header.Set("Content-Type", "application/octet-stream")
 	header.Set("X-Auth-Token", auth)
 
-	for i := 1; i <= numberOfRequestsPerID; i++ {
-		s.testCtx.wg.Add(1)
-		go s.sendAndCheckResponse(url, header)
+	for i := 1; i <= numberOfRequestsPerID/2; i++ {
+		s.testCtx.wg.Add(2)
+		go s.sendAndCheckResponse(url1, header)
+		go s.sendAndCheckResponse(url2, header)
 
-		time.Sleep(time.Second / requestsPerSecondPerID)
+		time.Sleep(2 * time.Second / requestsPerSecondPerID)
 	}
 }
 

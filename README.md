@@ -111,10 +111,10 @@ The only mandatory configurations are
 }
 ```
 
-> See [example_config.json](main/example_config.json) as an example for file-based configuration.
+> See [example_config.json](main/config/example_config.json) as an example for file-based configuration.
 
 Beside the `devices`-map, the device UUIDs and their corresponding authentication tokens can also be set through a file
-"`identities.json`". See example: [example_identities.json](main/example_identities.json)
+"`identities.json`". See example: [example_identities.json](main/config/example_identities.json)
 
 ### Environment Based Configuration
 
@@ -123,7 +123,7 @@ UBIRCH_DEVICES=<UUID>:<ubirch backend auth token>
 UBIRCH_SECRET=<16 byte secret used to encrypt the key store (base64 encoded)>
 ```
 
-> See [example.env](main/example.env) as an example for environment-based configuration.
+> See [example.env](main/config/example.env) as an example for environment-based configuration.
 
 All further configuration parameters have default values, that can be changed as described
 under [Optional Configurations](#optional-configurations).
@@ -646,35 +646,6 @@ configuration.
     UBIRCH_DSN=<data source name for database>
     ```
 
-### Inject signing keys
-
-The `staticKeys`-flag may be used to disable dynamic key generation and only accept requests from UUIDs with injected
-signing key. The default value for this flag is `false`, which means the client will per default generate a new ECDSA
-(prime256v1) key pair if it receives a request from a UUID without a corresponding signing key in the keystore.
-
-Instead of having the client generate keys dynamically it is possible to inject signing keys as a map UUID to signing
-key.
-
-- add the following key-value pairs to your `config.json`:
-    ```json
-      "staticKeys": true,
-      "keys": {"<UUID>": "<ecdsa-prime256v1 private key (base64 encoded)>"}
-    ```
-- or set the following environment variables:
-    ```shell
-    UBIRCH_STATICKEYS=<boolean, defaults to ‘false’>
-    UBIRCH_KEYS=<UUID>:<ecdsa-prime256v1 private key (base64 encoded)>
-    ```
-
-ECDSA signing keys (prime256v1) can be generated on the command line using openssl:
-
-```console
-openssl ecparam -genkey -name prime256v1 -noout | openssl ec -text -noout | grep priv -A 3 | tail -n +2 | tr -d ': ' | xxd -r -p | base64
-```
-
-*The client will register dynamically generated as well as injected public keys at the UBIRCH key service and store the
-keys persistently in the encrypted keystore.*
-
 ### Customize X.509 Certificate Signing Requests
 
 The client creates X.509 Certificate Signing Requests (*CSRs*) for the public keys of the devices it is managing. The *
@@ -831,7 +802,7 @@ By default, the log of the client is in JSON format. To change it to a (more hum
     - Replace `<YOUR_UUID>` with your UUID from step 1.i.
     - Replace `<YOUR_AUTH_TOKEN>` with your auth token from step 1.ii.
     - Replace `<YOUR_16_BYTE_SECRET(base64 encoded)>` with your secret from step 1.iii.
-   > Make sure you leave the quotes! [Here](main/example_config.json) is an example of how it should look like.
+   > Make sure you leave the quotes! [Here](main/config/example_config.json) is an example of how it should look like.
 
 1. To run the dockerized UBIRCH client, you will need to have [Docker](https://docs.docker.com/) installed on your
    computer. Then just enter the following two lines in your working directory:

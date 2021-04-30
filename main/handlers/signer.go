@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package handlers
 
 import (
 	"encoding/base64"
@@ -23,7 +23,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
-	"golang.org/x/sync/errgroup"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -55,97 +54,94 @@ type signingResponse struct {
 }
 
 type Signer struct {
-	protocol       *ExtendedProtocol
-	authServiceURL string
+	Protocol         *ExtendedProtocol
+	AuthTokensBuffer map[uuid.UUID]string
 }
 
-// non-blocking sending to response channel. returns right away if there is no receiver
-func (msg ChainingRequest) respond(resp HTTPResponse) {
-	select {
-	case msg.ResponseChan <- resp:
-	default:
-		log.Warnf("%s: request has been processed, but response could not be sent: (%d) %s",
-			msg.ID, resp.StatusCode, string(resp.Content))
+func (s *Signer) checkExists(uid uuid.UUID) (bool, error) {
+	_, found := s.AuthTokensBuffer[uid]
+	if !found {
+		return s.Protocol.Exists(uid)
 	}
+	return true, nil
 }
 
-// start chainer in go routine
-func (s *Signer) startChainer(g *errgroup.Group, id string, jobs <-chan ChainingRequest) {
-	g.Go(func() error {
-		return s.chainer(id, jobs)
-	})
+func (s *Signer) getAuth(uid uuid.UUID) (auth string, err error) {
+	var found bool
+
+	auth, found = s.AuthTokensBuffer[uid]
+	if !found {
+		auth, err = s.Protocol.GetAuthToken(uid)
+		if err != nil {
+			return "", err
+		}
+		s.AuthTokensBuffer[uid] = auth
+	}
+	return auth, nil
 }
 
 // handle incoming messages, create, sign and send a chained ubirch protocol packet (UPP) to the ubirch backend
-func (s *Signer) chainer(chainerID string, jobs <-chan ChainingRequest) error {
-	log.Debugf("%s: starting chainer", chainerID)
+func (s *Signer) chain(tx interface{}, msg HTTPRequest) HTTPResponse {
+	log.Infof("%s: anchor hash [chained]: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
-	for msg := range jobs {
-		// the message might have waited in the channel for a while
-		// check if the context is expired or canceled by now
-		if msg.RequestCtx.Err() != nil {
-			continue
-		}
-
-		if msg.ID.String() != chainerID {
-			log.Errorf("%s: chainer received request with wrong ID: %s", chainerID, msg.ID)
-			msg.respond(errorResponse(http.StatusInternalServerError, ""))
-			continue
-		}
-
-		log.Infof("%s: anchor hash [chained]: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
-
-		uppBytes, err := s.getChainedUPP(msg.ID, msg.Hash)
-		if err != nil {
-			log.Errorf("%s: could not create chained UPP: %v", msg.ID, err)
-			msg.respond(errorResponse(http.StatusInternalServerError, ""))
-			continue // todo should this be fatal?
-		}
-		log.Debugf("%s: chained UPP: %x", msg.ID, uppBytes)
-
-		resp := s.sendUPP(msg.HTTPRequest, uppBytes)
-
-		// persist last signature only if UPP was successfully received by ubirch backend
-		if httpSuccess(resp.StatusCode) {
-			signature := uppBytes[len(uppBytes)-s.protocol.SignatureLength():]
-			err = s.protocol.PersistSignature(msg.ID, signature)
-			if err != nil {
-				log.Errorf("unable to persist last signature: %v [\"%s\": \"%s\"]",
-					err, msg.ID, base64.StdEncoding.EncodeToString(signature))
-				msg.respond(errorResponse(http.StatusInternalServerError, ""))
-				return err
-			}
-		}
-
-		msg.respond(resp)
+	identity, err := s.Protocol.FetchIdentity(tx, msg.ID)
+	if err != nil {
+		log.Errorf("%s: could not fetch identity: %v", msg.ID, err)
+		return errorResponse(http.StatusInternalServerError, "")
 	}
 
-	log.Debugf("%s: shut down chainer", chainerID)
-	return nil
+	uppBytes, err := s.getChainedUPP(msg.ID, msg.Hash, identity.PrivateKey, identity.Signature)
+	if err != nil {
+		log.Errorf("%s: could not create chained UPP: %v", msg.ID, err)
+		return errorResponse(http.StatusInternalServerError, "")
+	}
+	log.Debugf("%s: chained UPP: %x", msg.ID, uppBytes)
+
+	resp := s.sendUPP(msg, uppBytes)
+
+	// persist last signature only if UPP was successfully received by ubirch backend
+	if HttpSuccess(resp.StatusCode) {
+		signature := uppBytes[len(uppBytes)-s.Protocol.SignatureLength():]
+
+		err = s.Protocol.SetSignature(tx, msg.ID, signature)
+		if err != nil {
+			log.Errorf("unable to persist last signature: %v [\"%s\": \"%s\"]",
+				err, msg.ID, base64.StdEncoding.EncodeToString(signature))
+			return errorResponse(http.StatusInternalServerError, "")
+		}
+
+		err = s.Protocol.CloseTransaction(tx, commit)
+		if err != nil {
+			log.Errorf("%s: committing transaction failed: %v", msg.ID, err)
+			return errorResponse(http.StatusInternalServerError, "")
+		}
+	}
+
+	return resp
 }
 
-func (s *Signer) Sign(msg SigningRequest) HTTPResponse {
-	log.Infof("%s: %s hash: %s", msg.ID, msg.Operation, base64.StdEncoding.EncodeToString(msg.Hash[:]))
+func (s *Signer) Sign(msg HTTPRequest, op operation) HTTPResponse {
+	log.Infof("%s: %s hash: %s", msg.ID, op, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
-	uppBytes, err := s.getSignedUPP(msg.ID, msg.Hash, msg.Operation)
+	privateKeyPEM, err := s.Protocol.GetPrivateKey(msg.ID)
+	if err != nil {
+		log.Errorf("%s: could not fetch private Key for UUID: %v", msg.ID, err)
+		return errorResponse(http.StatusInternalServerError, "")
+	}
+
+	uppBytes, err := s.getSignedUPP(msg.ID, msg.Hash, privateKeyPEM, op)
 	if err != nil {
 		log.Errorf("%s: could not create signed UPP: %v", msg.ID, err)
 		return errorResponse(http.StatusInternalServerError, "")
 	}
 	log.Debugf("%s: signed UPP: %x", msg.ID, uppBytes)
 
-	resp := s.sendUPP(msg.HTTPRequest, uppBytes)
-
-	return resp
+	return s.sendUPP(msg, uppBytes)
 }
 
-func (s *Signer) getChainedUPP(id uuid.UUID, hash [32]byte) ([]byte, error) {
-	prevSignature, err := s.protocol.LoadSignature(id)
-	if err != nil {
-		return nil, err
-	}
-
-	return s.protocol.Sign(
+func (s *Signer) getChainedUPP(id uuid.UUID, hash [32]byte, privateKeyPEM, prevSignature []byte) ([]byte, error) {
+	return s.Protocol.Sign(
+		privateKeyPEM,
 		&ubirch.ChainedUPP{
 			Version:       ubirch.Chained,
 			Uuid:          id,
@@ -155,13 +151,14 @@ func (s *Signer) getChainedUPP(id uuid.UUID, hash [32]byte) ([]byte, error) {
 		})
 }
 
-func (s *Signer) getSignedUPP(id uuid.UUID, hash [32]byte, op operation) ([]byte, error) {
+func (s *Signer) getSignedUPP(id uuid.UUID, hash [32]byte, privateKeyPEM []byte, op operation) ([]byte, error) {
 	hint, found := hintLookup[op]
 	if !found {
 		return nil, fmt.Errorf("%s: invalid operation: \"%s\"", id, op)
 	}
 
-	return s.protocol.Sign(
+	return s.Protocol.Sign(
+		privateKeyPEM,
 		&ubirch.SignedUPP{
 			Version: ubirch.Signed,
 			Uuid:    id,
@@ -172,7 +169,7 @@ func (s *Signer) getSignedUPP(id uuid.UUID, hash [32]byte, op operation) ([]byte
 
 func (s *Signer) sendUPP(msg HTTPRequest, upp []byte) HTTPResponse {
 	// send UPP to ubirch backend
-	backendResp, err := post(s.authServiceURL, upp, ubirchHeader(msg.ID, msg.Auth))
+	backendResp, err := s.Protocol.sendToAuthService(msg.ID, msg.Auth, upp)
 	if err != nil {
 		if os.IsTimeout(err) {
 			log.Errorf("%s: request to UBIRCH Authentication Service timed out after %s: %v", msg.ID, BackendRequestTimeout.String(), err)

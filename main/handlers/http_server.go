@@ -1,4 +1,4 @@
-package main
+package handlers
 
 import (
 	"context"
@@ -28,20 +28,16 @@ type ServerEndpoint struct {
 	Service
 }
 
-type Service interface {
-	handleRequest(w http.ResponseWriter, r *http.Request)
-}
-
-func (*ServerEndpoint) handleOptions(w http.ResponseWriter, r *http.Request) {
+func (*ServerEndpoint) HandleOptions(http.ResponseWriter, *http.Request) {
 	return
 }
 
 type HTTPServer struct {
-	router   *chi.Mux
-	addr     string
+	Router   *chi.Mux
+	Addr     string
 	TLS      bool
-	certFile string
-	keyFile  string
+	CertFile string
+	KeyFile  string
 }
 
 func NewRouter() *chi.Mux {
@@ -51,7 +47,7 @@ func NewRouter() *chi.Mux {
 }
 
 func (srv *HTTPServer) SetUpCORS(allowedOrigins []string, debug bool) {
-	srv.router.Use(cors.Handler(cors.Options{
+	srv.Router.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   allowedOrigins,
 		AllowedMethods:   []string{"POST", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Content-Type", "Content-Length", "X-Auth-Token"},
@@ -62,20 +58,20 @@ func (srv *HTTPServer) SetUpCORS(allowedOrigins []string, debug bool) {
 	}))
 }
 
-func (srv *HTTPServer) AddEndpoint(endpoint ServerEndpoint) {
+func (srv *HTTPServer) AddServiceEndpoint(endpoint ServerEndpoint) {
 	hashEndpointPath := path.Join(endpoint.Path, HashEndpoint)
 
-	srv.router.Post(endpoint.Path, endpoint.handleRequest)
-	srv.router.Post(hashEndpointPath, endpoint.handleRequest)
+	srv.Router.Post(endpoint.Path, endpoint.HandleRequest)
+	srv.Router.Post(hashEndpointPath, endpoint.HandleRequest)
 
-	srv.router.Options(endpoint.Path, endpoint.handleOptions)
-	srv.router.Options(hashEndpointPath, endpoint.handleOptions)
+	srv.Router.Options(endpoint.Path, endpoint.HandleOptions)
+	srv.Router.Options(hashEndpointPath, endpoint.HandleOptions)
 }
 
 func (srv *HTTPServer) Serve(ctx context.Context) error {
 	server := &http.Server{
-		Addr:         srv.addr,
-		Handler:      srv.router,
+		Addr:         srv.Addr,
+		Handler:      srv.Router,
 		ReadTimeout:  ReadTimeout,
 		WriteTimeout: WriteTimeout,
 		IdleTimeout:  IdleTimeout,
@@ -100,7 +96,7 @@ func (srv *HTTPServer) Serve(ctx context.Context) error {
 
 	var err error
 	if srv.TLS {
-		err = server.ListenAndServeTLS(srv.certFile, srv.keyFile)
+		err = server.ListenAndServeTLS(srv.CertFile, srv.KeyFile)
 	} else {
 		err = server.ListenAndServe()
 	}

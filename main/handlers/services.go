@@ -1,8 +1,7 @@
-package main
+package handlers
 
 import (
 	"bytes"
-	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -22,18 +21,20 @@ const (
 	UUIDKey      = "uuid"
 	OperationKey = "operation"
 	VerifyPath   = "verify"
-	COSEPath     = "cbor"
 	HashEndpoint = "hash"
 
 	BinType  = "application/octet-stream"
 	TextType = "text/plain"
 	JSONType = "application/json"
-	CBORType = "application/cbor"
 
 	HexEncoding = "hex"
 
 	HashLen = 32
 )
+
+type Service interface {
+	HandleRequest(w http.ResponseWriter, r *http.Request)
+}
 
 type Sha256Sum [HashLen]byte
 
@@ -50,41 +51,119 @@ type HTTPResponse struct {
 }
 
 type ChainingService struct {
-	Jobs       map[string]chan ChainingRequest
-	AuthTokens map[string]string
+	*Signer
 }
 
 // Ensure ChainingService implements the Service interface
 var _ Service = (*ChainingService)(nil)
 
-type ChainingRequest struct {
-	HTTPRequest
-	ResponseChan chan HTTPResponse
-	RequestCtx   context.Context
+func (s *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) {
+	var msg HTTPRequest
+	var err error
+
+	msg.ID, err = getUUID(r)
+	if err != nil {
+		Error(msg.ID, w, err, http.StatusNotFound)
+		return
+	}
+
+	exists, err := s.checkExists(msg.ID)
+	if err != nil {
+		log.Errorf("%s: %v", msg.ID, err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	if !exists {
+		Error(msg.ID, w, fmt.Errorf("unknown UUID"), http.StatusNotFound)
+		return
+	}
+
+	idAuth, err := s.getAuth(msg.ID)
+	if err != nil {
+		log.Errorf("%s: %v", msg.ID, err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	msg.Auth, err = checkAuth(r, idAuth)
+	if err != nil {
+		Error(msg.ID, w, err, http.StatusUnauthorized)
+		return
+	}
+
+	msg.Hash, err = getHash(r)
+	if err != nil {
+		Error(msg.ID, w, err, http.StatusBadRequest)
+		return
+	}
+
+	tx, err := s.Protocol.StartTransactionWithLock(r.Context(), msg.ID)
+	if err != nil {
+		log.Errorf("%s: starting transaction with lock failed: %v", msg.ID, err)
+		http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
+		return
+	}
+
+	resp := s.chain(tx, msg)
+	sendResponse(w, resp)
 }
 
 type SigningService struct {
 	*Signer
-	AuthTokens map[string]string
 }
 
 var _ Service = (*SigningService)(nil)
 
-type SigningRequest struct {
-	HTTPRequest
-	Operation operation
-}
+func (s *SigningService) HandleRequest(w http.ResponseWriter, r *http.Request) {
+	var msg HTTPRequest
+	var err error
 
-type COSEService struct {
-	*CoseSigner
-	AuthTokens map[string]string
-}
+	msg.ID, err = getUUID(r)
+	if err != nil {
+		Error(msg.ID, w, err, http.StatusNotFound)
+		return
+	}
 
-var _ Service = (*COSEService)(nil)
+	exists, err := s.checkExists(msg.ID)
+	if err != nil {
+		log.Errorf("%s: %v", msg.ID, err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
 
-type CBORRequest struct {
-	HTTPRequest
-	Payload []byte
+	if !exists {
+		Error(msg.ID, w, fmt.Errorf("unknown UUID"), http.StatusNotFound)
+		return
+	}
+
+	idAuth, err := s.getAuth(msg.ID)
+	if err != nil {
+		log.Errorf("%s: %v", msg.ID, err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	msg.Auth, err = checkAuth(r, idAuth)
+	if err != nil {
+		Error(msg.ID, w, err, http.StatusUnauthorized)
+		return
+	}
+
+	op, err := getOperation(r)
+	if err != nil {
+		Error(msg.ID, w, err, http.StatusNotFound)
+		return
+	}
+
+	msg.Hash, err = getHash(r)
+	if err != nil {
+		Error(msg.ID, w, err, http.StatusBadRequest)
+		return
+	}
+
+	resp := s.Sign(msg, op)
+	sendResponse(w, resp)
 }
 
 type VerificationService struct {
@@ -93,90 +172,7 @@ type VerificationService struct {
 
 var _ Service = (*VerificationService)(nil)
 
-func (c *ChainingService) handleRequest(w http.ResponseWriter, r *http.Request) {
-	var err error
-
-	msg := ChainingRequest{
-		ResponseChan: make(chan HTTPResponse),
-		RequestCtx:   r.Context(),
-	}
-
-	msg.ID, err = getUUID(r)
-	if err != nil {
-		Error(msg.ID, w, err, http.StatusNotFound)
-		return
-	}
-
-	msg.Auth, err = checkAuth(r, msg.ID, c.AuthTokens)
-	if err != nil {
-		Error(msg.ID, w, err, http.StatusUnauthorized)
-		return
-	}
-
-	msg.Hash, err = getHash(r)
-	if err != nil {
-		Error(msg.ID, w, err, http.StatusBadRequest)
-		return
-	}
-
-	err = c.submitForChaining(msg)
-	if err != nil {
-		log.Warnf("%s: %v", msg.ID, err)
-		http.Error(w, "Service Temporarily Unavailable", http.StatusServiceUnavailable)
-		return
-	}
-
-	resp, err := waitForResp(msg.ResponseChan, r.Context())
-	if err != nil {
-		log.Warnf("%s: %v", msg.ID, err)
-		return
-	}
-
-	sendResponse(w, resp)
-}
-
-func (c *ChainingService) submitForChaining(msg ChainingRequest) error {
-	select {
-	case c.Jobs[msg.ID.String()] <- msg:
-		return nil
-	default: // do not accept any more requests if buffer is full
-		return fmt.Errorf("resquest skipped due to overflowing request channel")
-	}
-}
-
-func (s *SigningService) handleRequest(w http.ResponseWriter, r *http.Request) {
-	var msg SigningRequest
-	var err error
-
-	msg.ID, err = getUUID(r)
-	if err != nil {
-		Error(msg.ID, w, err, http.StatusNotFound)
-		return
-	}
-
-	msg.Auth, err = checkAuth(r, msg.ID, s.AuthTokens)
-	if err != nil {
-		Error(msg.ID, w, err, http.StatusUnauthorized)
-		return
-	}
-
-	msg.Operation, err = getOperation(r)
-	if err != nil {
-		Error(msg.ID, w, err, http.StatusNotFound)
-		return
-	}
-
-	msg.Hash, err = getHash(r)
-	if err != nil {
-		Error(msg.ID, w, err, http.StatusBadRequest)
-		return
-	}
-
-	resp := s.Sign(msg)
-	sendResponse(w, resp)
-}
-
-func (v *VerificationService) handleRequest(w http.ResponseWriter, r *http.Request) {
+func (v *VerificationService) HandleRequest(w http.ResponseWriter, r *http.Request) {
 	hash, err := getHash(r)
 	if err != nil {
 		Error(uuid.Nil, w, err, http.StatusBadRequest)
@@ -185,85 +181,6 @@ func (v *VerificationService) handleRequest(w http.ResponseWriter, r *http.Reque
 
 	resp := v.Verify(hash[:])
 	sendResponse(w, resp)
-}
-
-func (c *COSEService) handleRequest(w http.ResponseWriter, r *http.Request) {
-	var msg CBORRequest
-	var err error
-
-	msg.ID, err = getUUID(r)
-	if err != nil {
-		Error(msg.ID, w, err, http.StatusNotFound)
-		return
-	}
-
-	msg.Auth, err = checkAuth(r, msg.ID, c.AuthTokens)
-	if err != nil {
-		Error(msg.ID, w, err, http.StatusUnauthorized)
-		return
-	}
-
-	payload, hash, err := c.getPayloadAndHash(r)
-	if err != nil {
-		Error(msg.ID, w, err, http.StatusBadRequest)
-		return
-	}
-	msg.Payload = payload
-	msg.Hash = hash
-
-	resp := c.Sign(msg)
-
-	sendResponse(w, resp)
-}
-
-func (c *COSEService) getPayloadAndHash(r *http.Request) (payload []byte, hash Sha256Sum, err error) {
-	rBody, err := readBody(r)
-	if err != nil {
-		return nil, Sha256Sum{}, err
-	}
-
-	if isHashRequest(r) { // request contains hash
-		hash, err = getHashFromHashRequest(r.Header, rBody)
-		return rBody, hash, err
-	} else { // request contains original data
-		return c.getPayloadAndHashFromDataRequest(r.Header, rBody)
-	}
-}
-
-func (c *COSEService) getPayloadAndHashFromDataRequest(header http.Header, data []byte) (payload []byte, hash Sha256Sum, err error) {
-	switch ContentType(header) {
-	case JSONType:
-		data, err = c.getCBORFromJSON(data)
-		if err != nil {
-			return nil, Sha256Sum{}, fmt.Errorf("unable to CBOR encode JSON object: %v", err)
-		}
-		log.Debugf("CBOR encoded JSON: %x", data)
-
-		fallthrough
-	case CBORType:
-		toBeSigned, err := c.GetSigStructBytes(data)
-		if err != nil {
-			return nil, Sha256Sum{}, err
-		}
-		log.Debugf("toBeSigned: %x", toBeSigned)
-
-		hash = sha256.Sum256(toBeSigned)
-		return data, hash, err
-	default:
-		return nil, Sha256Sum{}, fmt.Errorf("invalid content-type for original data: "+
-			"expected (\"%s\" | \"%s\")", CBORType, JSONType)
-	}
-}
-
-func (c *COSEService) getCBORFromJSON(data []byte) ([]byte, error) {
-	var reqDump interface{}
-
-	err := json.Unmarshal(data, &reqDump)
-	if err != nil {
-		return nil, fmt.Errorf("unable to parse JSON request body: %v", err)
-	}
-
-	return c.encMode.Marshal(reqDump)
 }
 
 // wrapper for http.Error that additionally logs the error message to std.Output
@@ -297,18 +214,11 @@ func getUUID(r *http.Request) (uuid.UUID, error) {
 	return id, nil
 }
 
-// checkAuth checks the auth token from the request header and returns it if valid
-// Returns error if UUID is unknown or auth token is invalid
-func checkAuth(r *http.Request, id uuid.UUID, authTokens map[string]string) (string, error) {
-	// check if UUID is known
-	idAuthToken, exists := authTokens[id.String()]
-	if !exists || idAuthToken == "" {
-		return "", fmt.Errorf("unknown UUID")
-	}
-
-	// check auth token from request header
+// checkAuth compares the auth token from the request header with a given string and returns it if valid
+// Returns error if auth token is invalid
+func checkAuth(r *http.Request, actualAuth string) (string, error) {
 	headerAuthToken := AuthToken(r.Header)
-	if idAuthToken != headerAuthToken {
+	if actualAuth != headerAuthToken {
 		return "", fmt.Errorf("invalid auth token")
 	}
 
@@ -357,7 +267,7 @@ func getHash(r *http.Request) (Sha256Sum, error) {
 func getHashFromDataRequest(header http.Header, data []byte) (hash Sha256Sum, err error) {
 	switch ContentType(header) {
 	case JSONType:
-		data, err = getSortedCompactJSON(data)
+		data, err = GetSortedCompactJSON(data)
 		if err != nil {
 			return Sha256Sum{}, err
 		}
@@ -402,7 +312,7 @@ func getHashFromHashRequest(header http.Header, data []byte) (hash Sha256Sum, er
 	}
 }
 
-func getSortedCompactJSON(data []byte) ([]byte, error) {
+func GetSortedCompactJSON(data []byte) ([]byte, error) {
 	var reqDump interface{}
 	var sortedCompactJson bytes.Buffer
 
@@ -431,17 +341,6 @@ func jsonMarshal(v interface{}) ([]byte, error) {
 	encoder.SetEscapeHTML(false)
 	err := encoder.Encode(v)
 	return buffer.Bytes(), err
-}
-
-// wait for response or context cancel
-// returns the response, if response comes first, or ctx.Err(), if context was canceled first
-func waitForResp(msgResp <-chan HTTPResponse, ctx context.Context) (HTTPResponse, error) {
-	select {
-	case resp := <-msgResp:
-		return resp, nil
-	case <-ctx.Done():
-		return HTTPResponse{}, ctx.Err()
-	}
 }
 
 // forwards response to sender
