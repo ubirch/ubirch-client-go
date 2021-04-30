@@ -57,11 +57,6 @@ func (i *Identity) Put(storeId StoreIdentity, idExists CheckIdentityExists) http
 			return
 		}
 
-		if len(idPayload.Pwd) == 0 {
-			Error(uid, w, fmt.Errorf("empty auth token"), http.StatusBadRequest)
-			return
-		}
-
 		err = storeId(uid, idPayload.Pwd)
 		if err != nil {
 			log.Errorf("%s: %v", uid, err)
@@ -78,6 +73,9 @@ func IdentityFromBody(in io.ReadCloser) (IdentityPayload, error) {
 	decoder := json.NewDecoder(in)
 	if err := decoder.Decode(&payload); err != nil {
 		return IdentityPayload{}, err
+	}
+	if len(payload.Uid) == 0 {
+		return IdentityPayload{}, fmt.Errorf("empty uuid")
 	}
 	if len(payload.Pwd) == 0 {
 		return IdentityPayload{}, fmt.Errorf("empty password")
