@@ -17,6 +17,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/google/uuid"
 	"os"
 	"os/signal"
 	"syscall"
@@ -52,15 +53,12 @@ func main() {
 
 	var configDir string
 	migrate := false
-	diffPort := false
 
 	if len(os.Args) > 1 {
 		for _, arg := range os.Args[1:] {
 			log.Info(arg)
 			if arg == vars.MigrateArg {
 				migrate = true
-			} else if arg == "88" {
-				diffPort = true
 			} else {
 				configDir = arg
 			}
@@ -77,14 +75,10 @@ func main() {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
 
-	if diffPort {
-		conf.TCP_addr = ":8088"
-	}
-
 	if migrate {
 		err := handlers.Migrate(conf)
 		if err != nil {
-			log.Fatalf("could not migrate: %v", err)
+			log.Fatalf("migration failed: %v", err)
 		}
 		log.Infof("migration done")
 		os.Exit(0)
@@ -115,7 +109,8 @@ func main() {
 	}
 
 	signer := handlers.Signer{
-		Protocol: protocol,
+		Protocol:         protocol,
+		AuthTokensBuffer: map[uuid.UUID]string{},
 	}
 
 	verifier := handlers.Verifier{

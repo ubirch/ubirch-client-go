@@ -54,7 +54,30 @@ type signingResponse struct {
 }
 
 type Signer struct {
-	Protocol *ExtendedProtocol
+	Protocol         *ExtendedProtocol
+	AuthTokensBuffer map[uuid.UUID]string
+}
+
+func (s *Signer) checkExists(uid uuid.UUID) (bool, error) {
+	_, found := s.AuthTokensBuffer[uid]
+	if !found {
+		return s.Protocol.Exists(uid)
+	}
+	return true, nil
+}
+
+func (s *Signer) getAuth(uid uuid.UUID) (auth string, err error) {
+	var found bool
+
+	auth, found = s.AuthTokensBuffer[uid]
+	if !found {
+		auth, err = s.Protocol.GetAuthToken(uid)
+		if err != nil {
+			return "", err
+		}
+		s.AuthTokensBuffer[uid] = auth
+	}
+	return auth, nil
 }
 
 // handle incoming messages, create, sign and send a chained ubirch protocol packet (UPP) to the ubirch backend
