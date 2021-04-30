@@ -121,7 +121,13 @@ func (dm *DatabaseManager) GetAuthToken(uid uuid.UUID) (string, error) {
 	return authToken, nil
 }
 
-func (dm *DatabaseManager) StartTransaction(ctx context.Context, uid uuid.UUID) (transactionCtx interface{}, err error) {
+func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
+	return dm.db.BeginTx(ctx, dm.options)
+}
+
+// StartTransactionWithLock starts a transaction and acquires a lock on the row with the specified uuid as key.
+// Returns error if row does not exist.
+func (dm *DatabaseManager) StartTransactionWithLock(ctx context.Context, uid uuid.UUID) (transactionCtx interface{}, err error) {
 	tx, err := dm.db.BeginTx(ctx, dm.options)
 	if err != nil {
 		return nil, err
@@ -132,7 +138,7 @@ func (dm *DatabaseManager) StartTransaction(ctx context.Context, uid uuid.UUID) 
 	// lock row FOR UPDATE
 	err = tx.QueryRow("SELECT uid FROM identity WHERE uid = $1 FOR UPDATE", uid).
 		Scan(&id)
-	if err != nil && err != sql.ErrNoRows {
+	if err != nil {
 		return nil, err
 	}
 

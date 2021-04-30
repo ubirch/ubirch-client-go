@@ -52,8 +52,12 @@ func NewExtendedProtocol(ctxManager ContextManager, secret []byte, client *Clien
 	return p, nil
 }
 
-func (p *ExtendedProtocol) StartTransaction(ctx context.Context, uid uuid.UUID) (transactionCtx interface{}, err error) {
-	return p.ctxManager.StartTransaction(ctx, uid)
+func (p *ExtendedProtocol) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
+	return p.ctxManager.StartTransaction(ctx)
+}
+
+func (p *ExtendedProtocol) StartTransactionWithLock(ctx context.Context, uid uuid.UUID) (transactionCtx interface{}, err error) {
+	return p.ctxManager.StartTransactionWithLock(ctx, uid)
 }
 
 func (p *ExtendedProtocol) CloseTransaction(tx interface{}, commit bool) error {
