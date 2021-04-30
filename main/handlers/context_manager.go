@@ -14,7 +14,8 @@ const (
 )
 
 type ContextManager interface {
-	StartTransaction(ctx context.Context, uid uuid.UUID) (transactionCtx interface{}, err error)
+	StartTransaction(ctx context.Context) (transactionCtx interface{}, err error)
+	StartTransactionWithLock(ctx context.Context, uid uuid.UUID) (transactionCtx interface{}, err error)
 	CloseTransaction(transactionCtx interface{}, commit bool) error
 
 	Exists(uid uuid.UUID) (bool, error)
