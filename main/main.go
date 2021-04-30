@@ -56,7 +56,8 @@ func main() {
 	initIdentities := false
 
 	if len(os.Args) > 1 {
-		for _, arg := range os.Args[1:] {
+		for i, arg := range os.Args[1:] {
+			log.Infof("arg #%d: %s", i+1, arg)
 			if arg == vars.MigrateArg {
 				migrate = true
 			} else if arg == vars.InitArg {

@@ -160,11 +160,11 @@ func (c *Config) checkMandatory() error {
 	}
 
 	if len(c.SecretBytes32) != secretLength32 {
-		return fmt.Errorf("secret length must be %d bytes (is %d)", secretLength32, len(c.SecretBytes32))
+		return fmt.Errorf("secret for aes-256 key encryption ('secret32') length must be %d bytes (is %d)", secretLength32, len(c.SecretBytes32))
 	}
 
 	if len(c.RegisterAuth) == 0 {
-		return fmt.Errorf("auth token for register wasn't set")
+		return fmt.Errorf("auth token for identity registration ('registerAuth') wasn't set")
 	}
 
 	return nil

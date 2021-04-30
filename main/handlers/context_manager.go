@@ -34,7 +34,7 @@ func GetCtxManager(c config.Config) (ContextManager, error) {
 	if c.Dsn.Db != "" && c.Dsn.User != "" {
 		return NewSqlDatabaseInfo(c.Dsn)
 	} else {
-		return nil, fmt.Errorf("file based context management is notsupported in current version. " +
-			"Please use a database or downgrade to a version < 2")
+		return nil, fmt.Errorf("file-based context management is not supported in the current version. " +
+			"Please set DSN parameters in the configuration and conntect to a database or downgrade to a version < 2.0.0")
 	}
 }
