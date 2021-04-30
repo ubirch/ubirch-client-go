@@ -28,7 +28,7 @@ func main() {
 
 	log.Infof("%d identities, %d requests each => sending [ %d ] requests", len(testCtx.identities), numberOfRequestsPerID, len(testCtx.identities)*numberOfRequestsPerID)
 	log.Infof("%3d requests per second per identity", requestsPerSecondPerID)
-	log.Infof("%3d requests per second overall", requestsPerSecondPerID*numberOfTestIDs)
+	log.Infof("%3d requests per second overall", len(testCtx.identities)*requestsPerSecondPerID)
 
 	start := time.Now()
 
