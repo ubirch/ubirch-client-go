@@ -57,7 +57,7 @@ type ChainingService struct {
 // Ensure ChainingService implements the Service interface
 var _ Service = (*ChainingService)(nil)
 
-func (c *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) {
+func (s *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) {
 	var msg HTTPRequest
 	var err error
 
@@ -67,12 +67,22 @@ func (c *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// todo here we need to check if the UUID is known
-
-	// todo auth token buffer
-	idAuth, err := c.Protocol.GetAuthToken(msg.ID)
+	exists, err := s.checkExists(msg.ID)
 	if err != nil {
-		Error(msg.ID, w, err, http.StatusInternalServerError)
+		log.Errorf("%s: %v", msg.ID, err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	if !exists {
+		Error(msg.ID, w, fmt.Errorf("unknown UUID"), http.StatusNotFound)
+		return
+	}
+
+	idAuth, err := s.getAuth(msg.ID)
+	if err != nil {
+		log.Errorf("%s: %v", msg.ID, err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
@@ -88,15 +98,14 @@ func (c *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// todo here goes the waiting queue
-	tx, err := c.Protocol.StartTransactionWithLock(r.Context(), msg.ID)
+	tx, err := s.Protocol.StartTransactionWithLock(r.Context(), msg.ID)
 	if err != nil {
 		log.Errorf("%s: starting transaction with lock failed: %v", msg.ID, err)
 		http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
 		return
 	}
 
-	resp := c.chain(tx, msg)
+	resp := s.chain(tx, msg)
 	sendResponse(w, resp)
 }
 
@@ -116,11 +125,22 @@ func (s *SigningService) HandleRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// todo here we need to check if the UUID is known
-
-	idAuth, err := s.Protocol.GetAuthToken(msg.ID)
+	exists, err := s.checkExists(msg.ID)
 	if err != nil {
-		Error(msg.ID, w, err, http.StatusInternalServerError)
+		log.Errorf("%s: %v", msg.ID, err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	if !exists {
+		Error(msg.ID, w, fmt.Errorf("unknown UUID"), http.StatusNotFound)
+		return
+	}
+
+	idAuth, err := s.getAuth(msg.ID)
+	if err != nil {
+		log.Errorf("%s: %v", msg.ID, err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
@@ -194,10 +214,9 @@ func getUUID(r *http.Request) (uuid.UUID, error) {
 	return id, nil
 }
 
-// checkAuth checks the auth token from the request header and returns it if valid
-// Returns error if UUID is unknown or auth token is invalid
+// checkAuth compares the auth token from the request header with a given string and returns it if valid
+// Returns error if auth token is invalid
 func checkAuth(r *http.Request, actualAuth string) (string, error) {
-	// check auth token from request header
 	headerAuthToken := AuthToken(r.Header)
 	if actualAuth != headerAuthToken {
 		return "", fmt.Errorf("invalid auth token")
