@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"bytes"
-	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -43,7 +42,6 @@ type HTTPRequest struct {
 	ID   uuid.UUID
 	Auth string
 	Hash Sha256Sum
-	ctx  context.Context
 }
 
 type HTTPResponse struct {
@@ -60,11 +58,8 @@ type ChainingService struct {
 var _ Service = (*ChainingService)(nil)
 
 func (c *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) {
+	var msg HTTPRequest
 	var err error
-
-	msg := HTTPRequest{
-		ctx: r.Context(),
-	}
 
 	msg.ID, err = getUUID(r)
 	if err != nil {
@@ -74,6 +69,7 @@ func (c *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) 
 
 	// todo here we need to check if the UUID is known
 
+	// todo auth token buffer
 	idAuth, err := c.Protocol.GetAuthToken(msg.ID)
 	if err != nil {
 		Error(msg.ID, w, err, http.StatusInternalServerError)
@@ -82,21 +78,25 @@ func (c *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) 
 
 	msg.Auth, err = checkAuth(r, idAuth)
 	if err != nil {
-		log.Errorf("something went wrong: %v", err)
 		Error(msg.ID, w, err, http.StatusUnauthorized)
 		return
 	}
 
 	msg.Hash, err = getHash(r)
 	if err != nil {
-		log.Errorf("something went wrong get hash: %v", err)
 		Error(msg.ID, w, err, http.StatusBadRequest)
 		return
 	}
 
 	// todo here goes the waiting queue
+	tx, err := c.Protocol.StartTransactionWithLock(r.Context(), msg.ID)
+	if err != nil {
+		log.Errorf("%s: starting transaction with lock failed: %v", msg.ID, err)
+		http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
+		return
+	}
 
-	resp := c.chain(msg)
+	resp := c.chain(tx, msg)
 	sendResponse(w, resp)
 }
 
