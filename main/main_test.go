@@ -69,11 +69,11 @@ func createHashRequest(address string, authToken string, uuidString string, hash
 // or exits with error message
 func TestMain(m *testing.M) {
 	const (
-		configFile = "config/test_config.json"
+		configFile = "test_config.json"
 	)
 	// load the configuration
 	conf := config.Config{}
-	err := conf.Load(".", configFile, false)
+	err := conf.Load(".", configFile)
 	if err != nil {
 		log.Fatalf("\r\n" +
 			"###\r\n" +
