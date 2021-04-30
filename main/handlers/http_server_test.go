@@ -1,4 +1,4 @@
-package main
+package handlers
 
 import (
 	"bytes"
@@ -27,7 +27,7 @@ func TestSortedCompactJson(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		out, err := getSortedCompactJSON(test.testInput)
+		out, err := GetSortedCompactJSON(test.testInput)
 		if err != nil {
 			t.Errorf("getSortedCompactJSON returned error: %v", err)
 		}
