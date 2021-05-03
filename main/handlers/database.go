@@ -25,7 +25,6 @@ import (
 	"github.com/ubirch/ubirch-client-go/main/ent"
 	"github.com/ubirch/ubirch-client-go/main/vars"
 	"time"
-
 	// postgres driver is imported for side effects
 	// import pq driver this way only if we dont need it here
 	// done for database/sql (pg, err := sql.Open..)
@@ -206,7 +205,7 @@ func (dm *DatabaseManager) SetSignature(transactionCtx interface{}, uid uuid.UUI
 		&signature, uid.String())
 	if err != nil {
 		if dm.isConnectionAvailable(err) {
-			dm.SetSignature(tx, uid, signature)
+			return dm.SetSignature(tx, uid, signature)
 		}
 		return err
 	}
@@ -255,10 +254,10 @@ func (dm *DatabaseManager) storeIdentity(tx *sql.Tx, identity *ent.Identity) err
 	return nil
 }
 
-func (dm *DatabaseManager) isConnectionAvailable(err error) bool {
-	if err.Error() == pq.ErrorCode("53300").Name() ||
-		err.Error() == pq.ErrorCode("53400").Name() {
-		time.Sleep(200 * time.Millisecond)
+func (dm *DatabaseManager) isConnectionAvailable(err error) bool { // todo this will only work with postgres
+	if err.Error() == pq.ErrorCode("53300").Name() || // "53300": "too_many_connections",
+		err.Error() == pq.ErrorCode("53400").Name() { // "53400": "configuration_limit_exceeded",
+		time.Sleep(100 * time.Millisecond)
 		return true
 	}
 	return false
