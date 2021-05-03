@@ -117,6 +117,7 @@ func main() {
 			log.Fatalf("initialization of identities from configuration failed: %v", err)
 		}
 		log.Infof("successfully initialized identities from configuration")
+		os.Exit(0)
 	}
 
 	signer := handlers.Signer{

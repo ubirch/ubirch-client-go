@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/ubirch/ubirch-client-go/main/config"
@@ -10,20 +11,30 @@ import (
 	"os"
 )
 
+const MigrationVersion = "1.0.1"
+
 const (
-	Postgres = iota
+	PostgresIdentity = iota
+	PostgresVersion
 	//MySQL
 	//SQLite
 )
 
+type Migration struct {
+	Id               string
+	MigrationVersion string
+}
+
 var CREATE = map[int]string{
-	Postgres: "CREATE TABLE " + vars.PostgreSqlTableName + "(" +
+	PostgresIdentity: "CREATE TABLE " + vars.PostgreSqlIdentityTableName + "(" +
 		"uid VARCHAR(255) NOT NULL PRIMARY KEY, " +
 		"private_key BYTEA NOT NULL, " +
 		"public_key BYTEA NOT NULL, " +
 		"signature BYTEA NOT NULL, " +
 		"auth_token VARCHAR(255) NOT NULL);",
-
+	PostgresVersion: "CREATE TABLE " + vars.PostgreSqlVersionTableName + "(" +
+		"id VARCHAR(255) NOT NULL PRIMARY KEY, " +
+		"migration_version VARCHAR(255) NOT NULL);",
 	//MySQL:    "CREATE TABLE identity (id INT, datetime TIMESTAMP)",
 	//SQLite:   "CREATE TABLE identity (id INTEGER, datetime TEXT)",
 }
@@ -33,22 +44,38 @@ type Table struct {
 }
 
 func Migrate(c config.Config) error {
-	identitiesToPort, err := getAllIdentitiesFromLegacyCtx(c)
-	if err != nil {
-		return err
-	}
+	txCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	dbManager, err := NewSqlDatabaseInfo(c)
 	if err != nil {
 		return err
 	}
 
-	err = checkForTable(dbManager)
+	tx, shouldMigrate, err := checkVersion(txCtx, dbManager)
+	if err != nil {
+		return err
+	}
+	if !shouldMigrate {
+		return nil
+	}
+
+	identitiesToPort, err := getAllIdentitiesFromLegacyCtx(c)
 	if err != nil {
 		return err
 	}
 
-	return migrateIdentities(c, dbManager, identitiesToPort)
+	err = checkForTable(dbManager, vars.PostgreSqlIdentityTableName, PostgresIdentity)
+	if err != nil {
+		return err
+	}
+
+	err = migrateIdentities(c, dbManager, identitiesToPort)
+	if err != nil {
+		return err
+	}
+
+	return updateVersion(tx)
 }
 
 func getAllIdentitiesFromLegacyCtx(c config.Config) ([]ent.Identity, error) {
@@ -107,17 +134,17 @@ func getAllIdentitiesFromLegacyCtx(c config.Config) ([]ent.Identity, error) {
 }
 
 // TODO: check if there is not an more elegant way of checking for tables
-func checkForTable(dm *DatabaseManager) error {
+func checkForTable(dm *DatabaseManager, tableName string, tableKey int) error {
 
 	var table Table
-	query := fmt.Sprintf("SELECT to_regclass('%s') IS NOT NULL", vars.PostgreSqlTableName)
+	query := fmt.Sprintf("SELECT to_regclass('%s') IS NOT NULL", tableName)
 
 	if err := dm.db.QueryRow(query).Scan(&table.exists); err != nil {
 		return fmt.Errorf("scan rows error: %v", err)
 	}
 	if !table.exists {
-		log.Printf("database table %s doesn't exist creating table", vars.PostgreSqlTableName)
-		if _, err := dm.db.Exec(CREATE[Postgres]); err != nil {
+		log.Printf("database table %s doesn't exist creating table", tableName)
+		if _, err := dm.db.Exec(CREATE[tableKey]); err != nil {
 			return err
 		}
 	}
@@ -145,9 +172,65 @@ func migrateIdentities(c config.Config, dm *DatabaseManager, identities []ent.Id
 
 		err = p.StoreNewIdentity(tx, &id)
 		if err != nil {
-			return err
+			if err == ErrExists {
+				log.Warnf("%s: %v -> skip", id.Uid, err)
+			} else {
+				return err
+			}
 		}
 	}
 
+	return tx.Commit()
+}
+
+func checkVersion(ctx context.Context, dm *DatabaseManager) (*sql.Tx, bool, error) {
+	var version Migration
+
+	tx, err := dm.db.BeginTx(ctx, dm.options)
+	if err != nil {
+		return nil, false, err
+	}
+
+	err = checkForTable(dm, vars.PostgreSqlIdentityTableName, PostgresVersion)
+	if err != nil {
+		return tx, false, err
+	}
+
+	err = tx.QueryRow("SELECT * FROM version WHERE id = 'dbMigration' FOR UPDATE").
+		Scan(&version.Id, &version.MigrationVersion)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			shouldMigrate, err := CreateVersionEntry(tx, version)
+			return tx, shouldMigrate, err
+		} else {
+			return tx, false, err
+		}
+	}
+	if version.MigrationVersion != MigrationVersion {
+		return tx, true, nil
+	}
+	return tx, false, nil
+}
+
+func CreateVersionEntry(tx *sql.Tx, version Migration) (bool, error) {
+	version.Id = "dbMigration"
+	version.MigrationVersion = MigrationVersion
+	_, err := tx.Exec("INSERT INTO version (id, migration_version) VALUES ($1, $2);",
+		&version.Id, &version.MigrationVersion)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func updateVersion(tx *sql.Tx) error {
+	var version Migration
+	version.Id = "dbMigration"
+	version.MigrationVersion = MigrationVersion
+	_, err := tx.Exec("UPDATE version SET migration_version = $1 WHERE id = $2;",
+		&version.MigrationVersion, &version.Id)
+	if err != nil {
+		return err
+	}
 	return tx.Commit()
 }
