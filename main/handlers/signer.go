@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
@@ -54,8 +55,9 @@ type signingResponse struct {
 }
 
 type Signer struct {
-	Protocol         *ExtendedProtocol
-	AuthTokensBuffer map[uuid.UUID]string
+	Protocol             *ExtendedProtocol
+	AuthTokensBuffer     map[uuid.UUID]string
+	AuthTokenBufferMutex *sync.RWMutex
 }
 
 func (s *Signer) checkExists(uid uuid.UUID) (bool, error) {
@@ -75,6 +77,8 @@ func (s *Signer) getAuth(uid uuid.UUID) (auth string, err error) {
 		if err != nil {
 			return "", err
 		}
+		s.AuthTokenBufferMutex.RLock()
+		defer s.AuthTokenBufferMutex.RUnlock()
 		s.AuthTokensBuffer[uid] = auth
 	}
 	return auth, nil

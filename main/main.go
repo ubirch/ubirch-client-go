@@ -20,6 +20,7 @@ import (
 	"github.com/google/uuid"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	"github.com/ubirch/ubirch-client-go/main/config"
@@ -121,8 +122,9 @@ func main() {
 	}
 
 	signer := handlers.Signer{
-		Protocol:         protocol,
-		AuthTokensBuffer: map[uuid.UUID]string{},
+		Protocol:             protocol,
+		AuthTokensBuffer:     map[uuid.UUID]string{},
+		AuthTokenBufferMutex: &sync.RWMutex{},
 	}
 
 	verifier := handlers.Verifier{
