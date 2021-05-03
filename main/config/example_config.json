@@ -2,7 +2,7 @@
   "devices": {
     "b07c32c6-4525-43f8-ab94-9383bf585ef0": "ad3e073b-9ead-437c-9e09-853e9a508dca"
   },
-  "secret": "1kjZItJ/GTq8YXW86JfTfHWRuvzCbuqvOA9nNMYMbBY=",
+  "secret": "MTIzNDU2Nzg5MDEyMzQ1Ng==",
   "secret32": "sdSjtMh6C2oNgsiVcPx89RgcNYl8L6R9PhWU3iGIL+k=",
   "registerAuth": "S3GyUaoZ8CuElP8NM/NzSTPdO3ABREIsJT1Hie8esb8=",
   "env": "prod",
