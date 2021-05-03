@@ -56,7 +56,9 @@ func NewSqlDatabaseInfo(dsn config.DSN) (*DatabaseManager, error) {
 	if err = pg.Ping(); err != nil {
 		return nil, err
 	}
-
+	//pg.SetMaxOpenConns(100)
+	//pg.SetMaxIdleConns(100)
+	//pg.SetConnMaxLifetime(5*time.Minute)
 	log.Print("preparing postgres usage")
 
 	return &DatabaseManager{
