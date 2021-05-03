@@ -74,7 +74,7 @@ func (dm *DatabaseManager) Exists(uid uuid.UUID) (bool, error) {
 	err := dm.db.QueryRow("SELECT uid FROM identity WHERE uid = $1", uid.String()).
 		Scan(&id)
 	if err != nil {
-		if dm.isConnectionAvailable(err){
+		if dm.isConnectionAvailable(err) {
 			return dm.Exists(uid)
 		}
 		if err == sql.ErrNoRows {
