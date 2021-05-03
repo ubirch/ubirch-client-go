@@ -31,7 +31,7 @@ type ContextManager interface {
 }
 
 func GetCtxManager(c config.Config) (ContextManager, error) {
-	if c.DsnDb != "" && c.DsnUser != "" {
+	if c.DsnInitContainer {
 		return NewSqlDatabaseInfo(c)
 	} else {
 		return nil, fmt.Errorf("file-based context management is not supported in the current version. " +
