@@ -53,8 +53,8 @@ var IsDevelopment bool
 // configuration of the client
 type Config struct {
 	Devices          map[string]string `json:"devices"`                        // maps UUIDs to backend auth tokens (mandatory)
-	Secret16Base64   string            `json:"secret" ,envconfig:"secret"`     // 16 bytes secret used to encrypt the key store (mandatory) LEGACY
-	Secret32Base64   string            `json:"secret32" ,envconfig:"secret32"` // 32 byte secret used to encrypt the key store (mandatory)
+	Secret16Base64   string            `json:"secret" envconfig:"secret"`     // 16 bytes secret used to encrypt the key store (mandatory) LEGACY
+	Secret32Base64   string            `json:"secret32" envconfig:"secret32"` // 32 byte secret used to encrypt the key store (mandatory)
 	RegisterAuth     string            `json:"registerAuth"`                   // auth token needed for new identity registration
 	Env              string            `json:"env"`                            // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
 	Dsn              DSN               `json:"DSN"`                            // "data source name" for database connection
