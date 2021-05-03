@@ -52,9 +52,9 @@ func NewSqlDatabaseInfo(dsn config.DSN) (*DatabaseManager, error) {
 	if err != nil {
 		return nil, err
 	}
-	//pg.SetMaxOpenConns(100)
-	//pg.SetMaxIdleConns(100)
-	//pg.SetConnMaxLifetime(5*time.Minute)
+	pg.SetMaxOpenConns(100)
+	pg.SetMaxIdleConns(70)
+	pg.SetConnMaxLifetime(10*time.Minute)
 	if err = pg.Ping(); err != nil {
 		return nil, err
 	}
