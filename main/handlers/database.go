@@ -40,9 +40,9 @@ var _ ContextManager = (*DatabaseManager)(nil)
 
 // NewSqlDatabaseInfo takes a database connection string, returns a new initialized
 // database.
-func NewSqlDatabaseInfo(dsn config.DSN) (*DatabaseManager, error) {
+func NewSqlDatabaseInfo(conf config.Config) (*DatabaseManager, error) {
 	dataSourceName := fmt.Sprintf("host=%s user=%s password=%s port=%d dbname=%s sslmode=disable",
-		dsn.Host, dsn.User, dsn.Password, vars.PostgreSqlPort, dsn.Db)
+		conf.DsnHost, conf.DsnUser, conf.DsnPassword, vars.PostgreSqlPort, conf.DsnDb)
 
 	pg, err := sql.Open(vars.PostgreSql, dataSourceName)
 	if err != nil {
@@ -112,9 +112,6 @@ func (dm *DatabaseManager) GetAuthToken(uid uuid.UUID) (string, error) {
 	err := dm.db.QueryRow("SELECT auth_token FROM identity WHERE uid = $1", uid.String()).
 		Scan(&authToken)
 	if err != nil {
-		//if err.Error() == pq.ErrorCode("53300").Name() {
-		//
-		//}
 		return "", err
 	}
 
