@@ -19,12 +19,16 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	log "github.com/sirupsen/logrus"
 	"github.com/ubirch/ubirch-client-go/main/config"
 	"github.com/ubirch/ubirch-client-go/main/ent"
 	"github.com/ubirch/ubirch-client-go/main/vars"
+	"time"
 	// postgres driver is imported for side effects
-	_ "github.com/lib/pq"
+	// import pq driver this way only if we dont need it here
+	// done for database/sql (pg, err := sql.Open..)
+	//_ "github.com/lib/pq"
 )
 
 // DatabaseManager contains the postgres database connection, and offers methods
@@ -48,9 +52,9 @@ func NewSqlDatabaseInfo(conf config.Config) (*DatabaseManager, error) {
 	if err != nil {
 		return nil, err
 	}
-	//pg.SetMaxOpenConns(100)
-	//pg.SetMaxIdleConns(100)
-	//pg.SetConnMaxLifetime(5*time.Minute)
+	pg.SetMaxOpenConns(100)
+	pg.SetMaxIdleConns(70)
+	pg.SetConnMaxLifetime(10*time.Minute)
 	if err = pg.Ping(); err != nil {
 		return nil, err
 	}
@@ -72,6 +76,9 @@ func (dm *DatabaseManager) Exists(uid uuid.UUID) (bool, error) {
 	err := dm.db.QueryRow("SELECT uid FROM identity WHERE uid = $1", uid.String()).
 		Scan(&id)
 	if err != nil {
+		if dm.isConnectionAvailable(err) {
+			return dm.Exists(uid)
+		}
 		if err == sql.ErrNoRows {
 			return false, nil
 		} else {
@@ -88,6 +95,9 @@ func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
 	err := dm.db.QueryRow("SELECT private_key FROM identity WHERE uid = $1", uid.String()).
 		Scan(&privateKey)
 	if err != nil {
+		if dm.isConnectionAvailable(err) {
+			return dm.GetPrivateKey(uid)
+		}
 		return nil, err
 	}
 
@@ -100,6 +110,9 @@ func (dm *DatabaseManager) GetPublicKey(uid uuid.UUID) ([]byte, error) {
 	err := dm.db.QueryRow("SELECT public_key FROM identity WHERE uid = $1", uid.String()).
 		Scan(&publicKey)
 	if err != nil {
+		if dm.isConnectionAvailable(err) {
+			return dm.GetPublicKey(uid)
+		}
 		return nil, err
 	}
 
@@ -112,6 +125,9 @@ func (dm *DatabaseManager) GetAuthToken(uid uuid.UUID) (string, error) {
 	err := dm.db.QueryRow("SELECT auth_token FROM identity WHERE uid = $1", uid.String()).
 		Scan(&authToken)
 	if err != nil {
+		if dm.isConnectionAvailable(err) {
+			return dm.GetAuthToken(uid)
+		}
 		return "", err
 	}
 
@@ -136,6 +152,9 @@ func (dm *DatabaseManager) StartTransactionWithLock(ctx context.Context, uid uui
 	err = tx.QueryRow("SELECT uid FROM identity WHERE uid = $1 FOR UPDATE", uid).
 		Scan(&id)
 	if err != nil {
+		if dm.isConnectionAvailable(err) {
+			return dm.StartTransactionWithLock(ctx, uid)
+		}
 		return nil, err
 	}
 
@@ -166,6 +185,9 @@ func (dm *DatabaseManager) FetchIdentity(transactionCtx interface{}, uid uuid.UU
 	err := tx.QueryRow("SELECT * FROM identity WHERE uid = $1", uid.String()).
 		Scan(&id.Uid, &id.PrivateKey, &id.PublicKey, &id.Signature, &id.AuthToken)
 	if err != nil {
+		if dm.isConnectionAvailable(err) {
+			return dm.FetchIdentity(tx, uid)
+		}
 		return nil, err
 	}
 
@@ -182,6 +204,9 @@ func (dm *DatabaseManager) SetSignature(transactionCtx interface{}, uid uuid.UUI
 		"UPDATE identity SET signature = $1 WHERE uid = $2;",
 		&signature, uid.String())
 	if err != nil {
+		if dm.isConnectionAvailable(err) {
+			return dm.SetSignature(tx, uid, signature)
+		}
 		return err
 	}
 
@@ -200,6 +225,9 @@ func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity
 	err := tx.QueryRow("SELECT uid FROM identity WHERE uid = $1 FOR UPDATE", identity.Uid).
 		Scan(&id)
 	if err != nil {
+		if dm.isConnectionAvailable(err) {
+			return dm.StoreNewIdentity(tx, identity)
+		}
 		if err == sql.ErrNoRows {
 			// there were no rows, but otherwise no error occurred
 		} else {
@@ -217,8 +245,20 @@ func (dm *DatabaseManager) storeIdentity(tx *sql.Tx, identity *ent.Identity) err
 		"INSERT INTO identity (uid, private_key, public_key, signature, auth_token) VALUES ($1, $2, $3, $4, $5);",
 		&identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.Signature, &identity.AuthToken)
 	if err != nil {
+		if dm.isConnectionAvailable(err) {
+			return dm.storeIdentity(tx, identity)
+		}
 		return err
 	}
 
 	return nil
+}
+
+func (dm *DatabaseManager) isConnectionAvailable(err error) bool { // todo this will only work with postgres
+	if err.Error() == pq.ErrorCode("53300").Name() || // "53300": "too_many_connections",
+		err.Error() == pq.ErrorCode("53400").Name() { // "53400": "configuration_limit_exceeded",
+		time.Sleep(100 * time.Millisecond)
+		return true
+	}
+	return false
 }
