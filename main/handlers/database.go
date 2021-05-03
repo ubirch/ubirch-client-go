@@ -206,7 +206,7 @@ func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity
 			return err
 		}
 	} else {
-		return fmt.Errorf("entry not unique, uuid already exits %s", identity.Uid)
+		return ErrExists
 	}
 
 	return dm.storeIdentity(tx, identity)

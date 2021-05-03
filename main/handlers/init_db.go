@@ -172,7 +172,11 @@ func migrateIdentities(c config.Config, dm *DatabaseManager, identities []ent.Id
 
 		err = p.StoreNewIdentity(tx, &id)
 		if err != nil {
-			return err
+			if err == ErrExists {
+				log.Warnf("%s: %v -> skip", id.Uid, err)
+			} else {
+				return err
+			}
 		}
 	}
 

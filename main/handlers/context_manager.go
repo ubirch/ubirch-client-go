@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/config"
@@ -11,6 +12,10 @@ import (
 const (
 	commit   = true
 	rollback = false
+)
+
+var (
+	ErrExists = errors.New("entry already exists")
 )
 
 type ContextManager interface {
