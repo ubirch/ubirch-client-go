@@ -27,7 +27,9 @@ import (
 	"time"
 
 	// postgres driver is imported for side effects
-	_ "github.com/lib/pq"
+	// import pq driver this way only if we dont need it here
+	// done for database/sql (pg, err := sql.Open..)
+	//_ "github.com/lib/pq"
 )
 
 // DatabaseManager contains the postgres database connection, and offers methods
