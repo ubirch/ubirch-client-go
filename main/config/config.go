@@ -52,22 +52,22 @@ var IsDevelopment bool
 
 // configuration of the client
 type Config struct {
-	Devices          map[string]string `json:"devices"`          // maps UUIDs to backend auth tokens (mandatory)
-	Secret16Base64   string            `json:"secret"`           // 16 bytes secret used to encrypt the key store (mandatory) LEGACY
-	Secret32Base64   string            `json:"secret32"`         // 32 byte secret used to encrypt the key store (mandatory)
-	RegisterAuth     string            `json:"registerAuth"`     // auth token needed for new identity registration
-	Env              string            `json:"env"`              // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
-	Dsn              DSN               `json:"DSN"`              // "data source name" for database connection
-	CSR_Country      string            `json:"CSR_country"`      // subject country for public key Certificate Signing Requests
-	CSR_Organization string            `json:"CSR_organization"` // subject organization for public key Certificate Signing Requests
-	TCP_addr         string            `json:"TCP_addr"`         // the TCP address for the server to listen on, in the form "host:port", defaults to ":8080"
-	TLS              bool              `json:"TLS"`              // enable serving HTTPS endpoints, defaults to 'false'
-	TLS_CertFile     string            `json:"TLSCertFile"`      // filename of TLS certificate file name, defaults to "cert.pem"
-	TLS_KeyFile      string            `json:"TLSKeyFile"`       // filename of TLS key file name, defaults to "key.pem"
-	CORS             bool              `json:"CORS"`             // enable CORS, defaults to 'false'
-	CORS_Origins     []string          `json:"CORS_origins"`     // list of allowed origin hosts, defaults to ["*"]
-	Debug            bool              `json:"debug"`            // enable extended debug output, defaults to 'false'
-	LogTextFormat    bool              `json:"logTextFormat"`    // log in text format for better human readability, default format is JSON
+	Devices          map[string]string `json:"devices"`                        // maps UUIDs to backend auth tokens (mandatory)
+	Secret16Base64   string            `json:"secret" ,envconfig:"secret"`     // 16 bytes secret used to encrypt the key store (mandatory) LEGACY
+	Secret32Base64   string            `json:"secret32" ,envconfig:"secret32"` // 32 byte secret used to encrypt the key store (mandatory)
+	RegisterAuth     string            `json:"registerAuth"`                   // auth token needed for new identity registration
+	Env              string            `json:"env"`                            // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
+	Dsn              DSN               `json:"DSN"`                            // "data source name" for database connection
+	CSR_Country      string            `json:"CSR_country"`                    // subject country for public key Certificate Signing Requests
+	CSR_Organization string            `json:"CSR_organization"`               // subject organization for public key Certificate Signing Requests
+	TCP_addr         string            `json:"TCP_addr"`                       // the TCP address for the server to listen on, in the form "host:port", defaults to ":8080"
+	TLS              bool              `json:"TLS"`                            // enable serving HTTPS endpoints, defaults to 'false'
+	TLS_CertFile     string            `json:"TLSCertFile"`                    // filename of TLS certificate file name, defaults to "cert.pem"
+	TLS_KeyFile      string            `json:"TLSKeyFile"`                     // filename of TLS key file name, defaults to "key.pem"
+	CORS             bool              `json:"CORS"`                           // enable CORS, defaults to 'false'
+	CORS_Origins     []string          `json:"CORS_origins"`                   // list of allowed origin hosts, defaults to ["*"]
+	Debug            bool              `json:"debug"`                          // enable extended debug output, defaults to 'false'
+	LogTextFormat    bool              `json:"logTextFormat"`                  // log in text format for better human readability, default format is JSON
 	SecretBytes16    []byte            // the decoded 16 byte key store secret (set automatically) LEGACY
 	SecretBytes32    []byte            // the decoded 32 byte key store secret for database (set automatically)
 	KeyService       string            // key service URL (set automatically)
