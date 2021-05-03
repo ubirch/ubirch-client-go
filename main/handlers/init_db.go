@@ -197,7 +197,7 @@ func checkVersion(ctx context.Context, dm *DatabaseManager) (*sql.Tx, bool, erro
 	}
 
 	err = tx.QueryRow("SELECT * FROM version WHERE id = 'dbMigration' FOR UPDATE").
-		Scan(version.Id, &version.MigrationVersion)
+		Scan(&version.Id, &version.MigrationVersion)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			shouldMigrate, err := CreateVersionEntry(tx, version)
@@ -216,7 +216,7 @@ func CreateVersionEntry(tx *sql.Tx, version Migration) (bool, error) {
 	version.Id = "dbMigration"
 	version.MigrationVersion = MigrationVersion
 	_, err := tx.Exec("INSERT INTO version (id, migration_version) VALUES ($1, $2);",
-		&version.Id, version.MigrationVersion)
+		&version.Id, &version.MigrationVersion)
 	if err != nil {
 		return false, err
 	}
