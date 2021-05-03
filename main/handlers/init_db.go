@@ -38,7 +38,7 @@ func Migrate(c config.Config) error {
 		return err
 	}
 
-	dbManager, err := NewSqlDatabaseInfo(c.Dsn)
+	dbManager, err := NewSqlDatabaseInfo(c)
 	if err != nil {
 		return err
 	}
