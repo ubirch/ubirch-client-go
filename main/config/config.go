@@ -62,6 +62,7 @@ type Config struct {
 	DsnUser          string            `json:"DSN_User" envconfig:"DSN_User"`         // database user name
 	DsnPassword      string            `json:"DSN_Password" envconfig:"DSN_Password"` // database password
 	DsnDb            string            `json:"DSN_Database" envconfig:"DSN_Database"` // database name
+	DsnVersion       string            `json:"DSN_Version" envconfig:"DSN_Version"`   // database migration version
 	CSR_Country      string            `json:"CSR_country"`                           // subject country for public key Certificate Signing Requests
 	CSR_Organization string            `json:"CSR_organization"`                      // subject organization for public key Certificate Signing Requests
 	TCP_addr         string            `json:"TCP_addr"`                              // the TCP address for the server to listen on, in the form "host:port", defaults to ":8080"
