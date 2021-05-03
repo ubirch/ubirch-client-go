@@ -11,7 +11,7 @@ import (
 	"os"
 )
 
-const MigrationVersion = "1.0"
+const MigrationVersion = "1.0.1"
 
 const (
 	PostgresIdentity = iota
