@@ -21,7 +21,7 @@ func NewChainChecker() *ChainChecker {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	c := &ChainChecker{
-		UPPs:       make(chan []byte),
+		UPPs:       make(chan []byte, 100),
 		ctx:        ctx,
 		cancel:     cancel,
 		signatures: make(map[string][]byte, numberOfTestIDs),

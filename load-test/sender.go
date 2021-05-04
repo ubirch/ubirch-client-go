@@ -39,7 +39,7 @@ func NewSender(testCtx *TestCtx) *Sender {
 }
 
 func (s *Sender) register(id string, auth string, registerAuth string) error {
-	url := baseURL1 + "register"
+	url := clientBaseURL + "/register"
 
 	header := http.Header{}
 	header.Set("Content-Type", "application/json")
@@ -82,22 +82,20 @@ func (s *Sender) register(id string, auth string, registerAuth string) error {
 func (s *Sender) sendRequests(id string, auth string) {
 	defer s.testCtx.wg.Done()
 
-	url1 := baseURL1 + id + "/hash"
-	url2 := baseURL2 + id + "/hash"
+	clientURL := clientBaseURL + fmt.Sprintf("/%s/hash", id)
 	header := http.Header{}
 	header.Set("Content-Type", "application/octet-stream")
 	header.Set("X-Auth-Token", auth)
 
-	for i := 1; i <= numberOfRequestsPerID/2; i++ {
-		s.testCtx.wg.Add(2)
-		go s.sendAndCheckResponse(url1, header)
-		go s.sendAndCheckResponse(url2, header)
+	for i := 0; i < numberOfRequestsPerID; i++ {
+		s.testCtx.wg.Add(1)
+		go s.sendAndCheckResponse(clientURL, header)
 
-		time.Sleep(2 * time.Second / requestsPerSecondPerID)
+		time.Sleep(time.Second / requestsPerSecondPerID)
 	}
 }
 
-func (s *Sender) sendAndCheckResponse(url string, header http.Header) {
+func (s *Sender) sendAndCheckResponse(clientURL string, header http.Header) {
 	defer s.testCtx.wg.Done()
 
 	hash := make([]byte, 32)
@@ -107,7 +105,7 @@ func (s *Sender) sendAndCheckResponse(url string, header http.Header) {
 		return
 	}
 
-	resp, err := s.sendRequest(url, header, hash)
+	resp, err := s.sendRequest(clientURL, header, hash)
 	if err != nil {
 		log.Error(err)
 		return
@@ -121,8 +119,8 @@ func (s *Sender) sendAndCheckResponse(url string, header http.Header) {
 	s.testCtx.chainChecker.UPPs <- resp.UPP
 }
 
-func (s *Sender) sendRequest(url string, header http.Header, hash []byte) (SigningResponse, error) {
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(hash))
+func (s *Sender) sendRequest(clientURL string, header http.Header, hash []byte) (SigningResponse, error) {
+	req, err := http.NewRequest(http.MethodPost, clientURL, bytes.NewBuffer(hash))
 	if err != nil {
 		return SigningResponse{}, err
 	}
