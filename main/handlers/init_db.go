@@ -26,13 +26,13 @@ type Migration struct {
 }
 
 var CREATE = map[int]string{
-	PostgresIdentity: "CREATE TABLE " + vars.PostgreSqlIdentityTableName + "(" +
+	PostgresIdentity: "CREATE TABLE IF NOT EXISTS " + vars.PostgreSqlIdentityTableName + "(" +
 		"uid VARCHAR(255) NOT NULL PRIMARY KEY, " +
 		"private_key BYTEA NOT NULL, " +
 		"public_key BYTEA NOT NULL, " +
 		"signature BYTEA NOT NULL, " +
 		"auth_token VARCHAR(255) NOT NULL);",
-	PostgresVersion: "CREATE TABLE " + vars.PostgreSqlVersionTableName + "(" +
+	PostgresVersion: "CREATE TABLE IF NOT EXISTS " + vars.PostgreSqlVersionTableName + "(" +
 		"id VARCHAR(255) NOT NULL PRIMARY KEY, " +
 		"migration_version VARCHAR(255) NOT NULL);",
 	//MySQL:    "CREATE TABLE identity (id INT, datetime TIMESTAMP)",
@@ -60,13 +60,13 @@ func Migrate(c config.Config) error {
 		return nil
 	}
 
+	log.Println("database migration version updated, ready to upgrade")
 	identitiesToPort, err := getAllIdentitiesFromLegacyCtx(c)
 	if err != nil {
 		return err
 	}
 
-	err = checkForTable(dbManager, vars.PostgreSqlIdentityTableName, PostgresIdentity)
-	if err != nil {
+	if _, err := dbManager.db.Exec(CREATE[PostgresIdentity]); err != nil {
 		return err
 	}
 
@@ -133,24 +133,6 @@ func getAllIdentitiesFromLegacyCtx(c config.Config) ([]ent.Identity, error) {
 	return allIdentities, nil
 }
 
-// TODO: check if there is not an more elegant way of checking for tables
-func checkForTable(dm *DatabaseManager, tableName string, tableKey int) error {
-
-	var table Table
-	query := fmt.Sprintf("SELECT to_regclass('%s') IS NOT NULL", tableName)
-
-	if err := dm.db.QueryRow(query).Scan(&table.exists); err != nil {
-		return fmt.Errorf("scan rows error: %v", err)
-	}
-	if !table.exists {
-		log.Printf("database table %s doesn't exist creating table", tableName)
-		if _, err := dm.db.Exec(CREATE[tableKey]); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func migrateIdentities(c config.Config, dm *DatabaseManager, identities []ent.Identity) error {
 	log.Infof("starting migration...")
 
@@ -191,8 +173,7 @@ func checkVersion(ctx context.Context, dm *DatabaseManager) (*sql.Tx, bool, erro
 		return nil, false, err
 	}
 
-	err = checkForTable(dm, vars.PostgreSqlIdentityTableName, PostgresVersion)
-	if err != nil {
+	if _, err := dm.db.Exec(CREATE[PostgresVersion]); err != nil {
 		return tx, false, err
 	}
 
