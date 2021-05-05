@@ -18,13 +18,15 @@ import (
 	"context"
 	"fmt"
 	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
+	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 
+	"github.com/ubirch/ubirch-client-go/main/adapters/handlers"
 	"github.com/ubirch/ubirch-client-go/main/config"
-	"github.com/ubirch/ubirch-client-go/main/handlers"
 	"github.com/ubirch/ubirch-client-go/main/uc"
 	"github.com/ubirch/ubirch-client-go/main/vars"
 	"golang.org/x/sync/errgroup"
@@ -80,7 +82,7 @@ func main() {
 	}
 
 	if migrate {
-		err := handlers.Migrate(conf)
+		err := repository.Migrate(conf)
 		if err != nil {
 			log.Fatalf("migration failed: %v", err)
 		}
@@ -88,12 +90,12 @@ func main() {
 		os.Exit(0)
 	}
 
-	ctxManager, err := handlers.GetCtxManager(conf)
+	ctxManager, err := repository.GetCtxManager(conf)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	client := &handlers.Client{
+	client := &clients.Client{
 		AuthServiceURL:     conf.Niomon,
 		VerifyServiceURL:   conf.VerifyService,
 		KeyServiceURL:      conf.KeyService,
@@ -101,7 +103,7 @@ func main() {
 	}
 
 	// initialize ubirch protocol
-	protocol, err := handlers.NewExtendedProtocol(ctxManager, conf.SecretBytes32, client)
+	protocol, err := repository.NewExtendedProtocol(ctxManager, conf.SecretBytes32, client)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -161,7 +163,7 @@ func main() {
 
 	// set up endpoint for chaining
 	httpServer.AddServiceEndpoint(handlers.ServerEndpoint{
-		Path: fmt.Sprintf("/{%s}", handlers.UUIDKey),
+		Path: fmt.Sprintf("/{%s}", vars.UUIDKey),
 		Service: &handlers.ChainingService{
 			Signer: &signer,
 		},
@@ -169,7 +171,7 @@ func main() {
 
 	// set up endpoint for signing
 	httpServer.AddServiceEndpoint(handlers.ServerEndpoint{
-		Path: fmt.Sprintf("/{%s}/{%s}", handlers.UUIDKey, handlers.OperationKey),
+		Path: fmt.Sprintf("/{%s}/{%s}", vars.UUIDKey, vars.OperationKey),
 		Service: &handlers.SigningService{
 			Signer: &signer,
 		},
@@ -177,7 +179,7 @@ func main() {
 
 	// set up endpoint for verification
 	httpServer.AddServiceEndpoint(handlers.ServerEndpoint{
-		Path: fmt.Sprintf("/%s", handlers.VerifyPath),
+		Path: fmt.Sprintf("/%s", vars.VerifyPath),
 		Service: &handlers.VerificationService{
 			Verifier: &verifier,
 		},

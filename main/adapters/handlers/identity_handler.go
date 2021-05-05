@@ -18,13 +18,14 @@ import (
 	"context"
 	"fmt"
 	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
 	"github.com/ubirch/ubirch-client-go/main/ent"
 
 	log "github.com/sirupsen/logrus"
 )
 
 type IdentityHandler struct {
-	Protocol            *ExtendedProtocol
+	Protocol            *repository.ExtendedProtocol
 	SubjectCountry      string
 	SubjectOrganization string
 }
@@ -106,7 +107,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) error {
 		return err
 	}
 
-	return i.Protocol.CloseTransaction(tx, commit)
+	return i.Protocol.CloseTransaction(tx, repository.Commit)
 }
 
 func (i *IdentityHandler) FetchIdentity(uid uuid.UUID) (*ent.Identity, error) {

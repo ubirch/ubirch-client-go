@@ -18,6 +18,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
+	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
 	"net/http"
 	"os"
 	"sync"
@@ -47,15 +49,15 @@ var hintLookup = map[operation]ubirch.Hint{
 }
 
 type signingResponse struct {
-	Error     string       `json:"error,omitempty"`
-	Hash      []byte       `json:"hash,omitempty"`
-	UPP       []byte       `json:"upp,omitempty"`
-	Response  HTTPResponse `json:"response,omitempty"`
-	RequestID string       `json:"requestID,omitempty"`
+	Error     string         `json:"error,omitempty"`
+	Hash      []byte         `json:"hash,omitempty"`
+	UPP       []byte         `json:"upp,omitempty"`
+	Response  h.HTTPResponse `json:"response,omitempty"`
+	RequestID string         `json:"requestID,omitempty"`
 }
 
 type Signer struct {
-	Protocol             *ExtendedProtocol
+	Protocol             *repository.ExtendedProtocol
 	AuthTokensBuffer     map[uuid.UUID]string
 	AuthTokenBufferMutex *sync.RWMutex
 }
@@ -85,7 +87,7 @@ func (s *Signer) getAuth(uid uuid.UUID) (auth string, err error) {
 }
 
 // handle incoming messages, create, sign and send a chained ubirch protocol packet (UPP) to the ubirch backend
-func (s *Signer) chain(tx interface{}, msg HTTPRequest) HTTPResponse {
+func (s *Signer) chain(tx interface{}, msg HTTPRequest) h.HTTPResponse {
 	log.Infof("%s: anchor hash [chained]: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
 	identity, err := s.Protocol.FetchIdentity(tx, msg.ID)
@@ -104,7 +106,7 @@ func (s *Signer) chain(tx interface{}, msg HTTPRequest) HTTPResponse {
 	resp := s.sendUPP(msg, uppBytes)
 
 	// persist last signature only if UPP was successfully received by ubirch backend
-	if HttpSuccess(resp.StatusCode) {
+	if h.HttpSuccess(resp.StatusCode) {
 		signature := uppBytes[len(uppBytes)-s.Protocol.SignatureLength():]
 
 		err = s.Protocol.SetSignature(tx, msg.ID, signature)
@@ -114,7 +116,7 @@ func (s *Signer) chain(tx interface{}, msg HTTPRequest) HTTPResponse {
 			return errorResponse(http.StatusInternalServerError, "")
 		}
 
-		err = s.Protocol.CloseTransaction(tx, commit)
+		err = s.Protocol.CloseTransaction(tx, repository.Commit)
 		if err != nil {
 			log.Errorf("%s: committing transaction failed: %v", msg.ID, err)
 			return errorResponse(http.StatusInternalServerError, "")
@@ -124,7 +126,7 @@ func (s *Signer) chain(tx interface{}, msg HTTPRequest) HTTPResponse {
 	return resp
 }
 
-func (s *Signer) Sign(msg HTTPRequest, op operation) HTTPResponse {
+func (s *Signer) Sign(msg HTTPRequest, op operation) h.HTTPResponse {
 	log.Infof("%s: %s hash: %s", msg.ID, op, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
 	privateKeyPEM, err := s.Protocol.GetPrivateKey(msg.ID)
@@ -171,12 +173,12 @@ func (s *Signer) getSignedUPP(id uuid.UUID, hash [32]byte, privateKeyPEM []byte,
 		})
 }
 
-func (s *Signer) sendUPP(msg HTTPRequest, upp []byte) HTTPResponse {
+func (s *Signer) sendUPP(msg HTTPRequest, upp []byte) h.HTTPResponse {
 	// send UPP to ubirch backend
-	backendResp, err := s.Protocol.sendToAuthService(msg.ID, msg.Auth, upp)
+	backendResp, err := s.Protocol.SendToAuthService(msg.ID, msg.Auth, upp)
 	if err != nil {
 		if os.IsTimeout(err) {
-			log.Errorf("%s: request to UBIRCH Authentication Service timed out after %s: %v", msg.ID, BackendRequestTimeout.String(), err)
+			log.Errorf("%s: request to UBIRCH Authentication Service timed out after %s: %v", msg.ID, h.BackendRequestTimeout.String(), err)
 			return errorResponse(http.StatusGatewayTimeout, "")
 		} else {
 			log.Errorf("%s: sending request to UBIRCH Authentication Service failed: %v", msg.ID, err)
@@ -215,18 +217,18 @@ func getRequestID(respUPP ubirch.UPP) (string, error) {
 	return requestID.String(), nil
 }
 
-func errorResponse(code int, message string) HTTPResponse {
+func errorResponse(code int, message string) h.HTTPResponse {
 	if message == "" {
 		message = http.StatusText(code)
 	}
-	return HTTPResponse{
+	return h.HTTPResponse{
 		StatusCode: code,
 		Header:     http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
 		Content:    []byte(message),
 	}
 }
 
-func getSigningResponse(respCode int, msg HTTPRequest, upp []byte, backendResp HTTPResponse, requestID string, errMsg string) HTTPResponse {
+func getSigningResponse(respCode int, msg HTTPRequest, upp []byte, backendResp h.HTTPResponse, requestID string, errMsg string) h.HTTPResponse {
 	signingResp, err := json.Marshal(signingResponse{
 		Hash:      msg.Hash[:],
 		UPP:       upp,
@@ -238,11 +240,11 @@ func getSigningResponse(respCode int, msg HTTPRequest, upp []byte, backendResp H
 		log.Warnf("error serializing signing response: %v", err)
 	}
 
-	if httpFailed(respCode) {
+	if h.HttpFailed(respCode) {
 		log.Errorf("%s: request failed: (%d) %s", msg.ID, respCode, string(signingResp))
 	}
 
-	return HTTPResponse{
+	return h.HTTPResponse{
 		StatusCode: respCode,
 		Header:     http.Header{"Content-Type": {"application/json"}},
 		Content:    signingResp,

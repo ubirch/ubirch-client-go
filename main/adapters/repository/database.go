@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package handlers
+package repository
 
 import (
 	"context"
@@ -36,7 +36,6 @@ import (
 type DatabaseManager struct {
 	options *sql.TxOptions
 	db      *sql.DB
-	client  Client
 }
 
 // Ensure Database implements the ContextManager interface
@@ -255,7 +254,7 @@ func (dm *DatabaseManager) storeIdentity(tx *sql.Tx, identity *ent.Identity) err
 }
 
 func (dm *DatabaseManager) isConnectionAvailable(err error) bool { // todo this will only work with postgres
-	if err.Error() == pq.ErrorCode("53300").Name() || // "53300": "too_many_connections",
+	if err.Error() == pq.ErrorCode("53300").Name() ||              // "53300": "too_many_connections",
 		err.Error() == pq.ErrorCode("53400").Name() { // "53400": "configuration_limit_exceeded",
 		time.Sleep(100 * time.Millisecond)
 		return true

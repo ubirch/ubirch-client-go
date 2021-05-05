@@ -1,4 +1,4 @@
-package handlers
+package repository
 
 import (
 	"context"
@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	commit   = true
-	rollback = false
+	Commit   = true
+	Rollback = false
 )
 
 var (

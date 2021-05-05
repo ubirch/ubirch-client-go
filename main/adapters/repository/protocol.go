@@ -12,30 +12,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package handlers
+package repository
 
 import (
 	"context"
 	"fmt"
 	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
+	"github.com/ubirch/ubirch-client-go/main/adapters/encrypters"
 	"github.com/ubirch/ubirch-client-go/main/ent"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
 type ExtendedProtocol struct {
 	ubirch.Protocol
-	*Client
+	*clients.Client
 	ctxManager   ContextManager
-	keyEncrypter *KeyEncrypter
+	keyEncrypter *encrypters.KeyEncrypter
 }
 
 // Ensure ExtendedProtocol implements the ContextManager interface
 var _ ContextManager = (*ExtendedProtocol)(nil)
 
-func NewExtendedProtocol(ctxManager ContextManager, secret []byte, client *Client) (*ExtendedProtocol, error) {
+func NewExtendedProtocol(ctxManager ContextManager, secret []byte, client *clients.Client) (*ExtendedProtocol, error) {
 	crypto := &ubirch.ECDSACryptoContext{}
 
-	enc, err := NewKeyEncrypter(secret, crypto)
+	enc, err := encrypters.NewKeyEncrypter(secret, crypto)
 	if err != nil {
 		return nil, err
 	}

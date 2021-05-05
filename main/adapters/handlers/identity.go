@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
-	h "github.com/ubirch/ubirch-client-go/main/handlers/httphelper"
+	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
+	"github.com/ubirch/ubirch-client-go/main/vars"
 	"net/http"
 )
 
@@ -53,7 +54,7 @@ func (i *Identity) Put(storeId StoreIdentity, idExists CheckIdentityExists) http
 		}
 
 		if exists {
-			Error(uid, w, fmt.Errorf("identity already registered"), http.StatusConflict)
+			h.Error(uid, w, fmt.Errorf("identity already registered"), http.StatusConflict)
 			return
 		}
 
@@ -70,8 +71,8 @@ func (i *Identity) Put(storeId StoreIdentity, idExists CheckIdentityExists) http
 
 func IdentityFromBody(r *http.Request) (IdentityPayload, error) {
 	contentType := r.Header.Get(h.HeaderContentType)
-	if contentType != JSONType {
-		return IdentityPayload{}, fmt.Errorf("invalid content-type: expected %s, got %s", JSONType, contentType)
+	if contentType != vars.JSONType {
+		return IdentityPayload{}, fmt.Errorf("invalid content-type: expected %s, got %s", vars.JSONType, contentType)
 	}
 
 	var payload IdentityPayload
