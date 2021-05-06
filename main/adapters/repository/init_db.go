@@ -57,6 +57,7 @@ func Migrate(c config.Config) error {
 		return err
 	}
 	if !shouldMigrate {
+		log.Infof("database migration version already up to date")
 		return nil
 	}
 
@@ -75,6 +76,7 @@ func Migrate(c config.Config) error {
 		return err
 	}
 
+	log.Infof("successfully migrated file based context into database")
 	return updateVersion(tx)
 }
 
@@ -187,6 +189,7 @@ func checkVersion(ctx context.Context, dm *DatabaseManager) (*sql.Tx, bool, erro
 			return tx, false, err
 		}
 	}
+	log.Debugf("database migration version: %s / application migration version: %s", version.MigrationVersion, MigrationVersion)
 	if version.MigrationVersion != MigrationVersion {
 		return tx, true, nil
 	}

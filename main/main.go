@@ -86,7 +86,6 @@ func main() {
 		if err != nil {
 			log.Fatalf("migration failed: %v", err)
 		}
-		log.Infof("successfully migrated file based context into database")
 		os.Exit(0)
 	}
 
