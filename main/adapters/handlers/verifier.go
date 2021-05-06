@@ -20,6 +20,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
+	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -46,11 +48,11 @@ type verificationResponse struct {
 }
 
 type Verifier struct {
-	Protocol                      *ExtendedProtocol
+	Protocol                      *repository.ExtendedProtocol
 	VerifyFromKnownIdentitiesOnly bool
 }
 
-func (v *Verifier) Verify(hash []byte) HTTPResponse {
+func (v *Verifier) Verify(hash []byte) h.HTTPResponse {
 	log.Infof("verifying hash %s", base64.StdEncoding.EncodeToString(hash))
 
 	// retrieve certificate for hash from the ubirch backend
@@ -88,7 +90,7 @@ func (v *Verifier) loadUPP(hash []byte) (int, []byte, error) {
 			if err != nil {
 				return http.StatusInternalServerError, nil, fmt.Errorf("error sending verification request: %v", err)
 			}
-			stay = httpFailed(resp.StatusCode)
+			stay = h.HttpFailed(resp.StatusCode)
 			if stay {
 				_ = resp.Body.Close()
 				log.Debugf("Couldn't verify hash yet (%d). Retry... %d", resp.StatusCode, n)
@@ -99,7 +101,7 @@ func (v *Verifier) loadUPP(hash []byte) (int, []byte, error) {
 	//noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()
 
-	if httpFailed(resp.StatusCode) {
+	if h.HttpFailed(resp.StatusCode) {
 		respBodyBytes, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
 			log.Warnf("unable to decode verification response: %v", err)
@@ -156,7 +158,7 @@ func (v *Verifier) verifyUPP(upp []byte) (uuid.UUID, []byte, error) {
 func (v *Verifier) loadPublicKey(id uuid.UUID) (pubKeyBytes []byte, err error) {
 	log.Debugf("requesting public key for identity %s from key service", id.String())
 
-	keys, err := v.Protocol.requestPublicKeys(id)
+	keys, err := v.Protocol.RequestPublicKeys(id)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +174,7 @@ func (v *Verifier) loadPublicKey(id uuid.UUID) (pubKeyBytes []byte, err error) {
 	return base64.StdEncoding.DecodeString(keys[0].PubKeyInfo.PubKey)
 }
 
-func getVerificationResponse(respCode int, hash []byte, upp []byte, id uuid.UUID, pkey []byte, errMsg string) HTTPResponse {
+func getVerificationResponse(respCode int, hash []byte, upp []byte, id uuid.UUID, pkey []byte, errMsg string) h.HTTPResponse {
 	verificationResp, err := json.Marshal(verificationResponse{
 		Hash:   hash,
 		UPP:    upp,
@@ -184,11 +186,11 @@ func getVerificationResponse(respCode int, hash []byte, upp []byte, id uuid.UUID
 		log.Warnf("error serializing response: %v", err)
 	}
 
-	if httpFailed(respCode) {
+	if h.HttpFailed(respCode) {
 		log.Errorf("%s", string(verificationResp))
 	}
 
-	return HTTPResponse{
+	return h.HTTPResponse{
 		StatusCode: respCode,
 		Header:     http.Header{"Content-Type": {"application/json"}},
 		Content:    verificationResp,

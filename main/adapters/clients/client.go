@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package handlers
+package clients
 
 import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
 	"io/ioutil"
 	"net/http"
 
@@ -35,9 +36,9 @@ type Client struct {
 	IdentityServiceURL string
 }
 
-// requestPublicKeys requests a devices public keys at the identity service
+// RequestPublicKeys requests a devices public keys at the identity service
 // returns a list of the retrieved public key certificates
-func (c *Client) requestPublicKeys(id uuid.UUID) ([]ubirch.SignedKeyRegistration, error) {
+func (c *Client) RequestPublicKeys(id uuid.UUID) ([]ubirch.SignedKeyRegistration, error) {
 	url := c.KeyServiceURL + "/current/hardwareId/" + id.String()
 	resp, err := http.Get(url)
 	if err != nil {
@@ -50,7 +51,7 @@ func (c *Client) requestPublicKeys(id uuid.UUID) ([]ubirch.SignedKeyRegistration
 		return []ubirch.SignedKeyRegistration{}, nil
 	}
 
-	if httpFailed(resp.StatusCode) {
+	if h.HttpFailed(resp.StatusCode) {
 		respContent, _ := ioutil.ReadAll(resp.Body)
 		return nil, fmt.Errorf("retrieving public key info from %s failed: (%s) %s", url, resp.Status, string(respContent))
 	}
@@ -72,7 +73,7 @@ func (c *Client) requestPublicKeys(id uuid.UUID) ([]ubirch.SignedKeyRegistration
 // isKeyRegistered sends a request to the identity service to determine
 // if a specified public key is registered for the specified UUID
 func (c *Client) isKeyRegistered(id uuid.UUID, pubKey []byte) (bool, error) {
-	certs, err := c.requestPublicKeys(id)
+	certs, err := c.RequestPublicKeys(id)
 	if err != nil {
 		return false, err
 	}
@@ -95,7 +96,7 @@ func (c *Client) SubmitKeyRegistration(uid uuid.UUID, cert []byte, auth string) 
 	if err != nil {
 		return fmt.Errorf("error sending key registration: %v", err)
 	}
-	if httpFailed(resp.StatusCode) {
+	if h.HttpFailed(resp.StatusCode) {
 		return fmt.Errorf("key registration failed: (%d) %q", resp.StatusCode, resp.Content)
 	}
 	log.Debugf("%s: key registration successful: (%d) %s", uid, resp.StatusCode, string(resp.Content))
@@ -112,25 +113,25 @@ func (c *Client) SubmitCSR(uid uuid.UUID, csr []byte) error {
 	if err != nil {
 		return fmt.Errorf("error sending CSR: %v", err)
 	}
-	if httpFailed(resp.StatusCode) {
+	if h.HttpFailed(resp.StatusCode) {
 		return fmt.Errorf("request to %s failed: (%d) %q", c.IdentityServiceURL, resp.StatusCode, resp.Content)
 	}
 	log.Debugf("%s: CSR submitted: (%d) %s", uid, resp.StatusCode, string(resp.Content))
 	return nil
 }
 
-func (c *Client) sendToAuthService(uid uuid.UUID, auth string, upp []byte) (HTTPResponse, error) {
+func (c *Client) SendToAuthService(uid uuid.UUID, auth string, upp []byte) (h.HTTPResponse, error) {
 	return post(c.AuthServiceURL, upp, ubirchHeader(uid, auth))
 }
 
 // post submits a message to a backend service
 // returns the response or encountered errors
-func post(serviceURL string, data []byte, header map[string]string) (HTTPResponse, error) {
-	client := &http.Client{Timeout: BackendRequestTimeout}
+func post(serviceURL string, data []byte, header map[string]string) (h.HTTPResponse, error) {
+	client := &http.Client{Timeout: h.BackendRequestTimeout}
 
 	req, err := http.NewRequest(http.MethodPost, serviceURL, bytes.NewBuffer(data))
 	if err != nil {
-		return HTTPResponse{}, fmt.Errorf("can't make new post request: %v", err)
+		return h.HTTPResponse{}, fmt.Errorf("can't make new post request: %v", err)
 	}
 
 	for k, v := range header {
@@ -139,7 +140,7 @@ func post(serviceURL string, data []byte, header map[string]string) (HTTPRespons
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return HTTPResponse{}, err
+		return h.HTTPResponse{}, err
 	}
 
 	//noinspection GoUnhandledErrorResult
@@ -147,10 +148,10 @@ func post(serviceURL string, data []byte, header map[string]string) (HTTPRespons
 
 	respBodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return HTTPResponse{}, err
+		return h.HTTPResponse{}, err
 	}
 
-	return HTTPResponse{
+	return h.HTTPResponse{
 		StatusCode: resp.StatusCode,
 		Header:     resp.Header,
 		Content:    respBodyBytes,
@@ -165,10 +166,3 @@ func ubirchHeader(uid uuid.UUID, auth string) map[string]string {
 	}
 }
 
-func httpFailed(StatusCode int) bool {
-	return !HttpSuccess(StatusCode)
-}
-
-func HttpSuccess(StatusCode int) bool {
-	return StatusCode >= 200 && StatusCode < 300
-}

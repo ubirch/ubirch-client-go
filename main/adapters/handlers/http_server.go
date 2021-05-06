@@ -3,24 +3,15 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"net/http"
-	"path"
-	"time"
-
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/cors"
+	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
+	"github.com/ubirch/ubirch-client-go/main/vars"
+	"net/http"
+	"path"
 
 	log "github.com/sirupsen/logrus"
-)
-
-const (
-	BackendRequestTimeout = 10 * time.Second // time after which requests to the ubirch backend will be canceled
-	GatewayTimeout        = 20 * time.Second // time after which the client sends a 504 response if no timely response could be produced
-	ShutdownTimeout       = 25 * time.Second // time after which the server will be shut down forcefully if graceful shutdown did not happen before
-	ReadTimeout           = 1 * time.Second  // maximum duration for reading the entire request -> low since we only expect requests with small content
-	WriteTimeout          = 30 * time.Second // time after which the connection will be closed if response was not written -> this should never happen
-	IdleTimeout           = 60 * time.Second // time to wait for the next request when keep-alives are enabled
 )
 
 type ServerEndpoint struct {
@@ -42,7 +33,7 @@ type HTTPServer struct {
 
 func NewRouter() *chi.Mux {
 	router := chi.NewMux()
-	router.Use(middleware.Timeout(GatewayTimeout))
+	router.Use(middleware.Timeout(h.GatewayTimeout))
 	return router
 }
 
@@ -59,7 +50,7 @@ func (srv *HTTPServer) SetUpCORS(allowedOrigins []string, debug bool) {
 }
 
 func (srv *HTTPServer) AddServiceEndpoint(endpoint ServerEndpoint) {
-	hashEndpointPath := path.Join(endpoint.Path, HashEndpoint)
+	hashEndpointPath := path.Join(endpoint.Path, vars.HashEndpoint)
 
 	srv.Router.Post(endpoint.Path, endpoint.HandleRequest)
 	srv.Router.Post(hashEndpointPath, endpoint.HandleRequest)
@@ -72,9 +63,9 @@ func (srv *HTTPServer) Serve(ctx context.Context) error {
 	server := &http.Server{
 		Addr:         srv.Addr,
 		Handler:      srv.Router,
-		ReadTimeout:  ReadTimeout,
-		WriteTimeout: WriteTimeout,
-		IdleTimeout:  IdleTimeout,
+		ReadTimeout:  h.ReadTimeout,
+		WriteTimeout: h.WriteTimeout,
+		IdleTimeout:  h.IdleTimeout,
 	}
 	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
 
@@ -82,7 +73,7 @@ func (srv *HTTPServer) Serve(ctx context.Context) error {
 		<-ctx.Done()
 		server.SetKeepAlivesEnabled(false) // disallow clients to create new long-running conns
 
-		shutdownWithTimeoutCtx, _ := context.WithTimeout(shutdownCtx, ShutdownTimeout)
+		shutdownWithTimeoutCtx, _ := context.WithTimeout(shutdownCtx, h.ShutdownTimeout)
 		defer shutdownCancel()
 
 		if err := server.Shutdown(shutdownWithTimeoutCtx); err != nil {

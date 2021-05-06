@@ -2,8 +2,8 @@ package uc
 
 import (
 	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-client-go/main/adapters/handlers"
 	"github.com/ubirch/ubirch-client-go/main/ent"
-	"github.com/ubirch/ubirch-client-go/main/handlers"
 )
 
 func NewIdentityStorer(idHandler *handlers.IdentityHandler) handlers.StoreIdentity {
