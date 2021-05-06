@@ -28,7 +28,6 @@ import (
 )
 
 const (
-	secretLength16 = 16
 	secretLength32 = 32
 
 	DEV_STAGE  = "dev"
@@ -53,7 +52,7 @@ var IsDevelopment bool
 // configuration of the client
 type Config struct {
 	Devices          map[string]string `json:"devices"`                               // maps UUIDs to backend auth tokens (mandatory)
-	Secret16Base64   string            `json:"secret" envconfig:"secret"`             // 16 bytes secret used to encrypt the key store (mandatory) LEGACY
+	Secret16Base64   string            `json:"secret" envconfig:"secret"`             // 16 bytes secret used to encrypt the key store (mandatory for migration) LEGACY
 	Secret32Base64   string            `json:"secret32" envconfig:"secret32"`         // 32 byte secret used to encrypt the key store (mandatory)
 	RegisterAuth     string            `json:"registerAuth"`                          // auth token needed for new identity registration
 	Env              string            `json:"env"`                                   // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
@@ -72,7 +71,6 @@ type Config struct {
 	CORS_Origins     []string          `json:"CORS_origins"`                          // list of allowed origin hosts, defaults to ["*"]
 	Debug            bool              `json:"debug"`                                 // enable extended debug output, defaults to 'false'
 	LogTextFormat    bool              `json:"logTextFormat"`                         // log in text format for better human readability, default format is JSON
-	SecretBytes16    []byte            // the decoded 16 byte key store secret (set automatically) LEGACY
 	SecretBytes32    []byte            // the decoded 32 byte key store secret for database (set automatically)
 	KeyService       string            // key service URL (set automatically)
 	IdentityService  string            // identity service URL (set automatically)
@@ -87,18 +85,13 @@ func (c *Config) Load(configDir, filename string) error {
 	// assume that we want to load from env instead of config files, if
 	// we have the UBIRCH_SECRET env variable set.
 	var err error
-	if os.Getenv("UBIRCH_SECRET") != "" {
+	if os.Getenv("UBIRCH_SECRET32") != "" {
 		err = c.loadEnv()
 	} else {
 		err = c.loadFile(filename)
 	}
 	if err != nil {
 		return err
-	}
-
-	c.SecretBytes16, err = base64.StdEncoding.DecodeString(c.Secret16Base64)
-	if err != nil {
-		return fmt.Errorf("unable to decode base64 encoded secret (%s): %v", c.Secret16Base64, err)
 	}
 
 	c.SecretBytes32, err = base64.StdEncoding.DecodeString(c.Secret32Base64)
@@ -151,10 +144,6 @@ func (c *Config) loadFile(filename string) error {
 }
 
 func (c *Config) checkMandatory() error {
-	if len(c.SecretBytes16) != secretLength16 {
-		return fmt.Errorf("secret length must be %d bytes (is %d)", secretLength16, len(c.SecretBytes16))
-	}
-
 	if len(c.SecretBytes32) != secretLength32 {
 		return fmt.Errorf("secret for aes-256 key encryption ('secret32') length must be %d bytes (is %d)", secretLength32, len(c.SecretBytes32))
 	}

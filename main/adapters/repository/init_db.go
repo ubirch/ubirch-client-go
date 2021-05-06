@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/ubirch/ubirch-client-go/main/config"
@@ -83,7 +84,15 @@ func Migrate(c config.Config) error {
 func getAllIdentitiesFromLegacyCtx(c config.Config) ([]ent.Identity, error) {
 	log.Infof("getting existing identities from file system")
 
-	fileManager, err := NewFileManager(c.ConfigDir, c.SecretBytes16)
+	secret16Bytes, err := base64.StdEncoding.DecodeString(c.Secret16Base64)
+	if err != nil {
+		return nil, fmt.Errorf("unable to decode base64 encoded secret for legacy key store decoding (%s): %v", c.Secret16Base64, err)
+	}
+	if len(secret16Bytes) != 16 {
+		return nil, fmt.Errorf("invalid secret for legacy key store decoding: secret length must be 16 bytes (is %d)", len(secret16Bytes))
+	}
+
+	fileManager, err := NewFileManager(c.ConfigDir, secret16Bytes)
 	if err != nil {
 		return nil, err
 	}
