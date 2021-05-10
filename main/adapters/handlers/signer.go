@@ -63,7 +63,10 @@ type Signer struct {
 }
 
 func (s *Signer) checkExists(uid uuid.UUID) (bool, error) {
+	s.AuthTokenBufferMutex.RLock()
 	_, found := s.AuthTokensBuffer[uid]
+	s.AuthTokenBufferMutex.RUnlock()
+
 	if !found {
 		return s.Protocol.Exists(uid)
 	}
@@ -73,15 +76,19 @@ func (s *Signer) checkExists(uid uuid.UUID) (bool, error) {
 func (s *Signer) getAuth(uid uuid.UUID) (auth string, err error) {
 	var found bool
 
+	s.AuthTokenBufferMutex.RLock()
 	auth, found = s.AuthTokensBuffer[uid]
+	s.AuthTokenBufferMutex.RUnlock()
+
 	if !found {
 		auth, err = s.Protocol.GetAuthToken(uid)
 		if err != nil {
 			return "", err
 		}
-		s.AuthTokenBufferMutex.RLock()
-		defer s.AuthTokenBufferMutex.RUnlock()
+
+		s.AuthTokenBufferMutex.Lock()
 		s.AuthTokensBuffer[uid] = auth
+		s.AuthTokenBufferMutex.Unlock()
 	}
 	return auth, nil
 }
