@@ -1,6 +1,7 @@
 package httphelper
 
 import (
+	"fmt"
 	"net/http"
 
 	log "github.com/sirupsen/logrus"
@@ -12,12 +13,12 @@ type HTTPResponse struct {
 	Content    []byte      `json:"content"`
 }
 
-func EmptyOk(w http.ResponseWriter) {
-	w.Header().Set(HeaderContentType, MimeTextPlain)
-	w.WriteHeader(http.StatusOK)
-	_, err := w.Write([]byte{})
-	if err != nil {
-		log.Errorf("unable to write response: %s", err)
+func Health(version string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Server", fmt.Sprintf("ubirch-go-client/%s", version))
+		w.Header().Set(HeaderContentType, MimeTextPlain)
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, "Ok\n")
 	}
 }
 

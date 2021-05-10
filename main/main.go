@@ -18,18 +18,21 @@ import (
 	"context"
 	"fmt"
 	"github.com/google/uuid"
+	
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
-	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
-	"os"
-	"os/signal"
-	"sync"
-	"syscall"
-
 	"github.com/ubirch/ubirch-client-go/main/adapters/handlers"
+	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
+	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
 	"github.com/ubirch/ubirch-client-go/main/config"
 	"github.com/ubirch/ubirch-client-go/main/uc"
 	"github.com/ubirch/ubirch-client-go/main/vars"
 	"golang.org/x/sync/errgroup"
+	"net/http"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -156,6 +159,10 @@ func main() {
 
 	// set up graceful shutdown handling
 	go shutdown(cancel)
+
+	httpServer.Router.Method(http.MethodGet, "/metrics", promhttp.Handler())
+	httpServer.Router.Get("/.well-known/live", h.Health(globals.Version))
+	httpServer.Router.Get("/.well-known/ready", h.Health(globals.Version))
 
 	identity := createIdentityUseCases(globals, idHandler)
 	httpServer.Router.Put("/register", identity.handler.Put(identity.storeIdentity, identity.checkIdentity))
