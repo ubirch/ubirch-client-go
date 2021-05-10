@@ -65,3 +65,5 @@ func ReadBody(r *http.Request) ([]byte, error) {
 func IsHashRequest(r *http.Request) bool {
 	return strings.HasSuffix(r.URL.Path, vars.HashEndpoint)
 }
+
+
