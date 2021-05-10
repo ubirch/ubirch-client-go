@@ -9,21 +9,21 @@ import (
 const (
 	clientBaseURL          = "http://localhost:8080"
 	configFile             = "config.json"
-	numberOfTestIDs        = 5
+	numberOfTestIDs        = 100
 	numberOfRequestsPerID  = 100
-	requestsPerSecondPerID = 100
+	requestsPerSecondPerID = 1
 )
 
 func main() {
 	testCtx := NewTestCtx()
 	sender := NewSender(testCtx)
 
-	//for id, auth := range testCtx.identities {
-	//	err := sender.register(id, auth, testCtx.registerAuth)
-	//	if err != nil {
-	//		log.Fatal(err)
-	//	}
-	//}
+	for id, auth := range testCtx.identities {
+		err := sender.register(id, auth, testCtx.registerAuth)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 
 	log.Infof("%d identities, %d requests each => sending [ %d ] requests", len(testCtx.identities), numberOfRequestsPerID, len(testCtx.identities)*numberOfRequestsPerID)
 	log.Infof("%3d requests per second per identity", requestsPerSecondPerID)
