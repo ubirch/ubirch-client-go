@@ -34,7 +34,7 @@ type Sender struct {
 func NewSender(testCtx *TestCtx) *Sender {
 	return &Sender{
 		testCtx:    testCtx,
-		httpClient: &http.Client{Timeout: 25 * time.Second},
+		httpClient: &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
