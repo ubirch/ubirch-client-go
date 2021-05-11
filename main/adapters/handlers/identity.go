@@ -64,6 +64,7 @@ func (i *Identity) Put(storeId StoreIdentity, idExists CheckIdentityExists) http
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
+		log.WithFields(log.Fields{vars.Audit:"true"}).Infof("UUID: %s", uid.String())
 
 		w.Header().Set(h.HeaderContentType, vars.BinType)
 		w.WriteHeader(http.StatusOK)

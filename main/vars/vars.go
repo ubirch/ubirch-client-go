@@ -20,4 +20,6 @@ const (
 	HexEncoding = "hex"
 
 	HashLen = 32
+
+	Audit = "audit"
 )
