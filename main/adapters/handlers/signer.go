@@ -152,7 +152,13 @@ func (s *Signer) Sign(msg HTTPRequest, op operation) h.HTTPResponse {
 	}
 	log.Debugf("%s: signed UPP: %x", msg.ID, uppBytes)
 
-	return s.sendUPP(msg, uppBytes)
+	resp := s.sendUPP(msg, uppBytes)
+
+	if h.HttpSuccess(resp.StatusCode) {
+		logger.AuditLog(fmt.Sprintf("created signed UPP [%s] for identity %s with hash %s", op, msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:])))
+	}
+
+	return resp
 }
 
 func (s *Signer) getChainedUPP(id uuid.UUID, hash [32]byte, privateKeyPEM, prevSignature []byte) ([]byte, error) {
