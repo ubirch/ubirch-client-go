@@ -58,14 +58,19 @@ func (i *Identity) Put(storeId StoreIdentity, idExists CheckIdentityExists) http
 			return
 		}
 
-		err = storeId(uid, idPayload.Pwd)
+		csr, err := storeId(uid, idPayload.Pwd)
 		if err != nil {
 			log.Errorf("%s: %v", uid, err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
 
-		h.Ok(w, fmt.Sprintf("successfully created new entry with uuid %s\n", uid))
+		w.Header().Set(h.HeaderContentType, vars.BinType)
+		w.WriteHeader(http.StatusOK)
+		_, err = w.Write(csr)
+		if err != nil {
+			log.Errorf("unable to write response: %s", err)
+		}
 	}
 }
 

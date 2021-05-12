@@ -7,6 +7,6 @@ import (
 
 type FetchIdentity func(uid uuid.UUID) (*ent.Identity, error)
 
-type StoreIdentity func(uid uuid.UUID, auth string) error
+type StoreIdentity func(uid uuid.UUID, auth string) (csr []byte, err error)
 
 type CheckIdentityExists func(uid uuid.UUID) (bool, error)
