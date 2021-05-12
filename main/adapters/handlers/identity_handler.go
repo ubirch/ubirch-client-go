@@ -129,35 +129,25 @@ func (i *IdentityHandler) registerPublicKey(privKeyPEM []byte, uid uuid.UUID, au
 	}
 	log.Debugf("%s: key certificate: %s", uid, cert)
 
-	err = i.Protocol.SubmitKeyRegistration(uid, cert, auth)
-	if err != nil {
-		return fmt.Errorf("key registration for UUID %s failed: %v", uid, err)
-	}
-
-	go i.sendCSROrLogError(privKeyPEM, uid)
-
-	return nil
-}
-
-func (i *IdentityHandler) sendCSROrLogError(privKeyPEM []byte, uid uuid.UUID) {
-	err := i.sendCSR(privKeyPEM, uid)
-	if err != nil {
-		log.Error(err)
-	}
-}
-
-// sendCSR  generates and submits a signed a X.509 Certificate Signing Request for the public key
-func (i *IdentityHandler) sendCSR(privKeyPEM []byte, uid uuid.UUID) error {
 	csr, err := i.Protocol.GetCSR(privKeyPEM, uid, i.SubjectCountry, i.SubjectOrganization)
 	if err != nil {
 		return fmt.Errorf("creating CSR for UUID %s failed: %v", uid, err)
 	}
 	log.Debugf("%s: CSR [der]: %x", uid, csr)
 
-	err = i.Protocol.SubmitCSR(uid, csr)
+	err = i.Protocol.SubmitKeyRegistration(uid, cert, auth)
 	if err != nil {
-		return fmt.Errorf("submitting CSR for UUID %s failed: %v", uid, err)
+		return fmt.Errorf("key registration for UUID %s failed: %v", uid, err)
 	}
 
+	go i.submitCSROrLogError(uid, csr)
+
 	return nil
+}
+
+func (i *IdentityHandler) submitCSROrLogError(uid uuid.UUID, csr []byte) {
+	err := i.Protocol.SubmitCSR(uid, csr)
+	if err != nil {
+		log.Errorf("submitting CSR for UUID %s failed: %v", uid, err)
+	}
 }
