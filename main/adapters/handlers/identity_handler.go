@@ -57,7 +57,7 @@ func (i *IdentityHandler) InitIdentities(identities map[string]string) error {
 			return fmt.Errorf("missing auth token for identity %s", name)
 		}
 
-		err = i.InitIdentity(uid, auth)
+		_, err = i.InitIdentity(uid, auth)
 		if err != nil {
 			return err
 		}
@@ -66,18 +66,18 @@ func (i *IdentityHandler) InitIdentities(identities map[string]string) error {
 	return nil
 }
 
-func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) error {
+func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) (csr []byte, err error) {
 	log.Infof("initializing new identity %s", uid)
 
 	// generate a new private key
 	privKeyPEM, err := i.Protocol.GenerateKey()
 	if err != nil {
-		return fmt.Errorf("generating new key for UUID %s failed: %v", uid, err)
+		return nil, fmt.Errorf("generating new key for UUID %s failed: %v", uid, err)
 	}
 
 	pubKeyPEM, err := i.Protocol.GetPublicKeyFromPrivateKey(privKeyPEM)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	newIdentity := &ent.Identity{
@@ -93,21 +93,21 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) error {
 
 	tx, err := i.Protocol.StartTransaction(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	err = i.Protocol.StoreNewIdentity(tx, newIdentity)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// register public key at the ubirch backend
-	err = i.registerPublicKey(privKeyPEM, uid, auth)
+	csr, err = i.registerPublicKey(privKeyPEM, uid, auth)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return i.Protocol.CloseTransaction(tx, repository.Commit)
+	return csr, i.Protocol.CloseTransaction(tx, repository.Commit)
 }
 
 func (i *IdentityHandler) FetchIdentity(uid uuid.UUID) (*ent.Identity, error) {
@@ -122,27 +122,27 @@ func (i *IdentityHandler) FetchIdentity(uid uuid.UUID) (*ent.Identity, error) {
 	return i.Protocol.FetchIdentity(tx, uid)
 }
 
-func (i *IdentityHandler) registerPublicKey(privKeyPEM []byte, uid uuid.UUID, auth string) error {
-	cert, err := i.Protocol.GetSignedKeyRegistration(privKeyPEM, uid)
+func (i *IdentityHandler) registerPublicKey(privKeyPEM []byte, uid uuid.UUID, auth string) (csr []byte, err error) {
+	keyRegistration, err := i.Protocol.GetSignedKeyRegistration(privKeyPEM, uid)
 	if err != nil {
-		return fmt.Errorf("error creating public key certificate: %v", err)
+		return nil, fmt.Errorf("error creating public key certificate: %v", err)
 	}
-	log.Debugf("%s: key certificate: %s", uid, cert)
+	log.Debugf("%s: key certificate: %s", uid, keyRegistration)
 
-	csr, err := i.Protocol.GetCSR(privKeyPEM, uid, i.SubjectCountry, i.SubjectOrganization)
+	csr, err = i.Protocol.GetCSR(privKeyPEM, uid, i.SubjectCountry, i.SubjectOrganization)
 	if err != nil {
-		return fmt.Errorf("creating CSR for UUID %s failed: %v", uid, err)
+		return nil, fmt.Errorf("creating CSR for UUID %s failed: %v", uid, err)
 	}
 	log.Debugf("%s: CSR [der]: %x", uid, csr)
 
-	err = i.Protocol.SubmitKeyRegistration(uid, cert, auth)
+	err = i.Protocol.SubmitKeyRegistration(uid, keyRegistration, auth)
 	if err != nil {
-		return fmt.Errorf("key registration for UUID %s failed: %v", uid, err)
+		return nil, fmt.Errorf("key registration for UUID %s failed: %v", uid, err)
 	}
 
 	go i.submitCSROrLogError(uid, csr)
 
-	return nil
+	return csr, nil
 }
 
 func (i *IdentityHandler) submitCSROrLogError(uid uuid.UUID, csr []byte) {

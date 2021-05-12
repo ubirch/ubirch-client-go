@@ -7,7 +7,7 @@ import (
 )
 
 func NewIdentityStorer(idHandler *handlers.IdentityHandler) handlers.StoreIdentity {
-	return func(uid uuid.UUID, auth string) error {
+	return func(uid uuid.UUID, auth string) (csr []byte, err error) {
 		return idHandler.InitIdentity(uid, auth)
 	}
 }
