@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
+	"github.com/ubirch/ubirch-client-go/main/logger"
 	"github.com/ubirch/ubirch-client-go/main/vars"
 	"net/http"
 )
@@ -64,7 +65,8 @@ func (i *Identity) Put(storeId StoreIdentity, idExists CheckIdentityExists) http
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-		log.WithFields(log.Fields{vars.Audit:"true"}).Infof("UUID: %s", uid.String())
+
+		logger.AuditLog(fmt.Sprintf("created identity with UUID %s", uid))
 
 		w.Header().Set(h.HeaderContentType, vars.BinType)
 		w.WriteHeader(http.StatusOK)

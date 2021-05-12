@@ -20,7 +20,7 @@ import (
 	"fmt"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
 	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
-	"github.com/ubirch/ubirch-client-go/main/vars"
+	"github.com/ubirch/ubirch-client-go/main/logger"
 	"net/http"
 	"os"
 	"sync"
@@ -113,7 +113,6 @@ func (s *Signer) chain(tx interface{}, msg HTTPRequest) h.HTTPResponse {
 
 	resp := s.sendUPP(msg, uppBytes)
 
-	log.WithFields(log.Fields{vars.Audit:"true"}).Infof("UUID: %s, Hash:%s", msg.ID.String(), msg.Hash)
 	// persist last signature only if UPP was successfully received by ubirch backend
 	if h.HttpSuccess(resp.StatusCode) {
 		signature := uppBytes[len(uppBytes)-s.Protocol.SignatureLength():]
@@ -130,6 +129,8 @@ func (s *Signer) chain(tx interface{}, msg HTTPRequest) h.HTTPResponse {
 			log.Errorf("%s: committing transaction failed: %v", msg.ID, err)
 			return errorResponse(http.StatusInternalServerError, "")
 		}
+
+		logger.AuditLog(fmt.Sprintf("created chained UPP for identity %s with hash %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:])))
 	}
 
 	return resp
