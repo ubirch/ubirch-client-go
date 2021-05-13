@@ -66,14 +66,14 @@ func (i *Identity) Put(storeId StoreIdentity, idExists CheckIdentityExists) http
 			return
 		}
 
-		logger.AuditLogf("uuid: %s, operation: identity creation", uid)
-
 		w.Header().Set(h.HeaderContentType, vars.BinType)
 		w.WriteHeader(http.StatusOK)
 		_, err = w.Write(csr)
 		if err != nil {
 			log.Errorf("unable to write response: %s", err)
 		}
+
+		logger.AuditLogf("uuid: %s, operation: identity creation", uid)
 	}
 }
 
