@@ -48,13 +48,14 @@ func shutdown(cancel context.CancelFunc) {
 	cancel()
 }
 
-func main() {
-	const (
-		Version    = "v2.0.0"
-		Build      = "local"
-		configFile = "config.json"
-	)
+var (
+	// Version will be replaced with the tagged version during build time
+	Version    = "unreleased"
+	// Build will be replaced with the commit hash during build time
+	Build      = "local"
+)
 
+func main() {
 	var configDir string
 	migrate := false
 	initIdentities := false
@@ -77,6 +78,7 @@ func main() {
 
 	// read configuration
 	conf := config.Config{}
+	const configFile = "config.json"
 	err := conf.Load(configDir, configFile)
 	if err != nil {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
