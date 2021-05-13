@@ -33,7 +33,7 @@ REVISION = $(shell git rev-parse --short HEAD)$(shell if ! git diff --no-ext-dif
 CURRENT_BRANCH = $(shell git branch --show-current |tr -cd '[:alnum:]-.')
 
 NAME := ubirch-client
-SRC_URL = https://gitlab.com/ubirch/ubirch-client-go.git
+SRC_URL = https://github.com/ubirch/ubirch-client-go.git
 IMAGE_REPO := docker.io/ubirch/$(NAME)
 IMAGE_TAG := $(VERSION)
 IMAGE_ARCHS := amd64 arm arm64 386 # supported architectures
