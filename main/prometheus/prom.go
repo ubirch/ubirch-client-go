@@ -4,6 +4,7 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"net/http"
 	"strconv"
 )
@@ -67,4 +68,10 @@ func PromMiddleware(next http.Handler) http.Handler {
 
 		timer.ObserveDuration()
 	})
+}
+
+func InitPromMetrics(router *chi.Mux) {
+	RegisterPromMetrics()
+	router.Use(PromMiddleware)
+	router.Method(http.MethodGet, "/metrics", promhttp.Handler())
 }

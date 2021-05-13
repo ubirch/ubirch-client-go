@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
 	"github.com/ubirch/ubirch-client-go/main/adapters/handlers"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
@@ -28,7 +27,6 @@ import (
 	"github.com/ubirch/ubirch-client-go/main/uc"
 	"github.com/ubirch/ubirch-client-go/main/vars"
 	"golang.org/x/sync/errgroup"
-	"net/http"
 	"os"
 	"os/signal"
 	"sync"
@@ -160,9 +158,7 @@ func main() {
 	// set up graceful shutdown handling
 	go shutdown(cancel)
 
-	p.RegisterPromMetrics()
-	httpServer.Router.Use(p.PromMiddleware)
-	httpServer.Router.Method(http.MethodGet, "/metrics", promhttp.Handler())
+	p.InitPromMetrics(httpServer.Router)
 
 	httpServer.Router.Get("/healtz", h.Health(globals.Version))
 	httpServer.Router.Get("/readiness", h.Health(globals.Version))
