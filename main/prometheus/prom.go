@@ -8,8 +8,6 @@ import (
 	"strconv"
 )
 
-const appPrefix = "ubirch-client-go"
-
 type responseWriter struct {
 	http.ResponseWriter
 	statusCode int
@@ -26,7 +24,7 @@ func (rw *responseWriter) WriteHeader(code int) {
 
 var totalRequests = prometheus.NewCounterVec(
 	prometheus.CounterOpts{
-		Name: appPrefix + "_http_requests_total",
+		Name: "http_requests_total",
 		Help: "Number of get requests.",
 	},
 	[]string{"path"},
@@ -34,7 +32,7 @@ var totalRequests = prometheus.NewCounterVec(
 
 var responseStatus = prometheus.NewCounterVec(
 	prometheus.CounterOpts{
-		Name: appPrefix + "_response_status",
+		Name: "response_status",
 		Help: "Status of HTTP response",
 	},
 	[]string{"status"},
@@ -42,7 +40,7 @@ var responseStatus = prometheus.NewCounterVec(
 
 var httpDuration = promauto.NewHistogramVec(
 	prometheus.HistogramOpts{
-		Name: appPrefix + "_http_response_time_seconds",
+		Name: "http_response_time_seconds",
 		Help: "Duration of HTTP requests.",
 	},
 	[]string{"path"},
