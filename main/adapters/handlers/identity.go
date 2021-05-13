@@ -66,7 +66,7 @@ func (i *Identity) Put(storeId StoreIdentity, idExists CheckIdentityExists) http
 			return
 		}
 
-		logger.AuditLog(fmt.Sprintf("created identity with UUID %s", uid))
+		logger.AuditLogf("created identity with UUID %s", uid)
 
 		w.Header().Set(h.HeaderContentType, vars.BinType)
 		w.WriteHeader(http.StatusOK)

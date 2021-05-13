@@ -6,6 +6,6 @@ const auditKeyWord = "AUDIT"
 
 var auditLogFields = log.Fields{"tags": []string{auditKeyWord}}
 
-func AuditLog(msg string) {
-	log.WithFields(auditLogFields).Infof(msg)
+func AuditLogf(format string, args ...interface{}) {
+	log.WithFields(auditLogFields).Infof(format, args...)
 }

@@ -130,7 +130,7 @@ func (s *Signer) chain(tx interface{}, msg HTTPRequest) h.HTTPResponse {
 			return errorResponse(http.StatusInternalServerError, "")
 		}
 
-		logger.AuditLog(fmt.Sprintf("created chained UPP for identity %s with hash %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:])))
+		logger.AuditLogf("created chained UPP for identity %s with hash %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 	}
 
 	return resp
@@ -155,7 +155,7 @@ func (s *Signer) Sign(msg HTTPRequest, op operation) h.HTTPResponse {
 	resp := s.sendUPP(msg, uppBytes)
 
 	if h.HttpSuccess(resp.StatusCode) {
-		logger.AuditLog(fmt.Sprintf("created signed UPP [%s] for identity %s with hash %s", op, msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:])))
+		logger.AuditLogf("created signed UPP [%s] for identity %s with hash %s", op, msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 	}
 
 	return resp
