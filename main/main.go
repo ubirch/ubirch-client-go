@@ -50,9 +50,9 @@ func shutdown(cancel context.CancelFunc) {
 
 var (
 	// Version will be replaced with the tagged version during build time
-	Version    = "unreleased"
-	// Build will be replaced with the commit hash during build time
-	Build      = "local"
+	Version = "unreleased"
+	// Revision will be replaced with the commit hash during build time
+	Revision = "unknown"
 )
 
 func main() {
@@ -74,7 +74,7 @@ func main() {
 	}
 
 	log.SetFormatter(&log.JSONFormatter{})
-	log.Printf("UBIRCH client (%s, build=%s)", Version, Build)
+	log.Printf("UBIRCH client (%s, revision=%s)", Version, Revision)
 
 	// read configuration
 	conf := config.Config{}
