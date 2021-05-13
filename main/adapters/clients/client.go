@@ -70,9 +70,9 @@ func (c *Client) RequestPublicKeys(id uuid.UUID) ([]ubirch.SignedKeyRegistration
 	return keys, nil
 }
 
-// isKeyRegistered sends a request to the identity service to determine
+// IsKeyRegistered sends a request to the identity service to determine
 // if a specified public key is registered for the specified UUID
-func (c *Client) isKeyRegistered(id uuid.UUID, pubKey []byte) (bool, error) {
+func (c *Client) IsKeyRegistered(id uuid.UUID, pubKey []byte) (bool, error) {
 	certs, err := c.RequestPublicKeys(id)
 	if err != nil {
 		return false, err
@@ -92,7 +92,7 @@ func (c *Client) SubmitKeyRegistration(uid uuid.UUID, cert []byte, auth string) 
 	keyRegHeader := ubirchHeader(uid, auth)
 	keyRegHeader["content-type"] = "application/json"
 
-	resp, err := post(c.KeyServiceURL, cert, keyRegHeader)
+	resp, err := Post(c.KeyServiceURL, cert, keyRegHeader)
 	if err != nil {
 		return fmt.Errorf("error sending key registration: %v", err)
 	}
@@ -109,7 +109,7 @@ func (c *Client) SubmitCSR(uid uuid.UUID, csr []byte) error {
 
 	CSRHeader := map[string]string{"content-type": "application/octet-stream"}
 
-	resp, err := post(c.IdentityServiceURL, csr, CSRHeader)
+	resp, err := Post(c.IdentityServiceURL, csr, CSRHeader)
 	if err != nil {
 		return fmt.Errorf("error sending CSR: %v", err)
 	}
@@ -121,12 +121,12 @@ func (c *Client) SubmitCSR(uid uuid.UUID, csr []byte) error {
 }
 
 func (c *Client) SendToAuthService(uid uuid.UUID, auth string, upp []byte) (h.HTTPResponse, error) {
-	return post(c.AuthServiceURL, upp, ubirchHeader(uid, auth))
+	return Post(c.AuthServiceURL, upp, ubirchHeader(uid, auth))
 }
 
 // post submits a message to a backend service
 // returns the response or encountered errors
-func post(serviceURL string, data []byte, header map[string]string) (h.HTTPResponse, error) {
+func Post(serviceURL string, data []byte, header map[string]string) (h.HTTPResponse, error) {
 	client := &http.Client{Timeout: h.BackendRequestTimeout}
 
 	req, err := http.NewRequest(http.MethodPost, serviceURL, bytes.NewBuffer(data))
@@ -165,4 +165,3 @@ func ubirchHeader(uid uuid.UUID, auth string) map[string]string {
 		"x-ubirch-credential":  base64.StdEncoding.EncodeToString([]byte(auth)),
 	}
 }
-
