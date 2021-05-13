@@ -20,7 +20,6 @@ import (
 	"fmt"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
 	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
-	"github.com/ubirch/ubirch-client-go/main/logger"
 	"net/http"
 	"os"
 	"sync"
@@ -129,8 +128,6 @@ func (s *Signer) chain(tx interface{}, msg HTTPRequest) h.HTTPResponse {
 			log.Errorf("%s: committing transaction failed: %v", msg.ID, err)
 			return errorResponse(http.StatusInternalServerError, "")
 		}
-
-		logger.AuditLogf("created chained UPP for identity %s with hash %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 	}
 
 	return resp
@@ -152,13 +149,7 @@ func (s *Signer) Sign(msg HTTPRequest, op operation) h.HTTPResponse {
 	}
 	log.Debugf("%s: signed UPP: %x", msg.ID, uppBytes)
 
-	resp := s.sendUPP(msg, uppBytes)
-
-	if h.HttpSuccess(resp.StatusCode) {
-		logger.AuditLogf("created signed UPP [%s] for identity %s with hash %s", op, msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
-	}
-
-	return resp
+	return s.sendUPP(msg, uppBytes)
 }
 
 func (s *Signer) getChainedUPP(id uuid.UUID, hash [32]byte, privateKeyPEM, prevSignature []byte) ([]byte, error) {
