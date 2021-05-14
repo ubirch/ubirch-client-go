@@ -18,7 +18,10 @@ func Health(version string) http.HandlerFunc {
 		w.Header().Set("Server", fmt.Sprintf("ubirch-go-client/%s", version))
 		w.Header().Set(HeaderContentType, MimeTextPlain)
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, "Ok\n")
+		_, err := w.Write([]byte(http.StatusText(http.StatusOK)))
+		if err != nil {
+			log.Errorf("unable to write response: %s", err)
+		}
 	}
 }
 
@@ -30,7 +33,6 @@ func Ok(w http.ResponseWriter, rsp string) {
 		log.Errorf("unable to write response: %s", err)
 	}
 }
-
 
 func HttpFailed(StatusCode int) bool {
 	return !HttpSuccess(StatusCode)

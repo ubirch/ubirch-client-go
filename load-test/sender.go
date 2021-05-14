@@ -70,10 +70,13 @@ func (s *Sender) register(id string, auth string, registerAuth string) error {
 	//noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
-		log.Warnf("%s: registration returned: %s", id, resp.Status)
-	} else {
+	switch resp.StatusCode {
+	case http.StatusOK:
 		log.Infof("registered new identity: %s", id)
+	case http.StatusConflict:
+		log.Debugf("%s: identity already registered", id)
+	default:
+		log.Warnf("%s: registration returned: %s", id, resp.Status)
 	}
 
 	return nil
