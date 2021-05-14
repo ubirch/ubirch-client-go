@@ -87,6 +87,45 @@ func main() {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
 
+	globals := handlers.Globals{
+		Config:  conf,
+		Version: Version,
+	}
+
+	// create a waitgroup that contains all asynchronous operations
+	// a cancellable context is used to stop the operations gracefully
+	ctx, cancel := context.WithCancel(context.Background())
+	g, ctx := errgroup.WithContext(ctx)
+
+	// set up graceful shutdown handling
+	go shutdown(cancel)
+
+	// set up HTTP server
+	httpServer := handlers.HTTPServer{
+		Router:   handlers.NewRouter(),
+		Addr:     conf.TCP_addr,
+		TLS:      conf.TLS,
+		CertFile: conf.TLS_CertFile,
+		KeyFile:  conf.TLS_KeyFile,
+	}
+	if conf.CORS && config.IsDevelopment { // never enable CORS on production stage
+		httpServer.SetUpCORS(conf.CORS_Origins, conf.Debug)
+	}
+
+	// start HTTP server
+	serverReadyCtx, serverReady := context.WithCancel(context.Background())
+	g.Go(func() error {
+		return httpServer.Serve(ctx, serverReady)
+	})
+	// wait for server to start
+	<-serverReadyCtx.Done()
+
+	// set up metrics
+	p.InitPromMetrics(httpServer.Router)
+
+	// set up endpoint for liveliness checks
+	httpServer.Router.Get("/healtz", h.Health(globals.Version))
+
 	if migrate {
 		err := repository.Migrate(conf)
 		if err != nil {
@@ -95,6 +134,7 @@ func main() {
 		os.Exit(0)
 	}
 
+	// initialize ubirch protocol
 	ctxManager, err := repository.GetCtxManager(conf)
 	if err != nil {
 		log.Fatal(err)
@@ -107,7 +147,6 @@ func main() {
 		IdentityServiceURL: conf.IdentityService,
 	}
 
-	// initialize ubirch protocol
 	protocol, err := repository.NewExtendedProtocol(ctxManager, conf.SecretBytes32, client)
 	if err != nil {
 		log.Fatal(err)
@@ -138,44 +177,6 @@ func main() {
 		Protocol:                      protocol,
 		VerifyFromKnownIdentitiesOnly: false, // TODO: make configurable
 	}
-
-	httpServer := handlers.HTTPServer{
-		Router:   handlers.NewRouter(),
-		Addr:     conf.TCP_addr,
-		TLS:      conf.TLS,
-		CertFile: conf.TLS_CertFile,
-		KeyFile:  conf.TLS_KeyFile,
-	}
-	if conf.CORS && config.IsDevelopment { // never enable CORS on production stage
-		httpServer.SetUpCORS(conf.CORS_Origins, conf.Debug)
-	}
-
-	globals := handlers.Globals{
-		Config:  conf,
-		Version: Version,
-	}
-
-	// create a waitgroup that contains all asynchronous operations
-	// a cancellable context is used to stop the operations gracefully
-	ctx, cancel := context.WithCancel(context.Background())
-	g, ctx := errgroup.WithContext(ctx)
-
-	// set up graceful shutdown handling
-	go shutdown(cancel)
-
-	// set up metrics
-	p.InitPromMetrics(httpServer.Router)
-
-	// set up endpoint for liveliness checks
-	httpServer.Router.Get("/healtz", h.Health(globals.Version))
-
-	// start HTTP server
-	serverReadyCtx, serverReady := context.WithCancel(context.Background())
-	g.Go(func() error {
-		return httpServer.Serve(ctx, serverReady)
-	})
-	// wait for server to start
-	<-serverReadyCtx.Done()
 
 	// set up endpoint for identity registration
 	identity := createIdentityUseCases(globals, idHandler)
