@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-const expectedConfig = `{"devices":null,"secret":"MTIzNDU2Nzg5MDU2Nzg5MA==","env":"","DSN":{"Host":"","User":"","Password":"","database":""},"CSR_country":"","CSR_organization":"","TCP_addr":"","TLS":false,"TLSCertFile":"","TLSKeyFile":"","CORS":false,"CORS_origins":null,"debug":false,"logTextFormat":false,"SecretBytes":null,"KeyService":"","IdentityService":"","Niomon":"","VerifyService":"","ConfigDir":""}`
+const expectedConfig = `{"devices":null,"secret":"MTIzNDU2Nzg5MDU2Nzg5MA==","secret32":"VsCwmGssk7Ho2APyq1reGAKkB/+e8GlRfhM3NbYQWPU=","registerAuth":"test123","env":"","DSN_InitDb":false,"DSN_Host":"","DSN_User":"","DSN_Password":"","DSN_Database":"","CSR_country":"","CSR_organization":"","TCP_addr":"","TLS":false,"TLSCertFile":"","TLSKeyFile":"","CORS":false,"CORS_origins":null,"debug":false,"logTextFormat":false,"SecretBytes32":null,"KeyService":"","IdentityService":"","Niomon":"","VerifyService":"","ConfigDir":""}`
 
 func TestConfig(t *testing.T) {
 	configBytes := []byte(expectedConfig)
