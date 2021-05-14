@@ -118,12 +118,33 @@ func (p *ExtendedProtocol) FetchIdentity(tx interface{}, uid uuid.UUID) (*ent.Id
 	return i, nil
 }
 
+// FetchIdentityWithLock starts a transaction with lock and returns the locked identity
+func (p *ExtendedProtocol) FetchIdentityWithLock(ctx context.Context, uid uuid.UUID) (transactionCtx interface{}, identity *ent.Identity, err error) {
+	transactionCtx, err = p.StartTransactionWithLock(ctx, uid)
+	if err != nil {
+		return nil, nil, fmt.Errorf("starting transaction with lock failed: %v", err)
+	}
+
+	identity, err = p.FetchIdentity(transactionCtx, uid)
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not fetch identity: %v", err)
+	}
+
+	return transactionCtx, identity, nil
+}
+
+// SetSignature stores the signature and commits the transaction
 func (p *ExtendedProtocol) SetSignature(tx interface{}, uid uuid.UUID, signature []byte) error {
 	if len(signature) != p.SignatureLength() {
 		return fmt.Errorf("invalid signature length: expected %d, got %d", p.SignatureLength(), len(signature))
 	}
 
-	return p.ctxManager.SetSignature(tx, uid, signature)
+	err := p.ctxManager.SetSignature(tx, uid, signature)
+	if err != nil {
+		return err
+	}
+
+	return p.CloseTransaction(tx, Commit)
 }
 
 func (p *ExtendedProtocol) GetPrivateKey(uid uuid.UUID) ([]byte, error) {

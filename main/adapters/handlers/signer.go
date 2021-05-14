@@ -20,6 +20,7 @@ import (
 	"fmt"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
 	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
+	"github.com/ubirch/ubirch-client-go/main/ent"
 	"net/http"
 	"os"
 	"sync"
@@ -94,14 +95,8 @@ func (s *Signer) getAuth(uid uuid.UUID) (auth string, err error) {
 }
 
 // handle incoming messages, create, sign and send a chained ubirch protocol packet (UPP) to the ubirch backend
-func (s *Signer) chain(tx interface{}, msg HTTPRequest) h.HTTPResponse {
+func (s *Signer) chain(msg HTTPRequest, tx interface{}, identity *ent.Identity) h.HTTPResponse {
 	log.Infof("%s: anchor hash [chained]: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
-
-	identity, err := s.Protocol.FetchIdentity(tx, msg.ID)
-	if err != nil {
-		log.Errorf("%s: could not fetch identity: %v", msg.ID, err)
-		return errorResponse(http.StatusInternalServerError, "")
-	}
 
 	uppBytes, err := s.getChainedUPP(msg.ID, msg.Hash, identity.PrivateKey, identity.Signature)
 	if err != nil {
@@ -122,12 +117,6 @@ func (s *Signer) chain(tx interface{}, msg HTTPRequest) h.HTTPResponse {
 			log.Errorf("%s: storing signature failed: %v", msg.ID, err)
 			log.Warnf("%s: request has been processed, but response could not be sent: (%d) %s",
 				msg.ID, resp.StatusCode, string(resp.Content))
-			return errorResponse(http.StatusInternalServerError, "")
-		}
-
-		err = s.Protocol.CloseTransaction(tx, repository.Commit)
-		if err != nil {
-			log.Errorf("%s: committing transaction failed: %v", msg.ID, err)
 			return errorResponse(http.StatusInternalServerError, "")
 		}
 	}

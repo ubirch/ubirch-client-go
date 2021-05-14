@@ -67,14 +67,14 @@ func (s *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	tx, err := s.Protocol.StartTransactionWithLock(r.Context(), msg.ID)
+	tx, identity, err := s.Protocol.FetchIdentityWithLock(r.Context(), msg.ID)
 	if err != nil {
-		log.Errorf("%s: starting transaction with lock failed: %v", msg.ID, err)
+		log.Errorf("%s: %v", msg.ID, err)
 		http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
 		return
 	}
 
-	resp := s.chain(tx, msg)
+	resp := s.chain(msg, tx, identity)
 	sendResponse(w, resp)
 
 	if h.HttpSuccess(resp.StatusCode) {
