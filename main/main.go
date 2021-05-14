@@ -42,7 +42,7 @@ func shutdown(cancel context.CancelFunc) {
 
 	// block until we receive a SIGINT or SIGTERM
 	sig := <-signals
-	log.Printf("shutting down after receiving: %v", sig)
+	log.Infof("shutting down after receiving: %v", sig)
 
 	// cancel the go routines contexts
 	cancel()
@@ -62,6 +62,7 @@ func main() {
 		configDir      string
 		migrate        bool
 		initIdentities bool
+		serverID       = fmt.Sprintf("ubirch-client/%s", Version)
 	)
 
 	if len(os.Args) > 1 {
@@ -124,7 +125,7 @@ func main() {
 	p.InitPromMetrics(httpServer.Router)
 
 	// set up endpoint for liveliness checks
-	httpServer.Router.Get("/healtz", h.Health(globals.Version))
+	httpServer.Router.Get("/healtz", h.Health(serverID))
 
 	if migrate {
 		err := repository.Migrate(conf)
@@ -207,7 +208,7 @@ func main() {
 	})
 
 	// set up endpoint for readiness checks
-	httpServer.Router.Get("/readiness", h.Health(globals.Version))
+	httpServer.Router.Get("/readiness", h.Health(serverID))
 	log.Info("ready")
 
 	// wait for all go routines of the waitgroup to return
