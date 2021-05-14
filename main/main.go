@@ -163,11 +163,21 @@ func main() {
 	// set up graceful shutdown handling
 	go shutdown(cancel)
 
+	// set up metrics
 	p.InitPromMetrics(httpServer.Router)
 
+	// set up endpoint for liveliness checks
 	httpServer.Router.Get("/healtz", h.Health(globals.Version))
-	httpServer.Router.Get("/readiness", h.Health(globals.Version))
 
+	// start HTTP server
+	serverReadyCtx, serverReady := context.WithCancel(context.Background())
+	g.Go(func() error {
+		return httpServer.Serve(ctx, serverReady)
+	})
+	// wait for server to start
+	<-serverReadyCtx.Done()
+
+	// set up endpoint for identity registration
 	identity := createIdentityUseCases(globals, idHandler)
 	httpServer.Router.Put("/register", identity.handler.Put(identity.storeIdentity, identity.checkIdentity))
 
@@ -195,17 +205,16 @@ func main() {
 		},
 	})
 
-	// start HTTP server
-	g.Go(func() error {
-		return httpServer.Serve(ctx)
-	})
+	// set up endpoint for readiness checks
+	httpServer.Router.Get("/readiness", h.Health(globals.Version))
+	log.Info("ready")
 
 	// wait for all go routines of the waitgroup to return
 	if err = g.Wait(); err != nil {
 		log.Error(err)
 	}
 
-	log.Info("shut down client")
+	log.Debug("shut down client")
 }
 
 type identities struct {

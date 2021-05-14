@@ -59,7 +59,7 @@ func (srv *HTTPServer) AddServiceEndpoint(endpoint ServerEndpoint) {
 	srv.Router.Options(hashEndpointPath, endpoint.HandleOptions)
 }
 
-func (srv *HTTPServer) Serve(ctx context.Context) error {
+func (srv *HTTPServer) Serve(cancelCtx context.Context, serverReady context.CancelFunc) error {
 	server := &http.Server{
 		Addr:         srv.Addr,
 		Handler:      srv.Router,
@@ -70,7 +70,7 @@ func (srv *HTTPServer) Serve(ctx context.Context) error {
 	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
 
 	go func() {
-		<-ctx.Done()
+		<-cancelCtx.Done()
 		server.SetKeepAlivesEnabled(false) // disallow clients to create new long-running conns
 
 		shutdownWithTimeoutCtx, _ := context.WithTimeout(shutdownCtx, h.ShutdownTimeout)
@@ -84,6 +84,7 @@ func (srv *HTTPServer) Serve(ctx context.Context) error {
 	}()
 
 	log.Infof("starting HTTP server")
+	serverReady()
 
 	var err error
 	if srv.TLS {
