@@ -48,16 +48,21 @@ func shutdown(cancel context.CancelFunc) {
 	cancel()
 }
 
-func main() {
-	const (
-		Version    = "v2.0.0"
-		Build      = "local"
-		configFile = "config.json"
-	)
+var (
+	// Version will be replaced with the tagged version during build time
+	Version = "local build"
+	// Revision will be replaced with the commit hash during build time
+	Revision = "unknown"
+)
 
-	var configDir string
-	migrate := false
-	initIdentities := false
+func main() {
+	const configFile = "config.json"
+
+	var (
+		configDir      string
+		migrate        bool
+		initIdentities bool
+	)
 
 	if len(os.Args) > 1 {
 		for i, arg := range os.Args[1:] {
@@ -73,7 +78,7 @@ func main() {
 	}
 
 	log.SetFormatter(&log.JSONFormatter{})
-	log.Printf("UBIRCH client (%s, build=%s)", Version, Build)
+	log.Printf("UBIRCH client (version=%s, revision=%s)", Version, Revision)
 
 	// read configuration
 	conf := config.Config{}
