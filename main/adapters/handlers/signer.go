@@ -118,8 +118,10 @@ func (s *Signer) chain(tx interface{}, msg HTTPRequest) h.HTTPResponse {
 
 		err = s.Protocol.SetSignature(tx, msg.ID, signature)
 		if err != nil {
-			log.Errorf("unable to persist last signature: %v [\"%s\": \"%s\"]",
-				err, msg.ID, base64.StdEncoding.EncodeToString(signature))
+			// this usually happens, if the request context was cancelled because the client already left (timeout or cancel)
+			log.Errorf("%s: storing signature failed: %v", msg.ID, err)
+			log.Warnf("%s: request has been processed, but response could not be sent: (%d) %s",
+				msg.ID, resp.StatusCode, string(resp.Content))
 			return errorResponse(http.StatusInternalServerError, "")
 		}
 
