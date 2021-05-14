@@ -50,15 +50,19 @@ func shutdown(cancel context.CancelFunc) {
 
 var (
 	// Version will be replaced with the tagged version during build time
-	Version = "unreleased"
+	Version = "local build"
 	// Revision will be replaced with the commit hash during build time
 	Revision = "unknown"
 )
 
 func main() {
-	var configDir string
-	migrate := false
-	initIdentities := false
+	const configFile = "config.json"
+
+	var (
+		configDir      string
+		migrate        bool
+		initIdentities bool
+	)
 
 	if len(os.Args) > 1 {
 		for i, arg := range os.Args[1:] {
@@ -74,11 +78,10 @@ func main() {
 	}
 
 	log.SetFormatter(&log.JSONFormatter{})
-	log.Printf("UBIRCH client (%s, revision=%s)", Version, Revision)
+	log.Printf("UBIRCH client (version=%s, revision=%s)", Version, Revision)
 
 	// read configuration
 	conf := config.Config{}
-	const configFile = "config.json"
 	err := conf.Load(configDir, configFile)
 	if err != nil {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
