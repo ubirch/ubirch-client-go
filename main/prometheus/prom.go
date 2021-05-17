@@ -55,16 +55,15 @@ func RegisterPromMetrics() {
 
 func PromMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := chi.RouteContext(r.Context())
+		timer := prometheus.NewTimer(httpDuration.WithLabelValues(r.URL.Path))
 
-		timer := prometheus.NewTimer(httpDuration.WithLabelValues(ctx.RoutePath))
 		rw := NewResponseWriter(w)
 		next.ServeHTTP(rw, r)
 
 		statusCode := rw.statusCode
 
 		responseStatus.WithLabelValues(strconv.Itoa(statusCode)).Inc()
-		totalRequests.WithLabelValues(ctx.RoutePath).Inc()
+		totalRequests.WithLabelValues(r.URL.Path).Inc()
 
 		timer.ObserveDuration()
 	})
