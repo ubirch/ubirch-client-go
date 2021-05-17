@@ -57,6 +57,7 @@ type Config struct {
 	RegisterAuth     string            `json:"registerAuth"`                          // auth token needed for new identity registration
 	Env              string            `json:"env"`                                   // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
 	DsnInitContainer bool              `json:"DSN_InitDb" envconfig:"DSN_InitDb"`     // flag to determine if a database should be used for context management
+	DsnType          string            `json:"DSN_Type" envconfig:"DSN_Type"`         // Type of of the db either postgres or mysql
 	DsnHost          string            `json:"DSN_Host" envconfig:"DSN_Host"`         // database host name
 	DsnUser          string            `json:"DSN_User" envconfig:"DSN_User"`         // database user name
 	DsnPassword      string            `json:"DSN_Password" envconfig:"DSN_Password"` // database password

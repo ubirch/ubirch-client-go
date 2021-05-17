@@ -29,6 +29,7 @@ import (
 	// import pq driver this way only if we dont need it here
 	// done for database/sql (pg, err := sql.Open..)
 	//_ "github.com/lib/pq"
+	_ "github.com/go-sql-driver/mysql"
 )
 
 // DatabaseManager contains the postgres database connection, and offers methods
@@ -36,14 +37,16 @@ import (
 type DatabaseManager struct {
 	options *sql.TxOptions
 	db      *sql.DB
+	ConnectionErrorCheck
 }
+type ConnectionErrorCheck func(err error) bool
 
 // Ensure Database implements the ContextManager interface
 var _ ContextManager = (*DatabaseManager)(nil)
 
 // NewSqlDatabaseInfo takes a database connection string, returns a new initialized
 // database.
-func NewSqlDatabaseInfo(conf config.Config) (*DatabaseManager, error) {
+func NewPostgresSqlDatabaseInfo(conf config.Config) (*DatabaseManager, error) {
 	dataSourceName := fmt.Sprintf("host=%s user=%s password=%s port=%d dbname=%s sslmode=disable",
 		conf.DsnHost, conf.DsnUser, conf.DsnPassword, vars.PostgreSqlPort, conf.DsnDb)
 
@@ -53,7 +56,7 @@ func NewSqlDatabaseInfo(conf config.Config) (*DatabaseManager, error) {
 	}
 	pg.SetMaxOpenConns(100)
 	pg.SetMaxIdleConns(70)
-	pg.SetConnMaxLifetime(10*time.Minute)
+	pg.SetConnMaxLifetime(10 * time.Minute)
 	if err = pg.Ping(); err != nil {
 		return nil, err
 	}
@@ -62,10 +65,40 @@ func NewSqlDatabaseInfo(conf config.Config) (*DatabaseManager, error) {
 
 	return &DatabaseManager{
 		options: &sql.TxOptions{
-			Isolation: sql.LevelReadCommitted,
+			Isolation: sql.LevelWriteCommitted,
 			ReadOnly:  false,
 		},
-		db: pg,
+		db:                   pg,
+		ConnectionErrorCheck: IsConnectionAvailableErrorPostgresSql,
+	}, nil
+}
+
+// NewSqlDatabaseInfo takes a database connection string, returns a new initialized
+// database.
+func NewMySqlDatabaseInfo(conf config.Config) (*DatabaseManager, error) {
+	dataSourceName := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s",
+		conf.DsnUser, conf.DsnPassword, conf.DsnHost, vars.MySqlPort, conf.DsnDb)
+	db, err := sql.Open(vars.MySql, dataSourceName)
+	if err != nil {
+		return nil, err
+	}
+
+	db.SetMaxOpenConns(100)
+	db.SetMaxIdleConns(70)
+	db.SetConnMaxLifetime(10 * time.Minute)
+	if err = db.Ping(); err != nil {
+		return nil, err
+	}
+
+	log.Print("preparing mysql usage")
+
+	return &DatabaseManager{
+		options: &sql.TxOptions{
+			Isolation: sql.LevelWriteCommitted,
+			ReadOnly:  false,
+		},
+		db:                   db,
+		ConnectionErrorCheck: IsConnectionAvailableErrorMySql,
 	}, nil
 }
 
@@ -75,7 +108,7 @@ func (dm *DatabaseManager) Exists(uid uuid.UUID) (bool, error) {
 	err := dm.db.QueryRow("SELECT uid FROM identity WHERE uid = $1", uid.String()).
 		Scan(&id)
 	if err != nil {
-		if dm.isConnectionAvailable(err) {
+		if dm.ConnectionErrorCheck(err) {
 			return dm.Exists(uid)
 		}
 		if err == sql.ErrNoRows {
@@ -94,7 +127,7 @@ func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
 	err := dm.db.QueryRow("SELECT private_key FROM identity WHERE uid = $1", uid.String()).
 		Scan(&privateKey)
 	if err != nil {
-		if dm.isConnectionAvailable(err) {
+		if dm.ConnectionErrorCheck(err) {
 			return dm.GetPrivateKey(uid)
 		}
 		return nil, err
@@ -109,7 +142,7 @@ func (dm *DatabaseManager) GetPublicKey(uid uuid.UUID) ([]byte, error) {
 	err := dm.db.QueryRow("SELECT public_key FROM identity WHERE uid = $1", uid.String()).
 		Scan(&publicKey)
 	if err != nil {
-		if dm.isConnectionAvailable(err) {
+		if dm.ConnectionErrorCheck(err) {
 			return dm.GetPublicKey(uid)
 		}
 		return nil, err
@@ -124,7 +157,7 @@ func (dm *DatabaseManager) GetAuthToken(uid uuid.UUID) (string, error) {
 	err := dm.db.QueryRow("SELECT auth_token FROM identity WHERE uid = $1", uid.String()).
 		Scan(&authToken)
 	if err != nil {
-		if dm.isConnectionAvailable(err) {
+		if dm.ConnectionErrorCheck(err) {
 			return dm.GetAuthToken(uid)
 		}
 		return "", err
@@ -151,7 +184,7 @@ func (dm *DatabaseManager) StartTransactionWithLock(ctx context.Context, uid uui
 	err = tx.QueryRow("SELECT uid FROM identity WHERE uid = $1 FOR UPDATE", uid).
 		Scan(&id)
 	if err != nil {
-		if dm.isConnectionAvailable(err) {
+		if dm.ConnectionErrorCheck(err) {
 			return dm.StartTransactionWithLock(ctx, uid)
 		}
 		return nil, err
@@ -184,7 +217,7 @@ func (dm *DatabaseManager) FetchIdentity(transactionCtx interface{}, uid uuid.UU
 	err := tx.QueryRow("SELECT * FROM identity WHERE uid = $1", uid.String()).
 		Scan(&id.Uid, &id.PrivateKey, &id.PublicKey, &id.Signature, &id.AuthToken)
 	if err != nil {
-		if dm.isConnectionAvailable(err) {
+		if dm.ConnectionErrorCheck(err) {
 			return dm.FetchIdentity(tx, uid)
 		}
 		return nil, err
@@ -203,7 +236,7 @@ func (dm *DatabaseManager) SetSignature(transactionCtx interface{}, uid uuid.UUI
 		"UPDATE identity SET signature = $1 WHERE uid = $2;",
 		&signature, uid.String())
 	if err != nil {
-		if dm.isConnectionAvailable(err) {
+		if dm.ConnectionErrorCheck(err) {
 			return dm.SetSignature(tx, uid, signature)
 		}
 		return err
@@ -224,7 +257,7 @@ func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity
 	err := tx.QueryRow("SELECT uid FROM identity WHERE uid = $1 FOR UPDATE", identity.Uid).
 		Scan(&id)
 	if err != nil {
-		if dm.isConnectionAvailable(err) {
+		if dm.ConnectionErrorCheck(err) {
 			return dm.StoreNewIdentity(tx, identity)
 		}
 		if err == sql.ErrNoRows {
@@ -244,7 +277,7 @@ func (dm *DatabaseManager) storeIdentity(tx *sql.Tx, identity *ent.Identity) err
 		"INSERT INTO identity (uid, private_key, public_key, signature, auth_token) VALUES ($1, $2, $3, $4, $5);",
 		&identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.Signature, &identity.AuthToken)
 	if err != nil {
-		if dm.isConnectionAvailable(err) {
+		if dm.ConnectionErrorCheck(err) {
 			return dm.storeIdentity(tx, identity)
 		}
 		return err
@@ -253,11 +286,18 @@ func (dm *DatabaseManager) storeIdentity(tx *sql.Tx, identity *ent.Identity) err
 	return nil
 }
 
-func (dm *DatabaseManager) isConnectionAvailable(err error) bool { // todo this will only work with postgres
-	if err.Error() == pq.ErrorCode("53300").Name() ||              // "53300": "too_many_connections",
+func IsConnectionAvailableErrorPostgresSql(err error) bool {
+	if err.Error() == pq.ErrorCode("53300").Name() || // "53300": "too_many_connections",
 		err.Error() == pq.ErrorCode("53400").Name() { // "53400": "configuration_limit_exceeded",
 		time.Sleep(100 * time.Millisecond)
 		return true
 	}
+	return false
+}
+func IsConnectionAvailableErrorMySql(err error) bool {
+	//if err == mysql.ErrInvalidConn  {
+	//	time.Sleep(100 * time.Millisecond)
+	//	return true
+	//}
 	return false
 }

@@ -8,6 +8,9 @@ const (
 	MigrateArg                  string = "--migrate"
 	InitArg                     string = "--init-identities-conf"
 
+	MySql                  string = "mysql"
+	MySqlPort              int    = 3306
+
 	UUIDKey      = "uuid"
 	OperationKey = "operation"
 	VerifyPath   = "verify"
