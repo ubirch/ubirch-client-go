@@ -5,10 +5,10 @@ go 1.16
 require (
 	github.com/go-chi/chi v1.5.4
 	github.com/go-chi/cors v1.2.0
-	github.com/go-sql-driver/mysql v1.4.0
 	github.com/google/uuid v1.2.0
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/lib/pq v1.10.1
+	github.com/mattn/go-sqlite3 v1.14.7
 	github.com/prometheus/client_golang v1.10.0
 	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.7.0

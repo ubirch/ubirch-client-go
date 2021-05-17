@@ -41,7 +41,7 @@ func GetCtxManager(c config.Config) (ContextManager, error) {
 	case vars.PostgreSql:
 		return NewPostgresSqlDatabaseInfo(c)
 	case vars.MySql:
-		return NewMySqlDatabaseInfo(c)
+		return NewSqliteDatabaseInfo(c)
 	default:
 		return nil, fmt.Errorf("file-based context management is not supported in the current version. " +
 			"Please set DSN parameters in the configuration and conntect to a database or downgrade to a version < 2.0.0")
