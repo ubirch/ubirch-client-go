@@ -61,7 +61,6 @@ func (i *Identity) Put(storeId StoreIdentity, idExists CheckIdentityExists) http
 			return
 		}
 
-
 		timer := prometheus.NewTimer(p.IdentityCreation)
 		csr, err := storeId(uid, idPayload.Pwd)
 		timer.ObserveDuration()
@@ -77,7 +76,8 @@ func (i *Identity) Put(storeId StoreIdentity, idExists CheckIdentityExists) http
 		if err != nil {
 			log.Errorf("unable to write response: %s", err)
 		}
-
+		
+		p.IdentityCreationCounter.Inc()
 		logger.AuditLogf("uuid: %s, operation: identity creation", uid)
 	}
 }

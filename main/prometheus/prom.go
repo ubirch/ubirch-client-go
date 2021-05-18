@@ -60,6 +60,11 @@ var IdentityCreation = promauto.NewHistogram(prometheus.HistogramOpts{
 	Buckets: prometheus.LinearBuckets(0.01, 0.01, 10),
 })
 
+var IdentityCreationCounter = prometheus.NewCounter(prometheus.CounterOpts{
+	Name: "identity_creation_success",
+	Help: "Number of identities which have been successfully created and stored in the db.",
+})
+
 func RegisterPromMetrics() {
 	prometheus.Register(totalRequests)
 	prometheus.Register(responseStatus)
