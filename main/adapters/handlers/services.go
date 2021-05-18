@@ -2,14 +2,11 @@ package handlers
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/go-chi/chi"
-	"github.com/go-chi/chi/middleware"
 	"github.com/google/uuid"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
-	"github.com/ubirch/ubirch-client-go/main/auditlogger"
 	"github.com/ubirch/ubirch-client-go/main/vars"
 	"net/http"
 
@@ -77,13 +74,6 @@ func (s *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) 
 
 	resp := s.chain(msg, tx, identity)
 	sendResponse(w, resp)
-
-	if h.HttpSuccess(resp.StatusCode) {
-		action := "chained UPP creation (anchor)"
-		object := fmt.Sprintf("hash=%s", base64.StdEncoding.EncodeToString(msg.Hash[:]))
-		reqID := middleware.GetReqID(r.Context())
-		auditlogger.AuditLog(action, object, msg.ID.String(), "", reqID)
-	}
 }
 
 type SigningService struct {
@@ -141,13 +131,6 @@ func (s *SigningService) HandleRequest(w http.ResponseWriter, r *http.Request) {
 
 	resp := s.Sign(msg, op)
 	sendResponse(w, resp)
-
-	if h.HttpSuccess(resp.StatusCode) {
-		action := fmt.Sprintf("signed UPP creation (%s)", op)
-		object := fmt.Sprintf("hash=%s", base64.StdEncoding.EncodeToString(msg.Hash[:]))
-		reqID := middleware.GetReqID(r.Context())
-		auditlogger.AuditLog(action, object, msg.ID.String(), "", reqID)
-	}
 }
 
 type VerificationService struct {
