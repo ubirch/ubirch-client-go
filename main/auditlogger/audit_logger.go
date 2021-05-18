@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	timeFormat    = "2021-05-12T08:58:32+00:00"
+	timeFormat    = time.RFC3339
 	version       = "1"
 	messageFormat = "%s: %s %s Infos(%s)" // "$Service: $action $object Infos(\"hwDeviceId\":\"$hwDeviceId\", \"hash\":\"$hash\")"
 	loggerName    = "com.ubirch.events.AuditLogger"
