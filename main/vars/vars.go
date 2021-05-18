@@ -13,8 +13,6 @@ const (
 	VerifyPath       = "verify"
 	HashEndpoint     = "hash"
 	RegisterEndpoint = "register"
-	SigningPath       = "sign"
-	ChainingPath     = "chain"
 
 	BinType  = "application/octet-stream"
 	TextType = "text/plain"
