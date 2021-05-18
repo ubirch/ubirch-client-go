@@ -7,6 +7,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 type responseWriter struct {
@@ -69,18 +70,17 @@ func RegisterPromMetrics() {
 
 func PromMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := chi.RouteContext(r.Context())
-
-		timer := prometheus.NewTimer(httpDuration.WithLabelValues(ctx.RoutePath))
 		rw := NewResponseWriter(w)
+		startTimer := time.Now()
 		next.ServeHTTP(rw, r)
 
+		path := chi.RouteContext(r.Context()).RoutePattern()
 		statusCode := rw.statusCode
 
+		httpDuration.WithLabelValues(path).Observe(float64(time.Since(startTimer).Nanoseconds()) / 1000000)
+		totalRequests.WithLabelValues(path).Inc()
 		responseStatus.WithLabelValues(strconv.Itoa(statusCode)).Inc()
-		totalRequests.WithLabelValues(ctx.RoutePath).Inc()
 
-		timer.ObserveDuration()
 	})
 }
 
