@@ -47,10 +47,24 @@ var httpDuration = promauto.NewHistogramVec(
 	[]string{"path"},
 )
 
+var NiomonResponseDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+	Name:    "niomon_response_duration",
+	Help:    "Duration of HTTP responses from niomon.",
+	Buckets: prometheus.LinearBuckets(0.01, 0.01, 10),
+})
+
+var IdentityCreation = promauto.NewHistogram(prometheus.HistogramOpts{
+	Name:    "identity_creation_duration",
+	Help:    "Duration of the identity being created, stored and registered.",
+	Buckets: prometheus.LinearBuckets(0.01, 0.01, 10),
+})
+
 func RegisterPromMetrics() {
 	prometheus.Register(totalRequests)
 	prometheus.Register(responseStatus)
 	prometheus.Register(httpDuration)
+	prometheus.Register(NiomonResponseDuration)
+	prometheus.Register(IdentityCreation)
 }
 
 func PromMiddleware(next http.Handler) http.Handler {

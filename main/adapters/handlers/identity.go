@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
 	"github.com/ubirch/ubirch-client-go/main/logger"
+	p "github.com/ubirch/ubirch-client-go/main/prometheus"
 	"github.com/ubirch/ubirch-client-go/main/vars"
 	"net/http"
 )
@@ -59,7 +61,10 @@ func (i *Identity) Put(storeId StoreIdentity, idExists CheckIdentityExists) http
 			return
 		}
 
+
+		timer := prometheus.NewTimer(p.IdentityCreation)
 		csr, err := storeId(uid, idPayload.Pwd)
+		timer.ObserveDuration()
 		if err != nil {
 			log.Errorf("%s: %v", uid, err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
