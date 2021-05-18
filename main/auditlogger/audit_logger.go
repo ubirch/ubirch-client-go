@@ -7,11 +7,10 @@ import (
 )
 
 const (
-	timeFormat    = time.RFC3339Nano
+	timeFormat    = "2021-05-12T08:58:32+00:00"
 	version       = "1"
-	messageFormat = "%s: %s %s Infos(\"userId\":\"%s\", \"userName\":\"%s\")" // "$Service: $action $object Infos(\"userId\":\"$userId\", \"userName\":\"$userName\")"
+	messageFormat = "%s: %s %s Infos(%s)" // "$Service: $action $object Infos(\"userId\":\"$userId\", \"userName\":\"$userName\")"
 	loggerName    = "com.ubirch.events.AuditLogger"
-	levelValue    = 20000
 	auditTag      = "AUDIT"
 )
 
@@ -23,18 +22,16 @@ func SetServiceName(serviceName string) {
 	service = serviceName
 }
 
-func getAuditLogFields(action, object, userId, userName, threadName string) log.Fields {
+func getAuditLogFields(action, object, infos string) log.Fields {
 	return log.Fields{
 		"@timestamp":  time.Now().UTC().Format(timeFormat),
 		"@version":    version,
-		"message":     fmt.Sprintf(messageFormat, service, action, object, userId, userName),
+		"message":     fmt.Sprintf(messageFormat, service, action, object, infos),
 		"logger_name": loggerName,
-		"thread_name": threadName,
-		"level_value": levelValue,
 		"tags":        []string{auditTag},
 	}
 }
 
-func AuditLog(action, object, userId, userName, threadName string) {
-	log.WithFields(getAuditLogFields(action, object, userId, userName, threadName)).Infof("")
+func AuditLog(action, object, infos string) {
+	log.WithFields(getAuditLogFields(action, object, infos)).Infof("")
 }
