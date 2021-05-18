@@ -7,6 +7,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 type responseWriter struct {
@@ -47,26 +48,44 @@ var httpDuration = promauto.NewHistogramVec(
 	[]string{"path"},
 )
 
+var NiomonResponseDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+	Name:    "niomon_response_duration",
+	Help:    "Duration of HTTP responses from niomon.",
+	Buckets: prometheus.LinearBuckets(0.01, 0.01, 10),
+})
+
+var IdentityCreation = promauto.NewHistogram(prometheus.HistogramOpts{
+	Name:    "identity_creation_duration",
+	Help:    "Duration of the identity being created, stored and registered.",
+	Buckets: prometheus.LinearBuckets(0.01, 0.01, 10),
+})
+
+var IdentityCreationCounter = prometheus.NewCounter(prometheus.CounterOpts{
+	Name: "identity_creation_success",
+	Help: "Number of identities which have been successfully created and stored in the db.",
+})
+
 func RegisterPromMetrics() {
 	prometheus.Register(totalRequests)
 	prometheus.Register(responseStatus)
 	prometheus.Register(httpDuration)
+	prometheus.Register(NiomonResponseDuration)
+	prometheus.Register(IdentityCreation)
 }
 
 func PromMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := chi.RouteContext(r.Context())
-
-		timer := prometheus.NewTimer(httpDuration.WithLabelValues(ctx.RoutePath))
 		rw := NewResponseWriter(w)
+		startTimer := time.Now()
 		next.ServeHTTP(rw, r)
 
+		path := chi.RouteContext(r.Context()).RoutePattern()
 		statusCode := rw.statusCode
 
+		httpDuration.WithLabelValues(path).Observe(float64(time.Since(startTimer).Nanoseconds()) / 1000000)
+		totalRequests.WithLabelValues(path).Inc()
 		responseStatus.WithLabelValues(strconv.Itoa(statusCode)).Inc()
-		totalRequests.WithLabelValues(ctx.RoutePath).Inc()
 
-		timer.ObserveDuration()
 	})
 }
 

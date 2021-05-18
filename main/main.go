@@ -184,7 +184,7 @@ func main() {
 
 	// set up endpoint for identity registration
 	identity := createIdentityUseCases(globals, idHandler)
-	httpServer.Router.Put("/register", identity.handler.Put(identity.storeIdentity, identity.checkIdentity))
+	httpServer.Router.Put(fmt.Sprintf("/%s",vars.RegisterEndpoint), identity.handler.Put(identity.storeIdentity, identity.checkIdentity))
 
 	// set up endpoint for chaining
 	httpServer.AddServiceEndpoint(handlers.ServerEndpoint{
