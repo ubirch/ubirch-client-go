@@ -71,6 +71,7 @@ func RegisterPromMetrics() {
 	prometheus.Register(httpDuration)
 	prometheus.Register(NiomonResponseDuration)
 	prometheus.Register(IdentityCreation)
+	prometheus.Register(IdentityCreationCounter)
 }
 
 func PromMiddleware(next http.Handler) http.Handler {
