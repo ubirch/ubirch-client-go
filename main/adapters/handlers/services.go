@@ -6,9 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
 	"github.com/google/uuid"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
-	"github.com/ubirch/ubirch-client-go/main/logger"
+	"github.com/ubirch/ubirch-client-go/main/auditlogger"
 	"github.com/ubirch/ubirch-client-go/main/vars"
 	"net/http"
 
@@ -78,7 +79,10 @@ func (s *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) 
 	sendResponse(w, resp)
 
 	if h.HttpSuccess(resp.StatusCode) {
-		logger.AuditLogf("uuid: %s, operation: chain, hash: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
+		action := "chained UPP creation (anchor)"
+		object := fmt.Sprintf("hash=%s", base64.StdEncoding.EncodeToString(msg.Hash[:]))
+		reqID := middleware.GetReqID(r.Context())
+		auditlogger.AuditLog(action, object, msg.ID.String(), "", reqID)
 	}
 }
 
@@ -139,7 +143,10 @@ func (s *SigningService) HandleRequest(w http.ResponseWriter, r *http.Request) {
 	sendResponse(w, resp)
 
 	if h.HttpSuccess(resp.StatusCode) {
-		logger.AuditLogf("uuid: %s, operation: %s, hash: %s", msg.ID, op, base64.StdEncoding.EncodeToString(msg.Hash[:]))
+		action := fmt.Sprintf("signed UPP creation (%s)", op)
+		object := fmt.Sprintf("hash=%s", base64.StdEncoding.EncodeToString(msg.Hash[:]))
+		reqID := middleware.GetReqID(r.Context())
+		auditlogger.AuditLog(action, object, msg.ID.String(), "", reqID)
 	}
 }
 

@@ -22,6 +22,7 @@ import (
 	"github.com/ubirch/ubirch-client-go/main/adapters/handlers"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
 	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
+	"github.com/ubirch/ubirch-client-go/main/auditlogger"
 	"github.com/ubirch/ubirch-client-go/main/config"
 	p "github.com/ubirch/ubirch-client-go/main/prometheus"
 	"github.com/ubirch/ubirch-client-go/main/uc"
@@ -56,13 +57,16 @@ var (
 )
 
 func main() {
-	const configFile = "config.json"
+	const (
+		serviceName = "ubirch-client"
+		configFile  = "config.json"
+	)
 
 	var (
 		configDir      string
 		migrate        bool
 		initIdentities bool
-		serverID       = fmt.Sprintf("ubirch-client/%s", Version)
+		serverID       = fmt.Sprintf("%s/%s", serviceName, Version)
 	)
 
 	if len(os.Args) > 1 {
@@ -80,6 +84,7 @@ func main() {
 
 	log.SetFormatter(&log.JSONFormatter{})
 	log.Printf("UBIRCH client (version=%s, revision=%s)", Version, Revision)
+	auditlogger.SetServiceName(serviceName)
 
 	// read configuration
 	conf := config.Config{}

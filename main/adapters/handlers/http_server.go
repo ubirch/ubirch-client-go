@@ -34,6 +34,7 @@ type HTTPServer struct {
 func NewRouter() *chi.Mux {
 	router := chi.NewMux()
 	router.Use(middleware.Timeout(h.GatewayTimeout))
+	router.Use(middleware.RequestID)
 	return router
 }
 

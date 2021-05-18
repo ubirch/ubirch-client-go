@@ -3,10 +3,11 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/go-chi/chi/middleware"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
-	"github.com/ubirch/ubirch-client-go/main/logger"
+	"github.com/ubirch/ubirch-client-go/main/auditlogger"
 	"github.com/ubirch/ubirch-client-go/main/vars"
 	"net/http"
 )
@@ -73,7 +74,9 @@ func (i *Identity) Put(storeId StoreIdentity, idExists CheckIdentityExists) http
 			log.Errorf("unable to write response: %s", err)
 		}
 
-		logger.AuditLogf("uuid: %s, operation: identity creation", uid)
+		action := "identity creation"
+		reqID := middleware.GetReqID(r.Context())
+		auditlogger.AuditLog(action, "", uid.String(), "", reqID)
 	}
 }
 
