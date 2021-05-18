@@ -2,13 +2,11 @@ package handlers
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
-	"github.com/ubirch/ubirch-client-go/main/logger"
 	"github.com/ubirch/ubirch-client-go/main/vars"
 	"net/http"
 
@@ -76,10 +74,6 @@ func (s *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) 
 
 	resp := s.chain(msg, tx, identity)
 	sendResponse(w, resp)
-
-	if h.HttpSuccess(resp.StatusCode) {
-		logger.AuditLogf("uuid: %s, operation: chain, hash: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
-	}
 }
 
 type SigningService struct {
@@ -137,10 +131,6 @@ func (s *SigningService) HandleRequest(w http.ResponseWriter, r *http.Request) {
 
 	resp := s.Sign(msg, op)
 	sendResponse(w, resp)
-
-	if h.HttpSuccess(resp.StatusCode) {
-		logger.AuditLogf("uuid: %s, operation: %s, hash: %s", msg.ID, op, base64.StdEncoding.EncodeToString(msg.Hash[:]))
-	}
 }
 
 type VerificationService struct {

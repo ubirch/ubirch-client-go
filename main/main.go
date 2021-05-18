@@ -56,13 +56,16 @@ var (
 )
 
 func main() {
-	const configFile = "config.json"
+	const (
+		serviceName = "ubirch-client"
+		configFile  = "config.json"
+	)
 
 	var (
 		configDir      string
 		migrate        bool
 		initIdentities bool
-		serverID       = fmt.Sprintf("ubirch-client/%s", Version)
+		serverID       = fmt.Sprintf("%s/%s", serviceName, Version)
 	)
 
 	if len(os.Args) > 1 {

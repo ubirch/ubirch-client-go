@@ -7,7 +7,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
-	"github.com/ubirch/ubirch-client-go/main/logger"
 	p "github.com/ubirch/ubirch-client-go/main/prometheus"
 	"github.com/ubirch/ubirch-client-go/main/vars"
 	"net/http"
@@ -76,9 +75,8 @@ func (i *Identity) Put(storeId StoreIdentity, idExists CheckIdentityExists) http
 		if err != nil {
 			log.Errorf("unable to write response: %s", err)
 		}
-		
+
 		p.IdentityCreationCounter.Inc()
-		logger.AuditLogf("uuid: %s, operation: identity creation", uid)
 	}
 }
 
