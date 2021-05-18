@@ -8,10 +8,11 @@ const (
 	MigrateArg                  string = "--migrate"
 	InitArg                     string = "--init-identities-conf"
 
-	UUIDKey      = "uuid"
-	OperationKey = "operation"
-	VerifyPath   = "verify"
-	HashEndpoint = "hash"
+	UUIDKey          = "uuid"
+	OperationKey     = "operation"
+	VerifyPath       = "verify"
+	HashEndpoint     = "hash"
+	RegisterEndpoint = "register"
 
 	BinType  = "application/octet-stream"
 	TextType = "text/plain"

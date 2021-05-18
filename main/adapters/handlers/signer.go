@@ -18,9 +18,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/prometheus/client_golang/prometheus"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
 	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
 	"github.com/ubirch/ubirch-client-go/main/ent"
+	p "github.com/ubirch/ubirch-client-go/main/prometheus"
 	"net/http"
 	"os"
 	"sync"
@@ -173,7 +175,9 @@ func (s *Signer) getSignedUPP(id uuid.UUID, hash [32]byte, privateKeyPEM []byte,
 
 func (s *Signer) sendUPP(msg HTTPRequest, upp []byte) h.HTTPResponse {
 	// send UPP to ubirch backend
+	timer := prometheus.NewTimer(p.NiomonResponseDuration)
 	backendResp, err := s.Protocol.SendToAuthService(msg.ID, msg.Auth, upp)
+	timer.ObserveDuration()
 	if err != nil {
 		if os.IsTimeout(err) {
 			log.Errorf("%s: request to UBIRCH Authentication Service timed out after %s: %v", msg.ID, h.BackendRequestTimeout.String(), err)
