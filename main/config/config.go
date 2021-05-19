@@ -34,7 +34,7 @@ const (
 	DEMO_STAGE = "demo"
 	PROD_STAGE = "prod"
 
-	defaultKeyURL      = "https://key.%s.ubirch.com/api/keyService/v1/pubkey"
+	defaultKeyURL      = "https://identity.%s.ubirch.com/api/keyService/v1/pubkey"
 	defaultIdentityURL = "https://identity.%s.ubirch.com/api/certs/v1/csr/register"
 	defaultNiomonURL   = "https://niomon.%s.ubirch.com/"
 	defaultVerifyURL   = "https://verify.%s.ubirch.com/api/upp/verify"
