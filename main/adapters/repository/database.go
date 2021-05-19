@@ -32,19 +32,19 @@ import (
 
 )
 
-// DatabaseManager contains the postgres database connection, and offers methods
+// DatabaseManagerPostgres contains the postgres database connection, and offers methods
 // for interacting with the database.
-type DatabaseManager struct {
+type DatabaseManagerPostgres struct {
 	options *sql.TxOptions
 	db      *sql.DB
 }
 
 // Ensure Database implements the ContextManager interface
-var _ ContextManager = (*DatabaseManager)(nil)
+var _ ContextManager = (*DatabaseManagerPostgres)(nil)
 
 // NewSqlDatabaseInfo takes a database connection string, returns a new initialized
 // database.
-func NewPostgresSqlDatabaseInfo(conf config.Config) (*DatabaseManager, error) {
+func NewPostgresSqlDatabaseInfo(conf config.Config) (*DatabaseManagerPostgres, error) {
 	dataSourceName := fmt.Sprintf("host=%s user=%s password=%s port=%d dbname=%s sslmode=disable",
 		conf.DsnHost, conf.DsnUser, conf.DsnPassword, vars.PostgreSqlPort, conf.DsnDb)
 
@@ -61,7 +61,7 @@ func NewPostgresSqlDatabaseInfo(conf config.Config) (*DatabaseManager, error) {
 
 	log.Print("preparing postgres usage")
 
-	return &DatabaseManager{
+	return &DatabaseManagerPostgres{
 		options: &sql.TxOptions{
 			Isolation: sql.LevelReadCommitted,
 			ReadOnly:  false,
@@ -70,7 +70,7 @@ func NewPostgresSqlDatabaseInfo(conf config.Config) (*DatabaseManager, error) {
 	}, nil
 }
 
-func (dm *DatabaseManager) Exists(uid uuid.UUID) (bool, error) {
+func (dm *DatabaseManagerPostgres) Exists(uid uuid.UUID) (bool, error) {
 	var id string
 
 	err := dm.db.QueryRow("SELECT uid FROM identity WHERE uid = $1", uid.String()).
@@ -89,7 +89,7 @@ func (dm *DatabaseManager) Exists(uid uuid.UUID) (bool, error) {
 	}
 }
 
-func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
+func (dm *DatabaseManagerPostgres) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
 	var privateKey []byte
 
 	err := dm.db.QueryRow("SELECT private_key FROM identity WHERE uid = $1", uid.String()).
@@ -104,7 +104,7 @@ func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
 	return privateKey, nil
 }
 
-func (dm *DatabaseManager) GetPublicKey(uid uuid.UUID) ([]byte, error) {
+func (dm *DatabaseManagerPostgres) GetPublicKey(uid uuid.UUID) ([]byte, error) {
 	var publicKey []byte
 
 	err := dm.db.QueryRow("SELECT public_key FROM identity WHERE uid = $1", uid.String()).
@@ -119,7 +119,7 @@ func (dm *DatabaseManager) GetPublicKey(uid uuid.UUID) ([]byte, error) {
 	return publicKey, nil
 }
 
-func (dm *DatabaseManager) GetAuthToken(uid uuid.UUID) (string, error) {
+func (dm *DatabaseManagerPostgres) GetAuthToken(uid uuid.UUID) (string, error) {
 	var authToken string
 
 	err := dm.db.QueryRow("SELECT auth_token FROM identity WHERE uid = $1", uid.String()).
@@ -134,13 +134,13 @@ func (dm *DatabaseManager) GetAuthToken(uid uuid.UUID) (string, error) {
 	return authToken, nil
 }
 
-func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
+func (dm *DatabaseManagerPostgres) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
 	return dm.db.BeginTx(ctx, dm.options)
 }
 
 // StartTransactionWithLock starts a transaction and acquires a lock on the row with the specified uuid as key.
 // Returns error if row does not exist.
-func (dm *DatabaseManager) StartTransactionWithLock(ctx context.Context, uid uuid.UUID) (transactionCtx interface{}, err error) {
+func (dm *DatabaseManagerPostgres) StartTransactionWithLock(ctx context.Context, uid uuid.UUID) (transactionCtx interface{}, err error) {
 	tx, err := dm.db.BeginTx(ctx, dm.options)
 	if err != nil {
 		return nil, err
@@ -161,7 +161,7 @@ func (dm *DatabaseManager) StartTransactionWithLock(ctx context.Context, uid uui
 	return tx, nil
 }
 
-func (dm *DatabaseManager) CloseTransaction(transactionCtx interface{}, commit bool) error {
+func (dm *DatabaseManagerPostgres) CloseTransaction(transactionCtx interface{}, commit bool) error {
 	tx, ok := transactionCtx.(*sql.Tx)
 	if !ok {
 		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
@@ -174,7 +174,7 @@ func (dm *DatabaseManager) CloseTransaction(transactionCtx interface{}, commit b
 	}
 }
 
-func (dm *DatabaseManager) FetchIdentity(transactionCtx interface{}, uid uuid.UUID) (*ent.Identity, error) {
+func (dm *DatabaseManagerPostgres) FetchIdentity(transactionCtx interface{}, uid uuid.UUID) (*ent.Identity, error) {
 	tx, ok := transactionCtx.(*sql.Tx)
 	if !ok {
 		return nil, fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
@@ -194,7 +194,7 @@ func (dm *DatabaseManager) FetchIdentity(transactionCtx interface{}, uid uuid.UU
 	return &id, nil
 }
 
-func (dm *DatabaseManager) SetSignature(transactionCtx interface{}, uid uuid.UUID, signature []byte) error {
+func (dm *DatabaseManagerPostgres) SetSignature(transactionCtx interface{}, uid uuid.UUID, signature []byte) error {
 	tx, ok := transactionCtx.(*sql.Tx)
 	if !ok {
 		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
@@ -213,7 +213,7 @@ func (dm *DatabaseManager) SetSignature(transactionCtx interface{}, uid uuid.UUI
 	return nil
 }
 
-func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity *ent.Identity) error {
+func (dm *DatabaseManagerPostgres) StoreNewIdentity(transactionCtx interface{}, identity *ent.Identity) error {
 	tx, ok := transactionCtx.(*sql.Tx)
 	if !ok {
 		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
@@ -240,7 +240,7 @@ func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity
 	return dm.storeIdentity(tx, identity)
 }
 
-func (dm *DatabaseManager) storeIdentity(tx *sql.Tx, identity *ent.Identity) error {
+func (dm *DatabaseManagerPostgres) storeIdentity(tx *sql.Tx, identity *ent.Identity) error {
 	_, err := tx.Exec(
 		"INSERT INTO identity (uid, private_key, public_key, signature, auth_token) VALUES ($1, $2, $3, $4, $5);",
 		&identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.Signature, &identity.AuthToken)
