@@ -1,15 +1,16 @@
 package vars
 
 const (
-	PostgreSql                  string = "postgres"
-	PostgreSqlPort              int    = 5432
-	PostgreSqlIdentityTableName string = "identity"
-	PostgreSqlVersionTableName  string = "version"
-	MigrateArg                  string = "--migrate"
-	InitArg                     string = "--init-identities-conf"
+	PostgreSql     string = "postgres"
+	PostgreSqlPort int    = 5432
 
-	MySql                  string = "mysql"
-	MySqlPort              int    = 3306
+	Sqlite string = "sqlite3"
+
+	SqlIdentityTableName string = "identity"
+	SqlVersionTableName  string = "version"
+
+	MigrateArg string = "--migrate"
+	InitArg    string = "--init-identities-conf"
 
 	UUIDKey      = "uuid"
 	OperationKey = "operation"

@@ -29,7 +29,7 @@ import (
 	// import pq driver this way only if we dont need it here
 	// done for database/sql (pg, err := sql.Open..)
 	//_ "github.com/lib/pq"
-	sqlite "github.com/mattn/go-sqlite3"
+	"github.com/mattn/go-sqlite3"
 )
 
 // DatabaseManager contains the postgres database connection, and offers methods
@@ -65,7 +65,7 @@ func NewPostgresSqlDatabaseInfo(conf config.Config) (*DatabaseManager, error) {
 
 	return &DatabaseManager{
 		options: &sql.TxOptions{
-			Isolation: sql.LevelWriteCommitted,
+			Isolation: sql.LevelReadCommitted,
 			ReadOnly:  false,
 		},
 		db:                   pg,
@@ -76,10 +76,7 @@ func NewPostgresSqlDatabaseInfo(conf config.Config) (*DatabaseManager, error) {
 // NewSqlDatabaseInfo takes a database connection string, returns a new initialized
 // database.
 func NewSqliteDatabaseInfo(conf config.Config) (*DatabaseManager, error) {
-	//TODO: check sqlite connection string
-	dataSourceName := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s",
-		conf.DsnUser, conf.DsnPassword, conf.DsnHost, vars.MySqlPort, conf.DsnDb)
-	db, err := sql.Open(vars.MySql, dataSourceName)
+	db, err := sql.Open(vars.Sqlite,"./foo.db")
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +88,7 @@ func NewSqliteDatabaseInfo(conf config.Config) (*DatabaseManager, error) {
 		return nil, err
 	}
 
-	log.Print("preparing mysql usage")
+	log.Print("preparing sqlite usage")
 
 	return &DatabaseManager{
 		options: &sql.TxOptions{
@@ -296,7 +293,7 @@ func IsConnectionAvailableErrorPostgresSql(err error) bool {
 	return false
 }
 func IsConnectionAvailableErrorSqlite(err error) bool {
-	if err == sqlite.ErrCantOpen  {
+	if err == sqlite3.ErrLocked  {
 		//time.Sleep(100 * time.Millisecond)
 		//return true
 	}

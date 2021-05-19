@@ -17,8 +17,9 @@ const MigrationVersion = "1.0.1"
 const (
 	PostgresIdentity = iota
 	PostgresVersion
+	SQLiteIdentity
+	SQLiteVersion
 	//MySQL
-	//SQLite
 )
 
 type Migration struct {
@@ -27,30 +28,42 @@ type Migration struct {
 }
 
 var CREATE = map[int]string{
-	PostgresIdentity: "CREATE TABLE IF NOT EXISTS " + vars.PostgreSqlIdentityTableName + "(" +
+	PostgresIdentity: "CREATE TABLE IF NOT EXISTS " + vars.SqlIdentityTableName + "(" +
 		"uid VARCHAR(255) NOT NULL PRIMARY KEY, " +
 		"private_key BYTEA NOT NULL, " +
 		"public_key BYTEA NOT NULL, " +
 		"signature BYTEA NOT NULL, " +
 		"auth_token VARCHAR(255) NOT NULL);",
-	PostgresVersion: "CREATE TABLE IF NOT EXISTS " + vars.PostgreSqlVersionTableName + "(" +
+	PostgresVersion: "CREATE TABLE IF NOT EXISTS " + vars.SqlVersionTableName + "(" +
 		"id VARCHAR(255) NOT NULL PRIMARY KEY, " +
 		"migration_version VARCHAR(255) NOT NULL);",
-	//MySQL:    "CREATE TABLE identity (id INT, datetime TIMESTAMP)",
-	//SQLite:   "CREATE TABLE identity (id INTEGER, datetime TEXT)",
-}
 
-type Table struct {
-	exists bool
+	SQLiteIdentity: "CREATE TABLE IF NOT EXISTS " + vars.SqlVersionTableName + "(" +
+		"uid TEXT NOT NULL PRIMARY KEY, " +
+		"private_key BLOB NOT NULL, " +
+		"public_key BLOB NOT NULL, " +
+		"signature BLOB NOT NULL, " +
+		"auth_token TEXT NOT NULL);",
+	SQLiteVersion: "CREATE TABLE IF NOT EXISTS " + vars.SqlVersionTableName + "(" +
+		"id TEXT NOT NULL PRIMARY KEY, " +
+		"migration_version TEXT NOT NULL);",
+	//MySQL:    "CREATE TABLE identity (id INT, datetime TIMESTAMP)",
 }
 
 func Migrate(c config.Config) error {
 	txCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	dbManager, err := NewSqlDatabaseInfo(c)
+	dbManager, err := NewPostgresSqlDatabaseInfo(c)
 	if err != nil {
 		return err
+	}
+
+	if c.DsnType == vars.Sqlite {
+		dbManager, err = NewSqliteDatabaseInfo(c)
+		if err != nil {
+			return err
+		}
 	}
 
 	tx, shouldMigrate, err := checkVersion(txCtx, dbManager)
@@ -68,8 +81,14 @@ func Migrate(c config.Config) error {
 		return err
 	}
 
-	if _, err := dbManager.db.Exec(CREATE[PostgresIdentity]); err != nil {
-		return err
+	if c.DsnType == vars.Sqlite {
+		if _, err := dbManager.db.Exec(CREATE[SQLiteIdentity]); err != nil {
+			return err
+		}
+	} else {
+		if _, err := dbManager.db.Exec(CREATE[PostgresIdentity]); err != nil {
+			return err
+		}
 	}
 
 	err = migrateIdentities(c, dbManager, identitiesToPort)
