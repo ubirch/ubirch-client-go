@@ -12,8 +12,8 @@ import (
 	"net/http"
 )
 
-type Identity struct {
-	globals Globals
+type IdentityCreator struct {
+	auth string
 }
 
 type IdentityPayload struct {
@@ -21,14 +21,14 @@ type IdentityPayload struct {
 	Pwd string `json:"password"`
 }
 
-func NewIdentity(globals Globals) Identity {
-	return Identity{globals: globals}
+func NewIdentityCreator(auth string) IdentityCreator {
+	return IdentityCreator{auth: auth}
 }
 
-func (i *Identity) Put(storeId StoreIdentity, idExists CheckIdentityExists) http.HandlerFunc {
+func (i *IdentityCreator) Put(storeId StoreIdentity, idExists CheckIdentityExists) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get(h.XAuthHeader)
-		if authHeader != i.globals.Config.RegisterAuth {
+		if authHeader != i.auth {
 			log.Warnf("unauthorized registration attempt")
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 			return
