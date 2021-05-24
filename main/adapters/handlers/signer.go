@@ -175,7 +175,7 @@ func (s *Signer) getSignedUPP(id uuid.UUID, hash [32]byte, privateKeyPEM []byte,
 
 func (s *Signer) sendUPP(msg HTTPRequest, upp []byte) h.HTTPResponse {
 	// send UPP to ubirch backend
-	timer := prometheus.NewTimer(p.NiomonResponseDuration)
+	timer := prometheus.NewTimer(p.BackendResponseDuration)
 	backendResp, err := s.Protocol.SendToAuthService(msg.ID, msg.Auth, upp)
 	timer.ObserveDuration()
 	if err != nil {
