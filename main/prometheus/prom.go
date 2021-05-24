@@ -54,15 +54,26 @@ var NiomonResponseDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
 	Buckets: prometheus.LinearBuckets(0.01, 0.01, 10),
 })
 
-var IdentityCreation = promauto.NewHistogram(prometheus.HistogramOpts{
+var SignatureCreationDuration = promauto.NewHistogram(prometheus.HistogramOpts{
+	Name:    "signature_creation_duration",
+	Help:    "Duration of the creation of a signed object",
+	Buckets: prometheus.LinearBuckets(0.01, 0.01, 10),
+})
+
+var SignatureCreationCounter = prometheus.NewCounter(prometheus.CounterOpts{
+	Name: "signature_creation_success",
+	Help: "Number of successfully created signatures",
+})
+
+var IdentityCreationDuration = promauto.NewHistogram(prometheus.HistogramOpts{
 	Name:    "identity_creation_duration",
-	Help:    "Duration of the identity being created, stored and registered.",
+	Help:    "Duration of the identity being created, registered and stored.",
 	Buckets: prometheus.LinearBuckets(0.01, 0.01, 10),
 })
 
 var IdentityCreationCounter = prometheus.NewCounter(prometheus.CounterOpts{
 	Name: "identity_creation_success",
-	Help: "Number of identities which have been successfully created and stored in the db.",
+	Help: "Number of identities which have been successfully created and stored.",
 })
 
 func RegisterPromMetrics() {
@@ -70,7 +81,9 @@ func RegisterPromMetrics() {
 	prometheus.Register(responseStatus)
 	prometheus.Register(httpDuration)
 	prometheus.Register(NiomonResponseDuration)
-	prometheus.Register(IdentityCreation)
+	prometheus.Register(SignatureCreationDuration)
+	prometheus.Register(SignatureCreationCounter)
+	prometheus.Register(IdentityCreationDuration)
 	prometheus.Register(IdentityCreationCounter)
 }
 

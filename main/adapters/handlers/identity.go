@@ -60,7 +60,7 @@ func (i *IdentityCreator) Put(storeId StoreIdentity, idExists CheckIdentityExist
 			return
 		}
 
-		timer := prometheus.NewTimer(p.IdentityCreation)
+		timer := prometheus.NewTimer(p.IdentityCreationDuration)
 		csr, err := storeId(uid, idPayload.Pwd)
 		timer.ObserveDuration()
 		if err != nil {
