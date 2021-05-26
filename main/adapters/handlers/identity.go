@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -69,9 +70,11 @@ func (i *IdentityCreator) Put(storeId StoreIdentity, idExists CheckIdentityExist
 			return
 		}
 
+		csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
+
 		w.Header().Set(h.HeaderContentType, vars.BinType)
 		w.WriteHeader(http.StatusOK)
-		_, err = w.Write(csr)
+		_, err = w.Write(csrPEM)
 		if err != nil {
 			log.Errorf("unable to write response: %s", err)
 		}
