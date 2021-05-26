@@ -40,7 +40,10 @@ var _ ContextManager = (*DatabaseManagerSqlite)(nil)
 // NewSqlDatabaseInfo takes a database connection string, returns a new initialized
 // database.
 func NewSqliteDatabaseInfo(conf config.Config) (*DatabaseManagerSqlite, error) {
-	db, err := sql.Open(vars.Sqlite, "file:./foo.db?_journal=WAL&mode=rwc&_txlock=exclusive")
+	if conf.DsnSqliteFilePath == "" {
+		log.Warnf("path to db file of sql is empty, it will get created root folder")
+	}
+	db, err := sql.Open(vars.Sqlite, fmt.Sprintf("file:%s?_journal=WAL&mode=rwc&_txlock=exclusive", conf.DsnSqliteFilePath))
 	if err != nil {
 		return nil, err
 	}

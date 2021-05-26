@@ -42,4 +42,4 @@ main/main
 /main/protocol.json
 /main/identities.json
 /load-test/config.json
-/load-test/config_bk.json
+/load-test/back.json
