@@ -37,10 +37,6 @@ func MigrateToPostgres(c config.Config) error {
 		return err
 	}
 
-	if _, err := dbManager.db.Exec(CREATE[PostgresIdentity]); err != nil {
-		return err
-	}
-
 	err = migrateIdentities(c, dbManager, identitiesToPort)
 	if err != nil {
 		return err

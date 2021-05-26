@@ -34,10 +34,6 @@ func MigrateToSqlite(c config.Config) error {
 		return err
 	}
 
-	if _, err := dbManager.db.Exec(CREATE[SQLiteIdentity]); err != nil {
-		return err
-	}
-
 	err = migrateIdentitiesSqlite(c, dbManager, identitiesToPort)
 	if err != nil {
 		return err
