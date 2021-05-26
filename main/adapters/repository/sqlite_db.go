@@ -62,7 +62,7 @@ func NewSqliteDatabaseInfo(conf config.Config) (*DatabaseManagerSqlite, error) {
 		db: db,
 	}
 
-	if _, err = dbManager.db.Exec(CREATE[PostgresIdentity]); err != nil {
+	if _, err = dbManager.db.Exec(CREATE[SQLiteIdentity]); err != nil {
 		return nil, err
 	}
 
