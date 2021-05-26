@@ -8,6 +8,8 @@ import (
 	"github.com/ubirch/ubirch-client-go/main/ent"
 )
 
+const MigrationVersionSqlite = "1.0.1"
+
 func MigrateToSqlite(c config.Config) error {
 	txCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -85,7 +87,7 @@ func checkVersionSqlite(ctx context.Context, dm *DatabaseManagerSqlite) (*sql.Tx
 		return nil, false, err
 	}
 
-	if _, err := dm.db.Exec(CREATE[PostgresVersion]); err != nil {
+	if _, err := dm.db.Exec(CREATE[SQLiteVersion]); err != nil {
 		return tx, false, err
 	}
 
@@ -99,8 +101,8 @@ func checkVersionSqlite(ctx context.Context, dm *DatabaseManagerSqlite) (*sql.Tx
 			return tx, false, err
 		}
 	}
-	log.Debugf("database migration version: %s / application migration version: %s", version.MigrationVersion, MigrationVersion)
-	if version.MigrationVersion != MigrationVersion {
+	log.Debugf("database migration version: %s / application migration version: %s", version.MigrationVersion, MigrationVersionSqlite)
+	if version.MigrationVersion != MigrationVersionSqlite {
 		return tx, true, nil
 	}
 	return tx, false, nil

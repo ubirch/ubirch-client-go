@@ -11,6 +11,8 @@
 *.so
 *.dylib
 *.db
+*.db-shm
+*.db-wal
 
 # Test binary, built with `go test -c`
 *.test
@@ -40,3 +42,4 @@ main/main
 /main/protocol.json
 /main/identities.json
 /load-test/config.json
+/load-test/config_bk.json

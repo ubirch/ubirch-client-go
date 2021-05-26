@@ -40,7 +40,7 @@ var _ ContextManager = (*DatabaseManagerSqlite)(nil)
 // NewSqlDatabaseInfo takes a database connection string, returns a new initialized
 // database.
 func NewSqliteDatabaseInfo(conf config.Config) (*DatabaseManagerSqlite, error) {
-	db, err := sql.Open(vars.Sqlite, "./foo.db")
+	db, err := sql.Open(vars.Sqlite, "file:./foo.db?_journal=WAL&mode=rwc&_txlock=exclusive")
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func NewSqliteDatabaseInfo(conf config.Config) (*DatabaseManagerSqlite, error) {
 
 	return &DatabaseManagerSqlite{
 		options: &sql.TxOptions{
-			Isolation: sql.LevelSerializable,
+			Isolation: sql.LevelWriteCommitted,
 			ReadOnly:  false,
 		},
 		db: db,
@@ -128,7 +128,14 @@ func (dm *DatabaseManagerSqlite) GetAuthToken(uid uuid.UUID) (string, error) {
 }
 
 func (dm *DatabaseManagerSqlite) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
-	return dm.db.BeginTx(ctx, dm.options)
+	tx, err := dm.db.BeginTx(ctx, dm.options)
+	if err != nil {
+		if IsConnectionAvailableErrorSqlite(err) {
+			return dm.StartTransaction(ctx)
+		}
+		return nil, err
+	}
+	return tx, nil
 }
 
 // StartTransactionWithLock starts a transaction and acquires a lock on the row with the specified uuid as key.
@@ -136,6 +143,9 @@ func (dm *DatabaseManagerSqlite) StartTransaction(ctx context.Context) (transact
 func (dm *DatabaseManagerSqlite) StartTransactionWithLock(ctx context.Context, uid uuid.UUID) (transactionCtx interface{}, err error) {
 	tx, err := dm.db.BeginTx(ctx, dm.options)
 	if err != nil {
+		if IsConnectionAvailableErrorSqlite(err) {
+			return dm.StartTransactionWithLock(ctx, uid)
+		}
 		return nil, err
 	}
 
@@ -248,9 +258,10 @@ func (dm *DatabaseManagerSqlite) storeIdentity(tx *sql.Tx, identity *ent.Identit
 }
 
 func IsConnectionAvailableErrorSqlite(err error) bool {
-	if err == sqlite3.ErrLocked {
-		//time.Sleep(100 * time.Millisecond)
-		//return true
+	if err.Error() == sqlite3.ErrBusy.Error() ||
+		err.Error() == sqlite3.ErrBusy.Error() {
+		time.Sleep(300 * time.Millisecond)
+		return true
 	}
 	return false
 }

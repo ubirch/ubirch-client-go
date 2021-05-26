@@ -80,6 +80,7 @@ func (s *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) 
 	if h.HttpSuccess(resp.StatusCode) {
 		logger.AuditLogf("uuid: %s, operation: chain, hash: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 	}
+
 }
 
 type SigningService struct {

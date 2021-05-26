@@ -38,7 +38,7 @@ var CREATE = map[int]string{
 		"id VARCHAR(255) NOT NULL PRIMARY KEY, " +
 		"migration_version VARCHAR(255) NOT NULL);",
 
-	SQLiteIdentity: "CREATE TABLE IF NOT EXISTS " + vars.SqlVersionTableName + "(" +
+	SQLiteIdentity: "CREATE TABLE IF NOT EXISTS " + vars.SqlIdentityTableName + "(" +
 		"uid TEXT NOT NULL PRIMARY KEY, " +
 		"private_key BLOB NOT NULL, " +
 		"public_key BLOB NOT NULL, " +
