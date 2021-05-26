@@ -646,6 +646,26 @@ configuration.
     UBIRCH_DSN=<data source name for database>
     ```
 
+### Use a SQLite database to store the protocol context
+
+The `DSN_Sqlite_File_Path` and the `DSN_Type` have to be set to connect the client to a SQLite database for storing the protocol context
+(i.e. the encrypted keystore and last signatures) persistently.
+
+Set the DSN in the
+configuration.
+
+- add the following key-value pair to your `config.json`:
+    ```json
+      "DSN_Sqlite_File_Path": "<file path to the .db file>"
+      "DSN_Type": "sqlite3"
+    ```
+- or set the following environment variable:
+    ```shell
+    UBIRCH_DSN_Sqlite_File_Path=<file path to the .db file>
+    UBIRCH_DSN_Type=sqlite3
+    ```
+If no .db file exists in the path provided a new one will get created. 
+
 ### Customize X.509 Certificate Signing Requests
 
 The client creates X.509 Certificate Signing Requests (*CSRs*) for the public keys of the devices it is managing. The *
