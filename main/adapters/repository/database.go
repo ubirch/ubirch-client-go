@@ -61,13 +61,19 @@ func NewPostgresSqlDatabaseInfo(conf config.Config) (*DatabaseManagerPostgres, e
 
 	log.Print("preparing postgres usage")
 
-	return &DatabaseManagerPostgres{
+	dbManager := &DatabaseManagerPostgres{
 		options: &sql.TxOptions{
 			Isolation: sql.LevelReadCommitted,
 			ReadOnly:  false,
 		},
-		db:                   pg,
-	}, nil
+		db: pg,
+	}
+
+	if _, err = dbManager.db.Exec(CREATE[PostgresIdentity]); err != nil {
+		return nil, err
+	}
+
+	return dbManager, nil
 }
 
 func (dm *DatabaseManagerPostgres) Exists(uid uuid.UUID) (bool, error) {
@@ -262,4 +268,3 @@ func IsConnectionAvailableErrorPostgresSql(err error) bool {
 	}
 	return false
 }
-

@@ -40,9 +40,6 @@ var _ ContextManager = (*DatabaseManagerSqlite)(nil)
 // NewSqlDatabaseInfo takes a database connection string, returns a new initialized
 // database.
 func NewSqliteDatabaseInfo(conf config.Config) (*DatabaseManagerSqlite, error) {
-	if conf.DsnSqliteFilePath == "" {
-		log.Warnf("path to db file of sql is empty, it will get created root folder")
-	}
 	db, err := sql.Open(vars.Sqlite, fmt.Sprintf("file:%s?_journal=WAL&mode=rwc&_txlock=exclusive", conf.DsnSqliteFilePath))
 	if err != nil {
 		return nil, err
@@ -57,13 +54,19 @@ func NewSqliteDatabaseInfo(conf config.Config) (*DatabaseManagerSqlite, error) {
 
 	log.Print("preparing sqlite usage")
 
-	return &DatabaseManagerSqlite{
+	dbManager := &DatabaseManagerSqlite{
 		options: &sql.TxOptions{
 			Isolation: sql.LevelWriteCommitted,
 			ReadOnly:  false,
 		},
 		db: db,
-	}, nil
+	}
+
+	if _, err = dbManager.db.Exec(CREATE[PostgresIdentity]); err != nil {
+		return nil, err
+	}
+
+	return dbManager, nil
 }
 
 func (dm *DatabaseManagerSqlite) Exists(uid uuid.UUID) (bool, error) {

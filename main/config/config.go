@@ -18,6 +18,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/ubirch/ubirch-client-go/main/vars"
 	"os"
 	"path/filepath"
 	"strings"
@@ -146,6 +147,12 @@ func (c *Config) loadFile(filename string) error {
 }
 
 func (c *Config) checkMandatory() error {
+	if c.DsnType == vars.Sqlite {
+		if c.DsnSqliteFilePath == "" {
+			return fmt.Errorf("path to db file of sqlite is empty, please set DSN_Sqlite_File_Path")
+		}
+	}
+
 	if len(c.SecretBytes32) != secretLength32 {
 		return fmt.Errorf("secret for aes-256 key encryption ('secret32') length must be %d bytes (is %d)", secretLength32, len(c.SecretBytes32))
 	}
