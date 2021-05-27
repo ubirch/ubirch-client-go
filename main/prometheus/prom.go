@@ -48,9 +48,9 @@ var httpDuration = promauto.NewHistogramVec(
 	[]string{"path"},
 )
 
-var BackendResponseDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
-	Name:    "backend_response_duration",
-	Help:    "Duration of HTTP responses from the backend (upstream server).",
+var UpstreamResponseDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+	Name:    "upstream_response_duration",
+	Help:    "Duration of HTTP responses from upstream server.",
 	Buckets: prometheus.LinearBuckets(0.01, 0.01, 10),
 })
 
@@ -80,7 +80,7 @@ func RegisterPromMetrics() {
 	prometheus.Register(totalRequests)
 	prometheus.Register(responseStatus)
 	prometheus.Register(httpDuration)
-	prometheus.Register(BackendResponseDuration)
+	prometheus.Register(UpstreamResponseDuration)
 	prometheus.Register(SignatureCreationDuration)
 	prometheus.Register(SignatureCreationCounter)
 	prometheus.Register(IdentityCreationDuration)
