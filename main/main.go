@@ -183,8 +183,8 @@ func main() {
 	}
 
 	// set up endpoint for identity registration
-	identity := createIdentityUseCases(globals, idHandler)
-	httpServer.Router.Put(fmt.Sprintf("/%s",vars.RegisterEndpoint), identity.handler.Put(identity.storeIdentity, identity.checkIdentity))
+	identity := createIdentityUseCases(globals.Config.RegisterAuth, idHandler)
+	httpServer.Router.Put(fmt.Sprintf("/%s", vars.RegisterEndpoint), identity.handler.Put(identity.storeIdentity, identity.checkIdentity))
 
 	// set up endpoint for chaining
 	httpServer.AddServiceEndpoint(handlers.ServerEndpoint{
@@ -223,15 +223,15 @@ func main() {
 }
 
 type identities struct {
-	handler       handlers.Identity
+	handler       handlers.IdentityCreator
 	storeIdentity handlers.StoreIdentity
 	fetchIdentity handlers.FetchIdentity
 	checkIdentity handlers.CheckIdentityExists
 }
 
-func createIdentityUseCases(globals handlers.Globals, handler *handlers.IdentityHandler) identities {
+func createIdentityUseCases(auth string, handler *handlers.IdentityHandler) identities {
 	return identities{
-		handler:       handlers.NewIdentity(globals),
+		handler:       handlers.NewIdentityCreator(auth),
 		storeIdentity: uc.NewIdentityStorer(handler),
 		fetchIdentity: uc.NewIdentityFetcher(handler),
 		checkIdentity: uc.NewIdentityChecker(handler),

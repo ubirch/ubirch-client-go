@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -12,8 +13,8 @@ import (
 	"net/http"
 )
 
-type Identity struct {
-	globals Globals
+type IdentityCreator struct {
+	auth string
 }
 
 type IdentityPayload struct {
@@ -21,14 +22,14 @@ type IdentityPayload struct {
 	Pwd string `json:"password"`
 }
 
-func NewIdentity(globals Globals) Identity {
-	return Identity{globals: globals}
+func NewIdentityCreator(auth string) IdentityCreator {
+	return IdentityCreator{auth: auth}
 }
 
-func (i *Identity) Put(storeId StoreIdentity, idExists CheckIdentityExists) http.HandlerFunc {
+func (i *IdentityCreator) Put(storeId StoreIdentity, idExists CheckIdentityExists) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get(h.XAuthHeader)
-		if authHeader != i.globals.Config.RegisterAuth {
+		if authHeader != i.auth {
 			log.Warnf("unauthorized registration attempt")
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 			return
@@ -60,7 +61,7 @@ func (i *Identity) Put(storeId StoreIdentity, idExists CheckIdentityExists) http
 			return
 		}
 
-		timer := prometheus.NewTimer(p.IdentityCreation)
+		timer := prometheus.NewTimer(p.IdentityCreationDuration)
 		csr, err := storeId(uid, idPayload.Pwd)
 		timer.ObserveDuration()
 		if err != nil {
@@ -69,9 +70,11 @@ func (i *Identity) Put(storeId StoreIdentity, idExists CheckIdentityExists) http
 			return
 		}
 
+		csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
+
 		w.Header().Set(h.HeaderContentType, vars.BinType)
 		w.WriteHeader(http.StatusOK)
-		_, err = w.Write(csr)
+		_, err = w.Write(csrPEM)
 		if err != nil {
 			log.Errorf("unable to write response: %s", err)
 		}
