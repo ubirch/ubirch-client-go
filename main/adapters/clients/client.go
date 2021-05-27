@@ -16,10 +16,12 @@ package clients
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
 	"io/ioutil"
 	"net/http"
 
@@ -27,6 +29,8 @@ import (
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
+	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
+	urlpkg "net/url"
 )
 
 type Client struct {
@@ -34,6 +38,8 @@ type Client struct {
 	VerifyServiceURL   string
 	KeyServiceURL      string
 	IdentityServiceURL string
+
+	ServerTLSCertFingerprints map[string][32]byte
 }
 
 // RequestPublicKeys requests a devices public keys at the identity service
@@ -120,11 +126,7 @@ func (c *Client) SubmitCSR(uid uuid.UUID, csr []byte) error {
 	return nil
 }
 
-func (c *Client) SendToAuthService(uid uuid.UUID, auth string, upp []byte) (h.HTTPResponse, error) {
-	return Post(c.AuthServiceURL, upp, ubirchHeader(uid, auth))
-}
-
-// post submits a message to a backend service
+// Post submits a message to a backend service
 // returns the response or encountered errors
 func Post(serviceURL string, data []byte, header map[string]string) (h.HTTPResponse, error) {
 	client := &http.Client{Timeout: h.BackendRequestTimeout}
@@ -158,10 +160,62 @@ func Post(serviceURL string, data []byte, header map[string]string) (h.HTTPRespo
 	}, nil
 }
 
+func (c *Client) SendToAuthService(uid uuid.UUID, auth string, upp []byte) (h.HTTPResponse, error) {
+	return Post(c.AuthServiceURL, upp, ubirchHeader(uid, auth))
+}
+
 func ubirchHeader(uid uuid.UUID, auth string) map[string]string {
 	return map[string]string{
 		"x-ubirch-hardware-id": uid.String(),
 		"x-ubirch-auth-type":   "ubirch",
 		"x-ubirch-credential":  base64.StdEncoding.EncodeToString([]byte(auth)),
+	}
+}
+
+func (c *Client) NewClientWithCertPinning(url string) (*http.Client, error) {
+	// get TLS certificate fingerprint for host
+	u, err := urlpkg.Parse(url)
+	if err != nil {
+		return nil, err
+	}
+	tlsCertFingerprint, exists := c.ServerTLSCertFingerprints[u.Host]
+	if !exists {
+		return nil, fmt.Errorf("missing TLS certificate fingerprint for host %s", u.Host)
+	}
+
+	// set up TLS certificate verification
+	client := &http.Client{}
+	client.Transport = &http.Transport{
+		TLSClientConfig: &tls.Config{
+			VerifyConnection: NewConnectionVerifier(tlsCertFingerprint),
+		},
+	}
+	return client, nil
+}
+
+// VerifyConnection is called after normal certificate verification and after VerifyPeerCertificate by
+// either a TLS client or server. If it returns a non-nil error, the handshake is aborted and that error results.
+//
+// If normal verification fails then the handshake will abort before considering this callback. This callback will run
+// for all connections regardless of InsecureSkipVerify or ClientAuth settings.
+type VerifyConnection func(connectionState tls.ConnectionState) error
+
+func NewConnectionVerifier(fingerprint [32]byte) VerifyConnection {
+	return func(connectionState tls.ConnectionState) error {
+		// PeerCertificates are the parsed certificates sent by the peer, in the order in which they were sent.
+		// The first element is the leaf certificate that the connection is verified against.
+
+		x509cert, err := x509.ParseCertificate(connectionState.PeerCertificates[0].Raw)
+		if err != nil {
+			return fmt.Errorf("parsing server x.509 certificate failed: %v", err)
+		}
+
+		serverCertFingerprint := sha256.Sum256(x509cert.RawSubjectPublicKeyInfo)
+
+		if !bytes.Equal(serverCertFingerprint[:], fingerprint[:]) {
+			return fmt.Errorf("pinned server TLS certificate mismatch")
+		}
+
+		return nil
 	}
 }
