@@ -98,7 +98,7 @@ func (c *Client) SubmitKeyRegistration(uid uuid.UUID, cert []byte, auth string) 
 	keyRegHeader := ubirchHeader(uid, auth)
 	keyRegHeader["content-type"] = "application/json"
 
-	resp, err := Post(c.KeyServiceURL, cert, keyRegHeader)
+	resp, err := c.Post(c.KeyServiceURL, cert, keyRegHeader)
 	if err != nil {
 		return fmt.Errorf("error sending key registration: %v", err)
 	}
@@ -115,7 +115,7 @@ func (c *Client) SubmitCSR(uid uuid.UUID, csr []byte) error {
 
 	CSRHeader := map[string]string{"content-type": "application/octet-stream"}
 
-	resp, err := Post(c.IdentityServiceURL, csr, CSRHeader)
+	resp, err := c.Post(c.IdentityServiceURL, csr, CSRHeader)
 	if err != nil {
 		return fmt.Errorf("error sending CSR: %v", err)
 	}
@@ -128,8 +128,11 @@ func (c *Client) SubmitCSR(uid uuid.UUID, csr []byte) error {
 
 // Post submits a message to a backend service
 // returns the response or encountered errors
-func Post(serviceURL string, data []byte, header map[string]string) (h.HTTPResponse, error) {
-	client := &http.Client{Timeout: h.UpstreamRequestTimeout}
+func (c *Client) Post(serviceURL string, data []byte, header map[string]string) (h.HTTPResponse, error) {
+	client, err := c.NewClientWithCertPinning(serviceURL)
+	if err != nil {
+		return h.HTTPResponse{}, err
+	}
 
 	req, err := http.NewRequest(http.MethodPost, serviceURL, bytes.NewBuffer(data))
 	if err != nil {
@@ -161,7 +164,7 @@ func Post(serviceURL string, data []byte, header map[string]string) (h.HTTPRespo
 }
 
 func (c *Client) SendToAuthService(uid uuid.UUID, auth string, upp []byte) (h.HTTPResponse, error) {
-	return Post(c.AuthServiceURL, upp, ubirchHeader(uid, auth))
+	return c.Post(c.AuthServiceURL, upp, ubirchHeader(uid, auth))
 }
 
 func ubirchHeader(uid uuid.UUID, auth string) map[string]string {
@@ -184,7 +187,7 @@ func (c *Client) NewClientWithCertPinning(url string) (*http.Client, error) {
 	}
 
 	// set up TLS certificate verification
-	client := &http.Client{}
+	client := &http.Client{Timeout: h.UpstreamRequestTimeout}
 	client.Transport = &http.Transport{
 		TLSClientConfig: &tls.Config{
 			VerifyConnection: NewConnectionVerifier(tlsCertFingerprint),
