@@ -47,39 +47,21 @@ type Client struct {
 func (c *Client) RequestPublicKeys(id uuid.UUID) ([]ubirch.SignedKeyRegistration, error) {
 	url := c.KeyServiceURL + "/current/hardwareId/" + id.String()
 
-	client, err := c.NewClientWithCertPinning(url)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := client.Do(req)
+	resp, err := c.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("unable to retrieve public key info: %v", err)
 	}
-	//noinspection GoUnhandledErrorResult
-	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return []ubirch.SignedKeyRegistration{}, nil
 	}
 
 	if h.HttpFailed(resp.StatusCode) {
-		respContent, _ := ioutil.ReadAll(resp.Body)
-		return nil, fmt.Errorf("retrieving public key info from %s failed: (%s) %s", url, resp.Status, string(respContent))
-	}
-
-	respBodyBytes, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("unable to read response body: %v", err)
+		return nil, fmt.Errorf("retrieving public key info from %s failed: (%d) %s", url, resp.StatusCode, string(resp.Content))
 	}
 
 	var keys []ubirch.SignedKeyRegistration
-	err = json.Unmarshal(respBodyBytes, &keys)
+	err = json.Unmarshal(resp.Content, &keys)
 	if err != nil {
 		return nil, fmt.Errorf("unable to decode key registration info: %v", err)
 	}
@@ -137,6 +119,36 @@ func (c *Client) SubmitCSR(uid uuid.UUID, csr []byte) error {
 	return nil
 }
 
+func (c *Client) Get(url string) (h.HTTPResponse, error) {
+	client, err := c.NewClientWithCertPinning(url)
+	if err != nil {
+		return h.HTTPResponse{}, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return h.HTTPResponse{}, fmt.Errorf("failed to make new GET request: %v", err)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return h.HTTPResponse{}, fmt.Errorf("failed to send GET request: %v", err)
+	}
+	//noinspection GoUnhandledErrorResult
+	defer resp.Body.Close()
+
+	respBodyBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return h.HTTPResponse{}, fmt.Errorf("failed to read response body: %v", err)
+	}
+
+	return h.HTTPResponse{
+		StatusCode: resp.StatusCode,
+		Header:     resp.Header,
+		Content:    respBodyBytes,
+	}, nil
+}
+
 // Post submits a message to a backend service
 // returns the response or encountered errors
 func (c *Client) Post(serviceURL string, data []byte, header map[string]string) (h.HTTPResponse, error) {
@@ -147,7 +159,7 @@ func (c *Client) Post(serviceURL string, data []byte, header map[string]string) 
 
 	req, err := http.NewRequest(http.MethodPost, serviceURL, bytes.NewBuffer(data))
 	if err != nil {
-		return h.HTTPResponse{}, fmt.Errorf("can't make new post request: %v", err)
+		return h.HTTPResponse{}, fmt.Errorf("failed to make new POST request: %v", err)
 	}
 
 	for k, v := range header {
@@ -156,15 +168,14 @@ func (c *Client) Post(serviceURL string, data []byte, header map[string]string) 
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return h.HTTPResponse{}, err
+		return h.HTTPResponse{}, fmt.Errorf("failed to send POST request: %v", err)
 	}
-
 	//noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()
 
 	respBodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return h.HTTPResponse{}, err
+		return h.HTTPResponse{}, fmt.Errorf("failed to read response body: %v", err)
 	}
 
 	return h.HTTPResponse{
