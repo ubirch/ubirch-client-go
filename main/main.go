@@ -17,22 +17,23 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
-	"github.com/ubirch/ubirch-client-go/main/adapters/handlers"
-	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
-	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
-	"github.com/ubirch/ubirch-client-go/main/config"
-	p "github.com/ubirch/ubirch-client-go/main/prometheus"
-	"github.com/ubirch/ubirch-client-go/main/uc"
-	"github.com/ubirch/ubirch-client-go/main/vars"
-	"golang.org/x/sync/errgroup"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 
+	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
+	"github.com/ubirch/ubirch-client-go/main/adapters/handlers"
+	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
+	"github.com/ubirch/ubirch-client-go/main/config"
+	"github.com/ubirch/ubirch-client-go/main/uc"
+	"github.com/ubirch/ubirch-client-go/main/vars"
+	"golang.org/x/sync/errgroup"
+
 	log "github.com/sirupsen/logrus"
+	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
+	prom "github.com/ubirch/ubirch-client-go/main/prometheus"
 )
 
 // handle graceful shutdown
@@ -91,6 +92,14 @@ func main() {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
 
+	if migrate {
+		err := repository.Migrate(conf)
+		if err != nil {
+			log.Fatalf("migration failed: %v", err)
+		}
+		os.Exit(0)
+	}
+
 	globals := handlers.Globals{
 		Config:  conf,
 		Version: Version,
@@ -125,18 +134,10 @@ func main() {
 	<-serverReadyCtx.Done()
 
 	// set up metrics
-	p.InitPromMetrics(httpServer.Router)
+	prom.InitPromMetrics(httpServer.Router)
 
 	// set up endpoint for liveliness checks
 	httpServer.Router.Get("/healtz", h.Health(serverID))
-
-	if migrate {
-		err := repository.Migrate(conf)
-		if err != nil {
-			log.Fatalf("migration failed: %v", err)
-		}
-		os.Exit(0)
-	}
 
 	// initialize ubirch protocol
 	ctxManager, err := repository.GetCtxManager(conf)
@@ -219,7 +220,7 @@ func main() {
 		log.Error(err)
 	}
 
-	log.Debug("shut down client")
+	log.Debug("shut down")
 }
 
 type identities struct {
