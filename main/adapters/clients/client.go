@@ -140,8 +140,10 @@ func (c *Client) makeRequest(method, serviceURL string, data []byte, header *map
 		return nil, fmt.Errorf("failed to make new %s request: %v", method, err)
 	}
 
-	for k, v := range *header {
-		req.Header.Set(k, v)
+	if header != nil {
+		for k, v := range *header {
+			req.Header.Set(k, v)
+		}
 	}
 
 	resp, err := client.Do(req)
