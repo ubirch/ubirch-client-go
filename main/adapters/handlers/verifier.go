@@ -20,17 +20,15 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
-	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
-	"io/ioutil"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
+	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
 )
 
 type verification struct {
@@ -75,42 +73,35 @@ func (v *Verifier) Verify(hash []byte) h.HTTPResponse {
 
 // loadUPP retrieves the UPP which contains a given hash from the ubirch backend
 func (v *Verifier) loadUPP(hash []byte) (int, []byte, error) {
-	var resp *http.Response
+	var resp h.HTTPResponse
 	var err error
 	hashBase64String := base64.StdEncoding.EncodeToString(hash)
 
 	n := 0
-	for stay, timeout := true, time.After(5*time.Second); stay; {
+	for stay, timeout := true, time.After(3*time.Second); stay; {
 		n++
 		select {
 		case <-timeout:
 			stay = false
 		default:
-			resp, err = http.Post(v.Protocol.VerifyServiceURL, "text/plain", strings.NewReader(hashBase64String))
+			resp, err = v.Protocol.Post(v.Protocol.VerifyServiceURL, []byte(hashBase64String), map[string]string{"content-type": "text/plain"})
 			if err != nil {
 				return http.StatusInternalServerError, nil, fmt.Errorf("error sending verification request: %v", err)
 			}
 			stay = h.HttpFailed(resp.StatusCode)
 			if stay {
-				_ = resp.Body.Close()
 				log.Debugf("Couldn't verify hash yet (%d). Retry... %d", resp.StatusCode, n)
-				time.Sleep(time.Second)
+				time.Sleep(500 * time.Millisecond)
 			}
 		}
 	}
-	//noinspection GoUnhandledErrorResult
-	defer resp.Body.Close()
 
 	if h.HttpFailed(resp.StatusCode) {
-		respBodyBytes, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			log.Warnf("unable to decode verification response: %v", err)
-		}
-		return resp.StatusCode, nil, fmt.Errorf("could not retrieve certificate for hash %s from UBIRCH verification service: - %s - %q", hashBase64String, resp.Status, respBodyBytes)
+		return resp.StatusCode, nil, fmt.Errorf("could not retrieve certificate for hash %s from UBIRCH verification service: (%d) %s", hashBase64String, resp.StatusCode, string(resp.Content))
 	}
 
 	vf := verification{}
-	err = json.NewDecoder(resp.Body).Decode(&vf)
+	err = json.Unmarshal(resp.Content, &vf)
 	if err != nil {
 		return http.StatusBadGateway, nil, fmt.Errorf("unable to decode verification response: %v", err)
 	}
