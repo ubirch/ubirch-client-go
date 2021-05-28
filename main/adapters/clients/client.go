@@ -129,7 +129,7 @@ func (c *Client) SubmitCSR(uid uuid.UUID, csr []byte) error {
 // Post submits a message to a backend service
 // returns the response or encountered errors
 func Post(serviceURL string, data []byte, header map[string]string) (h.HTTPResponse, error) {
-	client := &http.Client{Timeout: h.BackendRequestTimeout}
+	client := &http.Client{Timeout: h.UpstreamRequestTimeout}
 
 	req, err := http.NewRequest(http.MethodPost, serviceURL, bytes.NewBuffer(data))
 	if err != nil {
