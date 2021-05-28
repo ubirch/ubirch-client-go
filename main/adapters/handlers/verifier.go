@@ -73,7 +73,7 @@ func (v *Verifier) Verify(hash []byte) h.HTTPResponse {
 
 // loadUPP retrieves the UPP which contains a given hash from the ubirch backend
 func (v *Verifier) loadUPP(hash []byte) (int, []byte, error) {
-	var resp h.HTTPResponse
+	var resp *h.HTTPResponse
 	var err error
 	hashBase64String := base64.StdEncoding.EncodeToString(hash)
 
@@ -84,7 +84,8 @@ func (v *Verifier) loadUPP(hash []byte) (int, []byte, error) {
 		case <-timeout:
 			stay = false
 		default:
-			resp, err = v.Protocol.Post(v.Protocol.VerifyServiceURL, []byte(hashBase64String), map[string]string{"content-type": "text/plain"})
+			header := map[string]string{"content-type": "text/plain"}
+			resp, err = v.Protocol.Post(v.Protocol.VerifyServiceURL, []byte(hashBase64String), &header)
 			if err != nil {
 				return http.StatusInternalServerError, nil, fmt.Errorf("error sending verification request: %v", err)
 			}

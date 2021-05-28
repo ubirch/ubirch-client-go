@@ -204,7 +204,7 @@ func (s *Signer) sendUPP(msg HTTPRequest, upp []byte) h.HTTPResponse {
 		}
 	}
 
-	return getSigningResponse(backendResp.StatusCode, msg, upp, backendResp, requestID, "")
+	return getSigningResponse(backendResp.StatusCode, msg, upp, *backendResp, requestID, "")
 }
 
 func getRequestID(respUPP ubirch.UPP) (string, error) {

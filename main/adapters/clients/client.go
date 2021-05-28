@@ -91,7 +91,7 @@ func (c *Client) SubmitKeyRegistration(uid uuid.UUID, cert []byte, auth string) 
 	keyRegHeader := ubirchHeader(uid, auth)
 	keyRegHeader["content-type"] = "application/json"
 
-	resp, err := c.Post(c.KeyServiceURL, cert, keyRegHeader)
+	resp, err := c.Post(c.KeyServiceURL, cert, &keyRegHeader)
 	if err != nil {
 		return fmt.Errorf("error sending key registration: %v", err)
 	}
@@ -108,7 +108,7 @@ func (c *Client) SubmitCSR(uid uuid.UUID, csr []byte) error {
 
 	CSRHeader := map[string]string{"content-type": "application/octet-stream"}
 
-	resp, err := c.Post(c.IdentityServiceURL, csr, CSRHeader)
+	resp, err := c.Post(c.IdentityServiceURL, csr, &CSRHeader)
 	if err != nil {
 		return fmt.Errorf("error sending CSR: %v", err)
 	}
@@ -119,74 +119,53 @@ func (c *Client) SubmitCSR(uid uuid.UUID, csr []byte) error {
 	return nil
 }
 
-func (c *Client) Get(url string) (h.HTTPResponse, error) {
-	client, err := c.NewClientWithCertPinning(url)
-	if err != nil {
-		return h.HTTPResponse{}, err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		return h.HTTPResponse{}, fmt.Errorf("failed to make new GET request: %v", err)
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return h.HTTPResponse{}, fmt.Errorf("failed to send GET request: %v", err)
-	}
-	//noinspection GoUnhandledErrorResult
-	defer resp.Body.Close()
-
-	respBodyBytes, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return h.HTTPResponse{}, fmt.Errorf("failed to read response body: %v", err)
-	}
-
-	return h.HTTPResponse{
-		StatusCode: resp.StatusCode,
-		Header:     resp.Header,
-		Content:    respBodyBytes,
-	}, nil
+func (c *Client) Get(serviceURL string) (*h.HTTPResponse, error) {
+	return c.makeRequest(http.MethodGet, serviceURL, nil, nil)
 }
 
 // Post submits a message to a backend service
 // returns the response or encountered errors
-func (c *Client) Post(serviceURL string, data []byte, header map[string]string) (h.HTTPResponse, error) {
+func (c *Client) Post(serviceURL string, data []byte, header *map[string]string) (*h.HTTPResponse, error) {
+	return c.makeRequest(http.MethodPost, serviceURL, data, header)
+}
+
+func (c *Client) makeRequest(method, serviceURL string, data []byte, header *map[string]string) (*h.HTTPResponse, error) {
 	client, err := c.NewClientWithCertPinning(serviceURL)
 	if err != nil {
-		return h.HTTPResponse{}, err
+		return nil, err
 	}
 
-	req, err := http.NewRequest(http.MethodPost, serviceURL, bytes.NewBuffer(data))
+	req, err := http.NewRequest(method, serviceURL, bytes.NewBuffer(data))
 	if err != nil {
-		return h.HTTPResponse{}, fmt.Errorf("failed to make new POST request: %v", err)
+		return nil, fmt.Errorf("failed to make new %s request: %v", method, err)
 	}
 
-	for k, v := range header {
+	for k, v := range *header {
 		req.Header.Set(k, v)
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return h.HTTPResponse{}, fmt.Errorf("failed to send POST request: %v", err)
+		return nil, fmt.Errorf("failed to send %s request: %v", method, err)
 	}
 	//noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()
 
 	respBodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return h.HTTPResponse{}, fmt.Errorf("failed to read response body: %v", err)
+		return nil, fmt.Errorf("failed to read response body: %v", err)
 	}
 
-	return h.HTTPResponse{
+	return &h.HTTPResponse{
 		StatusCode: resp.StatusCode,
 		Header:     resp.Header,
 		Content:    respBodyBytes,
 	}, nil
 }
 
-func (c *Client) SendToAuthService(uid uuid.UUID, auth string, upp []byte) (h.HTTPResponse, error) {
-	return c.Post(c.AuthServiceURL, upp, ubirchHeader(uid, auth))
+func (c *Client) SendToAuthService(uid uuid.UUID, auth string, upp []byte) (*h.HTTPResponse, error) {
+	header := ubirchHeader(uid, auth)
+	return c.Post(c.AuthServiceURL, upp, &header)
 }
 
 func ubirchHeader(uid uuid.UUID, auth string) map[string]string {
