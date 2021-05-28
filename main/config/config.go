@@ -34,10 +34,10 @@ const (
 	DEMO_STAGE = "demo"
 	PROD_STAGE = "prod"
 
-	defaultKeyURL      = "https://identity.%s.ubirch.com/api/keyService/v1/pubkey"
-	defaultIdentityURL = "https://identity.%s.ubirch.com/api/certs/v1/csr/register"
-	defaultNiomonURL   = "https://niomon.%s.ubirch.com/"
-	defaultVerifyURL   = "https://verify.%s.ubirch.com/api/upp/verify"
+	defaultKeyURL    = "https://identity.%s.ubirch.com/api/keyService/v1/pubkey"
+	defaultCsrURL    = "https://identity.%s.ubirch.com/api/certs/v1/csr/register"
+	defaultNiomonURL = "https://niomon.%s.ubirch.com/"
+	defaultVerifyURL = "https://verify.%s.ubirch.com/api/upp/verify"
 
 	identitiesFileName = "identities.json" // [{ "uuid": "<uuid>", "password": "<auth>" }]
 
@@ -218,7 +218,7 @@ func (c *Config) setDefaultURLs() error {
 	}
 
 	if c.IdentityService == "" {
-		c.IdentityService = fmt.Sprintf(defaultIdentityURL, c.Env)
+		c.IdentityService = fmt.Sprintf(defaultCsrURL, c.Env)
 	}
 
 	if c.Niomon == "" {
