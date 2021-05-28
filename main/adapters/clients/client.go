@@ -46,7 +46,18 @@ type Client struct {
 // returns a list of the retrieved public key certificates
 func (c *Client) RequestPublicKeys(id uuid.UUID) ([]ubirch.SignedKeyRegistration, error) {
 	url := c.KeyServiceURL + "/current/hardwareId/" + id.String()
-	resp, err := http.Get(url)
+
+	client, err := c.NewClientWithCertPinning(url)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("unable to retrieve public key info: %v", err)
 	}
