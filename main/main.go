@@ -150,6 +150,8 @@ func main() {
 		VerifyServiceURL:   conf.VerifyService,
 		KeyServiceURL:      conf.KeyService,
 		IdentityServiceURL: conf.IdentityService,
+
+		ServerTLSCertFingerprints: conf.ServerTLSCertFingerprints,
 	}
 
 	protocol, err := repository.NewExtendedProtocol(ctxManager, conf.SecretBytes32, client)

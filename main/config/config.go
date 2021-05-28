@@ -15,6 +15,8 @@
 package config
 
 import (
+	"crypto/sha256"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -40,6 +42,7 @@ const (
 	defaultVerifyURL = "https://verify.%s.ubirch.com/api/upp/verify"
 
 	identitiesFileName = "identities.json" // [{ "uuid": "<uuid>", "password": "<auth>" }]
+	TLSCertsFileName   = "%s_ubirch_tls_certs.json"
 
 	defaultCSRCountry      = "DE"
 	defaultCSROrganization = "ubirch GmbH"
@@ -54,32 +57,33 @@ var IsDevelopment bool
 
 // configuration of the client
 type Config struct {
-	Devices          map[string]string `json:"devices"`                               // maps UUIDs to backend auth tokens (mandatory)
-	Secret16Base64   string            `json:"secret" envconfig:"secret"`             // 16 bytes secret used to encrypt the key store (mandatory for migration) LEGACY
-	Secret32Base64   string            `json:"secret32" envconfig:"secret32"`         // 32 byte secret used to encrypt the key store (mandatory)
-	RegisterAuth     string            `json:"registerAuth"`                          // auth token needed for new identity registration
-	Env              string            `json:"env"`                                   // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
-	DsnInitContainer bool              `json:"DSN_InitDb" envconfig:"DSN_InitDb"`     // flag to determine if a database should be used for context management
-	DsnHost          string            `json:"DSN_Host" envconfig:"DSN_Host"`         // database host name
-	DsnUser          string            `json:"DSN_User" envconfig:"DSN_User"`         // database user name
-	DsnPassword      string            `json:"DSN_Password" envconfig:"DSN_Password"` // database password
-	DsnDb            string            `json:"DSN_Database" envconfig:"DSN_Database"` // database name
-	TCP_addr         string            `json:"TCP_addr"`                              // the TCP address for the server to listen on, in the form "host:port", defaults to ":8080"
-	TLS              bool              `json:"TLS"`                                   // enable serving HTTPS endpoints, defaults to 'false'
-	TLS_CertFile     string            `json:"TLSCertFile"`                           // filename of TLS certificate file name, defaults to "cert.pem"
-	TLS_KeyFile      string            `json:"TLSKeyFile"`                            // filename of TLS key file name, defaults to "key.pem"
-	CSR_Country      string            `json:"CSR_country"`                           // subject country for public key Certificate Signing Requests
-	CSR_Organization string            `json:"CSR_organization"`                      // subject organization for public key Certificate Signing Requests
-	CORS             bool              `json:"CORS"`                                  // enable CORS, defaults to 'false'
-	CORS_Origins     []string          `json:"CORS_origins"`                          // list of allowed origin hosts, defaults to ["*"]
-	Debug            bool              `json:"debug"`                                 // enable extended debug output, defaults to 'false'
-	LogTextFormat    bool              `json:"logTextFormat"`                         // log in text format for better human readability, default format is JSON
-	KeyService       string            // key service URL (set automatically)
-	IdentityService  string            // identity service URL (set automatically)
-	Niomon           string            // authentication service URL (set automatically)
-	VerifyService    string            // verification service URL (set automatically)
-	ConfigDir        string            // directory where config and protocol ctx are stored (set automatically)
-	SecretBytes32    []byte            // the decoded 32 byte key store secret for database (set automatically)
+	Devices                   map[string]string `json:"devices"`                               // maps UUIDs to backend auth tokens (mandatory)
+	Secret16Base64            string            `json:"secret" envconfig:"secret"`             // 16 bytes secret used to encrypt the key store (mandatory for migration) LEGACY
+	Secret32Base64            string            `json:"secret32" envconfig:"secret32"`         // 32 byte secret used to encrypt the key store (mandatory)
+	RegisterAuth              string            `json:"registerAuth"`                          // auth token needed for new identity registration
+	Env                       string            `json:"env"`                                   // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
+	DsnInitContainer          bool              `json:"DSN_InitDb" envconfig:"DSN_InitDb"`     // flag to determine if a database should be used for context management
+	DsnHost                   string            `json:"DSN_Host" envconfig:"DSN_Host"`         // database host name
+	DsnUser                   string            `json:"DSN_User" envconfig:"DSN_User"`         // database user name
+	DsnPassword               string            `json:"DSN_Password" envconfig:"DSN_Password"` // database password
+	DsnDb                     string            `json:"DSN_Database" envconfig:"DSN_Database"` // database name
+	TCP_addr                  string            `json:"TCP_addr"`                              // the TCP address for the server to listen on, in the form "host:port", defaults to ":8080"
+	TLS                       bool              `json:"TLS"`                                   // enable serving HTTPS endpoints, defaults to 'false'
+	TLS_CertFile              string            `json:"TLSCertFile"`                           // filename of TLS certificate file name, defaults to "cert.pem"
+	TLS_KeyFile               string            `json:"TLSKeyFile"`                            // filename of TLS key file name, defaults to "key.pem"
+	CSR_Country               string            `json:"CSR_country"`                           // subject country for public key Certificate Signing Requests
+	CSR_Organization          string            `json:"CSR_organization"`                      // subject organization for public key Certificate Signing Requests
+	CORS                      bool              `json:"CORS"`                                  // enable CORS, defaults to 'false'
+	CORS_Origins              []string          `json:"CORS_origins"`                          // list of allowed origin hosts, defaults to ["*"]
+	Debug                     bool              `json:"debug"`                                 // enable extended debug output, defaults to 'false'
+	LogTextFormat             bool              `json:"logTextFormat"`                         // log in text format for better human readability, default format is JSON
+	KeyService                string            // key service URL (set automatically)
+	IdentityService           string            // identity service URL (set automatically)
+	Niomon                    string            // authentication service URL (set automatically)
+	VerifyService             string            // verification service URL (set automatically)
+	ServerTLSCertFingerprints map[string][32]byte
+	ConfigDir                 string // directory where config and protocol ctx are stored (set automatically)
+	SecretBytes32             []byte // the decoded 32 byte key store secret for database (set automatically)
 }
 
 func (c *Config) Load(configDir, filename string) error {
@@ -124,6 +128,11 @@ func (c *Config) Load(configDir, filename string) error {
 	c.setDefaultTLS()
 	c.setDefaultCORS()
 	c.setDefaultURLs()
+
+	err = c.loadServerTLSCertificates()
+	if err != nil {
+		return fmt.Errorf("loading TLS certificates failed: %v", err)
+	}
 
 	return nil
 }
@@ -271,6 +280,43 @@ func (c *Config) loadIdentitiesFile() error {
 
 	for _, identity := range identities {
 		c.Devices[identity["uuid"]] = identity["password"]
+	}
+
+	return nil
+}
+
+func (c *Config) loadServerTLSCertificates() error {
+	serverTLSCertFile := filepath.Join(c.ConfigDir, fmt.Sprintf(TLSCertsFileName, c.Env))
+
+	fileHandle, err := os.Open(serverTLSCertFile)
+	if err != nil {
+		return err
+	}
+	defer fileHandle.Close()
+
+	serverTLSCertBuffer := make(map[string][]byte)
+
+	err = json.NewDecoder(fileHandle).Decode(&serverTLSCertBuffer)
+	if err != nil {
+		return err
+	}
+
+	if len(serverTLSCertBuffer) == 0 {
+		return fmt.Errorf("no TLS certificates found in file %s", serverTLSCertFile)
+	}
+	log.Infof("found %d entries in file %s", len(serverTLSCertBuffer), serverTLSCertFile)
+
+	c.ServerTLSCertFingerprints = make(map[string][32]byte)
+
+	for host, cert := range serverTLSCertBuffer {
+		x509cert, err := x509.ParseCertificate(cert)
+		if err != nil {
+			log.Errorf("parsing x.509 certificate for host %s failed: %v, expected certificate format: base64 encoded ASN.1 DER", host, err)
+			continue
+		}
+
+		fingerprint := sha256.Sum256(x509cert.RawSubjectPublicKeyInfo)
+		c.ServerTLSCertFingerprints[host] = fingerprint
 	}
 
 	return nil
