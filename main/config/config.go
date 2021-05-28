@@ -41,6 +41,9 @@ const (
 
 	identitiesFileName = "identities.json" // [{ "uuid": "<uuid>", "password": "<auth>" }]
 
+	defaultCSRCountry      = "DE"
+	defaultCSROrganization = "ubirch GmbH"
+
 	defaultTCPAddr = ":8080"
 
 	defaultTLSCertFile = "cert.pem"
@@ -61,22 +64,22 @@ type Config struct {
 	DsnUser          string            `json:"DSN_User" envconfig:"DSN_User"`         // database user name
 	DsnPassword      string            `json:"DSN_Password" envconfig:"DSN_Password"` // database password
 	DsnDb            string            `json:"DSN_Database" envconfig:"DSN_Database"` // database name
-	CSR_Country      string            `json:"CSR_country"`                           // subject country for public key Certificate Signing Requests
-	CSR_Organization string            `json:"CSR_organization"`                      // subject organization for public key Certificate Signing Requests
 	TCP_addr         string            `json:"TCP_addr"`                              // the TCP address for the server to listen on, in the form "host:port", defaults to ":8080"
 	TLS              bool              `json:"TLS"`                                   // enable serving HTTPS endpoints, defaults to 'false'
 	TLS_CertFile     string            `json:"TLSCertFile"`                           // filename of TLS certificate file name, defaults to "cert.pem"
 	TLS_KeyFile      string            `json:"TLSKeyFile"`                            // filename of TLS key file name, defaults to "key.pem"
+	CSR_Country      string            `json:"CSR_country"`                           // subject country for public key Certificate Signing Requests
+	CSR_Organization string            `json:"CSR_organization"`                      // subject organization for public key Certificate Signing Requests
 	CORS             bool              `json:"CORS"`                                  // enable CORS, defaults to 'false'
 	CORS_Origins     []string          `json:"CORS_origins"`                          // list of allowed origin hosts, defaults to ["*"]
 	Debug            bool              `json:"debug"`                                 // enable extended debug output, defaults to 'false'
 	LogTextFormat    bool              `json:"logTextFormat"`                         // log in text format for better human readability, default format is JSON
-	SecretBytes32    []byte            // the decoded 32 byte key store secret for database (set automatically)
 	KeyService       string            // key service URL (set automatically)
 	IdentityService  string            // identity service URL (set automatically)
 	Niomon           string            // authentication service URL (set automatically)
 	VerifyService    string            // verification service URL (set automatically)
 	ConfigDir        string            // directory where config and protocol ctx are stored (set automatically)
+	SecretBytes32    []byte            // the decoded 32 byte key store secret for database (set automatically)
 }
 
 func (c *Config) Load(configDir, filename string) error {
@@ -94,16 +97,17 @@ func (c *Config) Load(configDir, filename string) error {
 		return err
 	}
 
-	c.SecretBytes32, err = base64.StdEncoding.DecodeString(c.Secret32Base64)
-	if err != nil {
-		return fmt.Errorf("unable to decode base64 encoded secret (%s): %v", c.Secret32Base64, err)
-	}
-
 	if c.Debug {
 		log.SetLevel(log.DebugLevel)
 	}
+
 	if c.LogTextFormat {
 		log.SetFormatter(&log.TextFormatter{FullTimestamp: true, TimestampFormat: "2006-01-02 15:04:05.000 -0700"})
+	}
+
+	c.SecretBytes32, err = base64.StdEncoding.DecodeString(c.Secret32Base64)
+	if err != nil {
+		return fmt.Errorf("unable to decode base64 encoded secret (%s): %v", c.Secret32Base64, err)
 	}
 
 	err = c.loadIdentitiesFile()
@@ -116,11 +120,12 @@ func (c *Config) Load(configDir, filename string) error {
 		return err
 	}
 
-	// set defaults
 	c.setDefaultCSR()
 	c.setDefaultTLS()
 	c.setDefaultCORS()
-	return c.setDefaultURLs()
+	c.setDefaultURLs()
+
+	return nil
 }
 
 // loadEnv reads the configuration from environment variables
@@ -157,12 +162,12 @@ func (c *Config) checkMandatory() error {
 
 func (c *Config) setDefaultCSR() {
 	if c.CSR_Country == "" {
-		c.CSR_Country = "DE"
+		c.CSR_Country = defaultCSRCountry
 	}
 	log.Debugf("CSR Subject Country: %s", c.CSR_Country)
 
 	if c.CSR_Organization == "" {
-		c.CSR_Organization = "ubirch GmbH"
+		c.CSR_Organization = defaultCSROrganization
 	}
 	log.Debugf("CSR Subject Organization: %s", c.CSR_Organization)
 }
@@ -201,7 +206,7 @@ func (c *Config) setDefaultCORS() {
 	}
 }
 
-func (c *Config) setDefaultURLs() error {
+func (c *Config) setDefaultURLs() {
 	if c.Env == "" {
 		c.Env = PROD_STAGE
 	}
@@ -230,12 +235,10 @@ func (c *Config) setDefaultURLs() error {
 	}
 
 	log.Infof("UBIRCH backend environment: %s", c.Env)
-	log.Debugf(" - Key Service:            %s", c.KeyService)
-	log.Debugf(" - Identity Service:       %s", c.IdentityService)
-	log.Debugf(" - Authentication Service: %s", c.Niomon)
-	log.Debugf(" - Verification Service:   %s", c.VerifyService)
-
-	return nil
+	log.Debugf(" - Keys:           %s", c.KeyService)
+	log.Debugf(" - CSRs:           %s", c.IdentityService)
+	log.Debugf(" - Authentication: %s", c.Niomon)
+	log.Debugf(" - Verification:   %s", c.VerifyService)
 }
 
 // loadIdentitiesFile loads device identities from the identities JSON file.
@@ -259,6 +262,8 @@ func (c *Config) loadIdentitiesFile() error {
 	if err != nil {
 		return err
 	}
+
+	log.Infof("found %d entries in file %s", len(identities), identitiesFile)
 
 	if c.Devices == nil {
 		c.Devices = make(map[string]string, len(identities))
