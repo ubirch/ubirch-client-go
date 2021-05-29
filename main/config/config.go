@@ -27,6 +27,7 @@ import (
 	"github.com/kelseyhightower/envconfig"
 
 	log "github.com/sirupsen/logrus"
+	urlpkg "net/url"
 )
 
 const (
@@ -317,6 +318,25 @@ func (c *Config) loadServerTLSCertificates() error {
 
 		fingerprint := sha256.Sum256(x509cert.RawSubjectPublicKeyInfo)
 		c.ServerTLSCertFingerprints[host] = fingerprint
+	}
+
+	// check if file contains all required server certificates
+	services := []string{
+		c.KeyService,
+		c.IdentityService,
+		c.Niomon,
+		c.VerifyService,
+	}
+
+	for _, serviceURL := range services {
+		u, err := urlpkg.Parse(serviceURL)
+		if err != nil {
+			return err
+		}
+		_, exists := c.ServerTLSCertFingerprints[u.Host]
+		if !exists {
+			return fmt.Errorf("missing TLS certificate for host %s in file %s", u.Host, serverTLSCertFile)
+		}
 	}
 
 	return nil
