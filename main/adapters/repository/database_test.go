@@ -21,23 +21,8 @@ const (
 )
 
 func TestDatabaseManager_StoreNewIdentity(t *testing.T) {
-	var err error
-	testUid := uuid.MustParse(TestUUID).String()
-	priv, err := base64.StdEncoding.DecodeString(TestPrivKey)
-	if err != nil {
-		t.Fatal(err)
-	}
-	pub, err := base64.StdEncoding.DecodeString(TestPubKey)
-	if err != nil {
-		t.Fatal(err)
-	}
-	sig, err := base64.StdEncoding.DecodeString(TestSignature)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	conf := &config.Config{}
-	err = conf.Load("../../", "config.json")
+	err := conf.Load("../../", "config.json")
 	if err != nil {
 		t.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
@@ -47,12 +32,9 @@ func TestDatabaseManager_StoreNewIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	testIdentity := &ent.Identity{
-		Uid:        testUid,
-		PrivateKey: priv,
-		PublicKey:  pub,
-		Signature:  sig,
-		AuthToken:  TestAuthToken,
+	testIdentity, err := getTestIdentity()
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -75,7 +57,7 @@ func TestDatabaseManager_StoreNewIdentity(t *testing.T) {
 
 	// clean up
 	deleteQuery := fmt.Sprintf("DELETE FROM %s WHERE uid = $1;", TestTableName)
-	_, err = dbManager.db.Exec(deleteQuery, testUid)
+	_, err = dbManager.db.Exec(deleteQuery, testIdentity.Uid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,4 +67,30 @@ func TestDatabaseManager_StoreNewIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+}
+
+func getTestIdentity() (*ent.Identity, error) {
+	testUid, err := uuid.Parse(TestUUID)
+	if err != nil {
+		return nil, err
+	}
+	priv, err := base64.StdEncoding.DecodeString(TestPrivKey)
+	if err != nil {
+		return nil, err
+	}
+	pub, err := base64.StdEncoding.DecodeString(TestPubKey)
+	if err != nil {
+		return nil, err
+	}
+	sig, err := base64.StdEncoding.DecodeString(TestSignature)
+	if err != nil {
+		return nil, err
+	}
+	return &ent.Identity{
+		Uid:        testUid.String(),
+		PrivateKey: priv,
+		PublicKey:  pub,
+		Signature:  sig,
+		AuthToken:  TestAuthToken,
+	}, nil
 }
