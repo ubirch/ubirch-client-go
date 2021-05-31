@@ -233,14 +233,13 @@ func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity
 		}
 		if err == sql.ErrNoRows {
 			// there were no rows, but otherwise no error occurred
+			return dm.storeIdentity(tx, identity)
 		} else {
 			return err
 		}
 	} else {
 		return ErrExists
 	}
-
-	return dm.storeIdentity(tx, identity)
 }
 
 func (dm *DatabaseManager) storeIdentity(tx *sql.Tx, identity *ent.Identity) error {
