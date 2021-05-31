@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/config"
 	"github.com/ubirch/ubirch-client-go/main/ent"
+	"github.com/ubirch/ubirch-client-go/main/vars"
 )
 
 const (
@@ -36,10 +37,10 @@ type ContextManager interface {
 }
 
 func GetCtxManager(c config.Config) (ContextManager, error) {
-	if c.DsnInitContainer {
-		return NewSqlDatabaseInfo(c)
+	if c.PostgresDSN != "" {
+		return NewSqlDatabaseInfo(c.PostgresDSN, vars.PostgreSqlIdentityTableName)
 	} else {
 		return nil, fmt.Errorf("file-based context management is not supported in the current version. " +
-			"Please set DSN parameters in the configuration and conntect to a database or downgrade to a version < 2.0.0")
+			"Please set a postgres DSN in the configuration and conntect to a database or downgrade to a version < 2.0.0")
 	}
 }

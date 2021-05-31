@@ -21,7 +21,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	log "github.com/sirupsen/logrus"
-	"github.com/ubirch/ubirch-client-go/main/config"
 	"github.com/ubirch/ubirch-client-go/main/ent"
 	"github.com/ubirch/ubirch-client-go/main/vars"
 	"time"
@@ -43,30 +42,33 @@ var _ ContextManager = (*DatabaseManager)(nil)
 
 // NewSqlDatabaseInfo takes a database connection string, returns a new initialized
 // database.
-func NewSqlDatabaseInfo(conf config.Config) (*DatabaseManager, error) {
-	dataSourceName := fmt.Sprintf("host=%s user=%s password=%s port=%d dbname=%s sslmode=disable",
-		conf.DsnHost, conf.DsnUser, conf.DsnPassword, vars.PostgreSqlPort, conf.DsnDb)
-
+func NewSqlDatabaseInfo(dataSourceName, tableName string) (*DatabaseManager, error) {
 	pg, err := sql.Open(vars.PostgreSql, dataSourceName)
 	if err != nil {
 		return nil, err
 	}
 	pg.SetMaxOpenConns(100)
 	pg.SetMaxIdleConns(70)
-	pg.SetConnMaxLifetime(10*time.Minute)
+	pg.SetConnMaxLifetime(10 * time.Minute)
 	if err = pg.Ping(); err != nil {
 		return nil, err
 	}
 
 	log.Print("preparing postgres usage")
 
-	return &DatabaseManager{
+	dbManager := &DatabaseManager{
 		options: &sql.TxOptions{
 			Isolation: sql.LevelReadCommitted,
 			ReadOnly:  false,
 		},
 		db: pg,
-	}, nil
+	}
+
+	if _, err = dbManager.db.Exec(CreateTable(PostgresIdentity, tableName)); err != nil {
+		return nil, err
+	}
+
+	return dbManager, nil
 }
 
 func (dm *DatabaseManager) Exists(uid uuid.UUID) (bool, error) {
@@ -254,7 +256,7 @@ func (dm *DatabaseManager) storeIdentity(tx *sql.Tx, identity *ent.Identity) err
 }
 
 func (dm *DatabaseManager) isConnectionAvailable(err error) bool { // todo this will only work with postgres
-	if err.Error() == pq.ErrorCode("53300").Name() ||              // "53300": "too_many_connections",
+	if err.Error() == pq.ErrorCode("53300").Name() || // "53300": "too_many_connections",
 		err.Error() == pq.ErrorCode("53400").Name() { // "53400": "configuration_limit_exceeded",
 		time.Sleep(100 * time.Millisecond)
 		return true
