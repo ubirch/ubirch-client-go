@@ -76,12 +76,9 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string) (*DatabaseManager, err
 func (dm *DatabaseManager) Exists(uid uuid.UUID) (bool, error) {
 	var id string
 
-	query := fmt.Sprintf(
-		"SELECT uid FROM %s WHERE uid = $1",
-		dm.tableName)
+	query := fmt.Sprintf("SELECT uid FROM %s WHERE uid = $1", dm.tableName)
 
-	err := dm.db.QueryRow(query, uid.String()).
-		Scan(&id)
+	err := dm.db.QueryRow(query, uid.String()).Scan(&id)
 	if err != nil {
 		if dm.isConnectionAvailable(err) {
 			return dm.Exists(uid)
@@ -99,12 +96,9 @@ func (dm *DatabaseManager) Exists(uid uuid.UUID) (bool, error) {
 func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
 	var privateKey []byte
 
-	query := fmt.Sprintf(
-		"SELECT private_key FROM %s WHERE uid = $1",
-		dm.tableName)
+	query := fmt.Sprintf("SELECT private_key FROM %s WHERE uid = $1", dm.tableName)
 
-	err := dm.db.QueryRow(query, uid.String()).
-		Scan(&privateKey)
+	err := dm.db.QueryRow(query, uid.String()).Scan(&privateKey)
 	if err != nil {
 		if dm.isConnectionAvailable(err) {
 			return dm.GetPrivateKey(uid)
@@ -118,12 +112,9 @@ func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
 func (dm *DatabaseManager) GetPublicKey(uid uuid.UUID) ([]byte, error) {
 	var publicKey []byte
 
-	query := fmt.Sprintf(
-		"SELECT public_key FROM %s WHERE uid = $1",
-		dm.tableName)
+	query := fmt.Sprintf("SELECT public_key FROM %s WHERE uid = $1", dm.tableName)
 
-	err := dm.db.QueryRow(query, uid.String()).
-		Scan(&publicKey)
+	err := dm.db.QueryRow(query, uid.String()).Scan(&publicKey)
 	if err != nil {
 		if dm.isConnectionAvailable(err) {
 			return dm.GetPublicKey(uid)
@@ -137,12 +128,9 @@ func (dm *DatabaseManager) GetPublicKey(uid uuid.UUID) ([]byte, error) {
 func (dm *DatabaseManager) GetAuthToken(uid uuid.UUID) (string, error) {
 	var authToken string
 
-	query := fmt.Sprintf(
-		"SELECT auth_token FROM %s WHERE uid = $1",
-		dm.tableName)
+	query := fmt.Sprintf("SELECT auth_token FROM %s WHERE uid = $1", dm.tableName)
 
-	err := dm.db.QueryRow(query, uid.String()).
-		Scan(&authToken)
+	err := dm.db.QueryRow(query, uid.String()).Scan(&authToken)
 	if err != nil {
 		if dm.isConnectionAvailable(err) {
 			return dm.GetAuthToken(uid)
@@ -167,13 +155,10 @@ func (dm *DatabaseManager) StartTransactionWithLock(ctx context.Context, uid uui
 
 	var id string
 
-	query := fmt.Sprintf(
-		"SELECT uid FROM %s WHERE uid = $1 FOR UPDATE",
-		dm.tableName)
+	query := fmt.Sprintf("SELECT uid FROM %s WHERE uid = $1 FOR UPDATE", dm.tableName)
 
 	// lock row FOR UPDATE
-	err = tx.QueryRow(query, uid).
-		Scan(&id)
+	err = tx.QueryRow(query, uid).Scan(&id)
 	if err != nil {
 		if dm.isConnectionAvailable(err) {
 			return dm.StartTransactionWithLock(ctx, uid)
@@ -205,12 +190,9 @@ func (dm *DatabaseManager) FetchIdentity(transactionCtx interface{}, uid uuid.UU
 
 	var id ent.Identity
 
-	query := fmt.Sprintf(
-		"SELECT * FROM %s WHERE uid = $1",
-		dm.tableName)
+	query := fmt.Sprintf("SELECT * FROM %s WHERE uid = $1", dm.tableName)
 
-	err := tx.QueryRow(query, uid.String()).
-		Scan(&id.Uid, &id.PrivateKey, &id.PublicKey, &id.Signature, &id.AuthToken)
+	err := tx.QueryRow(query, uid.String()).Scan(&id.Uid, &id.PrivateKey, &id.PublicKey, &id.Signature, &id.AuthToken)
 	if err != nil {
 		if dm.isConnectionAvailable(err) {
 			return dm.FetchIdentity(tx, uid)
@@ -227,13 +209,9 @@ func (dm *DatabaseManager) SetSignature(transactionCtx interface{}, uid uuid.UUI
 		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
-	query := fmt.Sprintf(
-		"UPDATE %s SET signature = $1 WHERE uid = $2;",
-		dm.tableName)
+	query := fmt.Sprintf("UPDATE %s SET signature = $1 WHERE uid = $2;", dm.tableName)
 
-	_, err := tx.Exec(
-		query,
-		&signature, uid.String())
+	_, err := tx.Exec(query, &signature, uid.String())
 	if err != nil {
 		if dm.isConnectionAvailable(err) {
 			return dm.SetSignature(tx, uid, signature)
@@ -253,12 +231,9 @@ func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity
 	// make sure identity does not exist yet
 	var id string
 
-	query := fmt.Sprintf(
-		"SELECT uid FROM %s WHERE uid = $1 FOR UPDATE;",
-		dm.tableName)
+	query := fmt.Sprintf("SELECT uid FROM %s WHERE uid = $1 FOR UPDATE;", dm.tableName)
 
-	err := tx.QueryRow(query, identity.Uid).
-		Scan(&id)
+	err := tx.QueryRow(query, identity.Uid).Scan(&id)
 	if err != nil {
 		if dm.isConnectionAvailable(err) {
 			return dm.StoreNewIdentity(tx, identity)
