@@ -33,8 +33,9 @@ import (
 // DatabaseManager contains the postgres database connection, and offers methods
 // for interacting with the database.
 type DatabaseManager struct {
-	options *sql.TxOptions
-	db      *sql.DB
+	options   *sql.TxOptions
+	db        *sql.DB
+	tableName string
 }
 
 // Ensure Database implements the ContextManager interface
@@ -61,7 +62,8 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string) (*DatabaseManager, err
 			Isolation: sql.LevelReadCommitted,
 			ReadOnly:  false,
 		},
-		db: pg,
+		db:        pg,
+		tableName: tableName,
 	}
 
 	if _, err = dbManager.db.Exec(CreateTable(PostgresIdentity, tableName)); err != nil {
@@ -74,7 +76,7 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string) (*DatabaseManager, err
 func (dm *DatabaseManager) Exists(uid uuid.UUID) (bool, error) {
 	var id string
 
-	err := dm.db.QueryRow("SELECT uid FROM identity WHERE uid = $1", uid.String()).
+	err := dm.db.QueryRow("SELECT uid FROM $1 WHERE uid = $2", dm.tableName, uid.String()).
 		Scan(&id)
 	if err != nil {
 		if dm.isConnectionAvailable(err) {
@@ -93,7 +95,7 @@ func (dm *DatabaseManager) Exists(uid uuid.UUID) (bool, error) {
 func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
 	var privateKey []byte
 
-	err := dm.db.QueryRow("SELECT private_key FROM identity WHERE uid = $1", uid.String()).
+	err := dm.db.QueryRow("SELECT private_key FROM $1 WHERE uid = $2", dm.tableName, uid.String()).
 		Scan(&privateKey)
 	if err != nil {
 		if dm.isConnectionAvailable(err) {
@@ -108,7 +110,7 @@ func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
 func (dm *DatabaseManager) GetPublicKey(uid uuid.UUID) ([]byte, error) {
 	var publicKey []byte
 
-	err := dm.db.QueryRow("SELECT public_key FROM identity WHERE uid = $1", uid.String()).
+	err := dm.db.QueryRow("SELECT public_key FROM $1 WHERE uid = $2", dm.tableName, uid.String()).
 		Scan(&publicKey)
 	if err != nil {
 		if dm.isConnectionAvailable(err) {
@@ -123,7 +125,7 @@ func (dm *DatabaseManager) GetPublicKey(uid uuid.UUID) ([]byte, error) {
 func (dm *DatabaseManager) GetAuthToken(uid uuid.UUID) (string, error) {
 	var authToken string
 
-	err := dm.db.QueryRow("SELECT auth_token FROM identity WHERE uid = $1", uid.String()).
+	err := dm.db.QueryRow("SELECT auth_token FROM $1 WHERE uid = $2", dm.tableName, uid.String()).
 		Scan(&authToken)
 	if err != nil {
 		if dm.isConnectionAvailable(err) {
@@ -150,7 +152,7 @@ func (dm *DatabaseManager) StartTransactionWithLock(ctx context.Context, uid uui
 	var id string
 
 	// lock row FOR UPDATE
-	err = tx.QueryRow("SELECT uid FROM identity WHERE uid = $1 FOR UPDATE", uid).
+	err = tx.QueryRow("SELECT uid FROM $1 WHERE uid = $2 FOR UPDATE", dm.tableName, uid.String()).
 		Scan(&id)
 	if err != nil {
 		if dm.isConnectionAvailable(err) {
@@ -183,7 +185,7 @@ func (dm *DatabaseManager) FetchIdentity(transactionCtx interface{}, uid uuid.UU
 
 	var id ent.Identity
 
-	err := tx.QueryRow("SELECT * FROM identity WHERE uid = $1", uid.String()).
+	err := tx.QueryRow("SELECT * FROM $1 WHERE uid = $2", dm.tableName, uid.String()).
 		Scan(&id.Uid, &id.PrivateKey, &id.PublicKey, &id.Signature, &id.AuthToken)
 	if err != nil {
 		if dm.isConnectionAvailable(err) {
@@ -202,8 +204,8 @@ func (dm *DatabaseManager) SetSignature(transactionCtx interface{}, uid uuid.UUI
 	}
 
 	_, err := tx.Exec(
-		"UPDATE identity SET signature = $1 WHERE uid = $2;",
-		&signature, uid.String())
+		"UPDATE $1 SET signature = $2 WHERE uid = $3;",
+		dm.tableName, &signature, uid.String())
 	if err != nil {
 		if dm.isConnectionAvailable(err) {
 			return dm.SetSignature(tx, uid, signature)
@@ -223,7 +225,7 @@ func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity
 	// make sure identity does not exist yet
 	var id string
 
-	err := tx.QueryRow("SELECT uid FROM identity WHERE uid = $1 FOR UPDATE", identity.Uid).
+	err := tx.QueryRow("SELECT uid FROM $1 WHERE uid = $2 FOR UPDATE", dm.tableName, identity.Uid).
 		Scan(&id)
 	if err != nil {
 		if dm.isConnectionAvailable(err) {
@@ -243,8 +245,8 @@ func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity
 
 func (dm *DatabaseManager) storeIdentity(tx *sql.Tx, identity *ent.Identity) error {
 	_, err := tx.Exec(
-		"INSERT INTO identity (uid, private_key, public_key, signature, auth_token) VALUES ($1, $2, $3, $4, $5);",
-		&identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.Signature, &identity.AuthToken)
+		"INSERT INTO $1 (uid, private_key, public_key, signature, auth_token) VALUES ($2, $3, $4, $5, $6);",
+		dm.tableName, &identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.Signature, &identity.AuthToken)
 	if err != nil {
 		if dm.isConnectionAvailable(err) {
 			return dm.storeIdentity(tx, identity)
@@ -255,7 +257,7 @@ func (dm *DatabaseManager) storeIdentity(tx *sql.Tx, identity *ent.Identity) err
 	return nil
 }
 
-func (dm *DatabaseManager) isConnectionAvailable(err error) bool { // todo this will only work with postgres
+func (dm *DatabaseManager) isConnectionAvailable(err error) bool {
 	if err.Error() == pq.ErrorCode("53300").Name() || // "53300": "too_many_connections",
 		err.Error() == pq.ErrorCode("53400").Name() { // "53400": "configuration_limit_exceeded",
 		time.Sleep(100 * time.Millisecond)
