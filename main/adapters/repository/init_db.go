@@ -26,29 +26,29 @@ type Migration struct {
 	MigrationVersion string
 }
 
-var CREATE = map[int]string{
-	PostgresIdentity: "CREATE TABLE IF NOT EXISTS " + vars.PostgreSqlIdentityTableName + "(" +
+var create = map[int]string{
+	PostgresIdentity: "CREATE TABLE IF NOT EXISTS %s(" +
 		"uid VARCHAR(255) NOT NULL PRIMARY KEY, " +
 		"private_key BYTEA NOT NULL, " +
 		"public_key BYTEA NOT NULL, " +
 		"signature BYTEA NOT NULL, " +
 		"auth_token VARCHAR(255) NOT NULL);",
-	PostgresVersion: "CREATE TABLE IF NOT EXISTS " + vars.PostgreSqlVersionTableName + "(" +
+	PostgresVersion: "CREATE TABLE IF NOT EXISTS %s(" +
 		"id VARCHAR(255) NOT NULL PRIMARY KEY, " +
 		"migration_version VARCHAR(255) NOT NULL);",
 	//MySQL:    "CREATE TABLE identity (id INT, datetime TIMESTAMP)",
 	//SQLite:   "CREATE TABLE identity (id INTEGER, datetime TEXT)",
 }
 
-type Table struct {
-	exists bool
+func CreateTable(tableType int, tableName string) string {
+	return fmt.Sprintf(create[tableType], tableName)
 }
 
 func Migrate(c config.Config) error {
 	txCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	dbManager, err := NewSqlDatabaseInfo(c)
+	dbManager, err := NewSqlDatabaseInfo(c.PostgresDSN, vars.PostgreSqlIdentityTableName)
 	if err != nil {
 		return err
 	}
@@ -65,10 +65,6 @@ func Migrate(c config.Config) error {
 	log.Println("database migration version updated, ready to upgrade")
 	identitiesToPort, err := getAllIdentitiesFromLegacyCtx(c)
 	if err != nil {
-		return err
-	}
-
-	if _, err := dbManager.db.Exec(CREATE[PostgresIdentity]); err != nil {
 		return err
 	}
 
@@ -184,7 +180,7 @@ func checkVersion(ctx context.Context, dm *DatabaseManager) (*sql.Tx, bool, erro
 		return nil, false, err
 	}
 
-	if _, err := dm.db.Exec(CREATE[PostgresVersion]); err != nil {
+	if _, err := dm.db.Exec(CreateTable(PostgresVersion, vars.PostgreSqlIdentityTableName)); err != nil {
 		return tx, false, err
 	}
 
