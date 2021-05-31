@@ -21,22 +21,22 @@ const (
 	TestAuthToken = "TEST_auth"
 )
 
-func TestDatabaseManager_StoreNewIdentity(t *testing.T) {
-	// initialization
-	conf := &config.Config{}
-	err := conf.Load("../../", "config.json")
-	if err != nil {
-		t.Fatalf("ERROR: unable to load configuration: %s", err)
-	}
+var (
+	testIdentity = initTestIdentity()
+)
 
-	dbManager, err := NewSqlDatabaseInfo(conf.PostgresDSN, TestTableName)
+func TestDatabaseManager(t *testing.T) {
+	dbManager, err := initDB()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	testIdentity, err := getTestIdentity()
+	exists, err := dbManager.Exists(uuid.MustParse(testIdentity.Uid))
 	if err != nil {
 		t.Fatal(err)
+	}
+	if exists {
+		t.Fatal(fmt.Errorf("dbManager.Exists returned true"))
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -82,42 +82,68 @@ func TestDatabaseManager_StoreNewIdentity(t *testing.T) {
 		t.Fatal("fetched unexpected value")
 	}
 
-	// clean up
-	deleteQuery := fmt.Sprintf("DELETE FROM %s WHERE uid = $1;", TestTableName)
-	_, err = dbManager.db.Exec(deleteQuery, testIdentity.Uid)
+	// get individual attributes
+	priv, err := dbManager.GetPrivateKey(uuid.MustParse(testIdentity.Uid))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pub, err := dbManager.GetPublicKey(uuid.MustParse(testIdentity.Uid))
+	if err != nil {
+		t.Fatal(err)
+	}
+	auth, err := dbManager.GetAuthToken(uuid.MustParse(testIdentity.Uid))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	dropTableQuery := fmt.Sprintf("DROP TABLE %s;", TestTableName)
-	_, err = dbManager.db.Exec(dropTableQuery)
+	if auth != testIdentity.AuthToken ||
+		!bytes.Equal(priv, testIdentity.PrivateKey) ||
+		!bytes.Equal(pub, testIdentity.PublicKey) {
+		t.Fatal("getter returned unexpected value")
+	}
+
+	err = cleanUp(dbManager)
 	if err != nil {
 		t.Fatal(err)
 	}
 }
 
-func getTestIdentity() (*ent.Identity, error) {
-	testUid, err := uuid.Parse(TestUUID)
+func initDB() (*DatabaseManager, error) {
+	conf := &config.Config{}
+	err := conf.Load("../../", "config.json")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("ERROR: unable to load configuration: %s", err)
 	}
-	priv, err := base64.StdEncoding.DecodeString(TestPrivKey)
-	if err != nil {
-		return nil, err
-	}
-	pub, err := base64.StdEncoding.DecodeString(TestPubKey)
-	if err != nil {
-		return nil, err
-	}
-	sig, err := base64.StdEncoding.DecodeString(TestSignature)
-	if err != nil {
-		return nil, err
-	}
+
+	return NewSqlDatabaseInfo(conf.PostgresDSN, TestTableName)
+}
+
+func initTestIdentity() *ent.Identity {
+	priv, _ := base64.StdEncoding.DecodeString(TestPrivKey)
+	pub, _ := base64.StdEncoding.DecodeString(TestPubKey)
+	sig, _ := base64.StdEncoding.DecodeString(TestSignature)
+
 	return &ent.Identity{
-		Uid:        testUid.String(),
+		Uid:        uuid.MustParse(TestUUID).String(),
 		PrivateKey: priv,
 		PublicKey:  pub,
 		Signature:  sig,
 		AuthToken:  TestAuthToken,
-	}, nil
+	}
+}
+
+func cleanUp(dbManager *DatabaseManager) error {
+	deleteQuery := fmt.Sprintf("DELETE FROM %s WHERE uid = $1;", TestTableName)
+	_, err := dbManager.db.Exec(deleteQuery, TestUUID)
+	if err != nil {
+		return err
+	}
+
+	dropTableQuery := fmt.Sprintf("DROP TABLE %s;", TestTableName)
+	_, err = dbManager.db.Exec(dropTableQuery)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
