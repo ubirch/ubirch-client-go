@@ -13,12 +13,13 @@ import (
 )
 
 const (
-	TestTableName = "test_identity"
-	TestUUID      = "2336c75d-a14a-47dd-80d9-3cbe9d560433"
-	TestPrivKey   = "Qkp+ZVAlEKCQNvI+OCbY7LKcQVW5iKfFMfzedTI3uG0="
-	TestPubKey    = "bvXP3mQ42hXpcqo0ms7Lr1n6Q4L5CsS8HXk0mdXlsXLwYjd35jLlX3iHrXMgUH92N8ujbZ3h3TnLk8a0GikUbg=="
-	TestSignature = "XqfjRkM0g9swes9osaoptFCFau4Qq3jX+bv+SwPLkUARs8MRm6uRj3VCbvF3JZUlHAEuXmAn849vV9e71KGjDQ=="
-	TestAuthToken = "TEST_auth"
+	TestTableName  = "test_identity"
+	TestUUID       = "2336c75d-a14a-47dd-80d9-3cbe9d560433"
+	TestAuthToken  = "TEST_auth"
+	TestPrivKey    = "Qkp+ZVAlEKCQNvI+OCbY7LKcQVW5iKfFMfzedTI3uG0="
+	TestPubKey     = "bvXP3mQ42hXpcqo0ms7Lr1n6Q4L5CsS8HXk0mdXlsXLwYjd35jLlX3iHrXMgUH92N8ujbZ3h3TnLk8a0GikUbg=="
+	TestSignature  = "XqfjRkM0g9swes9osaoptFCFau4Qq3jX+bv+SwPLkUARs8MRm6uRj3VCbvF3JZUlHAEuXmAn849vV9e71KGjDQ=="
+	TestSignature2 = "Zr2GweEW6U/23BXBlR7MG7E0APYVtkhVSgtpUQ8e8EThtLEBjNIQcsX1B7bW3sbx8cBQQ9lBXFUPwaQ64X5HnQ=="
 )
 
 var (
@@ -30,20 +31,19 @@ func TestDatabaseManager(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer cleanUp(t, dbManager)
 
+	// check not exists
 	exists, err := dbManager.Exists(uuid.MustParse(testIdentity.Uid))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if exists {
-		t.Fatal(fmt.Errorf("dbManager.Exists returned true"))
+		t.Errorf("dbManager.Exists returned TRUE")
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	// store identity
-	tx, err := dbManager.StartTransaction(ctx)
+	tx, err := dbManager.StartTransaction(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,8 +58,17 @@ func TestDatabaseManager(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// check exists
+	exists, err = dbManager.Exists(uuid.MustParse(testIdentity.Uid))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !exists {
+		t.Errorf("dbManager.Exists returned FALSE")
+	}
+
 	// fetch identity
-	tx, err = dbManager.StartTransaction(ctx)
+	tx, err = dbManager.StartTransaction(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,37 +83,82 @@ func TestDatabaseManager(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if id.Uid != testIdentity.Uid ||
-		id.AuthToken != testIdentity.AuthToken ||
-		!bytes.Equal(id.PrivateKey, testIdentity.PrivateKey) ||
-		!bytes.Equal(id.PublicKey, testIdentity.PublicKey) ||
-		!bytes.Equal(id.Signature, testIdentity.Signature) {
-		t.Fatal("fetched unexpected value")
+	if id.Uid != testIdentity.Uid {
+		t.Error("fetched unexpected uid value")
+	}
+	if id.AuthToken != testIdentity.AuthToken {
+		t.Error("fetched unexpected auth token value")
+	}
+	if !bytes.Equal(id.PrivateKey, testIdentity.PrivateKey) {
+		t.Error("fetched unexpected private key value")
+	}
+	if !bytes.Equal(id.PublicKey, testIdentity.PublicKey) {
+		t.Error("fetched unexpected public key value")
+	}
+	if !bytes.Equal(id.Signature, testIdentity.Signature) {
+		t.Error("fetched unexpected signature value")
 	}
 
 	// get individual attributes
-	priv, err := dbManager.GetPrivateKey(uuid.MustParse(testIdentity.Uid))
-	if err != nil {
-		t.Fatal(err)
-	}
-	pub, err := dbManager.GetPublicKey(uuid.MustParse(testIdentity.Uid))
-	if err != nil {
-		t.Fatal(err)
-	}
 	auth, err := dbManager.GetAuthToken(uuid.MustParse(testIdentity.Uid))
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	if auth != testIdentity.AuthToken ||
-		!bytes.Equal(priv, testIdentity.PrivateKey) ||
-		!bytes.Equal(pub, testIdentity.PublicKey) {
-		t.Fatal("getter returned unexpected value")
+	if auth != testIdentity.AuthToken {
+		t.Error("GetAuthToken returned unexpected value")
 	}
 
-	err = cleanUp(dbManager)
+	priv, err := dbManager.GetPrivateKey(uuid.MustParse(testIdentity.Uid))
 	if err != nil {
 		t.Fatal(err)
+	}
+	if !bytes.Equal(priv, testIdentity.PrivateKey) {
+		t.Error("GetPrivateKey returned unexpected value")
+	}
+
+	pub, err := dbManager.GetPublicKey(uuid.MustParse(testIdentity.Uid))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(pub, testIdentity.PublicKey) {
+		t.Error("GetPublicKey returned unexpected value")
+	}
+
+	// set signature
+	tx, err = dbManager.StartTransactionWithLock(context.Background(), uuid.MustParse(testIdentity.Uid))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sig2, _ := base64.StdEncoding.DecodeString(TestSignature2)
+	err = dbManager.SetSignature(tx, uuid.MustParse(testIdentity.Uid), sig2)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = dbManager.CloseTransaction(tx, Commit)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// fetch identity
+	tx, err = dbManager.StartTransactionWithLock(context.Background(), uuid.MustParse(testIdentity.Uid))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	id, err = dbManager.FetchIdentity(tx, uuid.MustParse(testIdentity.Uid))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = dbManager.CloseTransaction(tx, Commit)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(id.Signature, sig2) {
+		t.Error("setting signature failed")
 	}
 }
 
@@ -132,18 +186,16 @@ func initTestIdentity() *ent.Identity {
 	}
 }
 
-func cleanUp(dbManager *DatabaseManager) error {
+func cleanUp(t *testing.T, dbManager *DatabaseManager) {
 	deleteQuery := fmt.Sprintf("DELETE FROM %s WHERE uid = $1;", TestTableName)
 	_, err := dbManager.db.Exec(deleteQuery, TestUUID)
 	if err != nil {
-		return err
+		t.Error(err)
 	}
 
 	dropTableQuery := fmt.Sprintf("DROP TABLE %s;", TestTableName)
 	_, err = dbManager.db.Exec(dropTableQuery)
 	if err != nil {
-		return err
+		t.Error(err)
 	}
-
-	return nil
 }
