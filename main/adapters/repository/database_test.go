@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -21,6 +22,7 @@ const (
 )
 
 func TestDatabaseManager_StoreNewIdentity(t *testing.T) {
+	// initialization
 	conf := &config.Config{}
 	err := conf.Load("../../", "config.json")
 	if err != nil {
@@ -40,6 +42,7 @@ func TestDatabaseManager_StoreNewIdentity(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// store identity
 	tx, err := dbManager.StartTransaction(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -53,6 +56,30 @@ func TestDatabaseManager_StoreNewIdentity(t *testing.T) {
 	err = dbManager.CloseTransaction(tx, Commit)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	// fetch identity
+	tx, err = dbManager.StartTransaction(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	id, err := dbManager.FetchIdentity(tx, uuid.MustParse(testIdentity.Uid))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = dbManager.CloseTransaction(tx, Commit)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if id.Uid != testIdentity.Uid ||
+		id.AuthToken != testIdentity.AuthToken ||
+		!bytes.Equal(id.PrivateKey, testIdentity.PrivateKey) ||
+		!bytes.Equal(id.PublicKey, testIdentity.PublicKey) ||
+		!bytes.Equal(id.Signature, testIdentity.Signature) {
+		t.Fatal("fetched unexpected value")
 	}
 
 	// clean up
