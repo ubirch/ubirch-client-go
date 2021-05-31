@@ -180,7 +180,7 @@ func checkVersion(ctx context.Context, dm *DatabaseManager) (*sql.Tx, bool, erro
 		return nil, false, err
 	}
 
-	if _, err := dm.db.Exec(CreateTable(PostgresVersion, vars.PostgreSqlIdentityTableName)); err != nil {
+	if _, err := dm.db.Exec(CreateTable(PostgresVersion, vars.PostgreSqlVersionTableName)); err != nil {
 		return tx, false, err
 	}
 
