@@ -100,7 +100,9 @@ func (s *Signer) getAuth(uid uuid.UUID) (auth string, err error) {
 func (s *Signer) chain(msg HTTPRequest, tx interface{}, identity *ent.Identity) h.HTTPResponse {
 	log.Infof("%s: anchor hash [chained]: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
+	timer := prometheus.NewTimer(p.SignatureCreationDuration)
 	uppBytes, err := s.getChainedUPP(msg.ID, msg.Hash, identity.PrivateKey, identity.Signature)
+	timer.ObserveDuration()
 	if err != nil {
 		log.Errorf("%s: could not create chained UPP: %v", msg.ID, err)
 		return errorResponse(http.StatusInternalServerError, "")
@@ -121,6 +123,8 @@ func (s *Signer) chain(msg HTTPRequest, tx interface{}, identity *ent.Identity) 
 				msg.ID, resp.StatusCode, string(resp.Content))
 			return errorResponse(http.StatusInternalServerError, "")
 		}
+
+		p.SignatureCreationCounter.Inc()
 	}
 
 	return resp
