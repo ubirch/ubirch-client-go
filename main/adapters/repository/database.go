@@ -222,6 +222,20 @@ func (dm *DatabaseManager) SetSignature(transactionCtx interface{}, uid uuid.UUI
 	return nil
 }
 
+func (dm *DatabaseManager) SetAuthToken(uid uuid.UUID, authToken string) error {
+	query := fmt.Sprintf("UPDATE %s SET auth_token = $1 WHERE uid = $2;", dm.tableName)
+
+	_, err := dm.db.Exec(query, &authToken, uid.String())
+	if err != nil {
+		if dm.isConnectionAvailable(err) {
+			return dm.SetAuthToken(uid, authToken)
+		}
+		return err
+	}
+
+	return nil
+}
+
 func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity *ent.Identity) error {
 	tx, ok := transactionCtx.(*sql.Tx)
 	if !ok {
