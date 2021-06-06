@@ -179,9 +179,8 @@ func (p *ExtendedProtocol) GetAuthToken(uid uuid.UUID) (string, error) {
 }
 
 func (p *ExtendedProtocol) checkIdentityAttributes(i *ent.Identity) error {
-	_, err := uuid.Parse(i.Uid)
-	if err != nil {
-		return fmt.Errorf("%s: %v", i.Uid, err)
+	if i.Uid == uuid.Nil {
+		return fmt.Errorf("uuid has Nil value: %s", i.Uid)
 	}
 
 	if len(i.PrivateKey) == 0 {

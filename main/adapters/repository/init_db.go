@@ -103,7 +103,7 @@ func getAllIdentitiesFromLegacyCtx(c config.Config) ([]ent.Identity, error) {
 	for _, uid := range uids {
 
 		i := ent.Identity{
-			Uid: uid.String(),
+			Uid: uid,
 		}
 
 		i.PrivateKey, err = fileManager.GetPrivateKey(uid)
