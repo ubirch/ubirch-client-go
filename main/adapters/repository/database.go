@@ -59,7 +59,7 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string) (*DatabaseManager, err
 
 	dbManager := &DatabaseManager{
 		options: &sql.TxOptions{
-			Isolation: sql.LevelReadCommitted,
+			Isolation: sql.LevelSerializable,
 			ReadOnly:  false,
 		},
 		db:        pg,
@@ -74,11 +74,11 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string) (*DatabaseManager, err
 }
 
 func (dm *DatabaseManager) Exists(uid uuid.UUID) (bool, error) {
-	var id string
+	var buf uuid.UUID
 
 	query := fmt.Sprintf("SELECT uid FROM %s WHERE uid = $1", dm.tableName)
 
-	err := dm.db.QueryRow(query, uid.String()).Scan(&id)
+	err := dm.db.QueryRow(query, uid.String()).Scan(&buf)
 	if err != nil {
 		if dm.isConnectionAvailable(err) {
 			return dm.Exists(uid)
@@ -153,12 +153,12 @@ func (dm *DatabaseManager) StartTransactionWithLock(ctx context.Context, uid uui
 		return nil, err
 	}
 
-	var id string
+	var buf uuid.UUID
 
 	query := fmt.Sprintf("SELECT uid FROM %s WHERE uid = $1 FOR UPDATE", dm.tableName)
 
 	// lock row FOR UPDATE
-	err = tx.QueryRow(query, uid).Scan(&id)
+	err = tx.QueryRow(query, uid).Scan(&buf)
 	if err != nil {
 		if dm.isConnectionAvailable(err) {
 			return dm.StartTransactionWithLock(ctx, uid)
@@ -228,25 +228,16 @@ func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity
 		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
-	// make sure identity does not exist yet
-	var id string
-
-	query := fmt.Sprintf("SELECT uid FROM %s WHERE uid = $1 FOR UPDATE;", dm.tableName)
-
-	err := tx.QueryRow(query, identity.Uid).Scan(&id)
+	// make sure identity does not already exist
+	exists, err := dm.Exists(identity.Uid)
 	if err != nil {
-		if dm.isConnectionAvailable(err) {
-			return dm.StoreNewIdentity(tx, identity)
-		}
-		if err == sql.ErrNoRows {
-			// there were no rows, but otherwise no error occurred
-			return dm.storeIdentity(tx, identity)
-		} else {
-			return err
-		}
-	} else {
+		return err
+	}
+	if exists {
 		return ErrExists
 	}
+
+	return dm.storeIdentity(tx, identity)
 }
 
 func (dm *DatabaseManager) storeIdentity(tx *sql.Tx, identity *ent.Identity) error {
