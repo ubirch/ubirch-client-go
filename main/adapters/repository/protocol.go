@@ -17,6 +17,8 @@ package repository
 import (
 	"context"
 	"fmt"
+	"sync"
+
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
 	"github.com/ubirch/ubirch-client-go/main/adapters/encrypters"
@@ -29,12 +31,13 @@ type ExtendedProtocol struct {
 	*clients.Client
 	ctxManager   ContextManager
 	keyEncrypter *encrypters.KeyEncrypter
+	keyDerivator *encrypters.KeyDerivator
+
+	AuthBuffer      map[uuid.UUID]string
+	AuthBufferMutex *sync.RWMutex
 }
 
-// Ensure ExtendedProtocol implements the ContextManager interface
-var _ ContextManager = (*ExtendedProtocol)(nil)
-
-func NewExtendedProtocol(ctxManager ContextManager, secret []byte, client *clients.Client) (*ExtendedProtocol, error) {
+func NewExtendedProtocol(ctxManager ContextManager, secret, salt []byte, client *clients.Client) (*ExtendedProtocol, error) {
 	crypto := &ubirch.ECDSACryptoContext{}
 
 	enc, err := encrypters.NewKeyEncrypter(secret, crypto)
@@ -49,6 +52,10 @@ func NewExtendedProtocol(ctxManager ContextManager, secret []byte, client *clien
 		Client:       client,
 		ctxManager:   ctxManager,
 		keyEncrypter: enc,
+		keyDerivator: encrypters.NewDefaultKeyDerivator(salt),
+
+		AuthBuffer:      map[uuid.UUID]string{},
+		AuthBufferMutex: &sync.RWMutex{},
 	}
 
 	return p, nil
@@ -67,7 +74,14 @@ func (p *ExtendedProtocol) CloseTransaction(tx interface{}, commit bool) error {
 }
 
 func (p *ExtendedProtocol) Exists(uid uuid.UUID) (bool, error) {
-	return p.ctxManager.Exists(uid)
+	p.AuthBufferMutex.RLock()
+	_, found := p.AuthBuffer[uid]
+	p.AuthBufferMutex.RUnlock()
+
+	if !found {
+		return p.ctxManager.Exists(uid)
+	}
+	return true, nil
 }
 
 func (p *ExtendedProtocol) StoreNewIdentity(tx interface{}, i *ent.Identity) error {
@@ -88,6 +102,9 @@ func (p *ExtendedProtocol) StoreNewIdentity(tx interface{}, i *ent.Identity) err
 	if err != nil {
 		return err
 	}
+
+	// get a derived key from the auth token
+	i.AuthToken = p.keyDerivator.GetDerivedKey(i.AuthToken)
 
 	return p.ctxManager.StoreNewIdentity(tx, i)
 }
@@ -165,17 +182,27 @@ func (p *ExtendedProtocol) GetPublicKey(uid uuid.UUID) (pubKeyPEM []byte, err er
 	return p.PublicKeyBytesToPEM(publicKeyBytes)
 }
 
-func (p *ExtendedProtocol) GetAuthToken(uid uuid.UUID) (string, error) {
-	authToken, err := p.ctxManager.GetAuthToken(uid)
-	if err != nil {
-		return "", err
+func (p *ExtendedProtocol) CheckAuthToken(uid uuid.UUID, authTokenToCheck string) (ok bool, err error) {
+	p.AuthBufferMutex.RLock()
+	derivedKeyFromToken, found := p.AuthBuffer[uid]
+	p.AuthBufferMutex.RUnlock()
+
+	if !found {
+		derivedKeyFromToken, err = p.ctxManager.GetAuthToken(uid)
+		if err != nil {
+			return false, err
+		}
+
+		p.AuthBufferMutex.Lock()
+		p.AuthBuffer[uid] = derivedKeyFromToken
+		p.AuthBufferMutex.Unlock()
 	}
 
-	if len(authToken) == 0 {
-		return "", fmt.Errorf("%s: empty auth token", uid)
+	if len(derivedKeyFromToken) == 0 {
+		return false, fmt.Errorf("%s: empty auth token", uid)
 	}
 
-	return authToken, nil
+	return derivedKeyFromToken == p.keyDerivator.GetDerivedKey(authTokenToCheck), nil
 }
 
 func (p *ExtendedProtocol) checkIdentityAttributes(i *ent.Identity) error {

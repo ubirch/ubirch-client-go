@@ -17,7 +17,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
 	"github.com/ubirch/ubirch-client-go/main/adapters/handlers"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
@@ -29,7 +28,6 @@ import (
 	"golang.org/x/sync/errgroup"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 
 	log "github.com/sirupsen/logrus"
@@ -151,7 +149,7 @@ func main() {
 		IdentityServiceURL: conf.IdentityService,
 	}
 
-	protocol, err := repository.NewExtendedProtocol(ctxManager, conf.SecretBytes32, client)
+	protocol, err := repository.NewExtendedProtocol(ctxManager, conf.SecretBytes32, conf.SaltBytes, client)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -172,9 +170,7 @@ func main() {
 	}
 
 	signer := handlers.Signer{
-		Protocol:             protocol,
-		AuthTokensBuffer:     map[uuid.UUID]string{},
-		AuthTokenBufferMutex: &sync.RWMutex{},
+		ExtendedProtocol: protocol,
 	}
 
 	verifier := handlers.Verifier{
