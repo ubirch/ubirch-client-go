@@ -14,7 +14,10 @@ import (
 	"strings"
 )
 
-const MigrationVersion = "2.0"
+const (
+	MigrationID      = "dbMigration"
+	MigrationVersion = "2.0"
+)
 
 const (
 	PostgresIdentity = iota
@@ -222,7 +225,7 @@ func encryptTokens(dm *DatabaseManager, p *ExtendedProtocol) error {
 
 func getVersion(dm *DatabaseManager) (*Migration, error) {
 	version := &Migration{
-		Id: "dbMigration",
+		Id: MigrationID,
 	}
 
 	if _, err := dm.db.Exec(CreateTable(PostgresVersion, vars.PostgreSqlVersionTableName)); err != nil {
