@@ -164,10 +164,14 @@ func (p *ExtendedProtocol) SetSignature(tx interface{}, uid uuid.UUID, signature
 	return p.CloseTransaction(tx, Commit)
 }
 
-func (p *ExtendedProtocol) SetAuthToken(uid uuid.UUID, authToken string) error {
+func (p *ExtendedProtocol) SetAuthToken(tx interface{}, uid uuid.UUID, authToken string) error {
+	if len(authToken) == 0 {
+		return fmt.Errorf("empty auth token")
+	}
+
 	derivedKeyFromToken := p.keyDerivator.GetDerivedKey(authToken)
 
-	return p.ctxManager.SetAuthToken(uid, derivedKeyFromToken)
+	return p.ctxManager.SetAuthToken(tx, uid, derivedKeyFromToken)
 }
 
 func (p *ExtendedProtocol) GetPrivateKey(uid uuid.UUID) ([]byte, error) {

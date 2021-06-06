@@ -222,13 +222,18 @@ func (dm *DatabaseManager) SetSignature(transactionCtx interface{}, uid uuid.UUI
 	return nil
 }
 
-func (dm *DatabaseManager) SetAuthToken(uid uuid.UUID, authToken string) error {
+func (dm *DatabaseManager) SetAuthToken(transactionCtx interface{}, uid uuid.UUID, authToken string) error {
+	tx, ok := transactionCtx.(*sql.Tx)
+	if !ok {
+		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
+	}
+
 	query := fmt.Sprintf("UPDATE %s SET auth_token = $1 WHERE uid = $2;", dm.tableName)
 
-	_, err := dm.db.Exec(query, &authToken, uid.String())
+	_, err := tx.Exec(query, &authToken, uid.String())
 	if err != nil {
 		if dm.isConnectionAvailable(err) {
-			return dm.SetAuthToken(uid, authToken)
+			return dm.SetAuthToken(tx, uid, authToken)
 		}
 		return err
 	}
