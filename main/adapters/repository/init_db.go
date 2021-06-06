@@ -17,8 +17,6 @@ const MigrationVersion = "1.0.1"
 const (
 	PostgresIdentity = iota
 	PostgresVersion
-	//MySQL
-	//SQLite
 )
 
 type Migration struct {
@@ -36,8 +34,6 @@ var create = map[int]string{
 	PostgresVersion: "CREATE TABLE IF NOT EXISTS %s(" +
 		"id VARCHAR(255) NOT NULL PRIMARY KEY, " +
 		"migration_version VARCHAR(255) NOT NULL);",
-	//MySQL:    "CREATE TABLE identity (id INT, datetime TIMESTAMP)",
-	//SQLite:   "CREATE TABLE identity (id INTEGER, datetime TEXT)",
 }
 
 func CreateTable(tableType int, tableName string) string {
@@ -45,15 +41,15 @@ func CreateTable(tableType int, tableName string) string {
 }
 
 func Migrate(c config.Config) error {
-	txCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	dbManager, err := NewSqlDatabaseInfo(c.PostgresDSN, vars.PostgreSqlIdentityTableName)
+	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, vars.PostgreSqlIdentityTableName)
 	if err != nil {
 		return err
 	}
 
-	tx, shouldMigrate, err := checkVersion(txCtx, dbManager)
+	txCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, shouldMigrate, err := checkVersion(txCtx, dm)
 	if err != nil {
 		return err
 	}
@@ -68,7 +64,7 @@ func Migrate(c config.Config) error {
 		return err
 	}
 
-	err = migrateIdentities(c, dbManager, identitiesToPort)
+	err = migrateIdentities(c, dm, identitiesToPort)
 	if err != nil {
 		return err
 	}
@@ -143,7 +139,7 @@ func getAllIdentitiesFromLegacyCtx(c config.Config) ([]ent.Identity, error) {
 func migrateIdentities(c config.Config, dm *DatabaseManager, identities []ent.Identity) error {
 	log.Infof("starting migration...")
 
-	p, err := NewExtendedProtocol(dm, c.SecretBytes32, nil)
+	p, err := NewExtendedProtocol(dm, c.SecretBytes32, c.SaltBytes, nil)
 	if err != nil {
 		return err
 	}
@@ -151,7 +147,7 @@ func migrateIdentities(c config.Config, dm *DatabaseManager, identities []ent.Id
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	tx, err := dm.db.BeginTx(ctx, dm.options)
+	tx, err := p.StartTransaction(ctx)
 	if err != nil {
 		return err
 	}
@@ -162,14 +158,14 @@ func migrateIdentities(c config.Config, dm *DatabaseManager, identities []ent.Id
 		err = p.StoreNewIdentity(tx, &id)
 		if err != nil {
 			if err == ErrExists {
-				log.Warnf("%s: %v -> skip", id.Uid, err)
+				log.Warn(err)
 			} else {
 				return err
 			}
 		}
 	}
 
-	return tx.Commit()
+	return p.CloseTransaction(tx, Commit)
 }
 
 func checkVersion(ctx context.Context, dm *DatabaseManager) (*sql.Tx, bool, error) {
