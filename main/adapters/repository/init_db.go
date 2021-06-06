@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"fmt"
+	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/ubirch/ubirch-client-go/main/config"
 	"github.com/ubirch/ubirch-client-go/main/ent"
@@ -57,6 +58,11 @@ func Migrate(c config.Config) error {
 	}
 	log.Debugf("database migration version: %s / application migration version: %s", v.MigrationVersion, MigrationVersion)
 
+	p, err := NewExtendedProtocol(dm, c.SecretBytes32, c.SaltBytes, nil)
+	if err != nil {
+		return err
+	}
+
 	if strings.HasPrefix(v.MigrationVersion, "0.") {
 		// migrate from file based context
 		identitiesToPort, err := getAllIdentitiesFromLegacyCtx(c)
@@ -64,7 +70,7 @@ func Migrate(c config.Config) error {
 			return err
 		}
 
-		err = migrateIdentities(c, dm, identitiesToPort)
+		err = migrateIdentities(p, identitiesToPort)
 		if err != nil {
 			return err
 		}
@@ -73,7 +79,12 @@ func Migrate(c config.Config) error {
 	}
 
 	if strings.HasPrefix(v.MigrationVersion, "1.") {
-		// todo get plain text auth tokens, encrypt and write back
+		err = encryptTokens(dm, p)
+		if err != nil {
+			return err
+		}
+
+		log.Infof("successfully encrypted auth tokens in database")
 	}
 
 	return updateVersion(dm, v)
@@ -142,13 +153,8 @@ func getAllIdentitiesFromLegacyCtx(c config.Config) ([]ent.Identity, error) {
 	return allIdentities, nil
 }
 
-func migrateIdentities(c config.Config, dm *DatabaseManager, identities []ent.Identity) error {
+func migrateIdentities(p *ExtendedProtocol, identities []ent.Identity) error {
 	log.Infof("starting migration...")
-
-	p, err := NewExtendedProtocol(dm, c.SecretBytes32, c.SaltBytes, nil)
-	if err != nil {
-		return err
-	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -169,6 +175,46 @@ func migrateIdentities(c config.Config, dm *DatabaseManager, identities []ent.Id
 				return err
 			}
 		}
+	}
+
+	return p.CloseTransaction(tx, Commit)
+}
+
+func encryptTokens(dm *DatabaseManager, p *ExtendedProtocol) error {
+	query := fmt.Sprintf("SELECT uid, auth_token FROM %s", dm.tableName)
+
+	rows, err := dm.db.Query(query)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	var (
+		uid  uuid.UUID
+		auth string
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := p.StartTransaction(ctx)
+	if err != nil {
+		return err
+	}
+
+	for rows.Next() {
+		err = rows.Scan(&uid, &auth)
+		if err != nil {
+			return err
+		}
+
+		err = p.SetAuthToken(tx, uid, auth)
+		if err != nil {
+			return err
+		}
+	}
+	if rows.Err() != nil {
+		return rows.Err()
 	}
 
 	return p.CloseTransaction(tx, Commit)
