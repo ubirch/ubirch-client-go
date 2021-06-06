@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -25,10 +26,6 @@ const (
 var (
 	testIdentity = initTestIdentity()
 )
-
-func TestDatabaseIsolationLvl(t *testing.T) {
-
-}
 
 func TestDatabaseManager(t *testing.T) {
 	dm, err := initDB()
@@ -155,6 +152,58 @@ func TestDatabaseManager(t *testing.T) {
 	if !bytes.Equal(id.Signature, sig2) {
 		t.Error("setting signature failed")
 	}
+}
+
+func TestDatabaseIsolationLvl(t *testing.T) {
+	dm, err := initDB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cleanUp(t, dm, cancel)
+
+	tx, err := dm.StartTransaction(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = dm.StoreNewIdentity(tx, testIdentity)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// check not exists
+	exists, err := dm.Exists(testIdentity.Uid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exists {
+		t.Errorf("dm.Exists returned TRUE before commit")
+	}
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		tx2, err := dm.StartTransaction(ctx)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		err = dm.StoreNewIdentity(tx2, testIdentity)
+		if err == nil {
+			t.Error("StoreIdentity overwrote existing entry")
+		}
+	}()
+
+	err = dm.CloseTransaction(tx, Commit)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wg.Wait()
 }
 
 func initDB() (*DatabaseManager, error) {
