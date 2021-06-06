@@ -10,9 +10,10 @@ import (
 	"github.com/ubirch/ubirch-client-go/main/ent"
 	"github.com/ubirch/ubirch-client-go/main/vars"
 	"os"
+	"strings"
 )
 
-const MigrationVersion = "1.0.1"
+const MigrationVersion = "2.0"
 
 const (
 	PostgresIdentity = iota
@@ -46,31 +47,36 @@ func Migrate(c config.Config) error {
 		return err
 	}
 
-	txCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	tx, shouldMigrate, err := checkVersion(txCtx, dm)
+	v, err := getVersion(dm)
 	if err != nil {
 		return err
 	}
-	if !shouldMigrate {
+	if v.MigrationVersion == MigrationVersion {
 		log.Infof("database migration version already up to date")
 		return nil
 	}
+	log.Debugf("database migration version: %s / application migration version: %s", v.MigrationVersion, MigrationVersion)
 
-	log.Println("database migration version updated, ready to upgrade")
-	identitiesToPort, err := getAllIdentitiesFromLegacyCtx(c)
-	if err != nil {
-		return err
+	if strings.HasPrefix(v.MigrationVersion, "0.") {
+		// migrate from file based context
+		identitiesToPort, err := getAllIdentitiesFromLegacyCtx(c)
+		if err != nil {
+			return err
+		}
+
+		err = migrateIdentities(c, dm, identitiesToPort)
+		if err != nil {
+			return err
+		}
+
+		log.Infof("successfully migrated file based context into database")
 	}
 
-	err = migrateIdentities(c, dm, identitiesToPort)
-	if err != nil {
-		return err
+	if strings.HasPrefix(v.MigrationVersion, "1.") {
+		// todo get plain text auth tokens, encrypt and write back
 	}
 
-	log.Infof("successfully migrated file based context into database")
-	return updateVersion(tx)
+	return updateVersion(dm, v)
 }
 
 func getAllIdentitiesFromLegacyCtx(c config.Config) ([]ent.Identity, error) {
@@ -168,54 +174,47 @@ func migrateIdentities(c config.Config, dm *DatabaseManager, identities []ent.Id
 	return p.CloseTransaction(tx, Commit)
 }
 
-func checkVersion(ctx context.Context, dm *DatabaseManager) (*sql.Tx, bool, error) {
-	var version Migration
-
-	tx, err := dm.db.BeginTx(ctx, dm.options)
-	if err != nil {
-		return nil, false, err
+func getVersion(dm *DatabaseManager) (*Migration, error) {
+	version := &Migration{
+		Id: "dbMigration",
 	}
 
 	if _, err := dm.db.Exec(CreateTable(PostgresVersion, vars.PostgreSqlVersionTableName)); err != nil {
-		return tx, false, err
+		return nil, err
 	}
 
-	err = tx.QueryRow("SELECT * FROM version WHERE id = 'dbMigration' FOR UPDATE").
-		Scan(&version.Id, &version.MigrationVersion)
+	err := dm.db.QueryRow("SELECT migration_version FROM version WHERE id = $1", version.Id).
+		Scan(&version.MigrationVersion)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			shouldMigrate, err := CreateVersionEntry(tx, version)
-			return tx, shouldMigrate, err
+			version.MigrationVersion = "0.0.0"
 		} else {
-			return tx, false, err
+			return nil, err
 		}
 	}
-	log.Debugf("database migration version: %s / application migration version: %s", version.MigrationVersion, MigrationVersion)
-	if version.MigrationVersion != MigrationVersion {
-		return tx, true, nil
-	}
-	return tx, false, nil
+	return version, nil
 }
 
-func CreateVersionEntry(tx *sql.Tx, version Migration) (bool, error) {
-	version.Id = "dbMigration"
+func updateVersion(dm *DatabaseManager, version *Migration) error {
 	version.MigrationVersion = MigrationVersion
-	_, err := tx.Exec("INSERT INTO version (id, migration_version) VALUES ($1, $2);",
-		&version.Id, &version.MigrationVersion)
-	if err != nil {
-		return false, err
-	}
-	return true, nil
-}
 
-func updateVersion(tx *sql.Tx) error {
-	var version Migration
-	version.Id = "dbMigration"
-	version.MigrationVersion = MigrationVersion
-	_, err := tx.Exec("UPDATE version SET migration_version = $1 WHERE id = $2;",
+	_, err := dm.db.Exec("UPDATE version SET migration_version = $1 WHERE id = $2;",
 		&version.MigrationVersion, &version.Id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return createVersionEntry(dm, version)
+		} else {
+			return err
+		}
+	}
+	return nil
+}
+
+func createVersionEntry(dm *DatabaseManager, version *Migration) error {
+	_, err := dm.db.Exec("INSERT INTO version (id, migration_version) VALUES ($1, $2);",
+		&version.Id, &version.MigrationVersion)
 	if err != nil {
 		return err
 	}
-	return tx.Commit()
+	return nil
 }
