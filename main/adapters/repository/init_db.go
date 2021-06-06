@@ -241,24 +241,22 @@ func getVersion(dm *DatabaseManager) (*Migration, error) {
 	return version, nil
 }
 
-func updateVersion(dm *DatabaseManager, version *Migration) error {
-	version.MigrationVersion = MigrationVersion
+func updateVersion(dm *DatabaseManager, v *Migration) error {
+	if strings.HasPrefix(v.MigrationVersion, "0.") {
+		return createVersionEntry(dm, v)
+	}
 
 	_, err := dm.db.Exec("UPDATE version SET migration_version = $1 WHERE id = $2;",
-		&version.MigrationVersion, &version.Id)
+		MigrationVersion, &v.Id)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return createVersionEntry(dm, version)
-		} else {
-			return err
-		}
+		return err
 	}
 	return nil
 }
 
-func createVersionEntry(dm *DatabaseManager, version *Migration) error {
+func createVersionEntry(dm *DatabaseManager, v *Migration) error {
 	_, err := dm.db.Exec("INSERT INTO version (id, migration_version) VALUES ($1, $2);",
-		&version.Id, &version.MigrationVersion)
+		&v.Id, MigrationVersion)
 	if err != nil {
 		return err
 	}
