@@ -187,7 +187,7 @@ func getVersion(dm *DatabaseManager) (*Migration, error) {
 		Scan(&version.MigrationVersion)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			version.MigrationVersion = "0.0.0"
+			version.MigrationVersion = "0.0"
 		} else {
 			return nil, err
 		}
