@@ -26,50 +26,54 @@ var (
 	testIdentity = initTestIdentity()
 )
 
+func TestDatabaseIsolationLvl(t *testing.T) {
+
+}
+
 func TestDatabaseManager(t *testing.T) {
-	dbManager, err := initDB()
+	dm, err := initDB()
 	if err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cleanUp(t, dbManager, cancel)
+	defer cleanUp(t, dm, cancel)
 
 	// check not exists
-	exists, err := dbManager.Exists(testIdentity.Uid)
+	exists, err := dm.Exists(testIdentity.Uid)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if exists {
-		t.Errorf("dbManager.Exists returned TRUE")
+		t.Errorf("dm.Exists returned TRUE")
 	}
 
 	// store identity
-	tx, err := dbManager.StartTransaction(ctx)
+	tx, err := dm.StartTransaction(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = dbManager.StoreNewIdentity(tx, testIdentity)
+	err = dm.StoreNewIdentity(tx, testIdentity)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = dbManager.CloseTransaction(tx, Commit)
+	err = dm.CloseTransaction(tx, Commit)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// check exists
-	exists, err = dbManager.Exists(testIdentity.Uid)
+	exists, err = dm.Exists(testIdentity.Uid)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !exists {
-		t.Errorf("dbManager.Exists returned FALSE")
+		t.Errorf("dm.Exists returned FALSE")
 	}
 
 	// get attributes
-	auth, err := dbManager.GetAuthToken(testIdentity.Uid)
+	auth, err := dm.GetAuthToken(testIdentity.Uid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +81,7 @@ func TestDatabaseManager(t *testing.T) {
 		t.Error("GetAuthToken returned unexpected value")
 	}
 
-	pub, err := dbManager.GetPublicKey(testIdentity.Uid)
+	pub, err := dm.GetPublicKey(testIdentity.Uid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +89,7 @@ func TestDatabaseManager(t *testing.T) {
 		t.Error("GetPublicKey returned unexpected value")
 	}
 
-	priv, err := dbManager.GetPrivateKey(testIdentity.Uid)
+	priv, err := dm.GetPrivateKey(testIdentity.Uid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,12 +98,12 @@ func TestDatabaseManager(t *testing.T) {
 	}
 
 	// fetch identity
-	tx, err = dbManager.StartTransactionWithLock(ctx, testIdentity.Uid)
+	tx, err = dm.StartTransactionWithLock(ctx, testIdentity.Uid)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	id, err := dbManager.FetchIdentity(tx, testIdentity.Uid)
+	id, err := dm.FetchIdentity(tx, testIdentity.Uid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,28 +126,28 @@ func TestDatabaseManager(t *testing.T) {
 
 	// set signature
 	sig2, _ := base64.StdEncoding.DecodeString(TestSignature2)
-	err = dbManager.SetSignature(tx, testIdentity.Uid, sig2)
+	err = dm.SetSignature(tx, testIdentity.Uid, sig2)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = dbManager.CloseTransaction(tx, Commit)
+	err = dm.CloseTransaction(tx, Commit)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// fetch identity to check signature
-	tx, err = dbManager.StartTransaction(ctx)
+	tx, err = dm.StartTransaction(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	id, err = dbManager.FetchIdentity(tx, testIdentity.Uid)
+	id, err = dm.FetchIdentity(tx, testIdentity.Uid)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = dbManager.CloseTransaction(tx, Commit)
+	err = dm.CloseTransaction(tx, Commit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,17 +181,17 @@ func initTestIdentity() *ent.Identity {
 	}
 }
 
-func cleanUp(t *testing.T, dbManager *DatabaseManager, cancel context.CancelFunc) {
+func cleanUp(t *testing.T, dm *DatabaseManager, cancel context.CancelFunc) {
 	cancel()
 
 	deleteQuery := fmt.Sprintf("DELETE FROM %s WHERE uid = $1;", TestTableName)
-	_, err := dbManager.db.Exec(deleteQuery, TestUUID)
+	_, err := dm.db.Exec(deleteQuery, TestUUID)
 	if err != nil {
 		t.Error(err)
 	}
 
 	dropTableQuery := fmt.Sprintf("DROP TABLE %s;", TestTableName)
-	_, err = dbManager.db.Exec(dropTableQuery)
+	_, err = dm.db.Exec(dropTableQuery)
 	if err != nil {
 		t.Error(err)
 	}
