@@ -15,6 +15,7 @@ import (
 )
 
 const (
+	VersionTableName = "version"
 	MigrationID      = "dbMigration"
 	MigrationVersion = "2.0"
 )
@@ -90,6 +91,7 @@ func Migrate(c config.Config) error {
 		log.Infof("successfully encrypted auth tokens in database")
 	}
 
+	v.MigrationVersion = "2.0"
 	return updateVersion(dm, v)
 }
 
@@ -224,19 +226,23 @@ func encryptTokens(dm *DatabaseManager, p *ExtendedProtocol) error {
 }
 
 func getVersion(dm *DatabaseManager) (*Migration, error) {
+	_, err := dm.db.Exec(CreateTable(PostgresVersion, vars.PostgreSqlVersionTableName))
+	if err != nil {
+		return nil, err
+	}
+
 	version := &Migration{
 		Id: MigrationID,
 	}
 
-	if _, err := dm.db.Exec(CreateTable(PostgresVersion, vars.PostgreSqlVersionTableName)); err != nil {
-		return nil, err
-	}
+	query := fmt.Sprintf("SELECT migration_version FROM %s WHERE id = $1", VersionTableName)
 
-	err := dm.db.QueryRow("SELECT migration_version FROM version WHERE id = $1", version.Id).
+	err = dm.db.QueryRow(query, version.Id).
 		Scan(&version.MigrationVersion)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			version.MigrationVersion = "0.0"
+			return version, createVersionEntry(dm, version)
 		} else {
 			return nil, err
 		}
@@ -245,12 +251,9 @@ func getVersion(dm *DatabaseManager) (*Migration, error) {
 }
 
 func updateVersion(dm *DatabaseManager, v *Migration) error {
-	if strings.HasPrefix(v.MigrationVersion, "0.") {
-		return createVersionEntry(dm, v)
-	}
-
-	_, err := dm.db.Exec("UPDATE version SET migration_version = $1 WHERE id = $2;",
-		MigrationVersion, &v.Id)
+	query := fmt.Sprintf("UPDATE %s SET migration_version = $1 WHERE id = $2;", VersionTableName)
+	_, err := dm.db.Exec(query,
+		v.MigrationVersion, &v.Id)
 	if err != nil {
 		return err
 	}
@@ -258,8 +261,9 @@ func updateVersion(dm *DatabaseManager, v *Migration) error {
 }
 
 func createVersionEntry(dm *DatabaseManager, v *Migration) error {
-	_, err := dm.db.Exec("INSERT INTO version (id, migration_version) VALUES ($1, $2);",
-		&v.Id, MigrationVersion)
+	query := fmt.Sprintf("INSERT INTO %s (id, migration_version) VALUES ($1, $2);", VersionTableName)
+	_, err := dm.db.Exec(query,
+		&v.Id, v.MigrationVersion)
 	if err != nil {
 		return err
 	}
