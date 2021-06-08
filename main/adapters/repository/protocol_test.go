@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"encoding/base64"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -24,6 +25,9 @@ func TestProtocol_CheckAuthToken(t *testing.T) {
 	p := &ExtendedProtocol{
 		ctxManager:   &mockCtxMngr{},
 		keyDerivator: encrypters.NewDefaultKeyDerivator(salt),
+
+		AuthBuffer:      map[uuid.UUID]string{},
+		AuthBufferMutex: &sync.RWMutex{},
 	}
 
 	err := p.SetAuthToken(nil, uuid.Nil, auth)
