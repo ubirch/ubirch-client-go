@@ -34,8 +34,6 @@ func (s *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	msg.Auth = h.AuthToken(r.Header)
-
 	exists, err := s.Exists(msg.ID)
 	if err != nil {
 		log.Errorf("%s: %v", msg.ID, err)
@@ -46,6 +44,8 @@ func (s *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) 
 		h.Error(msg.ID, w, fmt.Errorf("unknown UUID"), http.StatusNotFound)
 		return
 	}
+
+	msg.Auth = h.AuthToken(r.Header)
 
 	ok, err := s.CheckAuthToken(msg.ID, msg.Auth)
 	if err != nil {
@@ -91,8 +91,6 @@ func (s *SigningService) HandleRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg.Auth = h.AuthToken(r.Header)
-
 	exists, err := s.Exists(msg.ID)
 	if err != nil {
 		log.Errorf("%s: %v", msg.ID, err)
@@ -103,6 +101,8 @@ func (s *SigningService) HandleRequest(w http.ResponseWriter, r *http.Request) {
 		h.Error(msg.ID, w, fmt.Errorf("unknown UUID"), http.StatusNotFound)
 		return
 	}
+
+	msg.Auth = h.AuthToken(r.Header)
 
 	ok, err := s.CheckAuthToken(msg.ID, msg.Auth)
 	if err != nil {

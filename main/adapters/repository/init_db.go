@@ -91,7 +91,7 @@ func Migrate(c config.Config) error {
 		log.Infof("successfully encrypted auth tokens in database")
 	}
 
-	v.MigrationVersion = "2.0"
+	v.MigrationVersion = MigrationVersion
 	return updateVersion(dm, v)
 }
 

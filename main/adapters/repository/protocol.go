@@ -78,10 +78,10 @@ func (p *ExtendedProtocol) Exists(uid uuid.UUID) (bool, error) {
 	_, found := p.AuthBuffer[uid]
 	p.AuthBufferMutex.RUnlock()
 
-	if !found {
-		return p.ctxManager.Exists(uid)
+	if found {
+		return true, nil
 	}
-	return true, nil
+	return p.ctxManager.Exists(uid)
 }
 
 func (p *ExtendedProtocol) StoreNewIdentity(tx interface{}, i *ent.Identity) error {
@@ -203,13 +203,13 @@ func (p *ExtendedProtocol) CheckAuthToken(uid uuid.UUID, authTokenToCheck string
 			return false, err
 		}
 
+		if len(derivedKeyFromToken) == 0 {
+			return false, fmt.Errorf("%s: empty auth token", uid)
+		}
+
 		p.AuthBufferMutex.Lock()
 		p.AuthBuffer[uid] = derivedKeyFromToken
 		p.AuthBufferMutex.Unlock()
-	}
-
-	if len(derivedKeyFromToken) == 0 {
-		return false, fmt.Errorf("%s: empty auth token", uid)
 	}
 
 	return derivedKeyFromToken == p.keyDerivator.GetDerivedKey(authTokenToCheck), nil
