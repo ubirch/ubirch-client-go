@@ -49,24 +49,20 @@ func (c *ChainChecker) checkChain() {
 		}
 
 		id := upp.GetUuid().String()
-		signatureUPP := upp.GetSignature()
 		prevSignatureLocal, found := c.signatures[id]
 
-		if !found {
-			c.SetSignature(id, signatureUPP)
-			continue
+		if found {
+			prevSignatureUPP := upp.GetPrevSignature()
+
+			if !bytes.Equal(prevSignatureLocal, prevSignatureUPP) {
+				log.Errorf("PREV SIGNATURE MISMATCH: local %s, got %s",
+					base64.StdEncoding.EncodeToString(prevSignatureLocal),
+					base64.StdEncoding.EncodeToString(prevSignatureUPP),
+				)
+			}
 		}
 
-		prevSignatureUPP := upp.GetPrevSignature()
-
-		if !bytes.Equal(prevSignatureLocal, prevSignatureUPP) {
-			log.Errorf("PREV SIGNATURE MISMATCH: local %s, got %s",
-				base64.StdEncoding.EncodeToString(prevSignatureLocal),
-				base64.StdEncoding.EncodeToString(prevSignatureUPP),
-			)
-		}
-
-		c.SetSignature(id, signatureUPP)
+		c.SetSignature(id, upp.GetSignature())
 	}
 }
 
