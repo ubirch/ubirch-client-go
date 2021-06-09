@@ -45,6 +45,7 @@ func (c *ChainChecker) checkChain() {
 		upp, err := ubirch.Decode(uppBytes)
 		if err != nil {
 			log.Errorf("RESPONSE CONTAINED INVALID UPP: %v", err)
+			continue
 		}
 
 		id := upp.GetUuid().String()

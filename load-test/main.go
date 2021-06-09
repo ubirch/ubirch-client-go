@@ -37,6 +37,6 @@ func main() {
 	}
 
 	testCtx.wg.Wait()
-	log.Infof(" = = = => requests done after [ %7.3f ] seconds <= = = = ", time.Since(start).Seconds())
+	log.Infof(" = = = => [ %4d ] requests done after [ %7.3f ] seconds <= = = = ", len(testCtx.identities)*numberOfRequestsPerID, time.Since(start).Seconds())
 	testCtx.finish()
 }

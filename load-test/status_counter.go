@@ -6,47 +6,47 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type FailCounter struct {
+type StatusCounter struct {
 	StatusCodes chan string
 	ctx         context.Context
 	cancel      context.CancelFunc
-	fails       map[string]int
+	statusMap   map[string]int
 }
 
-func NewFailCounter() *FailCounter {
+func NewStatusCounter() *StatusCounter {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	f := &FailCounter{
+	f := &StatusCounter{
 		StatusCodes: make(chan string),
 		ctx:         ctx,
 		cancel:      cancel,
-		fails:       make(map[string]int),
+		statusMap:   make(map[string]int),
 	}
 
 	// start chain checker routine
-	go f.countFails()
+	go f.countStatus()
 
 	return f
 }
 
-func (f *FailCounter) finish() {
+func (f *StatusCounter) finish() {
 	close(f.StatusCodes)
 	<-f.ctx.Done()
 }
 
-func (f *FailCounter) countFails() {
+func (f *StatusCounter) countStatus() {
 	defer f.cancel()
 
 	for status := range f.StatusCodes {
-		count, found := f.fails[status]
+		count, found := f.statusMap[status]
 		if !found {
-			f.fails[status] = 1
+			f.statusMap[status] = 1
 		} else {
-			f.fails[status] = count + 1
+			f.statusMap[status] = count + 1
 		}
 	}
 
-	for status, count := range f.fails {
-		log.Errorf("[ %4d ] x %s", count, status)
+	for status, count := range f.statusMap {
+		log.Infof("[ %4d ] x %s", count, status)
 	}
 }
