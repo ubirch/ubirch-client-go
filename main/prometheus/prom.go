@@ -96,7 +96,7 @@ func PromMiddleware(next http.Handler) http.Handler {
 		path := chi.RouteContext(r.Context()).RoutePattern()
 		statusCode := rw.statusCode
 
-		httpDuration.WithLabelValues(path).Observe(float64(time.Since(startTimer).Nanoseconds()) / 1000000)
+		httpDuration.WithLabelValues(path).Observe(time.Since(startTimer).Seconds())
 		totalRequests.WithLabelValues(path).Inc()
 		responseStatus.WithLabelValues(strconv.Itoa(statusCode)).Inc()
 

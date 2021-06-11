@@ -7,11 +7,11 @@ import (
 )
 
 type TestCtx struct {
-	wg           *sync.WaitGroup
-	chainChecker *ChainChecker
-	failCounter  *FailCounter
-	identities   map[string]string
-	registerAuth string
+	wg            *sync.WaitGroup
+	chainChecker  *ChainChecker
+	statusCounter *StatusCounter
+	identities    map[string]string
+	registerAuth  string
 }
 
 func NewTestCtx() *TestCtx {
@@ -25,15 +25,15 @@ func NewTestCtx() *TestCtx {
 	}
 
 	return &TestCtx{
-		wg:           &sync.WaitGroup{},
-		chainChecker: NewChainChecker(),
-		failCounter:  NewFailCounter(),
-		identities:   getTestIdentities(c),
-		registerAuth: c.RegisterAuth,
+		wg:            &sync.WaitGroup{},
+		chainChecker:  NewChainChecker(),
+		statusCounter: NewStatusCounter(),
+		identities:    getTestIdentities(c),
+		registerAuth:  c.RegisterAuth,
 	}
 }
 
 func (t *TestCtx) finish() {
 	t.chainChecker.finish()
-	t.failCounter.finish()
+	t.statusCounter.finish()
 }
