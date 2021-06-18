@@ -1,4 +1,4 @@
-package handlers
+package httphelper
 
 import (
 	"encoding/json"
@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
-	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
+	"github.com/ubirch/ubirch-client-go/main/adapters/handlers"
 	p "github.com/ubirch/ubirch-client-go/main/prometheus"
 	"github.com/ubirch/ubirch-client-go/main/vars"
 	"net/http"
@@ -26,9 +26,9 @@ func NewIdentityCreator(auth string) IdentityCreator {
 	return IdentityCreator{auth: auth}
 }
 
-func (i *IdentityCreator) Put(storeId StoreIdentity, idExists CheckIdentityExists) http.HandlerFunc {
+func (i *IdentityCreator) Put(storeId handlers.StoreIdentity, idExists handlers.CheckIdentityExists) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		authHeader := r.Header.Get(h.XAuthHeader)
+		authHeader := r.Header.Get(XAuthHeader)
 		if authHeader != i.auth {
 			log.Warnf("unauthorized registration attempt")
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
@@ -38,14 +38,14 @@ func (i *IdentityCreator) Put(storeId StoreIdentity, idExists CheckIdentityExist
 		idPayload, err := IdentityFromBody(r)
 		if err != nil {
 			log.Warn(err)
-			h.Respond400(w, err.Error())
+			Respond400(w, err.Error())
 			return
 		}
 
 		uid, err := uuid.Parse(idPayload.Uid)
 		if err != nil {
 			log.Warnf("%s: %v", idPayload.Uid, err)
-			h.Respond400(w, err.Error())
+			Respond400(w, err.Error())
 			return
 		}
 
@@ -57,7 +57,7 @@ func (i *IdentityCreator) Put(storeId StoreIdentity, idExists CheckIdentityExist
 		}
 
 		if exists {
-			h.Error(uid, w, fmt.Errorf("identity already registered"), http.StatusConflict)
+			Error(uid, w, fmt.Errorf("identity already registered"), http.StatusConflict)
 			return
 		}
 
@@ -72,7 +72,7 @@ func (i *IdentityCreator) Put(storeId StoreIdentity, idExists CheckIdentityExist
 
 		csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
 
-		w.Header().Set(h.HeaderContentType, vars.BinType)
+		w.Header().Set(HeaderContentType, vars.BinType)
 		w.WriteHeader(http.StatusOK)
 		_, err = w.Write(csrPEM)
 		if err != nil {
@@ -84,7 +84,7 @@ func (i *IdentityCreator) Put(storeId StoreIdentity, idExists CheckIdentityExist
 }
 
 func IdentityFromBody(r *http.Request) (IdentityPayload, error) {
-	contentType := r.Header.Get(h.HeaderContentType)
+	contentType := r.Header.Get(HeaderContentType)
 	if contentType != vars.JSONType {
 		return IdentityPayload{}, fmt.Errorf("invalid content-type: expected %s, got %s", vars.JSONType, contentType)
 	}

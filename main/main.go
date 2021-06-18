@@ -25,7 +25,6 @@ import (
 	"github.com/ubirch/ubirch-client-go/main/config"
 	p "github.com/ubirch/ubirch-client-go/main/prometheus"
 	"github.com/ubirch/ubirch-client-go/main/uc"
-	"github.com/ubirch/ubirch-client-go/main/vars"
 	"golang.org/x/sync/errgroup"
 	"os"
 	"os/signal"
@@ -59,6 +58,8 @@ func main() {
 	const (
 		serviceName = "ubirch-client"
 		configFile  = "config.json"
+		MigrateArg  = "--migrate"
+		InitArg     = "--init-identities-conf"
 	)
 
 	var (
@@ -71,9 +72,9 @@ func main() {
 	if len(os.Args) > 1 {
 		for i, arg := range os.Args[1:] {
 			log.Infof("arg #%d: %s", i+1, arg)
-			if arg == vars.MigrateArg {
+			if arg == MigrateArg {
 				migrate = true
-			} else if arg == vars.InitArg {
+			} else if arg == InitArg {
 				initIdentities = true
 			} else {
 				configDir = arg
@@ -105,8 +106,8 @@ func main() {
 	go shutdown(cancel)
 
 	// set up HTTP server
-	httpServer := handlers.HTTPServer{
-		Router:   handlers.NewRouter(),
+	httpServer := h.HTTPServer{
+		Router:   h.NewRouter(),
 		Addr:     conf.TCP_addr,
 		TLS:      conf.TLS,
 		CertFile: conf.TLS_CertFile,
@@ -184,27 +185,27 @@ func main() {
 
 	// set up endpoint for identity registration
 	identity := createIdentityUseCases(globals.Config.RegisterAuth, idHandler)
-	httpServer.Router.Put(fmt.Sprintf("/%s", vars.RegisterEndpoint), identity.handler.Put(identity.storeIdentity, identity.checkIdentity))
+	httpServer.Router.Put(fmt.Sprintf("/%s", h.RegisterEndpoint), identity.handler.Put(identity.storeIdentity, identity.checkIdentity))
 
 	// set up endpoint for chaining
-	httpServer.AddServiceEndpoint(handlers.ServerEndpoint{
-		Path: fmt.Sprintf("/{%s}", vars.UUIDKey),
+	httpServer.AddServiceEndpoint(h.ServerEndpoint{
+		Path: fmt.Sprintf("/{%s}", h.UUIDKey),
 		Service: &handlers.ChainingService{
 			Signer: &signer,
 		},
 	})
 
 	// set up endpoint for signing
-	httpServer.AddServiceEndpoint(handlers.ServerEndpoint{
-		Path: fmt.Sprintf("/{%s}/{%s}", vars.UUIDKey, vars.OperationKey),
+	httpServer.AddServiceEndpoint(h.ServerEndpoint{
+		Path: fmt.Sprintf("/{%s}/{%s}", h.UUIDKey, h.OperationKey),
 		Service: &handlers.SigningService{
 			Signer: &signer,
 		},
 	})
 
 	// set up endpoint for verification
-	httpServer.AddServiceEndpoint(handlers.ServerEndpoint{
-		Path: fmt.Sprintf("/%s", vars.VerifyPath),
+	httpServer.AddServiceEndpoint(h.ServerEndpoint{
+		Path: fmt.Sprintf("/%s", h.VerifyPath),
 		Service: &handlers.VerificationService{
 			Verifier: &verifier,
 		},
@@ -223,7 +224,7 @@ func main() {
 }
 
 type identities struct {
-	handler       handlers.IdentityCreator
+	handler       h.IdentityCreator
 	storeIdentity handlers.StoreIdentity
 	fetchIdentity handlers.FetchIdentity
 	checkIdentity handlers.CheckIdentityExists
@@ -231,7 +232,7 @@ type identities struct {
 
 func createIdentityUseCases(auth string, handler *handlers.IdentityHandler) identities {
 	return identities{
-		handler:       handlers.NewIdentityCreator(auth),
+		handler:       h.NewIdentityCreator(auth),
 		storeIdentity: uc.NewIdentityStorer(handler),
 		fetchIdentity: uc.NewIdentityFetcher(handler),
 		checkIdentity: uc.NewIdentityChecker(handler),

@@ -1,31 +1,25 @@
 package handlers
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"github.com/go-chi/chi"
-	"github.com/google/uuid"
-	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
-	"github.com/ubirch/ubirch-client-go/main/vars"
 	"net/http"
 
-	log "github.com/sirupsen/logrus"
-)
+	"github.com/go-chi/chi"
+	"github.com/google/uuid"
 
-type Service interface {
-	HandleRequest(w http.ResponseWriter, r *http.Request)
-}
+	log "github.com/sirupsen/logrus"
+	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
+)
 
 type ChainingService struct {
 	*Signer
 }
 
 // Ensure ChainingService implements the Service interface
-var _ Service = (*ChainingService)(nil)
+var _ h.Service = (*ChainingService)(nil)
 
 func (s *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) {
-	var msg HTTPRequest
+	var msg h.HTTPRequest
 	var err error
 
 	msg.ID, err = h.GetUUID(r)
@@ -59,7 +53,7 @@ func (s *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	msg.Hash, err = getHash(r)
+	msg.Hash, err = h.GetHash(r)
 	if err != nil {
 		h.Error(msg.ID, w, err, http.StatusBadRequest)
 		return
@@ -73,17 +67,17 @@ func (s *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) 
 	}
 
 	resp := s.chain(msg, tx, identity)
-	sendResponse(w, resp)
+	h.SendResponse(w, resp)
 }
 
 type SigningService struct {
 	*Signer
 }
 
-var _ Service = (*SigningService)(nil)
+var _ h.Service = (*SigningService)(nil)
 
 func (s *SigningService) HandleRequest(w http.ResponseWriter, r *http.Request) {
-	var msg HTTPRequest
+	var msg h.HTTPRequest
 	var err error
 
 	msg.ID, err = h.GetUUID(r)
@@ -123,31 +117,31 @@ func (s *SigningService) HandleRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg.Hash, err = getHash(r)
+	msg.Hash, err = h.GetHash(r)
 	if err != nil {
 		h.Error(msg.ID, w, err, http.StatusBadRequest)
 		return
 	}
 
 	resp := s.Sign(msg, op)
-	sendResponse(w, resp)
+	h.SendResponse(w, resp)
 }
 
 type VerificationService struct {
 	*Verifier
 }
 
-var _ Service = (*VerificationService)(nil)
+var _ h.Service = (*VerificationService)(nil)
 
 func (v *VerificationService) HandleRequest(w http.ResponseWriter, r *http.Request) {
-	hash, err := getHash(r)
+	hash, err := h.GetHash(r)
 	if err != nil {
 		h.Error(uuid.Nil, w, err, http.StatusBadRequest)
 		return
 	}
 
 	resp := v.Verify(hash[:])
-	sendResponse(w, resp)
+	h.SendResponse(w, resp)
 }
 
 // checkAuth compares the auth token from the request header with a given string and returns it if valid
@@ -163,7 +157,7 @@ func checkAuth(r *http.Request, actualAuth string) (string, error) {
 
 // getOperation returns the operation parameter from the request URL
 func getOperation(r *http.Request) (operation, error) {
-	opParam := chi.URLParam(r, vars.OperationKey)
+	opParam := chi.URLParam(r, h.OperationKey)
 	switch operation(opParam) {
 	case anchorHash, disableHash, enableHash, deleteHash:
 		return operation(opParam), nil
@@ -172,35 +166,4 @@ func getOperation(r *http.Request) (operation, error) {
 			"expected (\"%s\" | \"%s\" | \"%s\" | \"%s\"), got \"%s\"",
 			anchorHash, disableHash, enableHash, deleteHash, opParam)
 	}
-}
-
-func GetSortedCompactJSON(data []byte) ([]byte, error) {
-	var reqDump interface{}
-	var sortedCompactJson bytes.Buffer
-
-	// json.Unmarshal returns an error if data is not valid JSON
-	err := json.Unmarshal(data, &reqDump)
-	if err != nil {
-		return nil, fmt.Errorf("unable to parse JSON request body: %v", err)
-	}
-	// json.Marshal sorts the keys
-	sortedJson, err := jsonMarshal(reqDump)
-	if err != nil {
-		return nil, fmt.Errorf("unable to serialize json object: %v", err)
-	}
-	// remove spaces and newlines
-	err = json.Compact(&sortedCompactJson, sortedJson)
-	if err != nil {
-		return nil, fmt.Errorf("unable to compact json object: %v", err)
-	}
-
-	return sortedCompactJson.Bytes(), nil
-}
-
-func jsonMarshal(v interface{}) ([]byte, error) {
-	buffer := &bytes.Buffer{}
-	encoder := json.NewEncoder(buffer)
-	encoder.SetEscapeHTML(false)
-	err := encoder.Encode(v)
-	return buffer.Bytes(), err
 }

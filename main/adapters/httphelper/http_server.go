@@ -1,4 +1,4 @@
-package handlers
+package httphelper
 
 import (
 	"context"
@@ -6,13 +6,15 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/cors"
-	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
-	"github.com/ubirch/ubirch-client-go/main/vars"
 	"net/http"
 	"path"
 
 	log "github.com/sirupsen/logrus"
 )
+
+type Service interface {
+	HandleRequest(w http.ResponseWriter, r *http.Request)
+}
 
 type ServerEndpoint struct {
 	Path string
@@ -33,7 +35,7 @@ type HTTPServer struct {
 
 func NewRouter() *chi.Mux {
 	router := chi.NewMux()
-	router.Use(middleware.Timeout(h.GatewayTimeout))
+	router.Use(middleware.Timeout(GatewayTimeout))
 	return router
 }
 
@@ -50,7 +52,7 @@ func (srv *HTTPServer) SetUpCORS(allowedOrigins []string, debug bool) {
 }
 
 func (srv *HTTPServer) AddServiceEndpoint(endpoint ServerEndpoint) {
-	hashEndpointPath := path.Join(endpoint.Path, vars.HashEndpoint)
+	hashEndpointPath := path.Join(endpoint.Path, HashEndpoint)
 
 	srv.Router.Post(endpoint.Path, endpoint.HandleRequest)
 	srv.Router.Post(hashEndpointPath, endpoint.HandleRequest)
@@ -63,9 +65,9 @@ func (srv *HTTPServer) Serve(cancelCtx context.Context, serverReady context.Canc
 	server := &http.Server{
 		Addr:         srv.Addr,
 		Handler:      srv.Router,
-		ReadTimeout:  h.ReadTimeout,
-		WriteTimeout: h.WriteTimeout,
-		IdleTimeout:  h.IdleTimeout,
+		ReadTimeout:  ReadTimeout,
+		WriteTimeout: WriteTimeout,
+		IdleTimeout:  IdleTimeout,
 	}
 	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
 
@@ -73,7 +75,7 @@ func (srv *HTTPServer) Serve(cancelCtx context.Context, serverReady context.Canc
 		<-cancelCtx.Done()
 		server.SetKeepAlivesEnabled(false) // disallow clients to create new long-running conns
 
-		shutdownWithTimeoutCtx, _ := context.WithTimeout(shutdownCtx, h.ShutdownTimeout)
+		shutdownWithTimeoutCtx, _ := context.WithTimeout(shutdownCtx, ShutdownTimeout)
 		defer shutdownCancel()
 
 		if err := server.Shutdown(shutdownWithTimeoutCtx); err != nil {
