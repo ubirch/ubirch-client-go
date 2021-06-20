@@ -3,11 +3,12 @@ package httphelper
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"path"
+
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/cors"
-	"net/http"
-	"path"
 
 	log "github.com/sirupsen/logrus"
 )

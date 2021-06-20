@@ -1,13 +1,14 @@
 package prometheus
 
 import (
+	"net/http"
+	"strconv"
+	"time"
+
 	"github.com/go-chi/chi"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"net/http"
-	"strconv"
-	"time"
 )
 
 type responseWriter struct {

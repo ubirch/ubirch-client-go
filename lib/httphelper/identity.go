@@ -4,13 +4,13 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"net/http"
+
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+
 	log "github.com/sirupsen/logrus"
-	"github.com/ubirch/ubirch-client-go/main/adapters/handlers"
-	p "github.com/ubirch/ubirch-client-go/main/prometheus"
-	"github.com/ubirch/ubirch-client-go/main/vars"
-	"net/http"
+	p "github.com/ubirch/ubirch-client-go/lib/prometheus"
 )
 
 type IdentityCreator struct {
@@ -22,11 +22,15 @@ type IdentityPayload struct {
 	Pwd string `json:"password"`
 }
 
+type StoreIdentity func(uid uuid.UUID, auth string) (csr []byte, err error)
+
+type CheckIdentityExists func(uid uuid.UUID) (bool, error)
+
 func NewIdentityCreator(auth string) IdentityCreator {
 	return IdentityCreator{auth: auth}
 }
 
-func (i *IdentityCreator) Put(storeId handlers.StoreIdentity, idExists handlers.CheckIdentityExists) http.HandlerFunc {
+func (i *IdentityCreator) Put(storeId StoreIdentity, idExists CheckIdentityExists) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get(XAuthHeader)
 		if authHeader != i.auth {
@@ -72,7 +76,7 @@ func (i *IdentityCreator) Put(storeId handlers.StoreIdentity, idExists handlers.
 
 		csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
 
-		w.Header().Set(HeaderContentType, vars.BinType)
+		w.Header().Set(HeaderContentType, BinType)
 		w.WriteHeader(http.StatusOK)
 		_, err = w.Write(csrPEM)
 		if err != nil {
@@ -85,8 +89,8 @@ func (i *IdentityCreator) Put(storeId handlers.StoreIdentity, idExists handlers.
 
 func IdentityFromBody(r *http.Request) (IdentityPayload, error) {
 	contentType := r.Header.Get(HeaderContentType)
-	if contentType != vars.JSONType {
-		return IdentityPayload{}, fmt.Errorf("invalid content-type: expected %s, got %s", vars.JSONType, contentType)
+	if contentType != JSONType {
+		return IdentityPayload{}, fmt.Errorf("invalid content-type: expected %s, got %s", JSONType, contentType)
 	}
 
 	var payload IdentityPayload
