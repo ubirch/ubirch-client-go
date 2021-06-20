@@ -18,19 +18,16 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/prometheus/client_golang/prometheus"
-	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
-	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
-	"github.com/ubirch/ubirch-client-go/main/ent"
-	p "github.com/ubirch/ubirch-client-go/main/prometheus"
 	"net/http"
 	"os"
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
-
 	log "github.com/sirupsen/logrus"
+	h "github.com/ubirch/ubirch-client-go/lib/httphelper"
+	p "github.com/ubirch/ubirch-client-go/lib/prometheus"
+	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
+	"github.com/ubirch/ubirch-client-go/main/ent"
 )
 
 type operation string

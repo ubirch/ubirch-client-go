@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	log "github.com/sirupsen/logrus"
-	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
+	h "github.com/ubirch/ubirch-client-go/lib/httphelper"
 )
 
 type ChainingService struct {

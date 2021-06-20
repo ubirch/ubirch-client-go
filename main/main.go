@@ -17,21 +17,22 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
-	"github.com/ubirch/ubirch-client-go/main/adapters/handlers"
-	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
-	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
-	"github.com/ubirch/ubirch-client-go/main/config"
-	p "github.com/ubirch/ubirch-client-go/main/prometheus"
-	"github.com/ubirch/ubirch-client-go/main/uc"
-	"golang.org/x/sync/errgroup"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 
+	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
+	"github.com/ubirch/ubirch-client-go/main/adapters/handlers"
+	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
+	"github.com/ubirch/ubirch-client-go/main/config"
+	"github.com/ubirch/ubirch-client-go/main/uc"
+	"golang.org/x/sync/errgroup"
+
 	log "github.com/sirupsen/logrus"
+	h "github.com/ubirch/ubirch-client-go/lib/httphelper"
+	p "github.com/ubirch/ubirch-client-go/lib/prometheus"
 )
 
 // handle graceful shutdown
@@ -226,7 +227,6 @@ func main() {
 type identities struct {
 	handler       h.IdentityCreator
 	storeIdentity handlers.StoreIdentity
-	fetchIdentity handlers.FetchIdentity
 	checkIdentity handlers.CheckIdentityExists
 }
 
@@ -234,7 +234,6 @@ func createIdentityUseCases(auth string, handler *handlers.IdentityHandler) iden
 	return identities{
 		handler:       h.NewIdentityCreator(auth),
 		storeIdentity: uc.NewIdentityStorer(handler),
-		fetchIdentity: uc.NewIdentityFetcher(handler),
 		checkIdentity: uc.NewIdentityChecker(handler),
 	}
 }

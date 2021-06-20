@@ -3,7 +3,6 @@ package repository
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/ubirch/ubirch-client-go/main/ent"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -11,9 +10,8 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
-
 	log "github.com/sirupsen/logrus"
+	"github.com/ubirch/ubirch-client-go/main/ent"
 )
 
 const (

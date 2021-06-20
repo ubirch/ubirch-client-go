@@ -20,17 +20,15 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
-	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
 	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
-
 	log "github.com/sirupsen/logrus"
+	h "github.com/ubirch/ubirch-client-go/lib/httphelper"
+	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
 )
 
 type verification struct {

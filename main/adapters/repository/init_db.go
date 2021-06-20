@@ -5,10 +5,12 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"fmt"
-	log "github.com/sirupsen/logrus"
+	"os"
+
 	"github.com/ubirch/ubirch-client-go/main/config"
 	"github.com/ubirch/ubirch-client-go/main/ent"
-	"os"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const MigrationVersion = "1.0.1"

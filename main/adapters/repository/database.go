@@ -18,15 +18,13 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	log "github.com/sirupsen/logrus"
 	"github.com/ubirch/ubirch-client-go/main/ent"
-	"time"
-	// postgres driver is imported for side effects
-	// import pq driver this way only if we dont need it here
-	// done for database/sql (pg, err := sql.Open..)
-	//_ "github.com/lib/pq"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const (

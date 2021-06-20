@@ -17,11 +17,11 @@ package repository
 import (
 	"context"
 	"fmt"
+
 	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-client-go/lib/encrypters"
 	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
-	"github.com/ubirch/ubirch-client-go/main/adapters/encrypters"
 	"github.com/ubirch/ubirch-client-go/main/ent"
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
 type ExtendedProtocol struct {
