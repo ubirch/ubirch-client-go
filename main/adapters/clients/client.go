@@ -23,8 +23,10 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
+
 	log "github.com/sirupsen/logrus"
-	h "github.com/ubirch/ubirch-client-go/lib/httphelper"
+	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
 )
 
 type Client struct {

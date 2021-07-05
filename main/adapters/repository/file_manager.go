@@ -10,8 +10,10 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	log "github.com/sirupsen/logrus"
 	"github.com/ubirch/ubirch-client-go/main/ent"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const (

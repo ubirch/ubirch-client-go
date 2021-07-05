@@ -23,11 +23,14 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	log "github.com/sirupsen/logrus"
-	h "github.com/ubirch/ubirch-client-go/lib/httphelper"
-	p "github.com/ubirch/ubirch-client-go/lib/prometheus"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
 	"github.com/ubirch/ubirch-client-go/main/ent"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
+
+	log "github.com/sirupsen/logrus"
+	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
+	prom "github.com/ubirch/ubirch-client-go/main/prometheus"
 )
 
 type operation string
@@ -94,10 +97,10 @@ func (s *Signer) getAuth(uid uuid.UUID) (auth string, err error) {
 }
 
 // handle incoming messages, create, sign and send a chained ubirch protocol packet (UPP) to the ubirch backend
-func (s *Signer) chain(msg HTTPRequest, tx interface{}, identity *ent.Identity) h.HTTPResponse {
+func (s *Signer) chain(msg h.HTTPRequest, tx interface{}, identity *ent.Identity) h.HTTPResponse {
 	log.Infof("%s: anchor hash [chained]: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
-	timer := prometheus.NewTimer(p.SignatureCreationDuration)
+	timer := prometheus.NewTimer(prom.SignatureCreationDuration)
 	uppBytes, err := s.getChainedUPP(msg.ID, msg.Hash, identity.PrivateKey, identity.Signature)
 	timer.ObserveDuration()
 	if err != nil {
@@ -121,13 +124,13 @@ func (s *Signer) chain(msg HTTPRequest, tx interface{}, identity *ent.Identity) 
 			return errorResponse(http.StatusInternalServerError, "")
 		}
 
-		p.SignatureCreationCounter.Inc()
+		prom.SignatureCreationCounter.Inc()
 	}
 
 	return resp
 }
 
-func (s *Signer) Sign(msg HTTPRequest, op operation) h.HTTPResponse {
+func (s *Signer) Sign(msg h.HTTPRequest, op operation) h.HTTPResponse {
 	log.Infof("%s: %s hash: %s", msg.ID, op, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
 	privateKeyPEM, err := s.Protocol.GetPrivateKey(msg.ID)
@@ -174,9 +177,9 @@ func (s *Signer) getSignedUPP(id uuid.UUID, hash [32]byte, privateKeyPEM []byte,
 		})
 }
 
-func (s *Signer) sendUPP(msg HTTPRequest, upp []byte) h.HTTPResponse {
+func (s *Signer) sendUPP(msg h.HTTPRequest, upp []byte) h.HTTPResponse {
 	// send UPP to ubirch backend
-	timer := prometheus.NewTimer(p.UpstreamResponseDuration)
+	timer := prometheus.NewTimer(prom.UpstreamResponseDuration)
 	backendResp, err := s.Protocol.SendToAuthService(msg.ID, msg.Auth, upp)
 	timer.ObserveDuration()
 	if err != nil {
@@ -231,7 +234,7 @@ func errorResponse(code int, message string) h.HTTPResponse {
 	}
 }
 
-func getSigningResponse(respCode int, msg HTTPRequest, upp []byte, backendResp h.HTTPResponse, requestID string, errMsg string) h.HTTPResponse {
+func getSigningResponse(respCode int, msg h.HTTPRequest, upp []byte, backendResp h.HTTPResponse, requestID string, errMsg string) h.HTTPResponse {
 	signingResp, err := json.Marshal(signingResponse{
 		Hash:      msg.Hash[:],
 		UPP:       upp,

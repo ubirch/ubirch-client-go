@@ -31,8 +31,8 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	log "github.com/sirupsen/logrus"
-	h "github.com/ubirch/ubirch-client-go/lib/httphelper"
-	p "github.com/ubirch/ubirch-client-go/lib/prometheus"
+	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
+	prom "github.com/ubirch/ubirch-client-go/main/prometheus"
 )
 
 // handle graceful shutdown
@@ -127,7 +127,7 @@ func main() {
 	<-serverReadyCtx.Done()
 
 	// set up metrics
-	p.InitPromMetrics(httpServer.Router)
+	prom.InitPromMetrics(httpServer.Router)
 
 	// set up endpoint for liveliness checks
 	httpServer.Router.Get("/healtz", h.Health(serverID))
@@ -225,14 +225,14 @@ func main() {
 }
 
 type identities struct {
-	handler       h.IdentityCreator
+	handler       handlers.IdentityCreator
 	storeIdentity handlers.StoreIdentity
 	checkIdentity handlers.CheckIdentityExists
 }
 
 func createIdentityUseCases(auth string, handler *handlers.IdentityHandler) identities {
 	return identities{
-		handler:       h.NewIdentityCreator(auth),
+		handler:       handlers.NewIdentityCreator(auth),
 		storeIdentity: uc.NewIdentityStorer(handler),
 		checkIdentity: uc.NewIdentityChecker(handler),
 	}

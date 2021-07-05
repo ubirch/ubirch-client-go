@@ -1,4 +1,4 @@
-package httphelper
+package handlers
 
 import (
 	"encoding/json"
@@ -10,7 +10,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	log "github.com/sirupsen/logrus"
-	p "github.com/ubirch/ubirch-client-go/lib/prometheus"
+	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
+	prom "github.com/ubirch/ubirch-client-go/main/prometheus"
 )
 
 type IdentityCreator struct {
@@ -23,7 +24,6 @@ type IdentityPayload struct {
 }
 
 type StoreIdentity func(uid uuid.UUID, auth string) (csr []byte, err error)
-
 type CheckIdentityExists func(uid uuid.UUID) (bool, error)
 
 func NewIdentityCreator(auth string) IdentityCreator {
@@ -32,7 +32,7 @@ func NewIdentityCreator(auth string) IdentityCreator {
 
 func (i *IdentityCreator) Put(storeId StoreIdentity, idExists CheckIdentityExists) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		authHeader := r.Header.Get(XAuthHeader)
+		authHeader := r.Header.Get(h.XAuthHeader)
 		if authHeader != i.auth {
 			log.Warnf("unauthorized registration attempt")
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
@@ -42,14 +42,14 @@ func (i *IdentityCreator) Put(storeId StoreIdentity, idExists CheckIdentityExist
 		idPayload, err := IdentityFromBody(r)
 		if err != nil {
 			log.Warn(err)
-			Respond400(w, err.Error())
+			h.Respond400(w, err.Error())
 			return
 		}
 
 		uid, err := uuid.Parse(idPayload.Uid)
 		if err != nil {
 			log.Warnf("%s: %v", idPayload.Uid, err)
-			Respond400(w, err.Error())
+			h.Respond400(w, err.Error())
 			return
 		}
 
@@ -61,11 +61,11 @@ func (i *IdentityCreator) Put(storeId StoreIdentity, idExists CheckIdentityExist
 		}
 
 		if exists {
-			Error(uid, w, fmt.Errorf("identity already registered"), http.StatusConflict)
+			h.Error(uid, w, fmt.Errorf("identity already registered"), http.StatusConflict)
 			return
 		}
 
-		timer := prometheus.NewTimer(p.IdentityCreationDuration)
+		timer := prometheus.NewTimer(prom.IdentityCreationDuration)
 		csr, err := storeId(uid, idPayload.Pwd)
 		timer.ObserveDuration()
 		if err != nil {
@@ -76,21 +76,21 @@ func (i *IdentityCreator) Put(storeId StoreIdentity, idExists CheckIdentityExist
 
 		csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
 
-		w.Header().Set(HeaderContentType, BinType)
+		w.Header().Set(h.HeaderContentType, h.BinType)
 		w.WriteHeader(http.StatusOK)
 		_, err = w.Write(csrPEM)
 		if err != nil {
 			log.Errorf("unable to write response: %s", err)
 		}
 
-		p.IdentityCreationCounter.Inc()
+		prom.IdentityCreationCounter.Inc()
 	}
 }
 
 func IdentityFromBody(r *http.Request) (IdentityPayload, error) {
-	contentType := r.Header.Get(HeaderContentType)
-	if contentType != JSONType {
-		return IdentityPayload{}, fmt.Errorf("invalid content-type: expected %s, got %s", JSONType, contentType)
+	contentType := r.Header.Get(h.HeaderContentType)
+	if contentType != h.JSONType {
+		return IdentityPayload{}, fmt.Errorf("invalid content-type: expected %s, got %s", h.JSONType, contentType)
 	}
 
 	var payload IdentityPayload
