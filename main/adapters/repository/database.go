@@ -64,7 +64,7 @@ func NewSqlDatabaseInfo(driverName, dataSourceName, tableName string) (*Database
 
 	dbManager := &DatabaseManager{
 		options: &sql.TxOptions{
-			Isolation: sql.LevelWriteCommitted,
+			Isolation: sql.LevelSerializable,
 			ReadOnly:  false,
 		},
 		db:         db,
