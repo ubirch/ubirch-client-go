@@ -2,6 +2,7 @@ package encrypters
 
 import (
 	"fmt"
+
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"github.com/youmark/pkcs8"
 )

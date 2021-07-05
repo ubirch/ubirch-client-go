@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"net/http"
+
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
-	p "github.com/ubirch/ubirch-client-go/main/prometheus"
-	"github.com/ubirch/ubirch-client-go/main/vars"
-	"net/http"
+	prom "github.com/ubirch/ubirch-client-go/main/prometheus"
 )
 
 type IdentityCreator struct {
@@ -21,6 +22,9 @@ type IdentityPayload struct {
 	Uid string `json:"uuid"`
 	Pwd string `json:"password"`
 }
+
+type StoreIdentity func(uid uuid.UUID, auth string) (csr []byte, err error)
+type CheckIdentityExists func(uid uuid.UUID) (bool, error)
 
 func NewIdentityCreator(auth string) IdentityCreator {
 	return IdentityCreator{auth: auth}
@@ -61,7 +65,7 @@ func (i *IdentityCreator) Put(storeId StoreIdentity, idExists CheckIdentityExist
 			return
 		}
 
-		timer := prometheus.NewTimer(p.IdentityCreationDuration)
+		timer := prometheus.NewTimer(prom.IdentityCreationDuration)
 		csr, err := storeId(uid, idPayload.Pwd)
 		timer.ObserveDuration()
 		if err != nil {
@@ -72,21 +76,21 @@ func (i *IdentityCreator) Put(storeId StoreIdentity, idExists CheckIdentityExist
 
 		csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
 
-		w.Header().Set(h.HeaderContentType, vars.BinType)
+		w.Header().Set(h.HeaderContentType, h.BinType)
 		w.WriteHeader(http.StatusOK)
 		_, err = w.Write(csrPEM)
 		if err != nil {
 			log.Errorf("unable to write response: %s", err)
 		}
 
-		p.IdentityCreationCounter.Inc()
+		prom.IdentityCreationCounter.Inc()
 	}
 }
 
 func IdentityFromBody(r *http.Request) (IdentityPayload, error) {
 	contentType := r.Header.Get(h.HeaderContentType)
-	if contentType != vars.JSONType {
-		return IdentityPayload{}, fmt.Errorf("invalid content-type: expected %s, got %s", vars.JSONType, contentType)
+	if contentType != h.JSONType {
+		return IdentityPayload{}, fmt.Errorf("invalid content-type: expected %s, got %s", h.JSONType, contentType)
 	}
 
 	var payload IdentityPayload

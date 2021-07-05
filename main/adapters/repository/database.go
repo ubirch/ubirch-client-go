@@ -18,16 +18,17 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	log "github.com/sirupsen/logrus"
 	"github.com/ubirch/ubirch-client-go/main/ent"
-	"github.com/ubirch/ubirch-client-go/main/vars"
-	"time"
-	// postgres driver is imported for side effects
-	// import pq driver this way only if we dont need it here
-	// done for database/sql (pg, err := sql.Open..)
-	//_ "github.com/lib/pq"
+
+	log "github.com/sirupsen/logrus"
+)
+
+const (
+	PostgreSql string = "postgres"
 )
 
 // DatabaseManager contains the postgres database connection, and offers methods
@@ -44,7 +45,7 @@ var _ ContextManager = (*DatabaseManager)(nil)
 // NewSqlDatabaseInfo takes a database connection string, returns a new initialized
 // database.
 func NewSqlDatabaseInfo(dataSourceName, tableName string) (*DatabaseManager, error) {
-	pg, err := sql.Open(vars.PostgreSql, dataSourceName)
+	pg, err := sql.Open(PostgreSql, dataSourceName)
 	if err != nil {
 		return nil, err
 	}
