@@ -22,21 +22,24 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+	"github.com/mattn/go-sqlite3"
 	"github.com/ubirch/ubirch-client-go/main/ent"
 
 	log "github.com/sirupsen/logrus"
 )
 
 const (
-	PostgreSql string = "postgres"
+	PostgreSQL string = "postgres"
+	SQLite     string = "sqlite3"
 )
 
 // DatabaseManager contains the postgres database connection, and offers methods
 // for interacting with the database.
 type DatabaseManager struct {
-	options   *sql.TxOptions
-	db        *sql.DB
-	tableName string
+	options    *sql.TxOptions
+	db         *sql.DB
+	driverName string
+	tableName  string
 }
 
 // Ensure Database implements the ContextManager interface
@@ -44,30 +47,44 @@ var _ ContextManager = (*DatabaseManager)(nil)
 
 // NewSqlDatabaseInfo takes a database connection string, returns a new initialized
 // database.
-func NewSqlDatabaseInfo(dataSourceName, tableName string) (*DatabaseManager, error) {
-	pg, err := sql.Open(PostgreSql, dataSourceName)
+func NewSqlDatabaseInfo(driverName, dataSourceName, tableName string) (*DatabaseManager, error) {
+	log.Infof("preparing database usage: %s", driverName)
+
+	db, err := sql.Open(driverName, dataSourceName)
 	if err != nil {
 		return nil, err
 	}
-	pg.SetMaxOpenConns(100)
-	pg.SetMaxIdleConns(70)
-	pg.SetConnMaxLifetime(10 * time.Minute)
-	if err = pg.Ping(); err != nil {
+
+	db.SetMaxOpenConns(100) // FIXME
+	db.SetMaxIdleConns(70)
+	db.SetConnMaxLifetime(10 * time.Minute)
+	if err = db.Ping(); err != nil {
 		return nil, err
 	}
 
-	log.Print("preparing postgres usage")
-
 	dbManager := &DatabaseManager{
 		options: &sql.TxOptions{
-			Isolation: sql.LevelReadCommitted,
+			Isolation: sql.LevelWriteCommitted,
 			ReadOnly:  false,
 		},
-		db:        pg,
-		tableName: tableName,
+		db:         db,
+		driverName: driverName,
+		tableName:  tableName,
 	}
 
-	if _, err = dbManager.db.Exec(CreateTable(PostgresIdentity, tableName)); err != nil {
+	// create table
+	var identityTable int
+
+	switch driverName {
+	case PostgreSQL:
+		identityTable = PostgresIdentity
+	case SQLite:
+		identityTable = SQLiteIdentity
+	default:
+		return nil, fmt.Errorf("unsupported SQL driver: %s", driverName)
+	}
+
+	if _, err = dbManager.db.Exec(CreateTable(identityTable, tableName)); err != nil {
 		return nil, err
 	}
 
@@ -143,7 +160,14 @@ func (dm *DatabaseManager) GetAuthToken(uid uuid.UUID) (string, error) {
 }
 
 func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
-	return dm.db.BeginTx(ctx, dm.options)
+	tx, err := dm.db.BeginTx(ctx, dm.options)
+	if err != nil {
+		if dm.isConnectionError(err) {
+			return dm.StartTransaction(ctx)
+		}
+		return nil, err
+	}
+	return tx, nil
 }
 
 // StartTransactionWithLock starts a transaction and acquires a lock on the row with the specified uuid as key.
@@ -151,6 +175,9 @@ func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx
 func (dm *DatabaseManager) StartTransactionWithLock(ctx context.Context, uid uuid.UUID) (transactionCtx interface{}, err error) {
 	tx, err := dm.db.BeginTx(ctx, dm.options)
 	if err != nil {
+		if dm.isConnectionError(err) {
+			return dm.StartTransactionWithLock(ctx, uid)
+		}
 		return nil, err
 	}
 
@@ -266,11 +293,21 @@ func (dm *DatabaseManager) storeIdentity(tx *sql.Tx, identity *ent.Identity) err
 	return nil
 }
 
-func (dm *DatabaseManager) isConnectionError(err error) bool {
-	if err.Error() == pq.ErrorCode("53300").Name() || // "53300": "too_many_connections",
-		err.Error() == pq.ErrorCode("53400").Name() { // "53400": "configuration_limit_exceeded",
-		time.Sleep(100 * time.Millisecond)
-		return true
+func (dm DatabaseManager) isConnectionError(err error) bool {
+	switch dm.driverName {
+	case PostgreSQL:
+		if err.Error() == pq.ErrorCode("53300").Name() || // "53300": "too_many_connections",
+			err.Error() == pq.ErrorCode("53400").Name() { // "53400": "configuration_limit_exceeded",
+			time.Sleep(100 * time.Millisecond)
+			return true
+		}
+	case SQLite:
+		if err.Error() == sqlite3.ErrBusy.Error() ||
+			err.Error() == sqlite3.ErrLocked.Error() {
+			time.Sleep(100 * time.Millisecond)
+			return true
+		}
 	}
+
 	return false
 }
