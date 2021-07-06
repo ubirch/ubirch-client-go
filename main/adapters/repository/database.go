@@ -62,26 +62,28 @@ func NewSqlDatabaseInfo(driverName, dataSourceName, tableName string) (*Database
 		return nil, err
 	}
 
+	var isolationLvl sql.IsolationLevel
+	var identityTable int
+
+	switch driverName {
+	case PostgreSQL:
+		isolationLvl = sql.LevelReadCommitted
+		identityTable = PostgresIdentity
+	case SQLite:
+		isolationLvl = sql.LevelSerializable
+		identityTable = SQLiteIdentity
+	default:
+		return nil, fmt.Errorf("unsupported SQL driver: %s", driverName)
+	}
+
 	dbManager := &DatabaseManager{
 		options: &sql.TxOptions{
-			Isolation: sql.LevelSerializable,
+			Isolation: isolationLvl,
 			ReadOnly:  false,
 		},
 		db:         db,
 		driverName: driverName,
 		tableName:  tableName,
-	}
-
-	// create table
-	var identityTable int
-
-	switch driverName {
-	case PostgreSQL:
-		identityTable = PostgresIdentity
-	case SQLite:
-		identityTable = SQLiteIdentity
-	default:
-		return nil, fmt.Errorf("unsupported SQL driver: %s", driverName)
 	}
 
 	err = dbManager.CreateTable(identityTable, tableName)
