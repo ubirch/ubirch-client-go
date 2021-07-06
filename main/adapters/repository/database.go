@@ -186,9 +186,12 @@ func (dm *DatabaseManager) StartTransactionWithLock(ctx context.Context, uid uui
 
 	var id string
 
-	query := fmt.Sprintf("SELECT uid FROM %s WHERE uid = $1 FOR UPDATE", dm.tableName)
+	query := fmt.Sprintf("SELECT uid FROM %s WHERE uid = $1", dm.tableName)
 
-	// lock row FOR UPDATE
+	if dm.driverName == PostgreSQL {
+		query += " FOR UPDATE" // lock row FOR UPDATE
+	}
+
 	err = tx.QueryRow(query, uid).Scan(&id)
 	if err != nil {
 		if dm.isConnectionError(err) {
@@ -262,7 +265,7 @@ func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity
 	// make sure identity does not exist yet
 	var id string
 
-	query := fmt.Sprintf("SELECT uid FROM %s WHERE uid = $1 FOR UPDATE;", dm.tableName)
+	query := fmt.Sprintf("SELECT uid FROM %s WHERE uid = $1", dm.tableName)
 
 	err := tx.QueryRow(query, identity.Uid).Scan(&id)
 	if err != nil {
