@@ -113,6 +113,10 @@ func (c *Config) Load(configDir, filename string) error {
 		return err
 	}
 
+	if c.SqliteDSN != "" {
+		c.SqliteDSN = filepath.Join(configDir, c.SqliteDSN)
+	}
+
 	// set defaults
 	c.setDefaultCSR()
 	c.setDefaultTLS()
