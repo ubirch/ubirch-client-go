@@ -48,8 +48,14 @@ var create = map[int]string{
 		"migration_version TEXT NOT NULL);",
 }
 
-func CreateTable(tableType int, tableName string) string {
-	return fmt.Sprintf(create[tableType], tableName)
+func (dm *DatabaseManager) CreateTable(tableType int, tableName string) error {
+	query := fmt.Sprintf(create[tableType], tableName)
+
+	_, err := dm.db.Exec(query)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 type Migration struct {
@@ -206,10 +212,10 @@ func checkVersion(ctx context.Context, dm *DatabaseManager) (*sql.Tx, bool, erro
 
 	switch dm.driverName {
 	case PostgreSQL:
-		_, err = dm.db.Exec(CreateTable(PostgresVersion, VersionTableName))
+		err = dm.CreateTable(PostgresVersion, VersionTableName)
 		currentVersion = MigrationVersionPostgres
 	case SQLite:
-		_, err = dm.db.Exec(CreateTable(SQLiteVersion, VersionTableName))
+		err = dm.CreateTable(SQLiteVersion, VersionTableName)
 		currentVersion = MigrationVersionSqlite
 	default:
 		return nil, false, fmt.Errorf("unsupported SQL driver: %s", dm.driverName)

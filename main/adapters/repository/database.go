@@ -84,7 +84,8 @@ func NewSqlDatabaseInfo(driverName, dataSourceName, tableName string) (*Database
 		return nil, fmt.Errorf("unsupported SQL driver: %s", driverName)
 	}
 
-	if _, err = dbManager.db.Exec(CreateTable(identityTable, tableName)); err != nil {
+	err = dbManager.CreateTable(identityTable, tableName)
+	if err != nil {
 		return nil, err
 	}
 
