@@ -17,22 +17,22 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
-	"github.com/ubirch/ubirch-client-go/main/adapters/handlers"
-	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
-	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
-	"github.com/ubirch/ubirch-client-go/main/config"
-	p "github.com/ubirch/ubirch-client-go/main/prometheus"
-	"github.com/ubirch/ubirch-client-go/main/uc"
-	"github.com/ubirch/ubirch-client-go/main/vars"
-	"golang.org/x/sync/errgroup"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 
+	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
+	"github.com/ubirch/ubirch-client-go/main/adapters/handlers"
+	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
+	"github.com/ubirch/ubirch-client-go/main/config"
+	"github.com/ubirch/ubirch-client-go/main/uc"
+	"golang.org/x/sync/errgroup"
+
 	log "github.com/sirupsen/logrus"
+	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
+	prom "github.com/ubirch/ubirch-client-go/main/prometheus"
 )
 
 // handle graceful shutdown
@@ -56,21 +56,26 @@ var (
 )
 
 func main() {
-	const configFile = "config.json"
+	const (
+		serviceName = "ubirch-client"
+		configFile  = "config.json"
+		MigrateArg  = "--migrate"
+		InitArg     = "--init-identities-conf"
+	)
 
 	var (
 		configDir      string
 		migrate        bool
 		initIdentities bool
-		serverID       = fmt.Sprintf("ubirch-client/%s", Version)
+		serverID       = fmt.Sprintf("%s/%s", serviceName, Version)
 	)
 
 	if len(os.Args) > 1 {
 		for i, arg := range os.Args[1:] {
 			log.Infof("arg #%d: %s", i+1, arg)
-			if arg == vars.MigrateArg {
+			if arg == MigrateArg {
 				migrate = true
-			} else if arg == vars.InitArg {
+			} else if arg == InitArg {
 				initIdentities = true
 			} else {
 				configDir = arg
@@ -102,8 +107,8 @@ func main() {
 	go shutdown(cancel)
 
 	// set up HTTP server
-	httpServer := handlers.HTTPServer{
-		Router:   handlers.NewRouter(),
+	httpServer := h.HTTPServer{
+		Router:   h.NewRouter(),
 		Addr:     conf.TCP_addr,
 		TLS:      conf.TLS,
 		CertFile: conf.TLS_CertFile,
@@ -122,7 +127,7 @@ func main() {
 	<-serverReadyCtx.Done()
 
 	// set up metrics
-	p.InitPromMetrics(httpServer.Router)
+	prom.InitPromMetrics(httpServer.Router)
 
 	// set up endpoint for liveliness checks
 	httpServer.Router.Get("/healtz", h.Health(serverID))
@@ -180,28 +185,28 @@ func main() {
 	}
 
 	// set up endpoint for identity registration
-	identity := createIdentityUseCases(globals, idHandler)
-	httpServer.Router.Put("/register", identity.handler.Put(identity.storeIdentity, identity.checkIdentity))
+	identity := createIdentityUseCases(globals.Config.RegisterAuth, idHandler)
+	httpServer.Router.Put(fmt.Sprintf("/%s", h.RegisterEndpoint), identity.handler.Put(identity.storeIdentity, identity.checkIdentity))
 
 	// set up endpoint for chaining
-	httpServer.AddServiceEndpoint(handlers.ServerEndpoint{
-		Path: fmt.Sprintf("/{%s}", vars.UUIDKey),
+	httpServer.AddServiceEndpoint(h.ServerEndpoint{
+		Path: fmt.Sprintf("/{%s}", h.UUIDKey),
 		Service: &handlers.ChainingService{
 			Signer: &signer,
 		},
 	})
 
 	// set up endpoint for signing
-	httpServer.AddServiceEndpoint(handlers.ServerEndpoint{
-		Path: fmt.Sprintf("/{%s}/{%s}", vars.UUIDKey, vars.OperationKey),
+	httpServer.AddServiceEndpoint(h.ServerEndpoint{
+		Path: fmt.Sprintf("/{%s}/{%s}", h.UUIDKey, h.OperationKey),
 		Service: &handlers.SigningService{
 			Signer: &signer,
 		},
 	})
 
 	// set up endpoint for verification
-	httpServer.AddServiceEndpoint(handlers.ServerEndpoint{
-		Path: fmt.Sprintf("/%s", vars.VerifyPath),
+	httpServer.AddServiceEndpoint(h.ServerEndpoint{
+		Path: fmt.Sprintf("/%s", h.VerifyPath),
 		Service: &handlers.VerificationService{
 			Verifier: &verifier,
 		},
@@ -220,17 +225,15 @@ func main() {
 }
 
 type identities struct {
-	handler       handlers.Identity
+	handler       handlers.IdentityCreator
 	storeIdentity handlers.StoreIdentity
-	fetchIdentity handlers.FetchIdentity
 	checkIdentity handlers.CheckIdentityExists
 }
 
-func createIdentityUseCases(globals handlers.Globals, handler *handlers.IdentityHandler) identities {
+func createIdentityUseCases(auth string, handler *handlers.IdentityHandler) identities {
 	return identities{
-		handler:       handlers.NewIdentity(globals),
+		handler:       handlers.NewIdentityCreator(auth),
 		storeIdentity: uc.NewIdentityStorer(handler),
-		fetchIdentity: uc.NewIdentityFetcher(handler),
 		checkIdentity: uc.NewIdentityChecker(handler),
 	}
 }

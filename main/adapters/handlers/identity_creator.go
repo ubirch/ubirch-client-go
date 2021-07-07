@@ -2,17 +2,20 @@ package handlers
 
 import (
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
+	"net/http"
+
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
-	"github.com/ubirch/ubirch-client-go/main/logger"
-	"github.com/ubirch/ubirch-client-go/main/vars"
-	"net/http"
+	prom "github.com/ubirch/ubirch-client-go/main/prometheus"
 )
 
-type Identity struct {
-	globals Globals
+type IdentityCreator struct {
+	auth string
 }
 
 type IdentityPayload struct {
@@ -20,14 +23,17 @@ type IdentityPayload struct {
 	Pwd string `json:"password"`
 }
 
-func NewIdentity(globals Globals) Identity {
-	return Identity{globals: globals}
+type StoreIdentity func(uid uuid.UUID, auth string) (csr []byte, err error)
+type CheckIdentityExists func(uid uuid.UUID) (bool, error)
+
+func NewIdentityCreator(auth string) IdentityCreator {
+	return IdentityCreator{auth: auth}
 }
 
-func (i *Identity) Put(storeId StoreIdentity, idExists CheckIdentityExists) http.HandlerFunc {
+func (i *IdentityCreator) Put(storeId StoreIdentity, idExists CheckIdentityExists) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get(h.XAuthHeader)
-		if authHeader != i.globals.Config.RegisterAuth {
+		if authHeader != i.auth {
 			log.Warnf("unauthorized registration attempt")
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 			return
@@ -59,28 +65,32 @@ func (i *Identity) Put(storeId StoreIdentity, idExists CheckIdentityExists) http
 			return
 		}
 
+		timer := prometheus.NewTimer(prom.IdentityCreationDuration)
 		csr, err := storeId(uid, idPayload.Pwd)
+		timer.ObserveDuration()
 		if err != nil {
 			log.Errorf("%s: %v", uid, err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
 
-		w.Header().Set(h.HeaderContentType, vars.BinType)
+		csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
+
+		w.Header().Set(h.HeaderContentType, h.BinType)
 		w.WriteHeader(http.StatusOK)
-		_, err = w.Write(csr)
+		_, err = w.Write(csrPEM)
 		if err != nil {
 			log.Errorf("unable to write response: %s", err)
 		}
 
-		logger.AuditLogf("uuid: %s, operation: identity creation", uid)
+		prom.IdentityCreationCounter.Inc()
 	}
 }
 
 func IdentityFromBody(r *http.Request) (IdentityPayload, error) {
 	contentType := r.Header.Get(h.HeaderContentType)
-	if contentType != vars.JSONType {
-		return IdentityPayload{}, fmt.Errorf("invalid content-type: expected %s, got %s", vars.JSONType, contentType)
+	if contentType != h.JSONType {
+		return IdentityPayload{}, fmt.Errorf("invalid content-type: expected %s, got %s", h.JSONType, contentType)
 	}
 
 	var payload IdentityPayload

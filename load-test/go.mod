@@ -1,4 +1,4 @@
-module github.com/ubirch/load-test
+module github.com/ubirch/ubirch-client-go/load-test
 
 go 1.16
 

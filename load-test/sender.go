@@ -138,8 +138,9 @@ func (s *Sender) sendRequest(clientURL string, header http.Header, hash []byte) 
 	//noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()
 
+	s.testCtx.statusCounter.StatusCodes <- resp.Status
+
 	if resp.StatusCode != 200 {
-		s.testCtx.failCounter.StatusCodes <- resp.Status
 		return SigningResponse{}, fmt.Errorf(resp.Status)
 	}
 

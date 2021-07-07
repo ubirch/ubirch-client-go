@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 )
+
 // HttpProblem is an implementation of https://tools.ietf.org/html/rfc7807.
 // It should be used to define once in your program the problems in use.
 // HttpProblemInstances should then be used to create individual instances

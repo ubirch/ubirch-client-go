@@ -45,27 +45,24 @@ func (c *ChainChecker) checkChain() {
 		upp, err := ubirch.Decode(uppBytes)
 		if err != nil {
 			log.Errorf("RESPONSE CONTAINED INVALID UPP: %v", err)
-		}
-
-		id := upp.GetUuid().String()
-		signatureUPP := upp.GetSignature()
-		prevSignatureLocal, found := c.signatures[id]
-
-		if !found {
-			c.SetSignature(id, signatureUPP)
 			continue
 		}
 
-		prevSignatureUPP := upp.GetPrevSignature()
+		id := upp.GetUuid().String()
+		prevSignatureLocal, found := c.signatures[id]
 
-		if !bytes.Equal(prevSignatureLocal, prevSignatureUPP) {
-			log.Errorf("PREV SIGNATURE MISMATCH: local %s, got %s",
-				base64.StdEncoding.EncodeToString(prevSignatureLocal),
-				base64.StdEncoding.EncodeToString(prevSignatureUPP),
-			)
+		if found {
+			prevSignatureUPP := upp.GetPrevSignature()
+
+			if !bytes.Equal(prevSignatureLocal, prevSignatureUPP) {
+				log.Errorf("PREV SIGNATURE MISMATCH: local %s, got %s",
+					base64.StdEncoding.EncodeToString(prevSignatureLocal),
+					base64.StdEncoding.EncodeToString(prevSignatureUPP),
+				)
+			}
 		}
 
-		c.SetSignature(id, signatureUPP)
+		c.SetSignature(id, upp.GetSignature())
 	}
 }
 
