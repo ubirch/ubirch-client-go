@@ -38,12 +38,7 @@ func (f *StatusCounter) countStatus() {
 	defer f.cancel()
 
 	for status := range f.StatusCodes {
-		count, found := f.statusMap[status]
-		if !found {
-			f.statusMap[status] = 1
-		} else {
-			f.statusMap[status] = count + 1
-		}
+		f.statusMap[status] += 1
 	}
 
 	for status, count := range f.statusMap {
