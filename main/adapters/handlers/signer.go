@@ -149,7 +149,7 @@ func (s *Signer) Sign(msg h.HTTPRequest, op operation) h.HTTPResponse {
 	return s.sendUPP(msg, uppBytes)
 }
 
-func (s *Signer) getChainedUPP(id uuid.UUID, hash [32]byte, privateKeyPEM, prevSignature []byte) ([]byte, error) {
+func (s *Signer) getChainedUPP(id uuid.UUID, hash []byte, privateKeyPEM, prevSignature []byte) ([]byte, error) {
 	return s.Protocol.Sign(
 		privateKeyPEM,
 		&ubirch.ChainedUPP{
@@ -161,7 +161,7 @@ func (s *Signer) getChainedUPP(id uuid.UUID, hash [32]byte, privateKeyPEM, prevS
 		})
 }
 
-func (s *Signer) getSignedUPP(id uuid.UUID, hash [32]byte, privateKeyPEM []byte, op operation) ([]byte, error) {
+func (s *Signer) getSignedUPP(id uuid.UUID, hash []byte, privateKeyPEM []byte, op operation) ([]byte, error) {
 	hint, found := hintLookup[op]
 	if !found {
 		return nil, fmt.Errorf("%s: invalid operation: \"%s\"", id, op)
