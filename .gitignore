@@ -39,3 +39,4 @@ main/main
 /main/protocol.json
 /main/identities.json
 /load-test/config.json
+/main/fmtcoverage.html

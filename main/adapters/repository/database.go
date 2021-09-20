@@ -49,8 +49,8 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string) (*DatabaseManager, err
 	if err != nil {
 		return nil, err
 	}
-	pg.SetMaxOpenConns(100)
-	pg.SetMaxIdleConns(70)
+	pg.SetMaxOpenConns(30)
+	pg.SetMaxIdleConns(5)
 	pg.SetConnMaxLifetime(10 * time.Minute)
 	if err = pg.Ping(); err != nil {
 		return nil, err
@@ -74,51 +74,52 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string) (*DatabaseManager, err
 	return dbManager, nil
 }
 
-func (dm *DatabaseManager) Exists(uid uuid.UUID) (bool, error) {
+func (dm *DatabaseManager) Exists(uid uuid.UUID, retries int) (bool, error) {
 	var id string
 
 	query := fmt.Sprintf("SELECT uid FROM %s WHERE uid = $1", dm.tableName)
 
 	err := dm.db.QueryRow(query, uid.String()).Scan(&id)
 	if err != nil {
-		if dm.isConnectionAvailable(err) {
-			return dm.Exists(uid)
+		increasedRetries, retryReconnect := dm.isConnectionAvailable(retries, err)
+		if retryReconnect {
+			return dm.Exists(uid, increasedRetries)
 		}
 		if err == sql.ErrNoRows {
 			return false, nil
-		} else {
-			return false, err
 		}
+		return false, err
 	} else {
 		return true, nil
 	}
 }
 
-func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
+func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID, retries int) ([]byte, error) {
 	var privateKey []byte
 
 	query := fmt.Sprintf("SELECT private_key FROM %s WHERE uid = $1", dm.tableName)
 
 	err := dm.db.QueryRow(query, uid.String()).Scan(&privateKey)
 	if err != nil {
-		if dm.isConnectionAvailable(err) {
-			return dm.GetPrivateKey(uid)
+		increasedRetries, retryReconnect := dm.isConnectionAvailable(retries, err)
+		if retryReconnect {
+			return dm.GetPrivateKey(uid, increasedRetries)
 		}
 		return nil, err
 	}
-
 	return privateKey, nil
 }
 
-func (dm *DatabaseManager) GetPublicKey(uid uuid.UUID) ([]byte, error) {
+func (dm *DatabaseManager) GetPublicKey(uid uuid.UUID, retries int) ([]byte, error) {
 	var publicKey []byte
 
 	query := fmt.Sprintf("SELECT public_key FROM %s WHERE uid = $1", dm.tableName)
 
 	err := dm.db.QueryRow(query, uid.String()).Scan(&publicKey)
 	if err != nil {
-		if dm.isConnectionAvailable(err) {
-			return dm.GetPublicKey(uid)
+		increasedRetries, retryReconnect := dm.isConnectionAvailable(retries, err)
+		if retryReconnect {
+			return dm.GetPublicKey(uid, increasedRetries)
 		}
 		return nil, err
 	}
@@ -126,15 +127,16 @@ func (dm *DatabaseManager) GetPublicKey(uid uuid.UUID) ([]byte, error) {
 	return publicKey, nil
 }
 
-func (dm *DatabaseManager) GetAuthToken(uid uuid.UUID) (string, error) {
+func (dm *DatabaseManager) GetAuthToken(uid uuid.UUID, retries int) (string, error) {
 	var authToken string
 
-	query := fmt.Sprintf("SELECT auth_token FROM %s WHERE uid = $1", dm.tableName)
+	query := fmt.Sprintf("SELECT auth_token FROM %s WHERE uid = $1;", dm.tableName)
 
 	err := dm.db.QueryRow(query, uid.String()).Scan(&authToken)
 	if err != nil {
-		if dm.isConnectionAvailable(err) {
-			return dm.GetAuthToken(uid)
+		increasedRetries, retryReconnect := dm.isConnectionAvailable(retries, err)
+		if retryReconnect {
+			return dm.GetAuthToken(uid, increasedRetries)
 		}
 		return "", err
 	}
@@ -146,23 +148,35 @@ func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx
 	return dm.db.BeginTx(ctx, dm.options)
 }
 
+var ds = 0
+var is = 0
+
 // StartTransactionWithLock starts a transaction and acquires a lock on the row with the specified uuid as key.
 // Returns error if row does not exist.
-func (dm *DatabaseManager) StartTransactionWithLock(ctx context.Context, uid uuid.UUID) (transactionCtx interface{}, err error) {
+func (dm *DatabaseManager) StartTransactionWithLock(ctx context.Context, uid uuid.UUID, retries int) (transactionCtx interface{}, err error) {
+	is++
+	fmt.Printf("is:%d\n", is)
 	tx, err := dm.db.BeginTx(ctx, dm.options)
 	if err != nil {
 		return nil, err
 	}
 
+	ds++
+	fmt.Println(ds)
 	var id string
 
-	query := fmt.Sprintf("SELECT uid FROM %s WHERE uid = $1 FOR UPDATE", dm.tableName)
+	query := fmt.Sprintf("SELECT uid FROM %s WHERE uid = $1 FOR UPDATE NOWAIT;", dm.tableName)
 
 	// lock row FOR UPDATE
 	err = tx.QueryRow(query, uid).Scan(&id)
 	if err != nil {
-		if dm.isConnectionAvailable(err) {
-			return dm.StartTransactionWithLock(ctx, uid)
+		increasedRetries, retryReconnect := dm.isConnectionAvailable(retries, err)
+		if retryReconnect {
+			return dm.StartTransactionWithLock(ctx, uid, increasedRetries)
+		}
+		txErr := tx.Rollback()
+		if txErr != nil {
+			return nil, fmt.Errorf("%v and %v", err, txErr)
 		}
 		return nil, err
 	}
@@ -183,7 +197,7 @@ func (dm *DatabaseManager) CloseTransaction(transactionCtx interface{}, commit b
 	}
 }
 
-func (dm *DatabaseManager) FetchIdentity(transactionCtx interface{}, uid uuid.UUID) (*ent.Identity, error) {
+func (dm *DatabaseManager) FetchIdentity(transactionCtx interface{}, uid uuid.UUID, retries int) (*ent.Identity, error) {
 	tx, ok := transactionCtx.(*sql.Tx)
 	if !ok {
 		return nil, fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
@@ -195,8 +209,9 @@ func (dm *DatabaseManager) FetchIdentity(transactionCtx interface{}, uid uuid.UU
 
 	err := tx.QueryRow(query, uid.String()).Scan(&id.Uid, &id.PrivateKey, &id.PublicKey, &id.Signature, &id.AuthToken)
 	if err != nil {
-		if dm.isConnectionAvailable(err) {
-			return dm.FetchIdentity(tx, uid)
+		increasedRetries, retryReconnect := dm.isConnectionAvailable(retries, err)
+		if retryReconnect {
+			return dm.FetchIdentity(tx, uid, increasedRetries)
 		}
 		return nil, err
 	}
@@ -204,7 +219,7 @@ func (dm *DatabaseManager) FetchIdentity(transactionCtx interface{}, uid uuid.UU
 	return &id, nil
 }
 
-func (dm *DatabaseManager) SetSignature(transactionCtx interface{}, uid uuid.UUID, signature []byte) error {
+func (dm *DatabaseManager) SetSignature(transactionCtx interface{}, uid uuid.UUID, signature []byte, retries int) error {
 	tx, ok := transactionCtx.(*sql.Tx)
 	if !ok {
 		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
@@ -214,8 +229,9 @@ func (dm *DatabaseManager) SetSignature(transactionCtx interface{}, uid uuid.UUI
 
 	_, err := tx.Exec(query, &signature, uid.String())
 	if err != nil {
-		if dm.isConnectionAvailable(err) {
-			return dm.SetSignature(tx, uid, signature)
+		increasedRetries, retryReconnect := dm.isConnectionAvailable(retries, err)
+		if retryReconnect {
+			return dm.SetSignature(tx, uid, signature, increasedRetries)
 		}
 		return err
 	}
@@ -223,7 +239,7 @@ func (dm *DatabaseManager) SetSignature(transactionCtx interface{}, uid uuid.UUI
 	return nil
 }
 
-func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity *ent.Identity) error {
+func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity *ent.Identity, retries int) error {
 	tx, ok := transactionCtx.(*sql.Tx)
 	if !ok {
 		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
@@ -232,16 +248,17 @@ func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity
 	// make sure identity does not exist yet
 	var id string
 
-	query := fmt.Sprintf("SELECT uid FROM %s WHERE uid = $1 FOR UPDATE;", dm.tableName)
+	query := fmt.Sprintf("SELECT uid FROM %s WHERE uid = $1 FOR UPDATE NOWAIT;", dm.tableName)
 
 	err := tx.QueryRow(query, identity.Uid).Scan(&id)
 	if err != nil {
-		if dm.isConnectionAvailable(err) {
-			return dm.StoreNewIdentity(tx, identity)
+		increasedRetries, retryReconnect := dm.isConnectionAvailable(retries, err)
+		if retryReconnect {
+			return dm.StoreNewIdentity(tx, identity, increasedRetries)
 		}
 		if err == sql.ErrNoRows {
 			// there were no rows, but otherwise no error occurred
-			return dm.storeIdentity(tx, identity)
+			return dm.storeIdentity(tx, identity, retries)
 		} else {
 			return err
 		}
@@ -250,15 +267,16 @@ func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity
 	}
 }
 
-func (dm *DatabaseManager) storeIdentity(tx *sql.Tx, identity *ent.Identity) error {
+func (dm *DatabaseManager) storeIdentity(tx *sql.Tx, identity *ent.Identity, retries int) error {
 	query := fmt.Sprintf(
 		"INSERT INTO %s (uid, private_key, public_key, signature, auth_token) VALUES ($1, $2, $3, $4, $5);",
 		dm.tableName)
 
 	_, err := tx.Exec(query, &identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.Signature, &identity.AuthToken)
 	if err != nil {
-		if dm.isConnectionAvailable(err) {
-			return dm.storeIdentity(tx, identity)
+		increasedRetries, retryReconnect := dm.isConnectionAvailable(retries, err)
+		if retryReconnect {
+			return dm.storeIdentity(tx, identity, increasedRetries)
 		}
 		return err
 	}
@@ -266,11 +284,14 @@ func (dm *DatabaseManager) storeIdentity(tx *sql.Tx, identity *ent.Identity) err
 	return nil
 }
 
-func (dm *DatabaseManager) isConnectionAvailable(err error) bool {
-	if err.Error() == pq.ErrorCode("53300").Name() || // "53300": "too_many_connections",
-		err.Error() == pq.ErrorCode("53400").Name() { // "53400": "configuration_limit_exceeded",
-		time.Sleep(100 * time.Millisecond)
-		return true
+func (dm *DatabaseManager) isConnectionAvailable(retriesCounter int, err error) (int, bool) {
+	if retriesCounter < MaxRetries {
+		if err, ok := err.(*pq.Error); ok {
+			if err.Code == "55P03" || err.Code == "53400" || err.Code == "53300" {
+				time.Sleep(100 * time.Millisecond)
+				return retriesCounter + 1, true
+			}
+		}
 	}
-	return false
+	return retriesCounter, false
 }

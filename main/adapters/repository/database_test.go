@@ -35,7 +35,7 @@ func TestDatabaseManager(t *testing.T) {
 	defer cleanUp(t, dbManager, cancel)
 
 	// check not exists
-	exists, err := dbManager.Exists(uuid.MustParse(testIdentity.Uid))
+	exists, err := dbManager.Exists(uuid.MustParse(testIdentity.Uid), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func TestDatabaseManager(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = dbManager.StoreNewIdentity(tx, testIdentity)
+	err = dbManager.StoreNewIdentity(tx, testIdentity, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +60,7 @@ func TestDatabaseManager(t *testing.T) {
 	}
 
 	// check exists
-	exists, err = dbManager.Exists(uuid.MustParse(testIdentity.Uid))
+	exists, err = dbManager.Exists(uuid.MustParse(testIdentity.Uid), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func TestDatabaseManager(t *testing.T) {
 	}
 
 	// get attributes
-	auth, err := dbManager.GetAuthToken(uuid.MustParse(testIdentity.Uid))
+	auth, err := dbManager.GetAuthToken(uuid.MustParse(testIdentity.Uid), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +77,7 @@ func TestDatabaseManager(t *testing.T) {
 		t.Error("GetAuthToken returned unexpected value")
 	}
 
-	pub, err := dbManager.GetPublicKey(uuid.MustParse(testIdentity.Uid))
+	pub, err := dbManager.GetPublicKey(uuid.MustParse(testIdentity.Uid), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +85,7 @@ func TestDatabaseManager(t *testing.T) {
 		t.Error("GetPublicKey returned unexpected value")
 	}
 
-	priv, err := dbManager.GetPrivateKey(uuid.MustParse(testIdentity.Uid))
+	priv, err := dbManager.GetPrivateKey(uuid.MustParse(testIdentity.Uid), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,12 +94,12 @@ func TestDatabaseManager(t *testing.T) {
 	}
 
 	// fetch identity
-	tx, err = dbManager.StartTransactionWithLock(ctx, uuid.MustParse(testIdentity.Uid))
+	tx, err = dbManager.StartTransactionWithLock(ctx, uuid.MustParse(testIdentity.Uid), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	id, err := dbManager.FetchIdentity(tx, uuid.MustParse(testIdentity.Uid))
+	id, err := dbManager.FetchIdentity(tx, uuid.MustParse(testIdentity.Uid), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func TestDatabaseManager(t *testing.T) {
 
 	// set signature
 	sig2, _ := base64.StdEncoding.DecodeString(TestSignature2)
-	err = dbManager.SetSignature(tx, uuid.MustParse(testIdentity.Uid), sig2)
+	err = dbManager.SetSignature(tx, uuid.MustParse(testIdentity.Uid), sig2, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +138,7 @@ func TestDatabaseManager(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	id, err = dbManager.FetchIdentity(tx, uuid.MustParse(testIdentity.Uid))
+	id, err = dbManager.FetchIdentity(tx, uuid.MustParse(testIdentity.Uid), 0)
 	if err != nil {
 		t.Fatal(err)
 	}

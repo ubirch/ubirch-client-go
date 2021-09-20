@@ -20,14 +20,13 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/google/uuid"
+	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
-
-	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
@@ -126,7 +125,7 @@ func (v *Verifier) verifyUPP(upp []byte) (uuid.UUID, []byte, error) {
 
 	id := uppStruct.GetUuid()
 
-	pubKeyPEM, err := v.Protocol.GetPublicKey(id)
+	pubKeyPEM, err := v.Protocol.GetPublicKey(id, 0)
 	if err != nil {
 		if v.VerifyFromKnownIdentitiesOnly {
 			return id, nil, fmt.Errorf("retrieved certificate for requested hash is from unknown identity")

@@ -2,13 +2,11 @@ package handlers
 
 import (
 	"fmt"
-	"net/http"
-
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
-
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
+	"net/http"
 )
 
 type ChainingService struct {
@@ -59,7 +57,8 @@ func (s *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	tx, identity, err := s.Protocol.FetchIdentityWithLock(r.Context(), msg.ID)
+
+	tx, identity, err := s.Protocol.FetchIdentityWithLock(r.Context(), msg.ID, 0)
 	if err != nil {
 		log.Errorf("%s: %v", msg.ID, err)
 		http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)

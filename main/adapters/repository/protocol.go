@@ -59,19 +59,19 @@ func (p *ExtendedProtocol) StartTransaction(ctx context.Context) (transactionCtx
 	return p.ctxManager.StartTransaction(ctx)
 }
 
-func (p *ExtendedProtocol) StartTransactionWithLock(ctx context.Context, uid uuid.UUID) (transactionCtx interface{}, err error) {
-	return p.ctxManager.StartTransactionWithLock(ctx, uid)
+func (p *ExtendedProtocol) StartTransactionWithLock(ctx context.Context, uid uuid.UUID, retries int) (transactionCtx interface{}, err error) {
+	return p.ctxManager.StartTransactionWithLock(ctx, uid, retries)
 }
 
 func (p *ExtendedProtocol) CloseTransaction(tx interface{}, commit bool) error {
 	return p.ctxManager.CloseTransaction(tx, commit)
 }
 
-func (p *ExtendedProtocol) Exists(uid uuid.UUID) (bool, error) {
-	return p.ctxManager.Exists(uid)
+func (p *ExtendedProtocol) Exists(uid uuid.UUID, retries int) (bool, error) {
+	return p.ctxManager.Exists(uid, retries)
 }
 
-func (p *ExtendedProtocol) StoreNewIdentity(tx interface{}, i *ent.Identity) error {
+func (p *ExtendedProtocol) StoreNewIdentity(tx interface{}, i *ent.Identity, retries int) error {
 	// check validity of identity attributes
 	err := p.checkIdentityAttributes(i)
 	if err != nil {
@@ -90,11 +90,11 @@ func (p *ExtendedProtocol) StoreNewIdentity(tx interface{}, i *ent.Identity) err
 		return err
 	}
 
-	return p.ctxManager.StoreNewIdentity(tx, i)
+	return p.ctxManager.StoreNewIdentity(tx, i, retries)
 }
 
-func (p *ExtendedProtocol) FetchIdentity(tx interface{}, uid uuid.UUID) (*ent.Identity, error) {
-	i, err := p.ctxManager.FetchIdentity(tx, uid)
+func (p *ExtendedProtocol) FetchIdentity(tx interface{}, uid uuid.UUID, retries int) (*ent.Identity, error) {
+	i, err := p.ctxManager.FetchIdentity(tx, uid, retries)
 	if err != nil {
 		return nil, err
 	}
@@ -120,13 +120,13 @@ func (p *ExtendedProtocol) FetchIdentity(tx interface{}, uid uuid.UUID) (*ent.Id
 }
 
 // FetchIdentityWithLock starts a transaction with lock and returns the locked identity
-func (p *ExtendedProtocol) FetchIdentityWithLock(ctx context.Context, uid uuid.UUID) (transactionCtx interface{}, identity *ent.Identity, err error) {
-	transactionCtx, err = p.StartTransactionWithLock(ctx, uid)
+func (p *ExtendedProtocol) FetchIdentityWithLock(ctx context.Context, uid uuid.UUID, retries int) (transactionCtx interface{}, identity *ent.Identity, err error) {
+	transactionCtx, err = p.StartTransactionWithLock(ctx, uid, retries)
 	if err != nil {
 		return nil, nil, fmt.Errorf("starting transaction with lock failed: %v", err)
 	}
 
-	identity, err = p.FetchIdentity(transactionCtx, uid)
+	identity, err = p.FetchIdentity(transactionCtx, uid, retries)
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not fetch identity: %v", err)
 	}
@@ -135,12 +135,12 @@ func (p *ExtendedProtocol) FetchIdentityWithLock(ctx context.Context, uid uuid.U
 }
 
 // SetSignature stores the signature and commits the transaction
-func (p *ExtendedProtocol) SetSignature(tx interface{}, uid uuid.UUID, signature []byte) error {
+func (p *ExtendedProtocol) SetSignature(tx interface{}, uid uuid.UUID, signature []byte, retries int) error {
 	if len(signature) != p.SignatureLength() {
 		return fmt.Errorf("invalid signature length: expected %d, got %d", p.SignatureLength(), len(signature))
 	}
 
-	err := p.ctxManager.SetSignature(tx, uid, signature)
+	err := p.ctxManager.SetSignature(tx, uid, signature, retries)
 	if err != nil {
 		return err
 	}
@@ -148,8 +148,8 @@ func (p *ExtendedProtocol) SetSignature(tx interface{}, uid uuid.UUID, signature
 	return p.CloseTransaction(tx, Commit)
 }
 
-func (p *ExtendedProtocol) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
-	encryptedPrivateKey, err := p.ctxManager.GetPrivateKey(uid)
+func (p *ExtendedProtocol) GetPrivateKey(uid uuid.UUID, retries int) ([]byte, error) {
+	encryptedPrivateKey, err := p.ctxManager.GetPrivateKey(uid, retries)
 	if err != nil {
 		return nil, err
 	}
@@ -157,8 +157,8 @@ func (p *ExtendedProtocol) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
 	return p.keyEncrypter.Decrypt(encryptedPrivateKey)
 }
 
-func (p *ExtendedProtocol) GetPublicKey(uid uuid.UUID) (pubKeyPEM []byte, err error) {
-	publicKeyBytes, err := p.ctxManager.GetPublicKey(uid)
+func (p *ExtendedProtocol) GetPublicKey(uid uuid.UUID, retries int) (pubKeyPEM []byte, err error) {
+	publicKeyBytes, err := p.ctxManager.GetPublicKey(uid, retries)
 	if err != nil {
 		return nil, err
 	}
@@ -166,8 +166,8 @@ func (p *ExtendedProtocol) GetPublicKey(uid uuid.UUID) (pubKeyPEM []byte, err er
 	return p.PublicKeyBytesToPEM(publicKeyBytes)
 }
 
-func (p *ExtendedProtocol) GetAuthToken(uid uuid.UUID) (string, error) {
-	authToken, err := p.ctxManager.GetAuthToken(uid)
+func (p *ExtendedProtocol) GetAuthToken(uid uuid.UUID, retries int) (string, error) {
+	authToken, err := p.ctxManager.GetAuthToken(uid, retries)
 	if err != nil {
 		return "", err
 	}

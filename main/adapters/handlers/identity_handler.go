@@ -42,7 +42,7 @@ func (i *IdentityHandler) InitIdentities(identities map[string]string) error {
 		}
 
 		// check if identity is already initialized
-		exists, err := i.Protocol.Exists(uid)
+		exists, err := i.Protocol.Exists(uid, 0)
 		if err != nil {
 			return fmt.Errorf("can not check existing context for %s: %s", name, err)
 		}
@@ -97,7 +97,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) (csr []byte, 
 		return nil, err
 	}
 
-	err = i.Protocol.StoreNewIdentity(tx, newIdentity)
+	err = i.Protocol.StoreNewIdentity(tx, newIdentity, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +120,7 @@ func (i *IdentityHandler) FetchIdentity(uid uuid.UUID) (*ent.Identity, error) {
 		return nil, err
 	}
 
-	return i.Protocol.FetchIdentity(tx, uid)
+	return i.Protocol.FetchIdentity(tx, uid, 0)
 }
 
 func (i *IdentityHandler) registerPublicKey(privKeyPEM []byte, uid uuid.UUID, auth string) (csr []byte, err error) {

@@ -13,6 +13,6 @@ func NewIdentityStorer(idHandler *handlers.IdentityHandler) handlers.StoreIdenti
 
 func NewIdentityChecker(idHandler *handlers.IdentityHandler) handlers.CheckIdentityExists {
 	return func(uid uuid.UUID) (bool, error) {
-		return idHandler.Protocol.Exists(uid)
+		return idHandler.Protocol.Exists(uid, 0)
 	}
 }

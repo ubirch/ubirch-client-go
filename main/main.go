@@ -164,6 +164,7 @@ func main() {
 		SubjectOrganization: conf.CSR_Organization,
 	}
 
+	identity := createIdentityUseCases(globals.Config.RegisterAuth, idHandler)
 	if initIdentities {
 		err = idHandler.InitIdentities(conf.Devices)
 		if err != nil {
@@ -185,7 +186,6 @@ func main() {
 	}
 
 	// set up endpoint for identity registration
-	identity := createIdentityUseCases(globals.Config.RegisterAuth, idHandler)
 	httpServer.Router.Put(fmt.Sprintf("/%s", h.RegisterEndpoint), identity.handler.Put(identity.storeIdentity, identity.checkIdentity))
 
 	// set up endpoint for chaining

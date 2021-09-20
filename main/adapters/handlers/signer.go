@@ -18,15 +18,14 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"os"
-	"sync"
-
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
 	"github.com/ubirch/ubirch-client-go/main/ent"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
+	"net/http"
+	"os"
+	"sync"
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
@@ -71,7 +70,7 @@ func (s *Signer) checkExists(uid uuid.UUID) (bool, error) {
 	s.AuthTokenBufferMutex.RUnlock()
 
 	if !found {
-		return s.Protocol.Exists(uid)
+		return s.Protocol.Exists(uid, 0)
 	}
 	return true, nil
 }
@@ -84,7 +83,7 @@ func (s *Signer) getAuth(uid uuid.UUID) (auth string, err error) {
 	s.AuthTokenBufferMutex.RUnlock()
 
 	if !found {
-		auth, err = s.Protocol.GetAuthToken(uid)
+		auth, err = s.Protocol.GetAuthToken(uid, 0)
 		if err != nil {
 			return "", err
 		}
@@ -115,7 +114,7 @@ func (s *Signer) chain(msg h.HTTPRequest, tx interface{}, identity *ent.Identity
 	if h.HttpSuccess(resp.StatusCode) {
 		signature := uppBytes[len(uppBytes)-s.Protocol.SignatureLength():]
 
-		err = s.Protocol.SetSignature(tx, msg.ID, signature)
+		err = s.Protocol.SetSignature(tx, msg.ID, signature, 0)
 		if err != nil {
 			// this usually happens, if the request context was cancelled because the client already left (timeout or cancel)
 			log.Errorf("%s: storing signature failed: %v", msg.ID, err)
@@ -133,7 +132,7 @@ func (s *Signer) chain(msg h.HTTPRequest, tx interface{}, identity *ent.Identity
 func (s *Signer) Sign(msg h.HTTPRequest, op operation) h.HTTPResponse {
 	log.Infof("%s: %s hash: %s", msg.ID, op, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
-	privateKeyPEM, err := s.Protocol.GetPrivateKey(msg.ID)
+	privateKeyPEM, err := s.Protocol.GetPrivateKey(msg.ID, 0)
 	if err != nil {
 		log.Errorf("%s: could not fetch private Key for UUID: %v", msg.ID, err)
 		return errorResponse(http.StatusInternalServerError, "")

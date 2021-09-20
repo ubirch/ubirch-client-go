@@ -20,19 +20,19 @@ var (
 
 type ContextManager interface {
 	StartTransaction(ctx context.Context) (transactionCtx interface{}, err error)
-	StartTransactionWithLock(ctx context.Context, uid uuid.UUID) (transactionCtx interface{}, err error)
+	StartTransactionWithLock(ctx context.Context, uid uuid.UUID, retries int) (transactionCtx interface{}, err error)
 	CloseTransaction(transactionCtx interface{}, commit bool) error
 
-	Exists(uid uuid.UUID) (bool, error)
+	Exists(uid uuid.UUID, retries int) (bool, error)
 
-	StoreNewIdentity(transactionCtx interface{}, identity *ent.Identity) error
-	FetchIdentity(transactionCtx interface{}, uid uuid.UUID) (*ent.Identity, error)
+	StoreNewIdentity(transactionCtx interface{}, identity *ent.Identity, retries int) error
+	FetchIdentity(transactionCtx interface{}, uid uuid.UUID, retries int) (*ent.Identity, error)
 
-	SetSignature(transactionCtx interface{}, uid uuid.UUID, signature []byte) error
+	SetSignature(transactionCtx interface{}, uid uuid.UUID, signature []byte, retries int) error
 
-	GetPrivateKey(uid uuid.UUID) ([]byte, error)
-	GetPublicKey(uid uuid.UUID) ([]byte, error)
-	GetAuthToken(uid uuid.UUID) (string, error)
+	GetPrivateKey(uid uuid.UUID, retries int) ([]byte, error)
+	GetPublicKey(uid uuid.UUID, retries int) ([]byte, error)
+	GetAuthToken(uid uuid.UUID, retries int) (string, error)
 }
 
 func GetCtxManager(c config.Config) (ContextManager, error) {

@@ -7,11 +7,11 @@ import (
 )
 
 const (
-	clientBaseURL          = "http://localhost:8080"
+	clientBaseURL          = "http://127.0.0.1:8081"
 	configFile             = "config.json"
-	numberOfTestIDs        = 100
-	numberOfRequestsPerID  = 100
-	requestsPerSecondPerID = 1
+	numberOfTestIDs        = 1
+	numberOfRequestsPerID  = 500
+	requestsPerSecondPerID = 500
 )
 
 func main() {
