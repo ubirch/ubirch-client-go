@@ -49,8 +49,8 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string) (*DatabaseManager, err
 	if err != nil {
 		return nil, err
 	}
-	pg.SetMaxOpenConns(30)
-	pg.SetMaxIdleConns(5)
+	pg.SetMaxOpenConns(100)
+	pg.SetMaxIdleConns(70)
 	pg.SetConnMaxLifetime(10 * time.Minute)
 	if err = pg.Ping(); err != nil {
 		return nil, err
