@@ -3,6 +3,7 @@ package uc
 import (
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/adapters/handlers"
+	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
 )
 
 func NewIdentityStorer(idHandler *handlers.IdentityHandler) handlers.StoreIdentity {
@@ -13,6 +14,6 @@ func NewIdentityStorer(idHandler *handlers.IdentityHandler) handlers.StoreIdenti
 
 func NewIdentityChecker(idHandler *handlers.IdentityHandler) handlers.CheckIdentityExists {
 	return func(uid uuid.UUID) (bool, error) {
-		return idHandler.Protocol.Exists(uid, 0)
+		return idHandler.Protocol.Exists(uid, repository.Starting)
 	}
 }

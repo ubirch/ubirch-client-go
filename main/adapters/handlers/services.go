@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
+	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
 	"net/http"
 )
 
@@ -58,7 +59,7 @@ func (s *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) 
 	}
 
 
-	tx, identity, err := s.Protocol.FetchIdentityWithLock(r.Context(), msg.ID, 0)
+	tx, identity, err := s.Protocol.FetchIdentityWithLock(r.Context(), msg.ID, repository.Starting)
 	if err != nil {
 		log.Errorf("%s: %v", msg.ID, err)
 		http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)

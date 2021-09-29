@@ -70,7 +70,7 @@ func (s *Signer) checkExists(uid uuid.UUID) (bool, error) {
 	s.AuthTokenBufferMutex.RUnlock()
 
 	if !found {
-		return s.Protocol.Exists(uid, 0)
+		return s.Protocol.Exists(uid, repository.Starting)
 	}
 	return true, nil
 }
@@ -83,7 +83,7 @@ func (s *Signer) getAuth(uid uuid.UUID) (auth string, err error) {
 	s.AuthTokenBufferMutex.RUnlock()
 
 	if !found {
-		auth, err = s.Protocol.GetAuthToken(uid, 0)
+		auth, err = s.Protocol.GetAuthToken(uid, repository.Starting)
 		if err != nil {
 			return "", err
 		}
@@ -114,7 +114,7 @@ func (s *Signer) chain(msg h.HTTPRequest, tx interface{}, identity *ent.Identity
 	if h.HttpSuccess(resp.StatusCode) {
 		signature := uppBytes[len(uppBytes)-s.Protocol.SignatureLength():]
 
-		err = s.Protocol.SetSignature(tx, msg.ID, signature, 0)
+		err = s.Protocol.SetSignature(tx, msg.ID, signature, repository.Starting)
 		if err != nil {
 			// this usually happens, if the request context was cancelled because the client already left (timeout or cancel)
 			log.Errorf("%s: storing signature failed: %v", msg.ID, err)
@@ -132,7 +132,7 @@ func (s *Signer) chain(msg h.HTTPRequest, tx interface{}, identity *ent.Identity
 func (s *Signer) Sign(msg h.HTTPRequest, op operation) h.HTTPResponse {
 	log.Infof("%s: %s hash: %s", msg.ID, op, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
-	privateKeyPEM, err := s.Protocol.GetPrivateKey(msg.ID, 0)
+	privateKeyPEM, err := s.Protocol.GetPrivateKey(msg.ID, repository.Starting)
 	if err != nil {
 		log.Errorf("%s: could not fetch private Key for UUID: %v", msg.ID, err)
 		return errorResponse(http.StatusInternalServerError, "")

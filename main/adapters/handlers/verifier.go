@@ -125,7 +125,7 @@ func (v *Verifier) verifyUPP(upp []byte) (uuid.UUID, []byte, error) {
 
 	id := uppStruct.GetUuid()
 
-	pubKeyPEM, err := v.Protocol.GetPublicKey(id, 0)
+	pubKeyPEM, err := v.Protocol.GetPublicKey(id, repository.Starting)
 	if err != nil {
 		if v.VerifyFromKnownIdentitiesOnly {
 			return id, nil, fmt.Errorf("retrieved certificate for requested hash is from unknown identity")

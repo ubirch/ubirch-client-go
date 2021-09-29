@@ -160,7 +160,7 @@ func migrateIdentities(c config.Config, dm *DatabaseManager, identities []ent.Id
 	for i, id := range identities {
 		log.Infof("%4d: %s", i+1, id.Uid)
 
-		err = p.StoreNewIdentity(tx, &id, 0)
+		err = p.StoreNewIdentity(tx, &id, Starting)
 		if err != nil {
 			if err == ErrExists {
 				log.Warnf("%s: %v -> skip", id.Uid, err)
