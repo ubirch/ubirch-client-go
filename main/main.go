@@ -17,6 +17,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"sync"
@@ -147,6 +148,7 @@ func main() {
 	}
 
 	client := &clients.Client{
+		Client:             &http.Client{Timeout: h.BackendRequestTimeout},
 		AuthServiceURL:     conf.Niomon,
 		VerifyServiceURL:   conf.VerifyService,
 		KeyServiceURL:      conf.KeyService,

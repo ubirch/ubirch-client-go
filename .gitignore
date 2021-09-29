@@ -38,4 +38,6 @@ main/main
 /main/tokens/
 /main/protocol.json
 /main/identities.json
+/main/fmtcoverage.html
 /load-test/config.json
+/main/test_config.json

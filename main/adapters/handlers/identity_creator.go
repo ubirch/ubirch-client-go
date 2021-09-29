@@ -87,22 +87,25 @@ func (i *IdentityCreator) Put(storeId StoreIdentity, idExists CheckIdentityExist
 	}
 }
 
-func IdentityFromBody(r *http.Request) (IdentityPayload, error) {
+func IdentityFromBody(r *http.Request) (*IdentityPayload, error) {
 	contentType := r.Header.Get(h.HeaderContentType)
 	if contentType != h.JSONType {
-		return IdentityPayload{}, fmt.Errorf("invalid content-type: expected %s, got %s", h.JSONType, contentType)
+		return nil, fmt.Errorf("invalid content-type: expected %s, got %s", h.JSONType, contentType)
+	}
+	if r.Body == nil {
+		return nil, fmt.Errorf("empty body")
 	}
 
 	var payload IdentityPayload
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&payload); err != nil {
-		return IdentityPayload{}, err
+		return nil, err
 	}
 	if len(payload.Uid) == 0 {
-		return IdentityPayload{}, fmt.Errorf("empty uuid")
+		return nil, fmt.Errorf("empty uuid")
 	}
 	if len(payload.Pwd) == 0 {
-		return IdentityPayload{}, fmt.Errorf("empty password")
+		return nil, fmt.Errorf("empty password")
 	}
-	return payload, nil
+	return &payload, nil
 }

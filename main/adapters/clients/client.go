@@ -30,6 +30,7 @@ import (
 )
 
 type Client struct {
+	Client             *http.Client
 	AuthServiceURL     string
 	VerifyServiceURL   string
 	KeyServiceURL      string
@@ -40,7 +41,13 @@ type Client struct {
 // returns a list of the retrieved public key certificates
 func (c *Client) RequestPublicKeys(id uuid.UUID) ([]ubirch.SignedKeyRegistration, error) {
 	url := c.KeyServiceURL + "/current/hardwareId/" + id.String()
-	resp, err := http.Get(url)
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create get request with url: %q, %v", url, err)
+	}
+
+	resp, err := c.Client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("unable to retrieve public key info: %v", err)
 	}
@@ -92,7 +99,7 @@ func (c *Client) SubmitKeyRegistration(uid uuid.UUID, cert []byte, auth string) 
 	keyRegHeader := ubirchHeader(uid, auth)
 	keyRegHeader["content-type"] = "application/json"
 
-	resp, err := Post(c.KeyServiceURL, cert, keyRegHeader)
+	resp, err := c.Post(c.KeyServiceURL, cert, keyRegHeader)
 	if err != nil {
 		return fmt.Errorf("error sending key registration: %v", err)
 	}
@@ -109,7 +116,7 @@ func (c *Client) SubmitCSR(uid uuid.UUID, csr []byte) error {
 
 	CSRHeader := map[string]string{"content-type": "application/octet-stream"}
 
-	resp, err := Post(c.IdentityServiceURL, csr, CSRHeader)
+	resp, err := c.Post(c.IdentityServiceURL, csr, CSRHeader)
 	if err != nil {
 		return fmt.Errorf("error sending CSR: %v", err)
 	}
@@ -121,13 +128,12 @@ func (c *Client) SubmitCSR(uid uuid.UUID, csr []byte) error {
 }
 
 func (c *Client) SendToAuthService(uid uuid.UUID, auth string, upp []byte) (h.HTTPResponse, error) {
-	return Post(c.AuthServiceURL, upp, ubirchHeader(uid, auth))
+	return c.Post(c.AuthServiceURL, upp, ubirchHeader(uid, auth))
 }
 
 // post submits a message to a backend service
 // returns the response or encountered errors
-func Post(serviceURL string, data []byte, header map[string]string) (h.HTTPResponse, error) {
-	client := &http.Client{Timeout: h.BackendRequestTimeout}
+func (c *Client) Post(serviceURL string, data []byte, header map[string]string) (h.HTTPResponse, error) {
 
 	req, err := http.NewRequest(http.MethodPost, serviceURL, bytes.NewBuffer(data))
 	if err != nil {
@@ -138,7 +144,7 @@ func Post(serviceURL string, data []byte, header map[string]string) (h.HTTPRespo
 		req.Header.Set(k, v)
 	}
 
-	resp, err := client.Do(req)
+	resp, err := c.Client.Do(req)
 	if err != nil {
 		return h.HTTPResponse{}, err
 	}

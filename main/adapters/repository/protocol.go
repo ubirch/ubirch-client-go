@@ -17,7 +17,6 @@ package repository
 import (
 	"context"
 	"fmt"
-
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
 	"github.com/ubirch/ubirch-client-go/main/adapters/encrypters"
