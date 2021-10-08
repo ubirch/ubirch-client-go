@@ -28,7 +28,7 @@ import (
 type ExtendedProtocol struct {
 	ubirch.Protocol
 	*clients.Client
-	ctxManager   ContextManager
+	ContextManager
 	keyEncrypter *encrypters.KeyEncrypter
 }
 
@@ -47,28 +47,12 @@ func NewExtendedProtocol(ctxManager ContextManager, secret []byte, client *clien
 		Protocol: ubirch.Protocol{
 			Crypto: crypto,
 		},
-		Client:       client,
-		ctxManager:   ctxManager,
-		keyEncrypter: enc,
+		Client:         client,
+		ContextManager: ctxManager,
+		keyEncrypter:   enc,
 	}
 
 	return p, nil
-}
-
-func (p *ExtendedProtocol) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
-	return p.ctxManager.StartTransaction(ctx)
-}
-
-func (p *ExtendedProtocol) StartTransactionWithLock(ctx context.Context, uid uuid.UUID) (transactionCtx interface{}, err error) {
-	return p.ctxManager.StartTransactionWithLock(ctx, uid)
-}
-
-func (p *ExtendedProtocol) CloseTransaction(tx interface{}, commit bool) error {
-	return p.ctxManager.CloseTransaction(tx, commit)
-}
-
-func (p *ExtendedProtocol) Exists(uid uuid.UUID) (bool, error) {
-	return p.ctxManager.Exists(uid)
 }
 
 func (p *ExtendedProtocol) StoreNewIdentity(tx interface{}, i *ent.Identity) error {
@@ -90,48 +74,28 @@ func (p *ExtendedProtocol) StoreNewIdentity(tx interface{}, i *ent.Identity) err
 		return err
 	}
 
-	return p.ctxManager.StoreNewIdentity(tx, i)
+	return p.ContextManager.StoreNewIdentity(tx, i)
 }
 
-func (p *ExtendedProtocol) FetchIdentity(tx interface{}, uid uuid.UUID) (*ent.Identity, error) {
-	i, err := p.ctxManager.FetchIdentity(tx, uid)
+func (p *ExtendedProtocol) GetIdentityWithLock(ctx context.Context, uid uuid.UUID) (interface{}, *ent.Identity, error) {
+	tx, i, err := p.ContextManager.GetIdentityWithLock(ctx, uid)
 	if err != nil {
-		return nil, err
-	}
-
-	err = p.checkIdentityAttributes(i)
-	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// decrypt private key
 	i.PrivateKey, err = p.keyEncrypter.Decrypt(i.PrivateKey)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// return public key in PEM format
 	i.PublicKey, err = p.PublicKeyBytesToPEM(i.PublicKey)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return i, nil
-}
-
-// FetchIdentityWithLock starts a transaction with lock and returns the locked identity
-func (p *ExtendedProtocol) FetchIdentityWithLock(ctx context.Context, uid uuid.UUID) (transactionCtx interface{}, identity *ent.Identity, err error) {
-	transactionCtx, err = p.StartTransactionWithLock(ctx, uid)
-	if err != nil {
-		return nil, nil, fmt.Errorf("starting transaction with lock failed: %v", err)
-	}
-
-	identity, err = p.FetchIdentity(transactionCtx, uid)
-	if err != nil {
-		return nil, nil, fmt.Errorf("could not fetch identity: %v", err)
-	}
-
-	return transactionCtx, identity, nil
+	return tx, i, nil
 }
 
 // SetSignature stores the signature and commits the transaction
@@ -140,16 +104,16 @@ func (p *ExtendedProtocol) SetSignature(tx interface{}, uid uuid.UUID, signature
 		return fmt.Errorf("invalid signature length: expected %d, got %d", p.SignatureLength(), len(signature))
 	}
 
-	err := p.ctxManager.SetSignature(tx, uid, signature)
+	err := p.ContextManager.SetSignature(tx, uid, signature)
 	if err != nil {
 		return err
 	}
 
-	return p.CloseTransaction(tx, Commit)
+	return p.CommitTransaction(tx)
 }
 
 func (p *ExtendedProtocol) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
-	encryptedPrivateKey, err := p.ctxManager.GetPrivateKey(uid)
+	encryptedPrivateKey, err := p.ContextManager.GetPrivateKey(uid)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +122,7 @@ func (p *ExtendedProtocol) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
 }
 
 func (p *ExtendedProtocol) GetPublicKey(uid uuid.UUID) (pubKeyPEM []byte, err error) {
-	publicKeyBytes, err := p.ctxManager.GetPublicKey(uid)
+	publicKeyBytes, err := p.ContextManager.GetPublicKey(uid)
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +131,7 @@ func (p *ExtendedProtocol) GetPublicKey(uid uuid.UUID) (pubKeyPEM []byte, err er
 }
 
 func (p *ExtendedProtocol) GetAuthToken(uid uuid.UUID) (string, error) {
-	authToken, err := p.ctxManager.GetAuthToken(uid)
+	authToken, err := p.ContextManager.GetAuthToken(uid)
 	if err != nil {
 		return "", err
 	}
@@ -179,10 +143,21 @@ func (p *ExtendedProtocol) GetAuthToken(uid uuid.UUID) (string, error) {
 	return authToken, nil
 }
 
-func (p *ExtendedProtocol) checkIdentityAttributes(i *ent.Identity) error {
-	_, err := uuid.Parse(i.Uid)
+func (p *ExtendedProtocol) IsInitialized(uid uuid.UUID) (initialized bool, err error) {
+	_, err = p.GetAuthToken(uid)
+	if err == ErrNotExist {
+		return false, nil
+	}
 	if err != nil {
-		return fmt.Errorf("%s: %v", i.Uid, err)
+		return false, err
+	}
+
+	return true, nil
+}
+
+func (p *ExtendedProtocol) checkIdentityAttributes(i *ent.Identity) error {
+	if i.Uid == uuid.Nil {
+		return fmt.Errorf("uuid has Nil value: %s", i.Uid)
 	}
 
 	if len(i.PrivateKey) == 0 {

@@ -104,7 +104,7 @@ func getAllIdentitiesFromLegacyCtx(c config.Config) ([]ent.Identity, error) {
 	for _, uid := range uids {
 
 		i := ent.Identity{
-			Uid: uid.String(),
+			Uid: uid,
 		}
 
 		i.PrivateKey, err = fileManager.GetPrivateKey(uid)
@@ -160,13 +160,19 @@ func migrateIdentities(c config.Config, dm *DatabaseManager, identities []ent.Id
 	for i, id := range identities {
 		log.Infof("%4d: %s", i+1, id.Uid)
 
+		initialized, err := p.IsInitialized(id.Uid)
+		if err != nil {
+			return err
+		}
+
+		if initialized {
+			log.Warnf("skipping %s: already initialized", id.Uid)
+			continue
+		}
+
 		err = p.StoreNewIdentity(tx, &id)
 		if err != nil {
-			if err == ErrExists {
-				log.Warnf("%s: %v -> skip", id.Uid, err)
-			} else {
-				return err
-			}
+			return err
 		}
 	}
 

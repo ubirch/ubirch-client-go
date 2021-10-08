@@ -4,29 +4,22 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/config"
 	"github.com/ubirch/ubirch-client-go/main/ent"
 )
 
-const (
-	Commit   = true
-	Rollback = false
-)
-
 var (
-	ErrExists = errors.New("entry already exists")
+	ErrNotExist = errors.New("entry does not exist")
 )
 
 type ContextManager interface {
 	StartTransaction(ctx context.Context) (transactionCtx interface{}, err error)
-	StartTransactionWithLock(ctx context.Context, uid uuid.UUID) (transactionCtx interface{}, err error)
-	CloseTransaction(transactionCtx interface{}, commit bool) error
+	CommitTransaction(transactionCtx interface{}) error
 
-	Exists(uid uuid.UUID) (bool, error)
-
-	StoreNewIdentity(transactionCtx interface{}, identity *ent.Identity) error
-	FetchIdentity(transactionCtx interface{}, uid uuid.UUID) (*ent.Identity, error)
+	StoreNewIdentity(transactionCtx interface{}, id *ent.Identity) error
+	GetIdentityWithLock(ctx context.Context, uid uuid.UUID) (transactionCtx interface{}, id *ent.Identity, err error)
 
 	SetSignature(transactionCtx interface{}, uid uuid.UUID, signature []byte) error
 

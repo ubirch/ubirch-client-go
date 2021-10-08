@@ -41,18 +41,6 @@ func (i *IdentityHandler) InitIdentities(identities map[string]string) error {
 			return fmt.Errorf("invalid identity name \"%s\" (not a UUID): %s", name, err)
 		}
 
-		// check if identity is already initialized
-		exists, err := i.Protocol.Exists(uid)
-		if err != nil {
-			return fmt.Errorf("can not check existing context for %s: %s", name, err)
-		}
-
-		if exists {
-			// already initialized
-			log.Debugf("%s already initialized (skip)", uid)
-			continue
-		}
-
 		// make sure identity has an auth token
 		if len(auth) == 0 {
 			return fmt.Errorf("missing auth token for identity %s", name)
@@ -68,7 +56,14 @@ func (i *IdentityHandler) InitIdentities(identities map[string]string) error {
 }
 
 func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) (csr []byte, err error) {
-	log.Infof("initializing new identity %s", uid)
+	initialized, err := i.Protocol.IsInitialized(uid)
+	if err != nil {
+		return nil, fmt.Errorf("could not check if identity is already initialized: %v", err)
+	}
+
+	if initialized {
+		return nil, ErrAlreadyInitialized
+	}
 
 	// generate a new private key
 	privKeyPEM, err := i.Protocol.GenerateKey()
@@ -82,7 +77,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) (csr []byte, 
 	}
 
 	newIdentity := &ent.Identity{
-		Uid:        uid.String(),
+		Uid:        uid,
 		PrivateKey: privKeyPEM,
 		PublicKey:  pubKeyPEM,
 		Signature:  make([]byte, i.Protocol.SignatureLength()),
@@ -108,19 +103,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) (csr []byte, 
 		return nil, err
 	}
 
-	return csr, i.Protocol.CloseTransaction(tx, repository.Commit)
-}
-
-func (i *IdentityHandler) FetchIdentity(uid uuid.UUID) (*ent.Identity, error) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	tx, err := i.Protocol.StartTransaction(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return i.Protocol.FetchIdentity(tx, uid)
+	return csr, i.Protocol.CommitTransaction(tx)
 }
 
 func (i *IdentityHandler) registerPublicKey(privKeyPEM []byte, uid uuid.UUID, auth string) (csr []byte, err error) {

@@ -15,17 +15,16 @@
 package handlers
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
-	"sync"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
-	"github.com/ubirch/ubirch-client-go/main/ent"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
@@ -60,45 +59,18 @@ type signingResponse struct {
 }
 
 type Signer struct {
-	Protocol             *repository.ExtendedProtocol
-	AuthTokensBuffer     map[uuid.UUID]string
-	AuthTokenBufferMutex *sync.RWMutex
-}
-
-func (s *Signer) checkExists(uid uuid.UUID) (bool, error) {
-	s.AuthTokenBufferMutex.RLock()
-	_, found := s.AuthTokensBuffer[uid]
-	s.AuthTokenBufferMutex.RUnlock()
-
-	if !found {
-		return s.Protocol.Exists(uid)
-	}
-	return true, nil
-}
-
-func (s *Signer) getAuth(uid uuid.UUID) (auth string, err error) {
-	var found bool
-
-	s.AuthTokenBufferMutex.RLock()
-	auth, found = s.AuthTokensBuffer[uid]
-	s.AuthTokenBufferMutex.RUnlock()
-
-	if !found {
-		auth, err = s.Protocol.GetAuthToken(uid)
-		if err != nil {
-			return "", err
-		}
-
-		s.AuthTokenBufferMutex.Lock()
-		s.AuthTokensBuffer[uid] = auth
-		s.AuthTokenBufferMutex.Unlock()
-	}
-	return auth, nil
+	Protocol *repository.ExtendedProtocol
 }
 
 // handle incoming messages, create, sign and send a chained ubirch protocol packet (UPP) to the ubirch backend
-func (s *Signer) chain(msg h.HTTPRequest, tx interface{}, identity *ent.Identity) h.HTTPResponse {
+func (s *Signer) chain(msg h.HTTPRequest, ctx context.Context) h.HTTPResponse {
 	log.Infof("%s: anchor hash [chained]: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
+
+	tx, identity, err := s.Protocol.GetIdentityWithLock(ctx, msg.ID)
+	if err != nil {
+		log.Errorf("%s: could not fetch identity from storage: %v", msg.ID, err)
+		return errorResponse(http.StatusServiceUnavailable, "")
+	}
 
 	timer := prometheus.NewTimer(prom.SignatureCreationDuration)
 	uppBytes, err := s.getChainedUPP(msg.ID, msg.Hash, identity.PrivateKey, identity.Signature)

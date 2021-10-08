@@ -2,107 +2,90 @@ package handlers
 
 import (
 	"encoding/json"
-	"encoding/pem"
+	"errors"
 	"fmt"
 	"net/http"
 
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
 	prom "github.com/ubirch/ubirch-client-go/main/prometheus"
 )
 
-type IdentityCreator struct {
-	auth string
+var (
+	ErrAlreadyInitialized = errors.New("identity already registered")
+	ErrUnknown            = errors.New("unknown identity")
+)
+
+type RegistrationPayload struct {
+	Uid uuid.UUID `json:"uuid"`
+	Pwd string    `json:"password"`
 }
 
-type IdentityPayload struct {
-	Uid string `json:"uuid"`
-	Pwd string `json:"password"`
-}
+type InitializeIdentity func(uid uuid.UUID, auth string) (csr []byte, err error)
 
-type StoreIdentity func(uid uuid.UUID, auth string) (csr []byte, err error)
-type CheckIdentityExists func(uid uuid.UUID) (bool, error)
-
-func NewIdentityCreator(auth string) IdentityCreator {
-	return IdentityCreator{auth: auth}
-}
-
-func (i *IdentityCreator) Put(storeId StoreIdentity, idExists CheckIdentityExists) http.HandlerFunc {
+func Register(registerAuth string, initialize InitializeIdentity) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		authHeader := r.Header.Get(h.XAuthHeader)
-		if authHeader != i.auth {
+		if r.Header.Get(h.XAuthHeader) != registerAuth {
 			log.Warnf("unauthorized registration attempt")
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 			return
 		}
 
-		idPayload, err := IdentityFromBody(r)
+		idPayload, err := identityFromBody(r)
 		if err != nil {
 			log.Warn(err)
-			h.Respond400(w, err.Error())
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		uid, err := uuid.Parse(idPayload.Uid)
+		uid := idPayload.Uid
+
+		csr, err := initialize(uid, idPayload.Pwd)
 		if err != nil {
-			log.Warnf("%s: %v", idPayload.Uid, err)
-			h.Respond400(w, err.Error())
+			log.Warnf("%s: identity registration failed: %v", uid, err)
+			switch err {
+			case ErrAlreadyInitialized:
+				http.Error(w, err.Error(), http.StatusConflict)
+			case ErrUnknown:
+				http.Error(w, err.Error(), http.StatusNotFound)
+			default:
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			}
 			return
 		}
 
-		exists, err := idExists(uid)
-		if err != nil {
-			log.Errorf("%s: %v", uid, err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
+		resp := h.HTTPResponse{
+			StatusCode: http.StatusOK,
+			Header: http.Header{
+				"Content-Type": {h.BinType},
+			},
+			Content: csr,
 		}
 
-		if exists {
-			h.Error(uid, w, fmt.Errorf("identity already registered"), http.StatusConflict)
-			return
-		}
-
-		timer := prometheus.NewTimer(prom.IdentityCreationDuration)
-		csr, err := storeId(uid, idPayload.Pwd)
-		timer.ObserveDuration()
-		if err != nil {
-			log.Errorf("%s: %v", uid, err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
-
-		csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
-
-		w.Header().Set(h.HeaderContentType, h.BinType)
-		w.WriteHeader(http.StatusOK)
-		_, err = w.Write(csrPEM)
-		if err != nil {
-			log.Errorf("unable to write response: %s", err)
-		}
+		h.SendResponse(w, resp)
 
 		prom.IdentityCreationCounter.Inc()
 	}
 }
 
-func IdentityFromBody(r *http.Request) (IdentityPayload, error) {
-	contentType := r.Header.Get(h.HeaderContentType)
+func identityFromBody(r *http.Request) (RegistrationPayload, error) {
+	contentType := h.ContentType(r.Header)
 	if contentType != h.JSONType {
-		return IdentityPayload{}, fmt.Errorf("invalid content-type: expected %s, got %s", h.JSONType, contentType)
+		return RegistrationPayload{}, fmt.Errorf("invalid content-type: expected %s, got %s", h.JSONType, contentType)
 	}
 
-	var payload IdentityPayload
+	var payload RegistrationPayload
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&payload); err != nil {
-		return IdentityPayload{}, err
+		return RegistrationPayload{}, err
 	}
-	if len(payload.Uid) == 0 {
-		return IdentityPayload{}, fmt.Errorf("empty uuid")
+	if payload.Uid == uuid.Nil {
+		return RegistrationPayload{}, fmt.Errorf("empty uuid")
 	}
 	if len(payload.Pwd) == 0 {
-		return IdentityPayload{}, fmt.Errorf("empty password")
+		return RegistrationPayload{}, fmt.Errorf("empty password")
 	}
 	return payload, nil
 }

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
@@ -11,8 +12,13 @@ import (
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
 )
 
+type CheckAuth func(uuid.UUID, string) (bool, error)
+type Chain func(h.HTTPRequest, context.Context) h.HTTPResponse
+type Sign func(h.HTTPRequest, operation) h.HTTPResponse
+
 type ChainingService struct {
-	*Signer
+	CheckAuth
+	Chain
 }
 
 // Ensure ChainingService implements the Service interface
@@ -59,19 +65,13 @@ func (s *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	tx, identity, err := s.Protocol.FetchIdentityWithLock(r.Context(), msg.ID)
-	if err != nil {
-		log.Errorf("%s: %v", msg.ID, err)
-		http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
-		return
-	}
-
-	resp := s.chain(msg, tx, identity)
+	resp := s.Chain(msg, r.Context())
 	h.SendResponse(w, resp)
 }
 
 type SigningService struct {
-	*Signer
+	CheckAuth
+	Sign
 }
 
 var _ h.Service = (*SigningService)(nil)
