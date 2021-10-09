@@ -63,7 +63,7 @@ type Signer struct {
 }
 
 // handle incoming messages, create, sign and send a chained ubirch protocol packet (UPP) to the ubirch backend
-func (s *Signer) chain(msg h.HTTPRequest, ctx context.Context) h.HTTPResponse {
+func (s *Signer) Chain(msg h.HTTPRequest, ctx context.Context) h.HTTPResponse {
 	log.Infof("%s: anchor hash [chained]: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
 	tx, identity, err := s.Protocol.GetIdentityWithLock(ctx, msg.ID)
