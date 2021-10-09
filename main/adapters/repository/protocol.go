@@ -155,6 +155,18 @@ func (p *ExtendedProtocol) IsInitialized(uid uuid.UUID) (initialized bool, err e
 	return true, nil
 }
 
+func (p *ExtendedProtocol) CheckAuth(uid uuid.UUID, authToCheck string) (ok bool, found bool, err error) {
+	actualAuth, err := p.GetAuthToken(uid)
+	if err == ErrNotExist {
+		return false, false, nil
+	}
+	if err != nil {
+		return false, false, err
+	}
+
+	return actualAuth == authToCheck, true, nil
+}
+
 func (p *ExtendedProtocol) checkIdentityAttributes(i *ent.Identity) error {
 	if i.Uid == uuid.Nil {
 		return fmt.Errorf("uuid has Nil value: %s", i.Uid)
