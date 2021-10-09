@@ -12,7 +12,7 @@ import (
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
 )
 
-type CheckAuth func(uuid.UUID, string) (bool, error)
+type CheckAuth func(uuid.UUID, string) (bool, bool, error)
 type Chain func(h.HTTPRequest, context.Context) h.HTTPResponse
 type Sign func(h.HTTPRequest, operation) h.HTTPResponse
 
@@ -34,27 +34,21 @@ func (s *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	exists, err := s.checkExists(msg.ID)
+	msg.Auth = h.AuthToken(r.Header)
+
+	ok, found, err := s.CheckAuth(msg.ID, msg.Auth)
 	if err != nil {
 		log.Errorf("%s: %v", msg.ID, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
-	if !exists {
+	if !found {
 		h.Error(msg.ID, w, fmt.Errorf("unknown UUID"), http.StatusNotFound)
 		return
 	}
 
-	idAuth, err := s.getAuth(msg.ID)
-	if err != nil {
-		log.Errorf("%s: %v", msg.ID, err)
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
-	}
-
-	msg.Auth, err = checkAuth(r, idAuth)
-	if err != nil {
+	if !ok {
 		h.Error(msg.ID, w, err, http.StatusUnauthorized)
 		return
 	}
@@ -86,27 +80,21 @@ func (s *SigningService) HandleRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	exists, err := s.checkExists(msg.ID)
+	msg.Auth = h.AuthToken(r.Header)
+
+	ok, found, err := s.CheckAuth(msg.ID, msg.Auth)
 	if err != nil {
 		log.Errorf("%s: %v", msg.ID, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
-	if !exists {
+	if !found {
 		h.Error(msg.ID, w, fmt.Errorf("unknown UUID"), http.StatusNotFound)
 		return
 	}
 
-	idAuth, err := s.getAuth(msg.ID)
-	if err != nil {
-		log.Errorf("%s: %v", msg.ID, err)
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
-	}
-
-	msg.Auth, err = checkAuth(r, idAuth)
-	if err != nil {
+	if !ok {
 		h.Error(msg.ID, w, err, http.StatusUnauthorized)
 		return
 	}
@@ -142,17 +130,6 @@ func (v *VerificationService) HandleRequest(w http.ResponseWriter, r *http.Reque
 
 	resp := v.Verify(hash[:])
 	h.SendResponse(w, resp)
-}
-
-// checkAuth compares the auth token from the request header with a given string and returns it if valid
-// Returns error if auth token is invalid
-func checkAuth(r *http.Request, actualAuth string) (string, error) {
-	headerAuthToken := h.AuthToken(r.Header)
-	if actualAuth != headerAuthToken {
-		return "", fmt.Errorf("invalid auth token")
-	}
-
-	return headerAuthToken, nil
 }
 
 // getOperation returns the operation parameter from the request URL

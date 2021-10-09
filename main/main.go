@@ -19,15 +19,12 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 
-	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
 	"github.com/ubirch/ubirch-client-go/main/adapters/handlers"
 	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
 	"github.com/ubirch/ubirch-client-go/main/config"
-	"github.com/ubirch/ubirch-client-go/main/uc"
 	"golang.org/x/sync/errgroup"
 
 	log "github.com/sirupsen/logrus"
@@ -91,11 +88,6 @@ func main() {
 	err := conf.Load(configDir, configFile)
 	if err != nil {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
-	}
-
-	globals := handlers.Globals{
-		Config:  conf,
-		Version: Version,
 	}
 
 	// create a waitgroup that contains all asynchronous operations
@@ -174,9 +166,7 @@ func main() {
 	}
 
 	signer := handlers.Signer{
-		Protocol:             protocol,
-		AuthTokensBuffer:     map[uuid.UUID]string{},
-		AuthTokenBufferMutex: &sync.RWMutex{},
+		Protocol: protocol,
 	}
 
 	verifier := handlers.Verifier{
@@ -185,14 +175,14 @@ func main() {
 	}
 
 	// set up endpoint for identity registration
-	identity := createIdentityUseCases(globals.Config.RegisterAuth, idHandler)
-	httpServer.Router.Put(fmt.Sprintf("/%s", h.RegisterEndpoint), identity.handler.Put(identity.storeIdentity, identity.checkIdentity))
+	httpServer.Router.Put(h.RegisterEndpoint, handlers.Register(conf.RegisterAuth, idHandler.InitIdentity))
 
 	// set up endpoint for chaining
 	httpServer.AddServiceEndpoint(h.ServerEndpoint{
 		Path: fmt.Sprintf("/{%s}", h.UUIDKey),
 		Service: &handlers.ChainingService{
-			Signer: &signer,
+			CheckAuth: protocol.CheckAuth,
+			Chain:     signer.Chain,
 		},
 	})
 
@@ -200,13 +190,14 @@ func main() {
 	httpServer.AddServiceEndpoint(h.ServerEndpoint{
 		Path: fmt.Sprintf("/{%s}/{%s}", h.UUIDKey, h.OperationKey),
 		Service: &handlers.SigningService{
-			Signer: &signer,
+			CheckAuth: protocol.CheckAuth,
+			Sign:      signer.Sign,
 		},
 	})
 
 	// set up endpoint for verification
 	httpServer.AddServiceEndpoint(h.ServerEndpoint{
-		Path: fmt.Sprintf("/%s", h.VerifyPath),
+		Path: h.VerifyPath,
 		Service: &handlers.VerificationService{
 			Verifier: &verifier,
 		},
@@ -222,18 +213,4 @@ func main() {
 	}
 
 	log.Debug("shut down client")
-}
-
-type identities struct {
-	handler       handlers.IdentityCreator
-	storeIdentity handlers.StoreIdentity
-	checkIdentity handlers.CheckIdentityExists
-}
-
-func createIdentityUseCases(auth string, handler *handlers.IdentityHandler) identities {
-	return identities{
-		handler:       handlers.NewIdentityCreator(auth),
-		storeIdentity: uc.NewIdentityStorer(handler),
-		checkIdentity: uc.NewIdentityChecker(handler),
-	}
 }

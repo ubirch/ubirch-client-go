@@ -28,9 +28,9 @@ const (
 
 	UUIDKey          = "uuid"
 	OperationKey     = "operation"
-	VerifyPath       = "verify"
-	HashEndpoint     = "hash"
-	RegisterEndpoint = "register"
+	VerifyPath       = "/verify"
+	HashEndpoint     = "/hash"
+	RegisterEndpoint = "/register"
 
 	BinType  = "application/octet-stream"
 	TextType = "text/plain"
