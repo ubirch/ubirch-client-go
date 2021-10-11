@@ -108,6 +108,9 @@ func (dm *DatabaseManager) GetIdentityWithLock(ctx context.Context, uid uuid.UUI
 
 	err = tx.QueryRow(query, uid).Scan(&id.Uid, &id.PrivateKey, &id.PublicKey, &id.Signature, &id.AuthToken)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil, ErrNotExist
+		}
 		return nil, nil, err
 	}
 
