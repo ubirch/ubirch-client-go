@@ -17,6 +17,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
@@ -30,6 +31,10 @@ type ExtendedProtocol struct {
 	*clients.Client
 	StorageManager
 	keyEncrypter *encrypters.KeyEncrypter
+
+	privateKeyCache *sync.Map // {<uuid>: <private key>}
+	publicKeyCache  *sync.Map // {<uuid>: <public key>}
+	authTokenCache  *sync.Map // {<uuid>: <auth token>}
 }
 
 // Ensure ExtendedProtocol implements the StorageManager interface
@@ -50,6 +55,10 @@ func NewExtendedProtocol(storageManager StorageManager, secret []byte, client *c
 		Client:         client,
 		StorageManager: storageManager,
 		keyEncrypter:   enc,
+
+		privateKeyCache: &sync.Map{},
+		publicKeyCache:  &sync.Map{},
+		authTokenCache:  &sync.Map{},
 	}
 
 	return p, nil
@@ -112,35 +121,75 @@ func (p *ExtendedProtocol) SetSignature(tx TransactionCtx, uid uuid.UUID, signat
 	return tx.Commit()
 }
 
-func (p *ExtendedProtocol) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
-	encryptedPrivateKey, err := p.StorageManager.GetPrivateKey(uid)
-	if err != nil {
-		return nil, err
+func (p *ExtendedProtocol) GetPrivateKey(uid uuid.UUID) (privKeyPEM []byte, err error) {
+	_priv, found := p.privateKeyCache.Load(uid)
+
+	if found {
+		privKeyPEM, found = _priv.([]byte)
 	}
 
-	return p.keyEncrypter.Decrypt(encryptedPrivateKey)
+	if !found {
+		encryptedPriv, err := p.StorageManager.GetPrivateKey(uid)
+		if err != nil {
+			return nil, err
+		}
+
+		privKeyPEM, err = p.keyEncrypter.Decrypt(encryptedPriv)
+		if err != nil {
+			return nil, err
+		}
+
+		p.privateKeyCache.Store(uid, privKeyPEM)
+	}
+
+	return privKeyPEM, nil
 }
 
 func (p *ExtendedProtocol) GetPublicKey(uid uuid.UUID) (pubKeyPEM []byte, err error) {
-	publicKeyBytes, err := p.StorageManager.GetPublicKey(uid)
-	if err != nil {
-		return nil, err
+	_pub, found := p.publicKeyCache.Load(uid)
+
+	if found {
+		pubKeyPEM, found = _pub.([]byte)
 	}
 
-	return p.PublicKeyBytesToPEM(publicKeyBytes)
+	if !found {
+		publicKeyBytes, err := p.StorageManager.GetPublicKey(uid)
+		if err != nil {
+			return nil, err
+		}
+
+		pubKeyPEM, err = p.PublicKeyBytesToPEM(publicKeyBytes)
+		if err != nil {
+			return nil, err
+		}
+
+		p.publicKeyCache.Store(uid, pubKeyPEM)
+	}
+
+	return pubKeyPEM, nil
 }
 
-func (p *ExtendedProtocol) GetAuthToken(uid uuid.UUID) (string, error) {
-	authToken, err := p.StorageManager.GetAuthToken(uid)
-	if err != nil {
-		return "", err
+func (p *ExtendedProtocol) GetAuthToken(uid uuid.UUID) (auth string, err error) {
+	_auth, found := p.authTokenCache.Load(uid)
+
+	if found {
+		auth, found = _auth.(string)
 	}
 
-	if len(authToken) == 0 {
-		return "", fmt.Errorf("%s: empty auth token", uid)
+	if !found {
+		auth, err = p.StorageManager.GetAuthToken(uid)
+		if err != nil {
+			return "", err
+		}
+
+		if len(auth) == 0 {
+			return "", fmt.Errorf("%s: empty auth token", uid)
+		}
+
+		p.authTokenCache.Store(uid, auth)
 	}
 
-	return authToken, nil
+	return auth, nil
 }
 
 func (p *ExtendedProtocol) IsInitialized(uid uuid.UUID) (initialized bool, err error) {
