@@ -39,8 +39,8 @@ type DatabaseManager struct {
 	tableName string
 }
 
-// Ensure Database implements the ContextManager interface
-var _ ContextManager = (*DatabaseManager)(nil)
+// Ensure Database implements the StorageManager interface
+var _ StorageManager = (*DatabaseManager)(nil)
 
 // NewSqlDatabaseInfo takes a database connection string, returns a new initialized
 // database.
@@ -72,6 +72,62 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string) (*DatabaseManager, err
 	}
 
 	return dbManager, nil
+}
+
+func (dm *DatabaseManager) StartTransaction(ctx context.Context) (TransactionCtx, error) {
+	return dm.db.BeginTx(ctx, dm.options)
+}
+
+func (dm *DatabaseManager) StoreNewIdentity(transactionCtx TransactionCtx, identity *ent.Identity) error {
+	tx, ok := transactionCtx.(*sql.Tx)
+	if !ok {
+		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
+	}
+
+	query := fmt.Sprintf(
+		"INSERT INTO %s (uid, private_key, public_key, signature, auth_token) VALUES ($1, $2, $3, $4, $5);",
+		dm.tableName)
+
+	_, err := tx.Exec(query, &identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.Signature, &identity.AuthToken)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (dm *DatabaseManager) GetIdentityWithLock(ctx context.Context, uid uuid.UUID) (TransactionCtx, *ent.Identity, error) {
+	tx, err := dm.db.BeginTx(ctx, dm.options)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var id ent.Identity
+
+	query := fmt.Sprintf("SELECT * FROM %s WHERE uid = $1 FOR UPDATE", dm.tableName)
+
+	err = tx.QueryRow(query, uid).Scan(&id.Uid, &id.PrivateKey, &id.PublicKey, &id.Signature, &id.AuthToken)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return tx, &id, nil
+}
+
+func (dm *DatabaseManager) SetSignature(transactionCtx TransactionCtx, uid uuid.UUID, signature []byte) error {
+	tx, ok := transactionCtx.(*sql.Tx)
+	if !ok {
+		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
+	}
+
+	query := fmt.Sprintf("UPDATE %s SET signature = $1 WHERE uid = $2;", dm.tableName)
+
+	_, err := tx.Exec(query, &signature, uid)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
@@ -120,71 +176,6 @@ func (dm *DatabaseManager) GetAuthToken(uid uuid.UUID) (string, error) {
 	}
 
 	return authToken, nil
-}
-
-func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
-	return dm.db.BeginTx(ctx, dm.options)
-}
-
-func (dm *DatabaseManager) CommitTransaction(transactionCtx interface{}) error {
-	tx, ok := transactionCtx.(*sql.Tx)
-	if !ok {
-		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
-	}
-
-	return tx.Commit()
-}
-
-func (dm *DatabaseManager) GetIdentityWithLock(ctx context.Context, uid uuid.UUID) (interface{}, *ent.Identity, error) {
-	tx, err := dm.db.BeginTx(ctx, dm.options)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	var id ent.Identity
-
-	query := fmt.Sprintf("SELECT * FROM %s WHERE uid = $1 FOR UPDATE", dm.tableName)
-
-	err = tx.QueryRow(query, uid).Scan(&id.Uid, &id.PrivateKey, &id.PublicKey, &id.Signature, &id.AuthToken)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return tx, &id, nil
-}
-
-func (dm *DatabaseManager) SetSignature(transactionCtx interface{}, uid uuid.UUID, signature []byte) error {
-	tx, ok := transactionCtx.(*sql.Tx)
-	if !ok {
-		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
-	}
-
-	query := fmt.Sprintf("UPDATE %s SET signature = $1 WHERE uid = $2;", dm.tableName)
-
-	_, err := tx.Exec(query, &signature, uid)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity *ent.Identity) error {
-	tx, ok := transactionCtx.(*sql.Tx)
-	if !ok {
-		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
-	}
-
-	query := fmt.Sprintf(
-		"INSERT INTO %s (uid, private_key, public_key, signature, auth_token) VALUES ($1, $2, $3, $4, $5);",
-		dm.tableName)
-
-	_, err := tx.Exec(query, &identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.Signature, &identity.AuthToken)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (dm *DatabaseManager) IsRecoverable(err error) bool {

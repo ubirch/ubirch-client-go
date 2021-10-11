@@ -103,7 +103,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) (csr []byte, 
 		return nil, err
 	}
 
-	return csr, i.Protocol.CommitTransaction(tx)
+	return csr, tx.Commit()
 }
 
 func (i *IdentityHandler) registerPublicKey(privKeyPEM []byte, uid uuid.UUID, auth string) (csr []byte, err error) {

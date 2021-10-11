@@ -14,21 +14,24 @@ var (
 	ErrNotExist = errors.New("entry does not exist")
 )
 
-type ContextManager interface {
-	StartTransaction(ctx context.Context) (transactionCtx interface{}, err error)
-	CommitTransaction(transactionCtx interface{}) error
+type StorageManager interface {
+	StartTransaction(context.Context) (TransactionCtx, error)
 
-	StoreNewIdentity(transactionCtx interface{}, id *ent.Identity) error
-	GetIdentityWithLock(ctx context.Context, uid uuid.UUID) (transactionCtx interface{}, id *ent.Identity, err error)
+	StoreNewIdentity(TransactionCtx, *ent.Identity) error
+	GetIdentityWithLock(context.Context, uuid.UUID) (TransactionCtx, *ent.Identity, error)
 
-	SetSignature(transactionCtx interface{}, uid uuid.UUID, signature []byte) error
+	SetSignature(TransactionCtx, uuid.UUID, []byte) error
 
 	GetPrivateKey(uid uuid.UUID) ([]byte, error)
 	GetPublicKey(uid uuid.UUID) ([]byte, error)
 	GetAuthToken(uid uuid.UUID) (string, error)
 }
 
-func GetCtxManager(c config.Config) (ContextManager, error) {
+type TransactionCtx interface {
+	Commit() error
+}
+
+func GetStorageManager(c config.Config) (StorageManager, error) {
 	if c.PostgresDSN != "" {
 		return NewSqlDatabaseInfo(c.PostgresDSN, PostgreSqlIdentityTableName)
 	} else {
