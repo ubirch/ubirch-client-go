@@ -75,8 +75,12 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string) (*DatabaseManager, err
 	return dbManager, nil
 }
 
-func (dm *DatabaseManager) StartTransaction(ctx context.Context) (TransactionCtx, error) {
-	return dm.db.BeginTx(ctx, dm.options)
+func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx TransactionCtx, err error) {
+	err = retry(func() error {
+		transactionCtx, err = dm.db.BeginTx(ctx, dm.options)
+		return err
+	})
+	return transactionCtx, err
 }
 
 func (dm *DatabaseManager) StoreNewIdentity(transactionCtx TransactionCtx, identity *ent.Identity) error {
@@ -98,9 +102,14 @@ func (dm *DatabaseManager) StoreNewIdentity(transactionCtx TransactionCtx, ident
 }
 
 func (dm *DatabaseManager) GetIdentityWithLock(ctx context.Context, uid uuid.UUID) (TransactionCtx, *ent.Identity, error) {
-	tx, err := dm.db.BeginTx(ctx, dm.options)
+	transactionCtx, err := dm.StartTransaction(ctx)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	tx, ok := transactionCtx.(*sql.Tx)
+	if !ok {
+		return nil, nil, fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
 	var id ent.Identity
@@ -135,10 +144,8 @@ func (dm *DatabaseManager) SetSignature(transactionCtx TransactionCtx, uid uuid.
 	return nil
 }
 
-func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
-	var privateKey []byte
-
-	err := retry(func() error {
+func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) (privateKey []byte, err error) {
+	err = retry(func() error {
 		query := fmt.Sprintf("SELECT private_key FROM %s WHERE uid = $1", dm.tableName)
 
 		err := dm.db.QueryRow(query, uid).Scan(&privateKey)
@@ -154,10 +161,8 @@ func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
 	return privateKey, err
 }
 
-func (dm *DatabaseManager) GetPublicKey(uid uuid.UUID) ([]byte, error) {
-	var publicKey []byte
-
-	err := retry(func() error {
+func (dm *DatabaseManager) GetPublicKey(uid uuid.UUID) (publicKey []byte, err error) {
+	err = retry(func() error {
 		query := fmt.Sprintf("SELECT public_key FROM %s WHERE uid = $1", dm.tableName)
 
 		err := dm.db.QueryRow(query, uid).Scan(&publicKey)
@@ -173,10 +178,8 @@ func (dm *DatabaseManager) GetPublicKey(uid uuid.UUID) ([]byte, error) {
 	return publicKey, err
 }
 
-func (dm *DatabaseManager) GetAuthToken(uid uuid.UUID) (string, error) {
-	var authToken string
-
-	err := retry(func() error {
+func (dm *DatabaseManager) GetAuthToken(uid uuid.UUID) (authToken string, err error) {
+	err = retry(func() error {
 		query := fmt.Sprintf("SELECT auth_token FROM %s WHERE uid = $1", dm.tableName)
 
 		err := dm.db.QueryRow(query, uid).Scan(&authToken)
