@@ -66,10 +66,16 @@ type Signer struct {
 func (s *Signer) Chain(msg h.HTTPRequest, ctx context.Context) h.HTTPResponse {
 	log.Infof("%s: anchor hash [chained]: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
-	tx, identity, err := s.Protocol.GetIdentityWithLock(ctx, msg.ID)
+	tx, err := s.Protocol.StartTransaction(ctx)
+	if err != nil {
+		log.Errorf("%s: initializing transaction failed: %v", msg.ID, err)
+		return errorResponse(http.StatusServiceUnavailable, "")
+	}
+
+	identity, err := s.Protocol.GetIdentityWithLock(tx, msg.ID)
 	if err != nil {
 		log.Errorf("%s: could not fetch identity from storage: %v", msg.ID, err)
-		return errorResponse(http.StatusServiceUnavailable, "")
+		return errorResponse(http.StatusInternalServerError, "")
 	}
 
 	timer := prometheus.NewTimer(prom.SignatureCreationDuration)

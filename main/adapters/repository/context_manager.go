@@ -18,7 +18,7 @@ type StorageManager interface {
 	StartTransaction(context.Context) (TransactionCtx, error)
 
 	StoreNewIdentity(TransactionCtx, *ent.Identity) error
-	GetIdentityWithLock(context.Context, uuid.UUID) (TransactionCtx, *ent.Identity, error)
+	GetIdentityWithLock(TransactionCtx, uuid.UUID) (*ent.Identity, error)
 
 	SetSignature(TransactionCtx, uuid.UUID, []byte) error
 

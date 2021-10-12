@@ -15,7 +15,6 @@
 package repository
 
 import (
-	"context"
 	"fmt"
 	"sync"
 
@@ -86,25 +85,25 @@ func (p *ExtendedProtocol) StoreNewIdentity(tx TransactionCtx, i *ent.Identity) 
 	return p.StorageManager.StoreNewIdentity(tx, i)
 }
 
-func (p *ExtendedProtocol) GetIdentityWithLock(ctx context.Context, uid uuid.UUID) (TransactionCtx, *ent.Identity, error) {
-	tx, i, err := p.StorageManager.GetIdentityWithLock(ctx, uid)
+func (p *ExtendedProtocol) GetIdentityWithLock(transactionCtx TransactionCtx, uid uuid.UUID) (*ent.Identity, error) {
+	i, err := p.StorageManager.GetIdentityWithLock(transactionCtx, uid)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// decrypt private key
 	i.PrivateKey, err = p.keyEncrypter.Decrypt(i.PrivateKey)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// return public key in PEM format
 	i.PublicKey, err = p.PublicKeyBytesToPEM(i.PublicKey)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return tx, i, nil
+	return i, nil
 }
 
 // SetSignature stores the signature and commits the transaction
