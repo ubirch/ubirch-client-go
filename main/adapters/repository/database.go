@@ -29,6 +29,7 @@ import (
 
 const (
 	PostgreSql string = "postgres"
+	maxRetries        = 2
 )
 
 // DatabaseManager contains the postgres database connection, and offers methods
@@ -137,52 +138,73 @@ func (dm *DatabaseManager) SetSignature(transactionCtx TransactionCtx, uid uuid.
 func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
 	var privateKey []byte
 
-	query := fmt.Sprintf("SELECT private_key FROM %s WHERE uid = $1", dm.tableName)
+	err := retry(func() error {
+		query := fmt.Sprintf("SELECT private_key FROM %s WHERE uid = $1", dm.tableName)
 
-	err := dm.db.QueryRow(query, uid).Scan(&privateKey)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, ErrNotExist
+		err := dm.db.QueryRow(query, uid).Scan(&privateKey)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				return ErrNotExist
+			}
+			return err
 		}
-		return nil, err
-	}
+		return nil
+	})
 
-	return privateKey, nil
+	return privateKey, err
 }
 
 func (dm *DatabaseManager) GetPublicKey(uid uuid.UUID) ([]byte, error) {
 	var publicKey []byte
 
-	query := fmt.Sprintf("SELECT public_key FROM %s WHERE uid = $1", dm.tableName)
+	err := retry(func() error {
+		query := fmt.Sprintf("SELECT public_key FROM %s WHERE uid = $1", dm.tableName)
 
-	err := dm.db.QueryRow(query, uid).Scan(&publicKey)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, ErrNotExist
+		err := dm.db.QueryRow(query, uid).Scan(&publicKey)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				return ErrNotExist
+			}
+			return err
 		}
-		return nil, err
-	}
+		return nil
+	})
 
-	return publicKey, nil
+	return publicKey, err
 }
 
 func (dm *DatabaseManager) GetAuthToken(uid uuid.UUID) (string, error) {
 	var authToken string
 
-	query := fmt.Sprintf("SELECT auth_token FROM %s WHERE uid = $1", dm.tableName)
+	err := retry(func() error {
+		query := fmt.Sprintf("SELECT auth_token FROM %s WHERE uid = $1", dm.tableName)
 
-	err := dm.db.QueryRow(query, uid).Scan(&authToken)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return "", ErrNotExist
+		err := dm.db.QueryRow(query, uid).Scan(&authToken)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				return ErrNotExist
+			}
+			return err
 		}
-		return "", err
-	}
+		return nil
+	})
 
-	return authToken, nil
+	return authToken, err
 }
 
-func (dm *DatabaseManager) IsRecoverable(err error) bool {
+func retry(f func() error) (err error) {
+	for retries := 0; retries <= maxRetries; retries++ {
+		err = f()
+		if err == nil || !isRecoverable(err) {
+			break
+		}
+		log.Warnf("database recoverable error: %v (%d / %d)", err, retries, maxRetries)
+	}
+
+	return err
+}
+
+func isRecoverable(err error) bool {
 	if err.Error() == pq.ErrorCode("53300").Name() || // "53300": "too_many_connections",
 		err.Error() == pq.ErrorCode("53400").Name() { // "53400": "configuration_limit_exceeded",
 		time.Sleep(10 * time.Millisecond)
