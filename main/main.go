@@ -133,7 +133,7 @@ func main() {
 	}
 
 	// initialize ubirch protocol
-	ctxManager, err := repository.GetCtxManager(conf)
+	ctxManager, err := repository.GetStorageManager(conf)
 	if err != nil {
 		log.Fatal(err)
 	}
