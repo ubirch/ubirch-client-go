@@ -68,7 +68,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) (csr []byte, 
 	// generate a new private key
 	privKeyPEM, err := i.Protocol.GenerateKey()
 	if err != nil {
-		return nil, fmt.Errorf("generating new key for UUID %s failed: %v", uid, err)
+		return nil, err
 	}
 
 	pubKeyPEM, err := i.Protocol.GetPublicKeyFromPrivateKey(privKeyPEM)

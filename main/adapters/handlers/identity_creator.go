@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
@@ -39,15 +40,15 @@ func Register(registerAuth string, initialize InitializeIdentity) http.HandlerFu
 			return
 		}
 
-		uid := idPayload.Uid
-
-		csr, err := initialize(uid, idPayload.Pwd)
+		timer := prometheus.NewTimer(prom.IdentityCreationDuration)
+		csr, err := initialize(idPayload.Uid, idPayload.Pwd)
+		timer.ObserveDuration()
 		if err != nil {
 			switch err {
 			case ErrAlreadyInitialized:
-				h.Error(uid, w, err, http.StatusConflict)
+				h.Error(idPayload.Uid, w, err, http.StatusConflict)
 			default:
-				log.Errorf("%s: identity registration failed: %v", uid, err)
+				log.Errorf("%s: identity registration failed: %v", idPayload.Uid, err)
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			}
 			return
