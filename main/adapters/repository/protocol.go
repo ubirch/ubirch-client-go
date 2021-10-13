@@ -28,7 +28,7 @@ import (
 type ExtendedProtocol struct {
 	ubirch.Protocol
 	*clients.Client
-	StorageManager
+	ContextManager
 	keyEncrypter *encrypters.KeyEncrypter
 
 	privateKeyCache *sync.Map // {<uuid>: <private key>}
@@ -36,10 +36,7 @@ type ExtendedProtocol struct {
 	authTokenCache  *sync.Map // {<uuid>: <auth token>}
 }
 
-// Ensure ExtendedProtocol implements the StorageManager interface
-var _ StorageManager = (*ExtendedProtocol)(nil)
-
-func NewExtendedProtocol(storageManager StorageManager, secret []byte, client *clients.Client) (*ExtendedProtocol, error) {
+func NewExtendedProtocol(ctxManager ContextManager, secret []byte, client *clients.Client) (*ExtendedProtocol, error) {
 	crypto := &ubirch.ECDSACryptoContext{}
 
 	enc, err := encrypters.NewKeyEncrypter(secret, crypto)
@@ -52,7 +49,7 @@ func NewExtendedProtocol(storageManager StorageManager, secret []byte, client *c
 			Crypto: crypto,
 		},
 		Client:         client,
-		StorageManager: storageManager,
+		ContextManager: ctxManager,
 		keyEncrypter:   enc,
 
 		privateKeyCache: &sync.Map{},
@@ -82,11 +79,11 @@ func (p *ExtendedProtocol) StoreNewIdentity(tx TransactionCtx, i *ent.Identity) 
 		return err
 	}
 
-	return p.StorageManager.StoreNewIdentity(tx, i)
+	return p.ContextManager.StoreNewIdentity(tx, i)
 }
 
 func (p *ExtendedProtocol) GetIdentityWithLock(transactionCtx TransactionCtx, uid uuid.UUID) (*ent.Identity, error) {
-	i, err := p.StorageManager.GetIdentityWithLock(transactionCtx, uid)
+	i, err := p.ContextManager.GetIdentityWithLock(transactionCtx, uid)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +109,7 @@ func (p *ExtendedProtocol) SetSignature(tx TransactionCtx, uid uuid.UUID, signat
 		return fmt.Errorf("invalid signature length: expected %d, got %d", p.SignatureLength(), len(signature))
 	}
 
-	err := p.StorageManager.SetSignature(tx, uid, signature)
+	err := p.ContextManager.SetSignature(tx, uid, signature)
 	if err != nil {
 		return err
 	}
@@ -128,7 +125,7 @@ func (p *ExtendedProtocol) GetPrivateKey(uid uuid.UUID) (privKeyPEM []byte, err 
 	}
 
 	if !found {
-		encryptedPriv, err := p.StorageManager.GetPrivateKey(uid)
+		encryptedPriv, err := p.ContextManager.GetPrivateKey(uid)
 		if err != nil {
 			return nil, err
 		}
@@ -152,7 +149,7 @@ func (p *ExtendedProtocol) GetPublicKey(uid uuid.UUID) (pubKeyPEM []byte, err er
 	}
 
 	if !found {
-		publicKeyBytes, err := p.StorageManager.GetPublicKey(uid)
+		publicKeyBytes, err := p.ContextManager.GetPublicKey(uid)
 		if err != nil {
 			return nil, err
 		}
@@ -176,7 +173,7 @@ func (p *ExtendedProtocol) GetAuthToken(uid uuid.UUID) (auth string, err error) 
 	}
 
 	if !found {
-		auth, err = p.StorageManager.GetAuthToken(uid)
+		auth, err = p.ContextManager.GetAuthToken(uid)
 		if err != nil {
 			return "", err
 		}

@@ -35,8 +35,8 @@ type FileManager struct {
 	keystoreMutex     *sync.RWMutex
 }
 
-// TODO // Ensure FileManager implements the StorageManager interface
-//var _ StorageManager = (*FileManager)(nil)
+// TODO // Ensure FileManager implements the ContextManager interface
+//var _ ContextManager = (*FileManager)(nil)
 
 func NewFileManager(configDir string, secret []byte) (*FileManager, error) {
 	f := &FileManager{

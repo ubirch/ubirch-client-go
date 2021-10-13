@@ -40,8 +40,8 @@ type DatabaseManager struct {
 	tableName string
 }
 
-// Ensure Database implements the StorageManager interface
-var _ StorageManager = (*DatabaseManager)(nil)
+// Ensure Database implements the ContextManager interface
+var _ ContextManager = (*DatabaseManager)(nil)
 
 // NewSqlDatabaseInfo takes a database connection string, returns a new initialized
 // database.

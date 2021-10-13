@@ -14,7 +14,7 @@ var (
 	ErrNotExist = errors.New("entry does not exist")
 )
 
-type StorageManager interface {
+type ContextManager interface {
 	StartTransaction(context.Context) (TransactionCtx, error)
 
 	StoreNewIdentity(TransactionCtx, *ent.Identity) error
@@ -31,7 +31,7 @@ type TransactionCtx interface {
 	Commit() error
 }
 
-func GetStorageManager(c config.Config) (StorageManager, error) {
+func GetContextManager(c config.Config) (ContextManager, error) {
 	if c.PostgresDSN != "" {
 		return NewSqlDatabaseInfo(c.PostgresDSN, PostgreSqlIdentityTableName)
 	} else {
