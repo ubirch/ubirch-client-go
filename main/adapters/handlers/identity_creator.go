@@ -15,7 +15,6 @@ import (
 
 var (
 	ErrAlreadyInitialized = errors.New("identity already registered")
-	ErrUnknown            = errors.New("unknown identity")
 )
 
 type RegistrationPayload struct {
@@ -35,7 +34,7 @@ func Register(registerAuth string, initialize InitializeIdentity) http.HandlerFu
 
 		idPayload, err := identityFromBody(r)
 		if err != nil {
-			log.Warn(err)
+			log.Warnf("unsuccessful registration attempt: %v", err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -44,27 +43,23 @@ func Register(registerAuth string, initialize InitializeIdentity) http.HandlerFu
 
 		csr, err := initialize(uid, idPayload.Pwd)
 		if err != nil {
-			log.Warnf("%s: identity registration failed: %v", uid, err)
 			switch err {
 			case ErrAlreadyInitialized:
-				http.Error(w, err.Error(), http.StatusConflict)
-			case ErrUnknown:
-				http.Error(w, err.Error(), http.StatusNotFound)
+				h.Error(uid, w, err, http.StatusConflict)
 			default:
+				log.Errorf("%s: identity registration failed: %v", uid, err)
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			}
 			return
 		}
 
-		resp := h.HTTPResponse{
+		h.SendResponse(w, h.HTTPResponse{
 			StatusCode: http.StatusOK,
 			Header: http.Header{
 				"Content-Type": {h.BinType},
 			},
 			Content: csr,
-		}
-
-		h.SendResponse(w, resp)
+		})
 
 		prom.IdentityCreationCounter.Inc()
 	}

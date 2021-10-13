@@ -103,7 +103,14 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) (csr []byte, 
 		return nil, err
 	}
 
-	return csr, tx.Commit()
+	err = tx.Commit()
+	if err != nil {
+		return nil, fmt.Errorf("commiting transaction to store new identity failed after successful registration at ubirch identity service: %v", err)
+	}
+
+	log.Infof("%s: identity initialized", uid)
+
+	return csr, nil
 }
 
 func (i *IdentityHandler) registerPublicKey(privKeyPEM []byte, uid uuid.UUID, auth string) (csr []byte, err error) {
