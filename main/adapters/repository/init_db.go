@@ -170,7 +170,7 @@ func migrateIdentities(c config.Config, dm *DatabaseManager, identities []ent.Id
 			continue
 		}
 
-		err = p.StoreNewIdentity(tx, &id)
+		err = p.StoreNewIdentity(tx, id)
 		if err != nil {
 			return err
 		}

@@ -121,7 +121,6 @@ func (dm *DatabaseManager) GetSignature(transactionCtx TransactionCtx, uid uuid.
 
 	err = tx.QueryRow(query, uid).Scan(&signature)
 	if err != nil {
-		_ = tx.Rollback()
 		if err == sql.ErrNoRows {
 			return nil, ErrNotExist
 		}
