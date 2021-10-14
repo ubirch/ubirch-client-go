@@ -49,7 +49,7 @@ func Migrate(c config.Config) error {
 	txCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	dbManager, err := NewSqlDatabaseInfo(c.PostgresDSN, PostgreSqlIdentityTableName)
+	dbManager, err := NewSqlDatabaseInfo(c.PostgresDSN, PostgreSqlIdentityTableName, 1)
 	if err != nil {
 		return err
 	}

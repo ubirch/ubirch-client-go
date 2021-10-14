@@ -28,8 +28,8 @@ import (
 )
 
 const (
-	PostgreSql string = "postgres"
-	maxRetries        = 2
+	PostgreSql = "postgres"
+	maxRetries = 2
 )
 
 // DatabaseManager contains the postgres database connection, and offers methods
@@ -45,21 +45,24 @@ var _ ContextManager = (*DatabaseManager)(nil)
 
 // NewSqlDatabaseInfo takes a database connection string, returns a new initialized
 // database.
-func NewSqlDatabaseInfo(dataSourceName, tableName string) (*DatabaseManager, error) {
+func NewSqlDatabaseInfo(dataSourceName, tableName string, maxConns int) (*DatabaseManager, error) {
+	log.Infof("preparing postgres usage")
+
 	pg, err := sql.Open(PostgreSql, dataSourceName)
 	if err != nil {
 		return nil, err
 	}
-	pg.SetMaxOpenConns(100)
-	pg.SetMaxIdleConns(70)
+
+	pg.SetMaxOpenConns(maxConns)
+	pg.SetMaxIdleConns(maxConns)
 	pg.SetConnMaxLifetime(10 * time.Minute)
+	pg.SetConnMaxIdleTime(1 * time.Minute)
+
 	if err = pg.Ping(); err != nil {
 		return nil, err
 	}
 
-	log.Print("preparing postgres usage")
-
-	dbManager := &DatabaseManager{
+	dm := &DatabaseManager{
 		options: &sql.TxOptions{
 			Isolation: sql.LevelReadCommitted,
 			ReadOnly:  false,
@@ -68,11 +71,11 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string) (*DatabaseManager, err
 		tableName: tableName,
 	}
 
-	if _, err = dbManager.db.Exec(CreateTable(PostgresIdentity, tableName)); err != nil {
-		return nil, err
+	if _, err = dm.db.Exec(CreateTable(PostgresIdentity, tableName)); err != nil {
+		return nil, fmt.Errorf("creating DB table failed: %v", err)
 	}
 
-	return dbManager, nil
+	return dm, nil
 }
 
 func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx TransactionCtx, err error) {
