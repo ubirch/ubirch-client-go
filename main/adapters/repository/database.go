@@ -93,7 +93,7 @@ func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx
 	return transactionCtx, err
 }
 
-func (dm *DatabaseManager) StoreNewIdentity(transactionCtx TransactionCtx, identity *ent.Identity) error {
+func (dm *DatabaseManager) StoreNewIdentity(transactionCtx TransactionCtx, identity ent.Identity) error {
 	tx, ok := transactionCtx.(*sql.Tx)
 	if !ok {
 		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
@@ -111,17 +111,15 @@ func (dm *DatabaseManager) StoreNewIdentity(transactionCtx TransactionCtx, ident
 	return nil
 }
 
-func (dm *DatabaseManager) GetIdentityWithLock(transactionCtx TransactionCtx, uid uuid.UUID) (*ent.Identity, error) {
+func (dm *DatabaseManager) GetSignature(transactionCtx TransactionCtx, uid uuid.UUID) (signature []byte, err error) {
 	tx, ok := transactionCtx.(*sql.Tx)
 	if !ok {
 		return nil, fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
-	var id ent.Identity
+	query := fmt.Sprintf("SELECT signature FROM %s WHERE uid = $1 FOR UPDATE", dm.tableName)
 
-	query := fmt.Sprintf("SELECT * FROM %s WHERE uid = $1 FOR UPDATE", dm.tableName)
-
-	err := tx.QueryRow(query, uid).Scan(&id.Uid, &id.PrivateKey, &id.PublicKey, &id.Signature, &id.AuthToken)
+	err = tx.QueryRow(query, uid).Scan(&signature)
 	if err != nil {
 		_ = tx.Rollback()
 		if err == sql.ErrNoRows {
@@ -130,7 +128,7 @@ func (dm *DatabaseManager) GetIdentityWithLock(transactionCtx TransactionCtx, ui
 		return nil, err
 	}
 
-	return &id, nil
+	return signature, nil
 }
 
 func (dm *DatabaseManager) SetSignature(transactionCtx TransactionCtx, uid uuid.UUID, signature []byte) error {

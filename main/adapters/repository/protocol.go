@@ -60,7 +60,7 @@ func NewExtendedProtocol(ctxManager ContextManager, secret []byte, client *clien
 	return p, nil
 }
 
-func (p *ExtendedProtocol) StoreNewIdentity(tx TransactionCtx, i *ent.Identity) error {
+func (p *ExtendedProtocol) StoreNewIdentity(tx TransactionCtx, i ent.Identity) error {
 	// check validity of identity attributes
 	err := p.checkIdentityAttributes(i)
 	if err != nil {
@@ -80,27 +80,6 @@ func (p *ExtendedProtocol) StoreNewIdentity(tx TransactionCtx, i *ent.Identity) 
 	}
 
 	return p.ContextManager.StoreNewIdentity(tx, i)
-}
-
-func (p *ExtendedProtocol) GetIdentityWithLock(transactionCtx TransactionCtx, uid uuid.UUID) (*ent.Identity, error) {
-	i, err := p.ContextManager.GetIdentityWithLock(transactionCtx, uid)
-	if err != nil {
-		return nil, err
-	}
-
-	// decrypt private key
-	i.PrivateKey, err = p.keyEncrypter.Decrypt(i.PrivateKey)
-	if err != nil {
-		return nil, err
-	}
-
-	// return public key in PEM format
-	i.PublicKey, err = p.PublicKeyBytesToPEM(i.PublicKey)
-	if err != nil {
-		return nil, err
-	}
-
-	return i, nil
 }
 
 // SetSignature stores the signature and commits the transaction
@@ -212,7 +191,7 @@ func (p *ExtendedProtocol) CheckAuth(uid uuid.UUID, authToCheck string) (ok bool
 	return actualAuth == authToCheck, true, nil
 }
 
-func (p *ExtendedProtocol) checkIdentityAttributes(i *ent.Identity) error {
+func (p *ExtendedProtocol) checkIdentityAttributes(i ent.Identity) error {
 	if i.Uid == uuid.Nil {
 		return fmt.Errorf("uuid has Nil value: %s", i.Uid)
 	}

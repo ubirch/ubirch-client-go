@@ -17,9 +17,9 @@ var (
 type ContextManager interface {
 	StartTransaction(context.Context) (TransactionCtx, error)
 
-	StoreNewIdentity(TransactionCtx, *ent.Identity) error
-	GetIdentityWithLock(TransactionCtx, uuid.UUID) (*ent.Identity, error)
+	StoreNewIdentity(TransactionCtx, ent.Identity) error
 
+	GetSignature(TransactionCtx, uuid.UUID) ([]byte, error)
 	SetSignature(TransactionCtx, uuid.UUID, []byte) error
 
 	GetPrivateKey(uid uuid.UUID) ([]byte, error)
@@ -31,6 +31,7 @@ type ContextManager interface {
 
 type TransactionCtx interface {
 	Commit() error
+	Rollback() error
 }
 
 func GetContextManager(c config.Config) (ContextManager, error) {
