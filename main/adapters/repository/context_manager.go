@@ -25,6 +25,8 @@ type ContextManager interface {
 	GetPrivateKey(uid uuid.UUID) ([]byte, error)
 	GetPublicKey(uid uuid.UUID) ([]byte, error)
 	GetAuthToken(uid uuid.UUID) (string, error)
+
+	Close()
 }
 
 type TransactionCtx interface {

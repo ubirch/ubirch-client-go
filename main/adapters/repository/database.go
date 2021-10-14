@@ -78,6 +78,13 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string, maxConns int) (*Databa
 	return dm, nil
 }
 
+func (dm *DatabaseManager) Close() {
+	err := dm.db.Close()
+	if err != nil {
+		log.Errorf("failed to close database: %v", err)
+	}
+}
+
 func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx TransactionCtx, err error) {
 	err = retry(func() error {
 		transactionCtx, err = dm.db.BeginTx(ctx, dm.options)

@@ -137,6 +137,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer ctxManager.Close()
 
 	client := &clients.Client{
 		AuthServiceURL:     conf.Niomon,
