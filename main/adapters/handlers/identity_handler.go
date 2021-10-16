@@ -76,7 +76,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) (csr []byte, 
 		return nil, err
 	}
 
-	newIdentity := &ent.Identity{
+	newIdentity := ent.Identity{
 		Uid:        uid,
 		PrivateKey: privKeyPEM,
 		PublicKey:  pubKeyPEM,

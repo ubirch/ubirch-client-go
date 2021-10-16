@@ -66,20 +66,26 @@ type Signer struct {
 func (s *Signer) Chain(msg h.HTTPRequest, ctx context.Context) h.HTTPResponse {
 	log.Infof("%s: anchor hash [chained]: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
+	privateKeyPEM, err := s.Protocol.GetPrivateKey(msg.ID)
+	if err != nil {
+		log.Errorf("%s: could not fetch private Key for UUID: %v", msg.ID, err)
+		return errorResponse(http.StatusInternalServerError, "")
+	}
+
 	tx, err := s.Protocol.StartTransaction(ctx)
 	if err != nil {
 		log.Errorf("%s: initializing transaction failed: %v", msg.ID, err)
 		return errorResponse(http.StatusServiceUnavailable, "")
 	}
 
-	identity, err := s.Protocol.GetIdentityWithLock(tx, msg.ID)
+	prevSignature, err := s.Protocol.GetSignature(tx, msg.ID)
 	if err != nil {
 		log.Errorf("%s: could not fetch identity from storage: %v", msg.ID, err)
 		return errorResponse(http.StatusInternalServerError, "")
 	}
 
 	timer := prometheus.NewTimer(prom.SignatureCreationDuration)
-	uppBytes, err := s.getChainedUPP(msg.ID, msg.Hash, identity.PrivateKey, identity.Signature)
+	uppBytes, err := s.getChainedUPP(msg.ID, msg.Hash, privateKeyPEM, prevSignature)
 	timer.ObserveDuration()
 	if err != nil {
 		log.Errorf("%s: could not create chained UPP: %v", msg.ID, err)
