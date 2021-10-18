@@ -316,6 +316,11 @@ func checkIdentity(ctxManager ContextManager, id ent.Identity, wg *sync.WaitGrou
 		return fmt.Errorf("GetSignature returned unexpected value")
 	}
 
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+
 	priv, err := ctxManager.GetPrivateKey(id.Uid)
 	if err != nil {
 		return err
