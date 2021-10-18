@@ -78,6 +78,49 @@ func TestDatabaseManager(t *testing.T) {
 	assert.Equal(t, auth, testIdentity.AuthToken)
 }
 
+func TestDatabaseManager_SetSignature(t *testing.T) {
+	dm, err := initDB()
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	testIdentity := generateRandomIdentity()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// store identity
+	tx, err := dm.StartTransaction(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, tx)
+
+	err = dm.StoreNewIdentity(tx, testIdentity)
+	require.NoError(t, err)
+
+	err = tx.Commit()
+	require.NoError(t, err)
+
+	newSignature := make([]byte, 64)
+	rand.Read(newSignature)
+
+	tx, err = dm.StartTransaction(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, tx)
+
+	err = dm.SetSignature(tx, testIdentity.Uid, newSignature)
+	require.NoError(t, err)
+
+	err = tx.Commit()
+	require.NoError(t, err)
+
+	tx2, err := dm.StartTransaction(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, tx)
+
+	sig, err := dm.GetSignature(tx2, testIdentity.Uid)
+	assert.NoError(t, err)
+	assert.Equal(t, sig, newSignature)
+}
+
 func TestNewSqlDatabaseInfo_InvalidDSN(t *testing.T) {
 	invalidDSN := "this is not a DSN"
 
