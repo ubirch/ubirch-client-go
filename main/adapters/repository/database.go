@@ -78,11 +78,12 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string, maxConns int) (*Databa
 	return dm, nil
 }
 
-func (dm *DatabaseManager) Close() {
+func (dm *DatabaseManager) Close() error {
 	err := dm.db.Close()
 	if err != nil {
-		log.Errorf("failed to close database: %v", err)
+		return fmt.Errorf("failed to close database: %v", err)
 	}
+	return nil
 }
 
 func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx TransactionCtx, err error) {
