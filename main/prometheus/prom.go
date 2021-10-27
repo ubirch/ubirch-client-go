@@ -25,7 +25,7 @@ func (rw *responseWriter) WriteHeader(code int) {
 	rw.ResponseWriter.WriteHeader(code)
 }
 
-var totalRequests = prometheus.NewCounterVec(
+var totalRequests = promauto.NewCounterVec(
 	prometheus.CounterOpts{
 		Name: "http_requests_total",
 		Help: "Number of get requests.",
@@ -33,7 +33,7 @@ var totalRequests = prometheus.NewCounterVec(
 	[]string{"path"},
 )
 
-var responseStatus = prometheus.NewCounterVec(
+var responseStatus = promauto.NewCounterVec(
 	prometheus.CounterOpts{
 		Name: "response_status",
 		Help: "Status of HTTP response",
@@ -49,7 +49,7 @@ var httpDuration = promauto.NewHistogramVec(
 	[]string{"path"},
 )
 
-var UpstreamResponseDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+var UpstreamResponseDuration = promauto.NewHistogram(prometheus.HistogramOpts{
 	Name:    "upstream_response_duration",
 	Help:    "Duration of HTTP responses from upstream server.",
 	Buckets: prometheus.LinearBuckets(0.01, 0.01, 10),
@@ -61,7 +61,7 @@ var SignatureCreationDuration = promauto.NewHistogram(prometheus.HistogramOpts{
 	Buckets: prometheus.LinearBuckets(0.01, 0.01, 10),
 })
 
-var SignatureCreationCounter = prometheus.NewCounter(prometheus.CounterOpts{
+var SignatureCreationCounter = promauto.NewCounter(prometheus.CounterOpts{
 	Name: "signature_creation_success",
 	Help: "Number of successfully created signatures",
 })
@@ -72,21 +72,10 @@ var IdentityCreationDuration = promauto.NewHistogram(prometheus.HistogramOpts{
 	Buckets: prometheus.LinearBuckets(0.01, 0.01, 10),
 })
 
-var IdentityCreationCounter = prometheus.NewCounter(prometheus.CounterOpts{
+var IdentityCreationCounter = promauto.NewCounter(prometheus.CounterOpts{
 	Name: "identity_creation_success",
 	Help: "Number of identities which have been successfully created and stored.",
 })
-
-func RegisterPromMetrics() {
-	prometheus.Register(totalRequests)
-	prometheus.Register(responseStatus)
-	prometheus.Register(httpDuration)
-	prometheus.Register(UpstreamResponseDuration)
-	prometheus.Register(SignatureCreationDuration)
-	prometheus.Register(SignatureCreationCounter)
-	prometheus.Register(IdentityCreationDuration)
-	prometheus.Register(IdentityCreationCounter)
-}
 
 func PromMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -100,12 +89,9 @@ func PromMiddleware(next http.Handler) http.Handler {
 		httpDuration.WithLabelValues(path).Observe(time.Since(startTimer).Seconds())
 		totalRequests.WithLabelValues(path).Inc()
 		responseStatus.WithLabelValues(strconv.Itoa(statusCode)).Inc()
-
 	})
 }
 
-func InitPromMetrics(router *chi.Mux) {
-	RegisterPromMetrics()
-	router.Use(PromMiddleware)
-	router.Method(http.MethodGet, "/metrics", promhttp.Handler())
+func Handler() http.Handler {
+	return promhttp.Handler()
 }

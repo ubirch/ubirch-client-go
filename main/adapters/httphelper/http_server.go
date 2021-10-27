@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/cors"
 
 	log "github.com/sirupsen/logrus"
+	prom "github.com/ubirch/ubirch-client-go/main/prometheus"
 )
 
 type Service interface {
@@ -36,6 +37,7 @@ type HTTPServer struct {
 
 func NewRouter() *chi.Mux {
 	router := chi.NewMux()
+	router.Use(prom.PromMiddleware)
 	router.Use(middleware.Timeout(GatewayTimeout))
 	return router
 }
@@ -62,7 +64,7 @@ func (srv *HTTPServer) AddServiceEndpoint(endpoint ServerEndpoint) {
 	srv.Router.Options(hashEndpointPath, endpoint.HandleOptions)
 }
 
-func (srv *HTTPServer) Serve(cancelCtx context.Context, serverReady context.CancelFunc) error {
+func (srv *HTTPServer) Serve(cancelCtx context.Context) error {
 	server := &http.Server{
 		Addr:         srv.Addr,
 		Handler:      srv.Router,
@@ -87,7 +89,6 @@ func (srv *HTTPServer) Serve(cancelCtx context.Context, serverReady context.Canc
 	}()
 
 	log.Infof("starting HTTP server")
-	serverReady()
 
 	var err error
 	if srv.TLS {

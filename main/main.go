@@ -17,6 +17,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -25,7 +26,6 @@ import (
 	"github.com/ubirch/ubirch-client-go/main/adapters/handlers"
 	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
 	"github.com/ubirch/ubirch-client-go/main/config"
-	"golang.org/x/sync/errgroup"
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
@@ -90,40 +90,6 @@ func main() {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
 
-	// create a waitgroup that contains all asynchronous operations
-	// a cancellable context is used to stop the operations gracefully
-	ctx, cancel := context.WithCancel(context.Background())
-	g, ctx := errgroup.WithContext(ctx)
-
-	// set up graceful shutdown handling
-	go shutdown(cancel)
-
-	// set up HTTP server
-	httpServer := h.HTTPServer{
-		Router:   h.NewRouter(),
-		Addr:     conf.TCP_addr,
-		TLS:      conf.TLS,
-		CertFile: conf.TLS_CertFile,
-		KeyFile:  conf.TLS_KeyFile,
-	}
-	if conf.CORS && config.IsDevelopment { // never enable CORS on production stage
-		httpServer.SetUpCORS(conf.CORS_Origins, conf.Debug)
-	}
-
-	// start HTTP server
-	serverReadyCtx, serverReady := context.WithCancel(context.Background())
-	g.Go(func() error {
-		return httpServer.Serve(ctx, serverReady)
-	})
-	// wait for server to start
-	<-serverReadyCtx.Done()
-
-	// set up metrics
-	prom.InitPromMetrics(httpServer.Router)
-
-	// set up endpoint for liveliness checks
-	httpServer.Router.Get("/healtz", h.Health(serverID))
-
 	if migrate {
 		err := repository.Migrate(conf)
 		if err != nil {
@@ -180,6 +146,22 @@ func main() {
 		VerifyFromKnownIdentitiesOnly: false, // TODO: make configurable
 	}
 
+	// set up HTTP server
+	httpServer := h.HTTPServer{
+		Router:   h.NewRouter(),
+		Addr:     conf.TCP_addr,
+		TLS:      conf.TLS,
+		CertFile: conf.TLS_CertFile,
+		KeyFile:  conf.TLS_KeyFile,
+	}
+
+	if conf.CORS && config.IsDevelopment { // never enable CORS on production stage
+		httpServer.SetUpCORS(conf.CORS_Origins, conf.Debug)
+	}
+
+	// set up metrics
+	httpServer.Router.Method(http.MethodGet, "/metrics", prom.Handler())
+
 	// set up endpoint for identity registration
 	httpServer.Router.Put(h.RegisterEndpoint, handlers.Register(conf.RegisterAuth, idHandler.InitIdentity))
 
@@ -209,14 +191,18 @@ func main() {
 		},
 	})
 
-	// set up endpoint for readiness checks
-	httpServer.Router.Get("/readiness", h.Health(serverID))
-	log.Info("ready")
+	// set up endpoints for liveness and readiness checks
+	httpServer.Router.Get("/healthz", h.Health(serverID))
+	httpServer.Router.Get("/readyz", h.Health(serverID)) // todo: implement real readiness check
 
-	// wait for all go routines of the waitgroup to return
-	if err = g.Wait(); err != nil {
+	// set up graceful shutdown handling
+	ctx, cancel := context.WithCancel(context.Background())
+	go shutdown(cancel)
+
+	// start HTTP server (blocks)
+	if err = httpServer.Serve(ctx); err != nil {
 		log.Error(err)
 	}
 
-	log.Debug("shut down client")
+	log.Debug("shut down")
 }
