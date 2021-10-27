@@ -66,7 +66,7 @@ type Signer struct {
 func (s *Signer) Chain(msg h.HTTPRequest, ctx context.Context) h.HTTPResponse {
 	log.Infof("%s: anchor hash [chained]: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
-	privateKeyPEM, err := s.Protocol.GetPrivateKey(msg.ID)
+	_, err := s.Protocol.LoadPrivateKey(msg.ID)
 	if err != nil {
 		log.Errorf("%s: could not fetch private Key for UUID: %v", msg.ID, err)
 		return errorResponse(http.StatusInternalServerError, "")
@@ -78,14 +78,14 @@ func (s *Signer) Chain(msg h.HTTPRequest, ctx context.Context) h.HTTPResponse {
 		return errorResponse(http.StatusServiceUnavailable, "")
 	}
 
-	prevSignature, err := s.Protocol.GetSignature(tx, msg.ID)
+	prevSignature, err := s.Protocol.LoadSignature(tx, msg.ID)
 	if err != nil {
 		log.Errorf("%s: could not fetch identity from storage: %v", msg.ID, err)
 		return errorResponse(http.StatusInternalServerError, "")
 	}
 
 	timer := prometheus.NewTimer(prom.SignatureCreationDuration)
-	uppBytes, err := s.getChainedUPP(msg.ID, msg.Hash, privateKeyPEM, prevSignature)
+	uppBytes, err := s.getChainedUPP(msg.ID, msg.Hash, prevSignature)
 	timer.ObserveDuration()
 	if err != nil {
 		log.Errorf("%s: could not create chained UPP: %v", msg.ID, err)
@@ -99,7 +99,7 @@ func (s *Signer) Chain(msg h.HTTPRequest, ctx context.Context) h.HTTPResponse {
 	if h.HttpSuccess(resp.StatusCode) {
 		signature := uppBytes[len(uppBytes)-s.Protocol.SignatureLength():]
 
-		err = s.Protocol.SetSignature(tx, msg.ID, signature)
+		err = s.Protocol.StoreSignature(tx, msg.ID, signature)
 		if err != nil {
 			// this usually happens, if the request context was cancelled because the client already left (timeout or cancel)
 			log.Errorf("%s: storing signature failed: %v", msg.ID, err)
@@ -117,13 +117,13 @@ func (s *Signer) Chain(msg h.HTTPRequest, ctx context.Context) h.HTTPResponse {
 func (s *Signer) Sign(msg h.HTTPRequest, op operation) h.HTTPResponse {
 	log.Infof("%s: %s hash: %s", msg.ID, op, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
-	privateKeyPEM, err := s.Protocol.GetPrivateKey(msg.ID)
+	_, err := s.Protocol.LoadPrivateKey(msg.ID)
 	if err != nil {
 		log.Errorf("%s: could not fetch private Key for UUID: %v", msg.ID, err)
 		return errorResponse(http.StatusInternalServerError, "")
 	}
 
-	uppBytes, err := s.getSignedUPP(msg.ID, msg.Hash, privateKeyPEM, op)
+	uppBytes, err := s.getSignedUPP(msg.ID, msg.Hash, op)
 	if err != nil {
 		log.Errorf("%s: could not create signed UPP: %v", msg.ID, err)
 		return errorResponse(http.StatusInternalServerError, "")
@@ -133,9 +133,8 @@ func (s *Signer) Sign(msg h.HTTPRequest, op operation) h.HTTPResponse {
 	return s.sendUPP(msg, uppBytes)
 }
 
-func (s *Signer) getChainedUPP(id uuid.UUID, hash [32]byte, privateKeyPEM, prevSignature []byte) ([]byte, error) {
+func (s *Signer) getChainedUPP(id uuid.UUID, hash [32]byte, prevSignature []byte) ([]byte, error) {
 	return s.Protocol.Sign(
-		privateKeyPEM,
 		&ubirch.ChainedUPP{
 			Version:       ubirch.Chained,
 			Uuid:          id,
@@ -145,14 +144,13 @@ func (s *Signer) getChainedUPP(id uuid.UUID, hash [32]byte, privateKeyPEM, prevS
 		})
 }
 
-func (s *Signer) getSignedUPP(id uuid.UUID, hash [32]byte, privateKeyPEM []byte, op operation) ([]byte, error) {
+func (s *Signer) getSignedUPP(id uuid.UUID, hash [32]byte, op operation) ([]byte, error) {
 	hint, found := hintLookup[op]
 	if !found {
 		return nil, fmt.Errorf("%s: invalid operation: \"%s\"", id, op)
 	}
 
 	return s.Protocol.Sign(
-		privateKeyPEM,
 		&ubirch.SignedUPP{
 			Version: ubirch.Signed,
 			Uuid:    id,

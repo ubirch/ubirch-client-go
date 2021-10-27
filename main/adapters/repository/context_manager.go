@@ -19,12 +19,12 @@ type ContextManager interface {
 
 	StoreNewIdentity(TransactionCtx, ent.Identity) error
 
-	GetSignature(TransactionCtx, uuid.UUID) ([]byte, error)
-	SetSignature(TransactionCtx, uuid.UUID, []byte) error
+	LoadSignature(TransactionCtx, uuid.UUID) ([]byte, error)
+	StoreSignature(TransactionCtx, uuid.UUID, []byte) error
 
-	GetPrivateKey(uid uuid.UUID) ([]byte, error)
-	GetPublicKey(uid uuid.UUID) ([]byte, error)
-	GetAuthToken(uid uuid.UUID) (string, error)
+	LoadPrivateKey(uuid.UUID) ([]byte, error)
+	LoadPublicKey(uuid.UUID) ([]byte, error)
+	LoadAuthToken(uuid.UUID) (string, error)
 
 	Close() error
 }

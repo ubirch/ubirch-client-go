@@ -37,17 +37,17 @@ func TestDatabaseManager(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tx)
 
-	_, err = dm.GetSignature(tx, testIdentity.Uid)
-	assert.Equal(t, err, ErrNotExist)
+	_, err = dm.LoadSignature(tx, testIdentity.Uid)
+	assert.Equal(t, ErrNotExist, err)
 
-	_, err = dm.GetPrivateKey(testIdentity.Uid)
-	assert.Equal(t, err, ErrNotExist)
+	_, err = dm.LoadPrivateKey(testIdentity.Uid)
+	assert.Equal(t, ErrNotExist, err)
 
-	_, err = dm.GetPublicKey(testIdentity.Uid)
-	assert.Equal(t, err, ErrNotExist)
+	_, err = dm.LoadPublicKey(testIdentity.Uid)
+	assert.Equal(t, ErrNotExist, err)
 
-	_, err = dm.GetAuthToken(testIdentity.Uid)
-	assert.Equal(t, err, ErrNotExist)
+	_, err = dm.LoadAuthToken(testIdentity.Uid)
+	assert.Equal(t, ErrNotExist, err)
 
 	// store identity
 	err = dm.StoreNewIdentity(tx, testIdentity)
@@ -61,21 +61,21 @@ func TestDatabaseManager(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tx)
 
-	sig, err := dm.GetSignature(tx, testIdentity.Uid)
+	sig, err := dm.LoadSignature(tx, testIdentity.Uid)
 	assert.NoError(t, err)
-	assert.Equal(t, sig, testIdentity.Signature)
+	assert.Equal(t, testIdentity.Signature, sig)
 
-	priv, err := dm.GetPrivateKey(testIdentity.Uid)
+	priv, err := dm.LoadPrivateKey(testIdentity.Uid)
 	assert.NoError(t, err)
-	assert.Equal(t, priv, testIdentity.PrivateKey)
+	assert.Equal(t, testIdentity.PrivateKey, priv)
 
-	pub, err := dm.GetPublicKey(testIdentity.Uid)
+	pub, err := dm.LoadPublicKey(testIdentity.Uid)
 	assert.NoError(t, err)
-	assert.Equal(t, pub, testIdentity.PublicKey)
+	assert.Equal(t, testIdentity.PublicKey, pub)
 
-	auth, err := dm.GetAuthToken(testIdentity.Uid)
+	auth, err := dm.LoadAuthToken(testIdentity.Uid)
 	assert.NoError(t, err)
-	assert.Equal(t, auth, testIdentity.AuthToken)
+	assert.Equal(t, testIdentity.AuthToken, auth)
 }
 
 func TestDatabaseManager_SetSignature(t *testing.T) {
@@ -106,7 +106,7 @@ func TestDatabaseManager_SetSignature(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tx)
 
-	err = dm.SetSignature(tx, testIdentity.Uid, newSignature)
+	err = dm.StoreSignature(tx, testIdentity.Uid, newSignature)
 	require.NoError(t, err)
 
 	err = tx.Commit()
@@ -116,9 +116,9 @@ func TestDatabaseManager_SetSignature(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tx)
 
-	sig, err := dm.GetSignature(tx2, testIdentity.Uid)
+	sig, err := dm.LoadSignature(tx2, testIdentity.Uid)
 	assert.NoError(t, err)
-	assert.Equal(t, sig, newSignature)
+	assert.Equal(t, newSignature, sig)
 }
 
 func TestNewSqlDatabaseInfo_InvalidDSN(t *testing.T) {
@@ -179,8 +179,8 @@ func TestDatabaseManager_CancelTransaction(t *testing.T) {
 	cancel()
 
 	// check not exists
-	_, err = dm.GetAuthToken(testIdentity.Uid)
-	assert.Equal(t, err, ErrNotExist)
+	_, err = dm.LoadAuthToken(testIdentity.Uid)
+	assert.Equal(t, ErrNotExist, err)
 }
 
 func TestDatabaseLoad(t *testing.T) {
@@ -313,7 +313,7 @@ func generateRandomIdentity() ent.Identity {
 	return ent.Identity{
 		Uid:        uuid.New(),
 		PrivateKey: priv,
-		PublicKey:  pub,
+		PublicKey:  []byte(base64.StdEncoding.EncodeToString(pub)),
 		Signature:  sig,
 		AuthToken:  base64.StdEncoding.EncodeToString(auth),
 	}
@@ -354,12 +354,12 @@ func checkIdentity(ctxManager ContextManager, id ent.Identity, wg *sync.WaitGrou
 		return err
 	}
 
-	sig, err := ctxManager.GetSignature(tx, id.Uid)
+	sig, err := ctxManager.LoadSignature(tx, id.Uid)
 	if err != nil {
 		return err
 	}
 	if !bytes.Equal(sig, id.Signature) {
-		return fmt.Errorf("GetSignature returned unexpected value")
+		return fmt.Errorf("LoadSignature returned unexpected value")
 	}
 
 	err = tx.Commit()
@@ -367,28 +367,28 @@ func checkIdentity(ctxManager ContextManager, id ent.Identity, wg *sync.WaitGrou
 		return err
 	}
 
-	priv, err := ctxManager.GetPrivateKey(id.Uid)
+	priv, err := ctxManager.LoadPrivateKey(id.Uid)
 	if err != nil {
 		return err
 	}
 	if !bytes.Equal(priv, id.PrivateKey) {
-		return fmt.Errorf("GetPrivateKey returned unexpected value")
+		return fmt.Errorf("LoadPrivateKey returned unexpected value")
 	}
 
-	pub, err := ctxManager.GetPublicKey(id.Uid)
+	pub, err := ctxManager.LoadPublicKey(id.Uid)
 	if err != nil {
 		return err
 	}
 	if !bytes.Equal(pub, id.PublicKey) {
-		return fmt.Errorf("GetPublicKey returned unexpected value")
+		return fmt.Errorf("LoadPublicKey returned unexpected value")
 	}
 
-	auth, err := ctxManager.GetAuthToken(id.Uid)
+	auth, err := ctxManager.LoadAuthToken(id.Uid)
 	if err != nil {
 		return err
 	}
 	if auth != id.AuthToken {
-		return fmt.Errorf("GetAuthToken returned unexpected value")
+		return fmt.Errorf("LoadAuthToken returned unexpected value")
 	}
 
 	return nil

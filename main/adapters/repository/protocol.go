@@ -30,14 +30,16 @@ type ExtendedProtocol struct {
 	*clients.Client
 	ContextManager
 	keyEncrypter *encrypters.KeyEncrypter
-
-	privateKeyCache *sync.Map // {<uuid>: <private key>}
-	publicKeyCache  *sync.Map // {<uuid>: <public key>}
-	authTokenCache  *sync.Map // {<uuid>: <auth token>}
+	keyCache     *KeyCache
+	authCache    *sync.Map // {<uuid>: <auth token>}
 }
 
 func NewExtendedProtocol(ctxManager ContextManager, secret []byte, client *clients.Client) (*ExtendedProtocol, error) {
-	crypto := &ubirch.ECDSACryptoContext{}
+	keyCache := NewKeyCache()
+
+	crypto := &ubirch.ECDSACryptoContext{
+		Keystore: keyCache,
+	}
 
 	enc, err := encrypters.NewKeyEncrypter(secret, crypto)
 	if err != nil {
@@ -51,10 +53,8 @@ func NewExtendedProtocol(ctxManager ContextManager, secret []byte, client *clien
 		Client:         client,
 		ContextManager: ctxManager,
 		keyEncrypter:   enc,
-
-		privateKeyCache: &sync.Map{},
-		publicKeyCache:  &sync.Map{},
-		authTokenCache:  &sync.Map{},
+		keyCache:       keyCache,
+		authCache:      &sync.Map{},
 	}
 
 	return p, nil
@@ -73,22 +73,16 @@ func (p *ExtendedProtocol) StoreNewIdentity(tx TransactionCtx, i ent.Identity) e
 		return err
 	}
 
-	// store public key raw bytes
-	i.PublicKey, err = p.PublicKeyPEMToBytes(i.PublicKey)
-	if err != nil {
-		return err
-	}
-
 	return p.ContextManager.StoreNewIdentity(tx, i)
 }
 
-// SetSignature stores the signature and commits the transaction
-func (p *ExtendedProtocol) SetSignature(tx TransactionCtx, uid uuid.UUID, signature []byte) error {
+// StoreSignature stores the signature and commits the transaction
+func (p *ExtendedProtocol) StoreSignature(tx TransactionCtx, uid uuid.UUID, signature []byte) error {
 	if len(signature) != p.SignatureLength() {
 		return fmt.Errorf("invalid signature length: expected %d, got %d", p.SignatureLength(), len(signature))
 	}
 
-	err := p.ContextManager.SetSignature(tx, uid, signature)
+	err := p.ContextManager.StoreSignature(tx, uid, signature)
 	if err != nil {
 		return err
 	}
@@ -96,15 +90,10 @@ func (p *ExtendedProtocol) SetSignature(tx TransactionCtx, uid uuid.UUID, signat
 	return tx.Commit()
 }
 
-func (p *ExtendedProtocol) GetPrivateKey(uid uuid.UUID) (privKeyPEM []byte, err error) {
-	_priv, found := p.privateKeyCache.Load(uid)
-
-	if found {
-		privKeyPEM, found = _priv.([]byte)
-	}
-
-	if !found {
-		encryptedPriv, err := p.ContextManager.GetPrivateKey(uid)
+func (p *ExtendedProtocol) LoadPrivateKey(uid uuid.UUID) (privKeyPEM []byte, err error) {
+	privKeyPEM, err = p.keyCache.GetPrivateKey(uid)
+	if err != nil {
+		encryptedPriv, err := p.ContextManager.LoadPrivateKey(uid)
 		if err != nil {
 			return nil, err
 		}
@@ -114,45 +103,41 @@ func (p *ExtendedProtocol) GetPrivateKey(uid uuid.UUID) (privKeyPEM []byte, err 
 			return nil, err
 		}
 
-		p.privateKeyCache.Store(uid, privKeyPEM)
+		err = p.keyCache.SetPrivateKey(uid, privKeyPEM)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return privKeyPEM, nil
 }
 
-func (p *ExtendedProtocol) GetPublicKey(uid uuid.UUID) (pubKeyPEM []byte, err error) {
-	_pub, found := p.publicKeyCache.Load(uid)
-
-	if found {
-		pubKeyPEM, found = _pub.([]byte)
-	}
-
-	if !found {
-		publicKeyBytes, err := p.ContextManager.GetPublicKey(uid)
+func (p *ExtendedProtocol) LoadPublicKey(uid uuid.UUID) (pubKeyPEM []byte, err error) {
+	pubKeyPEM, err = p.keyCache.GetPublicKey(uid)
+	if err != nil {
+		pubKeyPEM, err = p.ContextManager.LoadPublicKey(uid)
 		if err != nil {
 			return nil, err
 		}
 
-		pubKeyPEM, err = p.PublicKeyBytesToPEM(publicKeyBytes)
+		err = p.keyCache.SetPublicKey(uid, pubKeyPEM)
 		if err != nil {
 			return nil, err
 		}
-
-		p.publicKeyCache.Store(uid, pubKeyPEM)
 	}
 
 	return pubKeyPEM, nil
 }
 
-func (p *ExtendedProtocol) GetAuthToken(uid uuid.UUID) (auth string, err error) {
-	_auth, found := p.authTokenCache.Load(uid)
+func (p *ExtendedProtocol) LoadAuthToken(uid uuid.UUID) (auth string, err error) {
+	_auth, found := p.authCache.Load(uid)
 
 	if found {
 		auth, found = _auth.(string)
 	}
 
 	if !found {
-		auth, err = p.ContextManager.GetAuthToken(uid)
+		auth, err = p.ContextManager.LoadAuthToken(uid)
 		if err != nil {
 			return "", err
 		}
@@ -161,14 +146,14 @@ func (p *ExtendedProtocol) GetAuthToken(uid uuid.UUID) (auth string, err error) 
 			return "", fmt.Errorf("%s: empty auth token", uid)
 		}
 
-		p.authTokenCache.Store(uid, auth)
+		p.authCache.Store(uid, auth)
 	}
 
 	return auth, nil
 }
 
 func (p *ExtendedProtocol) IsInitialized(uid uuid.UUID) (initialized bool, err error) {
-	_, err = p.GetAuthToken(uid)
+	_, err = p.LoadAuthToken(uid)
 	if err == ErrNotExist {
 		return false, nil
 	}
@@ -180,7 +165,7 @@ func (p *ExtendedProtocol) IsInitialized(uid uuid.UUID) (initialized bool, err e
 }
 
 func (p *ExtendedProtocol) CheckAuth(uid uuid.UUID, authToCheck string) (ok bool, found bool, err error) {
-	actualAuth, err := p.GetAuthToken(uid)
+	actualAuth, err := p.LoadAuthToken(uid)
 	if err == ErrNotExist {
 		return false, false, nil
 	}

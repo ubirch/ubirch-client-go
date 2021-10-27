@@ -21,6 +21,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
 	"github.com/ubirch/ubirch-client-go/main/ent"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -66,12 +67,17 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) (csr []byte, 
 	}
 
 	// generate a new private key
-	privKeyPEM, err := i.Protocol.GenerateKey()
+	err = i.Protocol.GenerateKey(uid)
 	if err != nil {
 		return nil, err
 	}
 
-	pubKeyPEM, err := i.Protocol.GetPublicKeyFromPrivateKey(privKeyPEM)
+	privKeyPEM, err := i.Protocol.LoadPrivateKey(uid)
+	if err != nil {
+		return nil, err
+	}
+
+	pubKeyPEM, err := i.Protocol.LoadPublicKey(uid)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +104,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) (csr []byte, 
 	}
 
 	// register public key at the ubirch backend
-	csr, err = i.registerPublicKey(privKeyPEM, uid, auth)
+	csr, err = i.registerPublicKey(uid, pubKeyPEM, auth)
 	if err != nil {
 		return nil, err
 	}
@@ -113,14 +119,14 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) (csr []byte, 
 	return csr, nil
 }
 
-func (i *IdentityHandler) registerPublicKey(privKeyPEM []byte, uid uuid.UUID, auth string) (csr []byte, err error) {
-	keyRegistration, err := i.Protocol.GetSignedKeyRegistration(privKeyPEM, uid)
+func (i *IdentityHandler) registerPublicKey(uid uuid.UUID, pubKeyPEM []byte, auth string) (csr []byte, err error) {
+	keyRegistration, err := ubirch.GetSignedKeyRegistration(uid, pubKeyPEM, i.Protocol.Crypto.Sign)
 	if err != nil {
 		return nil, fmt.Errorf("error creating public key certificate: %v", err)
 	}
 	log.Debugf("%s: key certificate: %s", uid, keyRegistration)
 
-	csr, err = i.Protocol.GetCSR(privKeyPEM, uid, i.SubjectCountry, i.SubjectOrganization)
+	csr, err = i.Protocol.GetCSR(uid, i.SubjectCountry, i.SubjectOrganization)
 	if err != nil {
 		return nil, fmt.Errorf("creating CSR for UUID %s failed: %v", uid, err)
 	}

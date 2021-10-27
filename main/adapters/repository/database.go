@@ -101,7 +101,7 @@ func (dm *DatabaseManager) StoreNewIdentity(transactionCtx TransactionCtx, ident
 	}
 
 	query := fmt.Sprintf(
-		"INSERT INTO %s (uid, private_key, public_key, signature, auth_token) VALUES ($1, $2, $3, $4, $5);",
+		"INSERT INTO %s (uid, private_key, public_key, signature, auth) VALUES ($1, $2, $3, $4, $5);",
 		dm.tableName)
 
 	_, err := tx.Exec(query, &identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.Signature, &identity.AuthToken)
@@ -112,7 +112,7 @@ func (dm *DatabaseManager) StoreNewIdentity(transactionCtx TransactionCtx, ident
 	return nil
 }
 
-func (dm *DatabaseManager) GetSignature(transactionCtx TransactionCtx, uid uuid.UUID) (signature []byte, err error) {
+func (dm *DatabaseManager) LoadSignature(transactionCtx TransactionCtx, uid uuid.UUID) (signature []byte, err error) {
 	tx, ok := transactionCtx.(*sql.Tx)
 	if !ok {
 		return nil, fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
@@ -131,7 +131,7 @@ func (dm *DatabaseManager) GetSignature(transactionCtx TransactionCtx, uid uuid.
 	return signature, nil
 }
 
-func (dm *DatabaseManager) SetSignature(transactionCtx TransactionCtx, uid uuid.UUID, signature []byte) error {
+func (dm *DatabaseManager) StoreSignature(transactionCtx TransactionCtx, uid uuid.UUID, signature []byte) error {
 	tx, ok := transactionCtx.(*sql.Tx)
 	if !ok {
 		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
@@ -147,7 +147,7 @@ func (dm *DatabaseManager) SetSignature(transactionCtx TransactionCtx, uid uuid.
 	return nil
 }
 
-func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) (privateKey []byte, err error) {
+func (dm *DatabaseManager) LoadPrivateKey(uid uuid.UUID) (privateKey []byte, err error) {
 	err = retry(func() error {
 		query := fmt.Sprintf("SELECT private_key FROM %s WHERE uid = $1", dm.tableName)
 
@@ -164,7 +164,7 @@ func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) (privateKey []byte, err 
 	return privateKey, err
 }
 
-func (dm *DatabaseManager) GetPublicKey(uid uuid.UUID) (publicKey []byte, err error) {
+func (dm *DatabaseManager) LoadPublicKey(uid uuid.UUID) (publicKey []byte, err error) {
 	err = retry(func() error {
 		query := fmt.Sprintf("SELECT public_key FROM %s WHERE uid = $1", dm.tableName)
 
@@ -181,9 +181,9 @@ func (dm *DatabaseManager) GetPublicKey(uid uuid.UUID) (publicKey []byte, err er
 	return publicKey, err
 }
 
-func (dm *DatabaseManager) GetAuthToken(uid uuid.UUID) (authToken string, err error) {
+func (dm *DatabaseManager) LoadAuthToken(uid uuid.UUID) (authToken string, err error) {
 	err = retry(func() error {
-		query := fmt.Sprintf("SELECT auth_token FROM %s WHERE uid = $1", dm.tableName)
+		query := fmt.Sprintf("SELECT auth FROM %s WHERE uid = $1", dm.tableName)
 
 		err := dm.db.QueryRow(query, uid).Scan(&authToken)
 		if err != nil {

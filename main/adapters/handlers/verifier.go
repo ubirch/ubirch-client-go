@@ -126,24 +126,26 @@ func (v *Verifier) verifyUPP(upp []byte) (uuid.UUID, []byte, error) {
 
 	id := uppStruct.GetUuid()
 
-	pubKeyPEM, err := v.Protocol.GetPublicKey(id)
-	if err != nil {
+	pubKeyPEM, err := v.Protocol.LoadPublicKey(id)
+	if err == repository.ErrNotExist {
 		if v.VerifyFromKnownIdentitiesOnly {
 			return id, nil, fmt.Errorf("retrieved certificate for requested hash is from unknown identity")
 		} else {
 			log.Warnf("couldn't get public key for identity %s from local context", id)
-			pubKeyBytes, err := v.loadPublicKey(id)
+			err := v.loadPublicKey(id)
 			if err != nil {
 				return id, nil, err
 			}
-			pubKeyPEM, err = v.Protocol.PublicKeyBytesToPEM(pubKeyBytes)
+			pubKeyPEM, err = v.Protocol.LoadPublicKey(id)
 			if err != nil {
 				return id, nil, err
 			}
 		}
+	} else if err != nil {
+		return id, nil, err
 	}
 
-	verified, err := v.Protocol.Verify(pubKeyPEM, upp)
+	verified, err := v.Protocol.Verify(id, upp)
 	if !verified {
 		if err != nil {
 			log.Error(err)
@@ -155,23 +157,28 @@ func (v *Verifier) verifyUPP(upp []byte) (uuid.UUID, []byte, error) {
 }
 
 // loadPublicKey retrieves the first valid public key associated with an identity from the key service
-func (v *Verifier) loadPublicKey(id uuid.UUID) (pubKeyBytes []byte, err error) {
+func (v *Verifier) loadPublicKey(id uuid.UUID) error {
 	log.Debugf("requesting public key for identity %s from key service", id.String())
 
 	keys, err := v.Protocol.RequestPublicKeys(id)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if len(keys) < 1 {
-		return nil, fmt.Errorf("no public key for identity %s registered at key service", id.String())
+		return fmt.Errorf("no public key for identity %s registered at key service", id.String())
 	} else if len(keys) > 1 {
 		log.Warnf("several public keys registered for identity %s", id.String())
 	}
 
 	log.Printf("retrieved public key for identity %s: %s", keys[0].PubKeyInfo.HwDeviceId, keys[0].PubKeyInfo.PubKey)
 
-	return base64.StdEncoding.DecodeString(keys[0].PubKeyInfo.PubKey)
+	pubKeyBytes, err := base64.StdEncoding.DecodeString(keys[0].PubKeyInfo.PubKey)
+	if err != nil {
+		return err
+	}
+
+	return v.Protocol.Crypto.SetPublicKeyBytes(id, pubKeyBytes)
 }
 
 func getVerificationResponse(respCode int, hash []byte, upp []byte, id uuid.UUID, pkey []byte, errMsg string) h.HTTPResponse {
