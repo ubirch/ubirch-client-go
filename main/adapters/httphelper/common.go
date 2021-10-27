@@ -44,14 +44,16 @@ const (
 type HTTPRequest struct {
 	ID   uuid.UUID
 	Auth string
-	Hash []byte
+	Hash Sha256Sum
 }
 
+type Sha256Sum [HashLen]byte
+
 // GetHash returns the hash from the request body
-func GetHash(r *http.Request) ([]byte, error) {
+func GetHash(r *http.Request) (Sha256Sum, error) {
 	rBody, err := ReadBody(r)
 	if err != nil {
-		return nil, err
+		return Sha256Sum{}, err
 	}
 
 	if IsHashRequest(r) { // request contains hash
@@ -61,53 +63,52 @@ func GetHash(r *http.Request) ([]byte, error) {
 	}
 }
 
-func getHashFromDataRequest(header http.Header, data []byte) (hash []byte, err error) {
+func getHashFromDataRequest(header http.Header, data []byte) (hash Sha256Sum, err error) {
 	switch ContentType(header) {
 	case JSONType:
 		data, err = GetSortedCompactJSON(data)
 		if err != nil {
-			return nil, err
+			return Sha256Sum{}, err
 		}
 		log.Debugf("sorted compact JSON: %s", string(data))
 
 		fallthrough
 	case BinType:
 		// hash original data
-		sha256Sum := sha256.Sum256(data)
-		return sha256Sum[:], nil
+		return sha256.Sum256(data), nil
 	default:
-		return nil, fmt.Errorf("invalid content-type for original data: "+
+		return Sha256Sum{}, fmt.Errorf("invalid content-type for original data: "+
 			"expected (\"%s\" | \"%s\")", BinType, JSONType)
 	}
 }
 
-func getHashFromHashRequest(header http.Header, data []byte) (hash []byte, err error) {
+func getHashFromHashRequest(header http.Header, data []byte) (hash Sha256Sum, err error) {
 	switch ContentType(header) {
 	case TextType:
 		if ContentEncoding(header) == HexEncoding {
-			hash, err = hex.DecodeString(string(data))
+			data, err = hex.DecodeString(string(data))
 			if err != nil {
-				return nil, fmt.Errorf("decoding hex encoded hash failed: %v (%s)", err, string(data))
+				return Sha256Sum{}, fmt.Errorf("decoding hex encoded hash failed: %v (%s)", err, string(data))
 			}
 		} else {
-			hash, err = base64.StdEncoding.DecodeString(string(data))
+			data, err = base64.StdEncoding.DecodeString(string(data))
 			if err != nil {
-				return nil, fmt.Errorf("decoding base64 encoded hash failed: %v (%s)", err, string(data))
+				return Sha256Sum{}, fmt.Errorf("decoding base64 encoded hash failed: %v (%s)", err, string(data))
 			}
 		}
+		fallthrough
 	case BinType:
-		hash = data
+		if len(data) != HashLen {
+			return Sha256Sum{}, fmt.Errorf("invalid SHA256 hash size: "+
+				"expected %d bytes, got %d bytes", HashLen, len(data))
+		}
+
+		copy(hash[:], data)
+		return hash, nil
 	default:
-		return nil, fmt.Errorf("invalid content-type for hash: "+
+		return Sha256Sum{}, fmt.Errorf("invalid content-type for hash: "+
 			"expected (\"%s\" | \"%s\")", BinType, TextType)
 	}
-
-	if len(hash) != HashLen && len(hash) != HashLen*2 {
-		return nil, fmt.Errorf("invalid hash size: "+
-			"expected %d or %d bytes, got %d bytes", HashLen, HashLen*2, len(hash))
-	}
-
-	return hash, nil
 }
 
 // forwards response to sender
