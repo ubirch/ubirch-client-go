@@ -187,7 +187,7 @@ func main() {
 	httpServer.AddServiceEndpoint(h.ServerEndpoint{
 		Path: h.VerifyPath,
 		Service: &handlers.VerificationService{
-			Verifier: &verifier,
+			Verify: verifier.Verify,
 		},
 	})
 

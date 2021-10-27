@@ -12,13 +12,9 @@ import (
 	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
 )
 
-type CheckAuth func(uuid.UUID, string) (bool, bool, error)
-type Chain func(h.HTTPRequest, context.Context) h.HTTPResponse
-type Sign func(h.HTTPRequest, operation) h.HTTPResponse
-
 type ChainingService struct {
-	CheckAuth
-	Chain
+	CheckAuth func(uuid.UUID, string) (bool, bool, error)
+	Chain     func(h.HTTPRequest, context.Context) h.HTTPResponse
 }
 
 // Ensure ChainingService implements the Service interface
@@ -64,8 +60,8 @@ func (s *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) 
 }
 
 type SigningService struct {
-	CheckAuth
-	Sign
+	CheckAuth func(uuid.UUID, string) (bool, bool, error)
+	Sign      func(h.HTTPRequest, operation) h.HTTPResponse
 }
 
 var _ h.Service = (*SigningService)(nil)
@@ -116,7 +112,7 @@ func (s *SigningService) HandleRequest(w http.ResponseWriter, r *http.Request) {
 }
 
 type VerificationService struct {
-	*Verifier
+	Verify func([]byte) h.HTTPResponse
 }
 
 var _ h.Service = (*VerificationService)(nil)
