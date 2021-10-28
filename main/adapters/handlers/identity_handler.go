@@ -140,7 +140,9 @@ func (i *IdentityHandler) registerPublicKey(uid uuid.UUID, pubKeyPEM []byte, aut
 
 	go i.submitCSROrLogError(uid, csr)
 
-	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr}), nil
+	csrPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
+
+	return csrPEM, nil
 }
 
 func (i *IdentityHandler) submitCSROrLogError(uid uuid.UUID, csr []byte) {
@@ -148,4 +150,29 @@ func (i *IdentityHandler) submitCSROrLogError(uid uuid.UUID, csr []byte) {
 	if err != nil {
 		log.Errorf("submitting CSR for UUID %s failed: %v", uid, err)
 	}
+}
+
+func (i *IdentityHandler) CreateCSR(uid uuid.UUID) (csrPEM []byte, err error) {
+	initialized, err := i.Protocol.IsInitialized(uid)
+	if err != nil {
+		return nil, fmt.Errorf("could not check if identity is already initialized: %v", err)
+	}
+
+	if !initialized {
+		return nil, ErrUnknown
+	}
+
+	_, err = i.Protocol.LoadPrivateKey(uid)
+	if err != nil {
+		return nil, fmt.Errorf("loading private key for UUID %s failed: %v", uid, err)
+	}
+
+	csr, err := i.Protocol.GetCSR(uid, i.SubjectCountry, i.SubjectOrganization)
+	if err != nil {
+		return nil, fmt.Errorf("creating CSR for UUID %s failed: %v", uid, err)
+	}
+
+	csrPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
+
+	return csrPEM, nil
 }

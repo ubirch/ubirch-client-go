@@ -31,15 +31,20 @@ const (
 	VerifyPath       = "/verify"
 	HashEndpoint     = "/hash"
 	RegisterEndpoint = "/register"
+	CSREndpoint      = "/csr"
 
 	BinType  = "application/octet-stream"
 	TextType = "text/plain"
 	JSONType = "application/json"
 
+	XAuthHeader = "x-auth-token"
+
 	HexEncoding = "hex"
 
 	HashLen = 32
 )
+
+var UUIDPath = fmt.Sprintf("/{%s}", UUIDKey)
 
 type HTTPRequest struct {
 	ID   uuid.UUID

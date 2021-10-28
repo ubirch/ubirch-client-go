@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path"
 	"syscall"
 
 	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
@@ -165,9 +166,13 @@ func main() {
 	// set up endpoint for identity registration
 	httpServer.Router.Put(h.RegisterEndpoint, handlers.Register(conf.RegisterAuth, idHandler.InitIdentity))
 
+	// set up endpoint for CSRs
+	fetchCSREndpoint := path.Join(h.UUIDPath, h.CSREndpoint) // /<uuid>/csr
+	httpServer.Router.Get(fetchCSREndpoint, handlers.FetchCSR(conf.RegisterAuth, idHandler.CreateCSR))
+
 	// set up endpoint for chaining
 	httpServer.AddServiceEndpoint(h.ServerEndpoint{
-		Path: fmt.Sprintf("/{%s}", h.UUIDKey),
+		Path: h.UUIDPath,
 		Service: &handlers.ChainingService{
 			CheckAuth: protocol.CheckAuth,
 			Chain:     signer.Chain,
@@ -176,7 +181,7 @@ func main() {
 
 	// set up endpoint for signing
 	httpServer.AddServiceEndpoint(h.ServerEndpoint{
-		Path: fmt.Sprintf("/{%s}/{%s}", h.UUIDKey, h.OperationKey),
+		Path: path.Join(h.UUIDPath, h.OperationKey),
 		Service: &handlers.SigningService{
 			CheckAuth: protocol.CheckAuth,
 			Sign:      signer.Sign,

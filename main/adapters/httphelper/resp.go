@@ -15,7 +15,7 @@ type HTTPResponse struct {
 func Health(server string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Server", server)
-		w.Header().Set(HeaderContentType, MimeTextPlain)
+		w.Header().Set("Content-Type", TextType)
 		w.WriteHeader(http.StatusOK)
 		_, err := w.Write([]byte(http.StatusText(http.StatusOK)))
 		if err != nil {
@@ -25,7 +25,7 @@ func Health(server string) http.HandlerFunc {
 }
 
 func Ok(w http.ResponseWriter, rsp string) {
-	w.Header().Set(HeaderContentType, MimeTextPlain)
+	w.Header().Set("Content-Type", TextType)
 	w.WriteHeader(http.StatusOK)
 	_, err := w.Write([]byte(rsp))
 	if err != nil {
