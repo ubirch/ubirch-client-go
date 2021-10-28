@@ -73,6 +73,12 @@ func (p *ExtendedProtocol) StoreNewIdentity(tx TransactionCtx, i ent.Identity) e
 		return err
 	}
 
+	// store public key raw bytes
+	i.PublicKey, err = p.PublicKeyPEMToBytes(i.PublicKey)
+	if err != nil {
+		return err
+	}
+
 	return p.ContextManager.StoreNewIdentity(tx, i)
 }
 
@@ -115,7 +121,12 @@ func (p *ExtendedProtocol) LoadPrivateKey(uid uuid.UUID) (privKeyPEM []byte, err
 func (p *ExtendedProtocol) LoadPublicKey(uid uuid.UUID) (pubKeyPEM []byte, err error) {
 	pubKeyPEM, err = p.keyCache.GetPublicKey(uid)
 	if err != nil {
-		pubKeyPEM, err = p.ContextManager.LoadPublicKey(uid)
+		publicKeyBytes, err := p.ContextManager.LoadPublicKey(uid)
+		if err != nil {
+			return nil, err
+		}
+
+		pubKeyPEM, err = p.PublicKeyBytesToPEM(publicKeyBytes)
 		if err != nil {
 			return nil, err
 		}
