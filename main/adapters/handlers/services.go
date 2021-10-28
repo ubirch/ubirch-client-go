@@ -45,7 +45,7 @@ func (s *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if !ok {
-		h.Error(msg.ID, w, err, http.StatusUnauthorized)
+		h.Error(msg.ID, w, fmt.Errorf("invalid auth token"), http.StatusUnauthorized)
 		return
 	}
 
