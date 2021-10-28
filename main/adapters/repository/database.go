@@ -101,7 +101,7 @@ func (dm *DatabaseManager) StoreNewIdentity(transactionCtx TransactionCtx, ident
 	}
 
 	query := fmt.Sprintf(
-		"INSERT INTO %s (uid, private_key, public_key, signature, auth) VALUES ($1, $2, $3, $4, $5);",
+		"INSERT INTO %s (uid, private_key, public_key, signature, auth_token) VALUES ($1, $2, $3, $4, $5);",
 		dm.tableName)
 
 	_, err := tx.Exec(query, &identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.Signature, &identity.AuthToken)
@@ -183,7 +183,7 @@ func (dm *DatabaseManager) LoadPublicKey(uid uuid.UUID) (publicKey []byte, err e
 
 func (dm *DatabaseManager) LoadAuthToken(uid uuid.UUID) (authToken string, err error) {
 	err = retry(func() error {
-		query := fmt.Sprintf("SELECT auth FROM %s WHERE uid = $1", dm.tableName)
+		query := fmt.Sprintf("SELECT auth_token FROM %s WHERE uid = $1", dm.tableName)
 
 		err := dm.db.QueryRow(query, uid).Scan(&authToken)
 		if err != nil {

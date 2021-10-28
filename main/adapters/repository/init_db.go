@@ -33,7 +33,7 @@ var create = map[int]string{
 		"private_key BYTEA NOT NULL, " +
 		"public_key VARCHAR(255) NOT NULL, " +
 		"signature BYTEA NOT NULL, " +
-		"auth VARCHAR(255) NOT NULL);",
+		"auth_token VARCHAR(255) NOT NULL);",
 	PostgresVersion: "CREATE TABLE IF NOT EXISTS %s(" +
 		"id VARCHAR(255) NOT NULL PRIMARY KEY, " +
 		"migration_version VARCHAR(255) NOT NULL);",
