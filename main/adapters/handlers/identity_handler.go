@@ -16,6 +16,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/pem"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -56,7 +57,7 @@ func (i *IdentityHandler) InitIdentities(identities map[string]string) error {
 	return nil
 }
 
-func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) (csr []byte, err error) {
+func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) (csrPEM []byte, err error) {
 	initialized, err := i.Protocol.IsInitialized(uid)
 	if err != nil {
 		return nil, fmt.Errorf("could not check if identity is already initialized: %v", err)
@@ -104,7 +105,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) (csr []byte, 
 	}
 
 	// register public key at the ubirch backend
-	csr, err = i.registerPublicKey(uid, pubKeyPEM, auth)
+	csrPEM, err = i.registerPublicKey(uid, pubKeyPEM, auth)
 	if err != nil {
 		return nil, err
 	}
@@ -116,17 +117,17 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) (csr []byte, 
 
 	log.Infof("%s: identity initialized", uid)
 
-	return csr, nil
+	return csrPEM, nil
 }
 
-func (i *IdentityHandler) registerPublicKey(uid uuid.UUID, pubKeyPEM []byte, auth string) (csr []byte, err error) {
+func (i *IdentityHandler) registerPublicKey(uid uuid.UUID, pubKeyPEM []byte, auth string) (csrPEM []byte, err error) {
 	keyRegistration, err := ubirch.GetSignedKeyRegistration(uid, pubKeyPEM, i.Protocol.Crypto.Sign)
 	if err != nil {
 		return nil, fmt.Errorf("error creating public key certificate: %v", err)
 	}
 	log.Debugf("%s: key certificate: %s", uid, keyRegistration)
 
-	csr, err = i.Protocol.GetCSR(uid, i.SubjectCountry, i.SubjectOrganization)
+	csr, err := i.Protocol.GetCSR(uid, i.SubjectCountry, i.SubjectOrganization)
 	if err != nil {
 		return nil, fmt.Errorf("creating CSR for UUID %s failed: %v", uid, err)
 	}
@@ -139,7 +140,7 @@ func (i *IdentityHandler) registerPublicKey(uid uuid.UUID, pubKeyPEM []byte, aut
 
 	go i.submitCSROrLogError(uid, csr)
 
-	return csr, nil
+	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr}), nil
 }
 
 func (i *IdentityHandler) submitCSROrLogError(uid uuid.UUID, csr []byte) {
