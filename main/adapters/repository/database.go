@@ -58,10 +58,6 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string, maxConns int) (*Databa
 	pg.SetConnMaxLifetime(10 * time.Minute)
 	pg.SetConnMaxIdleTime(1 * time.Minute)
 
-	if err = pg.Ping(); err != nil {
-		return nil, err
-	}
-
 	dm := &DatabaseManager{
 		options: &sql.TxOptions{
 			Isolation: sql.LevelReadCommitted,
@@ -71,8 +67,14 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string, maxConns int) (*Databa
 		tableName: tableName,
 	}
 
-	if _, err = dm.db.Exec(CreateTable(PostgresIdentity, tableName)); err != nil {
-		return nil, fmt.Errorf("creating DB table failed: %v", err)
+	if err = pg.Ping(); err != nil {
+		// if there is no connection to the database yet, continue anyway.
+		log.Warnf("database ping failed: %v", err)
+	} else {
+		_, err = dm.db.Exec(CreateTable(PostgresIdentity, tableName))
+		if err != nil {
+			return nil, fmt.Errorf("creating DB table failed: %v", err)
+		}
 	}
 
 	return dm, nil
@@ -82,6 +84,19 @@ func (dm *DatabaseManager) Close() error {
 	err := dm.db.Close()
 	if err != nil {
 		return fmt.Errorf("failed to close database: %v", err)
+	}
+	return nil
+}
+
+func (dm *DatabaseManager) IsReady() error {
+	if err := dm.db.Ping(); err != nil {
+		return fmt.Errorf("database not ready: %v", err)
+	}
+
+	// create table if it does not exist yet
+	_, err := dm.db.Exec(CreateTable(PostgresIdentity, dm.tableName))
+	if err != nil {
+		return fmt.Errorf("database connection was established but creating table failed: %v", err)
 	}
 	return nil
 }

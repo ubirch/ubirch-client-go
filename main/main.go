@@ -62,10 +62,11 @@ func main() {
 	)
 
 	var (
-		configDir      string
-		migrate        bool
-		initIdentities bool
-		serverID       = fmt.Sprintf("%s/%s", serviceName, Version)
+		configDir       string
+		migrate         bool
+		initIdentities  bool
+		serverID        = fmt.Sprintf("%s/%s", serviceName, Version)
+		readinessChecks []func() error
 	)
 
 	if len(os.Args) > 1 {
@@ -110,6 +111,7 @@ func main() {
 			log.Error(err)
 		}
 	}()
+	readinessChecks = append(readinessChecks, ctxManager.IsReady)
 
 	client := &clients.Client{
 		AuthServiceURL:     conf.Niomon,
@@ -198,7 +200,7 @@ func main() {
 
 	// set up endpoints for liveness and readiness checks
 	httpServer.Router.Get("/healthz", h.Health(serverID))
-	httpServer.Router.Get("/readyz", h.Health(serverID)) // todo: implement real readiness check
+	httpServer.Router.Get("/readyz", h.Ready(serverID, readinessChecks))
 
 	// set up graceful shutdown handling
 	ctx, cancel := context.WithCancel(context.Background())

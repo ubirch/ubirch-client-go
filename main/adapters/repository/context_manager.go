@@ -26,6 +26,7 @@ type ContextManager interface {
 	LoadPublicKey(uuid.UUID) ([]byte, error)
 	LoadAuthToken(uuid.UUID) (string, error)
 
+	IsReady() error
 	Close() error
 }
 
