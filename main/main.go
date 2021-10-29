@@ -113,20 +113,27 @@ func main() {
 	}()
 	readinessChecks = append(readinessChecks, ctxManager.IsReady)
 
-	client := &clients.Client{
-		AuthServiceURL:     conf.Niomon,
-		VerifyServiceURL:   conf.VerifyService,
-		KeyServiceURL:      conf.KeyService,
-		IdentityServiceURL: conf.IdentityService,
-	}
-
-	protocol, err := repository.NewExtendedProtocol(ctxManager, conf.SecretBytes32, client)
+	protocol, err := repository.NewExtendedProtocol(ctxManager, conf.SecretBytes32)
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	idClient := &clients.IdentityClient{
+		KeyServiceURL:      conf.KeyService,
+		IdentityServiceURL: conf.IdentityService,
+	}
+
+	authClient := &clients.AuthenticationClient{
+		AuthServiceURL: conf.Niomon,
+	}
+
+	verifyClient := &clients.VerificationClient{
+		VerifyServiceURL: conf.VerifyService,
+	}
+
 	idHandler := &handlers.IdentityHandler{
 		Protocol:            protocol,
+		IdentityClient:      idClient,
 		SubjectCountry:      conf.CSR_Country,
 		SubjectOrganization: conf.CSR_Organization,
 	}
@@ -141,11 +148,14 @@ func main() {
 	}
 
 	signer := handlers.Signer{
-		Protocol: protocol,
+		Protocol:   protocol,
+		AuthClient: authClient,
 	}
 
 	verifier := handlers.Verifier{
 		Protocol:                      protocol,
+		IdentityClient:                idClient,
+		VerifyClient:                  verifyClient,
 		VerifyFromKnownIdentitiesOnly: false, // TODO: make configurable
 	}
 

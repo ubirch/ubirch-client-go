@@ -68,7 +68,7 @@ func Migrate(c config.Config) error {
 	}
 	log.Debugf("database migration version: %s / application migration version: %s", migration.Version, MigrationVersion)
 
-	p, err := NewExtendedProtocol(dm, c.SecretBytes32, nil)
+	p, err := NewExtendedProtocol(dm, c.SecretBytes32)
 	if err != nil {
 		return err
 	}

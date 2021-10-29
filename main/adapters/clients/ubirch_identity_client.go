@@ -15,7 +15,6 @@
 package clients
 
 import (
-	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -29,16 +28,14 @@ import (
 	h "github.com/ubirch/ubirch-client-go/main/adapters/http_server"
 )
 
-type Client struct {
-	AuthServiceURL     string
-	VerifyServiceURL   string
+type IdentityClient struct {
 	KeyServiceURL      string
 	IdentityServiceURL string
 }
 
 // RequestPublicKeys requests a devices public keys at the identity service
 // returns a list of the retrieved public key certificates
-func (c *Client) RequestPublicKeys(id uuid.UUID) ([]ubirch.SignedKeyRegistration, error) {
+func (c *IdentityClient) RequestPublicKeys(id uuid.UUID) ([]ubirch.SignedKeyRegistration, error) {
 	url := c.KeyServiceURL + "/current/hardwareId/" + id.String()
 	resp, err := http.Get(url)
 	if err != nil {
@@ -72,7 +69,7 @@ func (c *Client) RequestPublicKeys(id uuid.UUID) ([]ubirch.SignedKeyRegistration
 
 // IsKeyRegistered sends a request to the identity service to determine
 // if a specified public key is registered for the specified UUID
-func (c *Client) IsKeyRegistered(id uuid.UUID, pubKey []byte) (bool, error) {
+func (c *IdentityClient) IsKeyRegistered(id uuid.UUID, pubKey []byte) (bool, error) {
 	certs, err := c.RequestPublicKeys(id)
 	if err != nil {
 		return false, err
@@ -86,7 +83,7 @@ func (c *Client) IsKeyRegistered(id uuid.UUID, pubKey []byte) (bool, error) {
 	return false, nil
 }
 
-func (c *Client) SubmitKeyRegistration(uid uuid.UUID, cert []byte, auth string) error {
+func (c *IdentityClient) SubmitKeyRegistration(uid uuid.UUID, cert []byte, auth string) error {
 	log.Debugf("%s: registering public key at key service", uid)
 
 	keyRegHeader := ubirchHeader(uid, auth)
@@ -104,7 +101,7 @@ func (c *Client) SubmitKeyRegistration(uid uuid.UUID, cert []byte, auth string) 
 }
 
 // SubmitCSR submits a X.509 Certificate Signing Request for the public key to the identity service
-func (c *Client) SubmitCSR(uid uuid.UUID, csr []byte) error {
+func (c *IdentityClient) SubmitCSR(uid uuid.UUID, csr []byte) error {
 	log.Debugf("%s: submitting CSR to identity service", uid)
 
 	CSRHeader := map[string]string{"content-type": "application/octet-stream"}
@@ -118,50 +115,4 @@ func (c *Client) SubmitCSR(uid uuid.UUID, csr []byte) error {
 	}
 	log.Debugf("%s: CSR submitted: (%d) %s", uid, resp.StatusCode, string(resp.Content))
 	return nil
-}
-
-func (c *Client) SendToAuthService(uid uuid.UUID, auth string, upp []byte) (h.HTTPResponse, error) {
-	return Post(c.AuthServiceURL, upp, ubirchHeader(uid, auth))
-}
-
-// post submits a message to a backend service
-// returns the response or encountered errors
-func Post(serviceURL string, data []byte, header map[string]string) (h.HTTPResponse, error) {
-	client := &http.Client{Timeout: h.BackendRequestTimeout}
-
-	req, err := http.NewRequest(http.MethodPost, serviceURL, bytes.NewBuffer(data))
-	if err != nil {
-		return h.HTTPResponse{}, fmt.Errorf("can't make new post request: %v", err)
-	}
-
-	for k, v := range header {
-		req.Header.Set(k, v)
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return h.HTTPResponse{}, err
-	}
-
-	//noinspection GoUnhandledErrorResult
-	defer resp.Body.Close()
-
-	respBodyBytes, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return h.HTTPResponse{}, err
-	}
-
-	return h.HTTPResponse{
-		StatusCode: resp.StatusCode,
-		Header:     resp.Header,
-		Content:    respBodyBytes,
-	}, nil
-}
-
-func ubirchHeader(uid uuid.UUID, auth string) map[string]string {
-	return map[string]string{
-		"x-ubirch-hardware-id": uid.String(),
-		"x-ubirch-auth-type":   "ubirch",
-		"x-ubirch-credential":  base64.StdEncoding.EncodeToString([]byte(auth)),
-	}
 }

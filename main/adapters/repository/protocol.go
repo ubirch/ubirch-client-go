@@ -19,7 +19,6 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
 	"github.com/ubirch/ubirch-client-go/main/adapters/encryption"
 	"github.com/ubirch/ubirch-client-go/main/ent"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
@@ -27,14 +26,13 @@ import (
 
 type ExtendedProtocol struct {
 	ubirch.Protocol
-	*clients.Client
 	ContextManager
 	keyEncrypter *encryption.KeyEncrypter
 	keyCache     *KeyCache
 	authCache    *sync.Map // {<uuid>: <auth token>}
 }
 
-func NewExtendedProtocol(ctxManager ContextManager, secret []byte, client *clients.Client) (*ExtendedProtocol, error) {
+func NewExtendedProtocol(ctxManager ContextManager, secret []byte) (*ExtendedProtocol, error) {
 	keyCache := NewKeyCache()
 
 	crypto := &ubirch.ECDSACryptoContext{
@@ -50,7 +48,6 @@ func NewExtendedProtocol(ctxManager ContextManager, secret []byte, client *clien
 		Protocol: ubirch.Protocol{
 			Crypto: crypto,
 		},
-		Client:         client,
 		ContextManager: ctxManager,
 		keyEncrypter:   enc,
 		keyCache:       keyCache,

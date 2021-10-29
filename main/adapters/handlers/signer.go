@@ -24,6 +24,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
 	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
@@ -52,7 +53,8 @@ type signingResponse struct {
 }
 
 type Signer struct {
-	Protocol *repository.ExtendedProtocol
+	Protocol   *repository.ExtendedProtocol
+	AuthClient *clients.AuthenticationClient
 }
 
 // handle incoming messages, create, sign and send a chained ubirch protocol packet (UPP) to the ubirch backend
@@ -155,7 +157,7 @@ func (s *Signer) getSignedUPP(id uuid.UUID, hash [32]byte, op h.Operation) ([]by
 func (s *Signer) sendUPP(msg h.HTTPRequest, upp []byte) h.HTTPResponse {
 	// send UPP to ubirch backend
 	timer := prometheus.NewTimer(prom.UpstreamResponseDuration)
-	backendResp, err := s.Protocol.SendToAuthService(msg.ID, msg.Auth, upp)
+	backendResp, err := s.AuthClient.SendToAuthService(msg.ID, msg.Auth, upp)
 	timer.ObserveDuration()
 	if err != nil {
 		if os.IsTimeout(err) {
