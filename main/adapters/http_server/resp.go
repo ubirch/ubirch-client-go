@@ -1,7 +1,9 @@
-package httphelper
+package http_server
 
 import (
 	"net/http"
+
+	"github.com/google/uuid"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -10,6 +12,24 @@ type HTTPResponse struct {
 	StatusCode int         `json:"statusCode"`
 	Header     http.Header `json:"header"`
 	Content    []byte      `json:"content"`
+}
+
+// SendResponse forwards a response to the client
+func SendResponse(w http.ResponseWriter, resp HTTPResponse) {
+	for k, v := range resp.Header {
+		w.Header().Set(k, v[0])
+	}
+	w.WriteHeader(resp.StatusCode)
+	_, err := w.Write(resp.Content)
+	if err != nil {
+		log.Errorf("unable to write response: %s", err)
+	}
+}
+
+// Error is a wrapper for http.Error that additionally logs the uuid and error message to std.Output
+func Error(uid uuid.UUID, w http.ResponseWriter, err error, code int) {
+	log.Warnf("%s: %v", uid, err)
+	http.Error(w, err.Error(), code)
 }
 
 func Health(server string) http.HandlerFunc {
@@ -45,21 +65,4 @@ func Ready(server string, readinessChecks []func() error) http.HandlerFunc {
 			log.Errorf("unable to write response: %s", err)
 		}
 	}
-}
-
-func Ok(w http.ResponseWriter, rsp string) {
-	w.Header().Set("Content-Type", TextType)
-	w.WriteHeader(http.StatusOK)
-	_, err := w.Write([]byte(rsp))
-	if err != nil {
-		log.Errorf("unable to write response: %s", err)
-	}
-}
-
-func HttpFailed(StatusCode int) bool {
-	return !HttpSuccess(StatusCode)
-}
-
-func HttpSuccess(StatusCode int) bool {
-	return StatusCode >= 200 && StatusCode < 300
 }

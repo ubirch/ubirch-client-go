@@ -25,6 +25,7 @@ import (
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
+	h "github.com/ubirch/ubirch-client-go/main/adapters/http_server"
 )
 
 type IdentityHandler struct {
@@ -64,7 +65,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) (csrPEM []byt
 	}
 
 	if initialized {
-		return nil, ErrAlreadyInitialized
+		return nil, h.ErrAlreadyInitialized
 	}
 
 	// generate a new private key
@@ -159,7 +160,7 @@ func (i *IdentityHandler) CreateCSR(uid uuid.UUID) (csrPEM []byte, err error) {
 	}
 
 	if !initialized {
-		return nil, ErrUnknown
+		return nil, h.ErrUnknown
 	}
 
 	_, err = i.Protocol.LoadPrivateKey(uid)

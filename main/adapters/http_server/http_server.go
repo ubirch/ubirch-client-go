@@ -1,4 +1,4 @@
-package httphelper
+package http_server
 
 import (
 	"context"

@@ -1,4 +1,4 @@
-package handlers
+package http_server
 
 import (
 	"errors"
@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 
 	log "github.com/sirupsen/logrus"
-	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
 )
 
 var (
@@ -18,13 +17,13 @@ type GetCSR func(uid uuid.UUID) (csr []byte, err error)
 
 func FetchCSR(auth string, get GetCSR) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get(h.XAuthHeader) != auth {
+		if AuthToken(r.Header) != auth {
 			log.Warnf("unauthorized CSR request")
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 			return
 		}
 
-		uid, err := h.GetUUID(r)
+		uid, err := GetUUID(r)
 		if err != nil {
 			log.Warnf("FetchCSR: %v", err)
 			http.Error(w, err.Error(), http.StatusNotFound)
@@ -35,16 +34,16 @@ func FetchCSR(auth string, get GetCSR) http.HandlerFunc {
 		if err != nil {
 			switch err {
 			case ErrUnknown:
-				h.Error(uid, w, err, http.StatusNotFound)
+				Error(uid, w, err, http.StatusNotFound)
 			default:
-				h.Error(uid, w, err, http.StatusInternalServerError)
+				Error(uid, w, err, http.StatusInternalServerError)
 			}
 			return
 		}
 
-		h.SendResponse(w, h.HTTPResponse{
+		SendResponse(w, HTTPResponse{
 			StatusCode: http.StatusOK,
-			Header:     http.Header{"Content-Type": {h.BinType}},
+			Header:     http.Header{"Content-Type": {BinType}},
 			Content:    csr,
 		})
 	}

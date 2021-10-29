@@ -28,26 +28,19 @@ import (
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
-	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
+	h "github.com/ubirch/ubirch-client-go/main/adapters/http_server"
 	prom "github.com/ubirch/ubirch-client-go/main/prometheus"
 )
 
-type operation string
-
 const (
-	anchorHash  operation = "anchor"
-	disableHash operation = "disable"
-	enableHash  operation = "enable"
-	deleteHash  operation = "delete"
-
 	lenRequestID = 16
 )
 
-var hintLookup = map[operation]ubirch.Hint{
-	anchorHash:  ubirch.Binary,
-	disableHash: ubirch.Disable,
-	enableHash:  ubirch.Enable,
-	deleteHash:  ubirch.Delete,
+var hintLookup = map[h.Operation]ubirch.Hint{
+	h.AnchorHash:  ubirch.Binary,
+	h.DisableHash: ubirch.Disable,
+	h.EnableHash:  ubirch.Enable,
+	h.DeleteHash:  ubirch.Delete,
 }
 
 type signingResponse struct {
@@ -114,7 +107,7 @@ func (s *Signer) Chain(msg h.HTTPRequest, ctx context.Context) h.HTTPResponse {
 	return resp
 }
 
-func (s *Signer) Sign(msg h.HTTPRequest, op operation) h.HTTPResponse {
+func (s *Signer) Sign(msg h.HTTPRequest, op h.Operation) h.HTTPResponse {
 	log.Infof("%s: %s hash: %s", msg.ID, op, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
 	_, err := s.Protocol.LoadPrivateKey(msg.ID)
@@ -144,7 +137,7 @@ func (s *Signer) getChainedUPP(id uuid.UUID, hash [32]byte, prevSignature []byte
 		})
 }
 
-func (s *Signer) getSignedUPP(id uuid.UUID, hash [32]byte, op operation) ([]byte, error) {
+func (s *Signer) getSignedUPP(id uuid.UUID, hash [32]byte, op h.Operation) ([]byte, error) {
 	hint, found := hintLookup[op]
 	if !found {
 		return nil, fmt.Errorf("%s: invalid operation: \"%s\"", id, op)

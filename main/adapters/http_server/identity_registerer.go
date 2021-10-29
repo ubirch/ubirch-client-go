@@ -1,4 +1,4 @@
-package handlers
+package http_server
 
 import (
 	"encoding/json"
@@ -10,7 +10,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	log "github.com/sirupsen/logrus"
-	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
 	prom "github.com/ubirch/ubirch-client-go/main/prometheus"
 )
 
@@ -27,7 +26,7 @@ type InitializeIdentity func(uid uuid.UUID, auth string) (csr []byte, err error)
 
 func Register(registerAuth string, initialize InitializeIdentity) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get(h.XAuthHeader) != registerAuth {
+		if AuthToken(r.Header) != registerAuth {
 			log.Warnf("unauthorized registration attempt")
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 			return
@@ -46,7 +45,7 @@ func Register(registerAuth string, initialize InitializeIdentity) http.HandlerFu
 		if err != nil {
 			switch err {
 			case ErrAlreadyInitialized:
-				h.Error(idPayload.Uid, w, err, http.StatusConflict)
+				Error(idPayload.Uid, w, err, http.StatusConflict)
 			default:
 				log.Errorf("%s: identity registration failed: %v", idPayload.Uid, err)
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -54,10 +53,10 @@ func Register(registerAuth string, initialize InitializeIdentity) http.HandlerFu
 			return
 		}
 
-		h.SendResponse(w, h.HTTPResponse{
+		SendResponse(w, HTTPResponse{
 			StatusCode: http.StatusOK,
 			Header: http.Header{
-				"Content-Type": {h.BinType},
+				"Content-Type": {BinType},
 			},
 			Content: csr,
 		})
@@ -67,9 +66,9 @@ func Register(registerAuth string, initialize InitializeIdentity) http.HandlerFu
 }
 
 func identityFromBody(r *http.Request) (RegistrationPayload, error) {
-	contentType := h.ContentType(r.Header)
-	if contentType != h.JSONType {
-		return RegistrationPayload{}, fmt.Errorf("invalid content-type: expected %s, got %s", h.JSONType, contentType)
+	contentType := ContentType(r.Header)
+	if contentType != JSONType {
+		return RegistrationPayload{}, fmt.Errorf("invalid content-type: expected %s, got %s", JSONType, contentType)
 	}
 
 	var payload RegistrationPayload

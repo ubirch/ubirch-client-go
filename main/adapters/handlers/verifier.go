@@ -30,7 +30,7 @@ import (
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
-	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
+	h "github.com/ubirch/ubirch-client-go/main/adapters/http_server"
 )
 
 type verification struct {

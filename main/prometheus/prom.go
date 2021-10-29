@@ -49,32 +49,33 @@ var httpDuration = promauto.NewHistogramVec(
 	[]string{"path"},
 )
 
+var IdentityCreationCounter = promauto.NewCounter(
+	prometheus.CounterOpts{
+		Name: "identity_creation_success",
+		Help: "Number of identities which have been successfully created and stored.",
+	})
+
+var IdentityCreationDuration = promauto.NewHistogram(
+	prometheus.HistogramOpts{
+		Name: "identity_creation_duration",
+		Help: "Duration of the identity being created, registered and stored.",
+	})
+
+var SignatureCreationCounter = promauto.NewCounter(
+	prometheus.CounterOpts{
+		Name: "signature_creation_success",
+		Help: "Number of successfully created signatures",
+	})
+
+var SignatureCreationDuration = promauto.NewHistogram(
+	prometheus.HistogramOpts{
+		Name: "signature_creation_duration",
+		Help: "Duration of the creation of a signed object",
+	})
+
 var UpstreamResponseDuration = promauto.NewHistogram(prometheus.HistogramOpts{
-	Name:    "upstream_response_duration",
-	Help:    "Duration of HTTP responses from upstream server.",
-	Buckets: prometheus.LinearBuckets(0.01, 0.01, 10),
-})
-
-var SignatureCreationDuration = promauto.NewHistogram(prometheus.HistogramOpts{
-	Name:    "signature_creation_duration",
-	Help:    "Duration of the creation of a signed object",
-	Buckets: prometheus.LinearBuckets(0.01, 0.01, 10),
-})
-
-var SignatureCreationCounter = promauto.NewCounter(prometheus.CounterOpts{
-	Name: "signature_creation_success",
-	Help: "Number of successfully created signatures",
-})
-
-var IdentityCreationDuration = promauto.NewHistogram(prometheus.HistogramOpts{
-	Name:    "identity_creation_duration",
-	Help:    "Duration of the identity being created, registered and stored.",
-	Buckets: prometheus.LinearBuckets(0.01, 0.01, 10),
-})
-
-var IdentityCreationCounter = promauto.NewCounter(prometheus.CounterOpts{
-	Name: "identity_creation_success",
-	Help: "Number of identities which have been successfully created and stored.",
+	Name: "upstream_response_duration",
+	Help: "Duration of HTTP responses from upstream server.",
 })
 
 func PromMiddleware(next http.Handler) http.Handler {

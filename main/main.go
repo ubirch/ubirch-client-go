@@ -29,7 +29,7 @@ import (
 	"github.com/ubirch/ubirch-client-go/main/config"
 
 	log "github.com/sirupsen/logrus"
-	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
+	h "github.com/ubirch/ubirch-client-go/main/adapters/http_server"
 	prom "github.com/ubirch/ubirch-client-go/main/prometheus"
 )
 
@@ -166,16 +166,16 @@ func main() {
 	httpServer.Router.Method(http.MethodGet, "/metrics", prom.Handler())
 
 	// set up endpoint for identity registration
-	httpServer.Router.Put(h.RegisterEndpoint, handlers.Register(conf.RegisterAuth, idHandler.InitIdentity))
+	httpServer.Router.Put(h.RegisterEndpoint, h.Register(conf.RegisterAuth, idHandler.InitIdentity))
 
 	// set up endpoint for CSRs
 	fetchCSREndpoint := path.Join(h.UUIDPath, h.CSREndpoint) // /<uuid>/csr
-	httpServer.Router.Get(fetchCSREndpoint, handlers.FetchCSR(conf.RegisterAuth, idHandler.CreateCSR))
+	httpServer.Router.Get(fetchCSREndpoint, h.FetchCSR(conf.RegisterAuth, idHandler.CreateCSR))
 
 	// set up endpoint for chaining
 	httpServer.AddServiceEndpoint(h.ServerEndpoint{
 		Path: h.UUIDPath,
-		Service: &handlers.ChainingService{
+		Service: &h.ChainingService{
 			CheckAuth: protocol.CheckAuth,
 			Chain:     signer.Chain,
 		},
@@ -184,7 +184,7 @@ func main() {
 	// set up endpoint for signing
 	httpServer.AddServiceEndpoint(h.ServerEndpoint{
 		Path: path.Join(h.UUIDPath, h.OperationKey),
-		Service: &handlers.SigningService{
+		Service: &h.SigningService{
 			CheckAuth: protocol.CheckAuth,
 			Sign:      signer.Sign,
 		},
@@ -193,7 +193,7 @@ func main() {
 	// set up endpoint for verification
 	httpServer.AddServiceEndpoint(h.ServerEndpoint{
 		Path: h.VerifyPath,
-		Service: &handlers.VerificationService{
+		Service: &h.VerificationService{
 			Verify: verifier.Verify,
 		},
 	})

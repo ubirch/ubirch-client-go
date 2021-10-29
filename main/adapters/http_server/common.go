@@ -1,4 +1,4 @@
-package httphelper
+package http_server
 
 import (
 	"bytes"
@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
@@ -54,6 +53,20 @@ type HTTPRequest struct {
 
 type Sha256Sum [HashLen]byte
 
+// GetUUID returns the UUID parameter from the request URL
+func GetUUID(r *http.Request) (uuid.UUID, error) {
+	uuidParam := chi.URLParam(r, UUIDKey)
+	id, err := uuid.Parse(uuidParam)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("invalid UUID: \"%s\": %v", uuidParam, err)
+	}
+	return id, nil
+}
+
+func IsHashRequest(r *http.Request) bool {
+	return strings.HasSuffix(r.URL.Path, HashEndpoint)
+}
+
 // GetHash returns the hash from the request body
 func GetHash(r *http.Request) (Sha256Sum, error) {
 	rBody, err := ReadBody(r)
@@ -65,25 +78,6 @@ func GetHash(r *http.Request) (Sha256Sum, error) {
 		return getHashFromHashRequest(r.Header, rBody)
 	} else { // request contains original data
 		return getHashFromDataRequest(r.Header, rBody)
-	}
-}
-
-func getHashFromDataRequest(header http.Header, data []byte) (hash Sha256Sum, err error) {
-	switch ContentType(header) {
-	case JSONType:
-		data, err = GetSortedCompactJSON(data)
-		if err != nil {
-			return Sha256Sum{}, err
-		}
-		log.Debugf("sorted compact JSON: %s", string(data))
-
-		fallthrough
-	case BinType:
-		// hash original data
-		return sha256.Sum256(data), nil
-	default:
-		return Sha256Sum{}, fmt.Errorf("invalid content-type for original data: "+
-			"expected (\"%s\" | \"%s\")", BinType, JSONType)
 	}
 }
 
@@ -116,59 +110,23 @@ func getHashFromHashRequest(header http.Header, data []byte) (hash Sha256Sum, er
 	}
 }
 
-// forwards response to sender
-func SendResponse(w http.ResponseWriter, resp HTTPResponse) {
-	for k, v := range resp.Header {
-		w.Header().Set(k, v[0])
+func getHashFromDataRequest(header http.Header, data []byte) (hash Sha256Sum, err error) {
+	switch ContentType(header) {
+	case JSONType:
+		data, err = GetSortedCompactJSON(data)
+		if err != nil {
+			return Sha256Sum{}, err
+		}
+		log.Debugf("sorted compact JSON: %s", string(data))
+
+		fallthrough
+	case BinType:
+		// hash original data
+		return sha256.Sum256(data), nil
+	default:
+		return Sha256Sum{}, fmt.Errorf("invalid content-type for original data: "+
+			"expected (\"%s\" | \"%s\")", BinType, JSONType)
 	}
-	w.WriteHeader(resp.StatusCode)
-	_, err := w.Write(resp.Content)
-	if err != nil {
-		log.Errorf("unable to write response: %s", err)
-	}
-}
-
-// wrapper for http.Error that additionally logs the error message to std.Output
-func Error(uid uuid.UUID, w http.ResponseWriter, err error, code int) {
-	log.Warnf("%s: %v", uid, err)
-	http.Error(w, err.Error(), code)
-}
-
-// helper function to get "Content-Type" from request header
-func ContentType(header http.Header) string {
-	return strings.ToLower(header.Get("Content-Type"))
-}
-
-// helper function to get "Content-Transfer-Encoding" from request header
-func ContentEncoding(header http.Header) string {
-	return strings.ToLower(header.Get("Content-Transfer-Encoding"))
-}
-
-// helper function to get "X-Auth-Token" from request header
-func AuthToken(header http.Header) string {
-	return header.Get("X-Auth-Token")
-}
-
-// getUUID returns the UUID parameter from the request URL
-func GetUUID(r *http.Request) (uuid.UUID, error) {
-	uuidParam := chi.URLParam(r, UUIDKey)
-	id, err := uuid.Parse(uuidParam)
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("invalid UUID: \"%s\": %v", uuidParam, err)
-	}
-	return id, nil
-}
-
-func ReadBody(r *http.Request) ([]byte, error) {
-	rBody, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		return nil, fmt.Errorf("unable to read request body: %v", err)
-	}
-	return rBody, nil
-}
-
-func IsHashRequest(r *http.Request) bool {
-	return strings.HasSuffix(r.URL.Path, HashEndpoint)
 }
 
 func GetSortedCompactJSON(data []byte) ([]byte, error) {

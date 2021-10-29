@@ -20,7 +20,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
-	"github.com/ubirch/ubirch-client-go/main/adapters/encrypters"
+	"github.com/ubirch/ubirch-client-go/main/adapters/encryption"
 	"github.com/ubirch/ubirch-client-go/main/ent"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
@@ -29,7 +29,7 @@ type ExtendedProtocol struct {
 	ubirch.Protocol
 	*clients.Client
 	ContextManager
-	keyEncrypter *encrypters.KeyEncrypter
+	keyEncrypter *encryption.KeyEncrypter
 	keyCache     *KeyCache
 	authCache    *sync.Map // {<uuid>: <auth token>}
 }
@@ -41,7 +41,7 @@ func NewExtendedProtocol(ctxManager ContextManager, secret []byte, client *clien
 		Keystore: keyCache,
 	}
 
-	enc, err := encrypters.NewKeyEncrypter(secret, crypto)
+	enc, err := encryption.NewKeyEncrypter(secret, crypto)
 	if err != nil {
 		return nil, err
 	}
