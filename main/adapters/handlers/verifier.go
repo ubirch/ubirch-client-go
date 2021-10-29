@@ -101,7 +101,7 @@ func (v *Verifier) loadUPP(hash []byte) (int, []byte, error) {
 	}
 
 	if h.HttpFailed(resp.StatusCode) {
-		return resp.StatusCode, nil, fmt.Errorf("could not retrieve certificate for hash %s from UBIRCH verification service: - %s - %q", hashBase64String, resp.StatusCode, resp.Content)
+		return resp.StatusCode, nil, fmt.Errorf("could not retrieve certificate for hash %s from UBIRCH verification service: - %d - %q", hashBase64String, resp.StatusCode, resp.Content)
 	}
 
 	vf := verification{}
