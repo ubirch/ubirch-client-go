@@ -121,11 +121,26 @@ func TestDatabaseManager_SetSignature(t *testing.T) {
 	assert.Equal(t, newSignature, sig)
 }
 
-func TestNewSqlDatabaseInfo_InvalidDSN(t *testing.T) {
-	invalidDSN := "this is not a DSN"
+func TestNewSqlDatabaseInfo_NotReady(t *testing.T) {
+	// use DSN that is valid, but not reachable
+	unreachableDSN := "postgres://nousr:nopwd@localhost:0000/nodatabase"
 
-	_, err := NewSqlDatabaseInfo(invalidDSN, testTableName, 0)
-	assert.Error(t, err)
+	// we expect no error here
+	dm, err := NewSqlDatabaseInfo(unreachableDSN, testTableName, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func(dm *DatabaseManager) {
+		err := dm.Close()
+		if err != nil {
+			t.Error(err)
+		}
+	}(dm)
+
+	err = dm.IsReady()
+	if err == nil {
+		t.Error("IsReady() returned no error for unreachable database")
+	}
 }
 
 func TestStoreExisting(t *testing.T) {
