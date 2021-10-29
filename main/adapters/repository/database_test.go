@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/ubirch/ubirch-client-go/main/ent"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
 const (
@@ -114,11 +115,20 @@ func TestDatabaseManager_SetSignature(t *testing.T) {
 
 	tx2, err := dm.StartTransaction(ctx)
 	require.NoError(t, err)
-	require.NotNil(t, tx)
+	require.NotNil(t, tx2)
 
 	sig, err := dm.LoadSignature(tx2, testIdentity.Uid)
 	assert.NoError(t, err)
 	assert.Equal(t, newSignature, sig)
+}
+
+func TestNewSqlDatabaseInfo_Ready(t *testing.T) {
+	dm, err := initDB()
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	err = dm.IsReady()
+	require.NoError(t, err)
 }
 
 func TestNewSqlDatabaseInfo_NotReady(t *testing.T) {
@@ -138,9 +148,7 @@ func TestNewSqlDatabaseInfo_NotReady(t *testing.T) {
 	}(dm)
 
 	err = dm.IsReady()
-	if err == nil {
-		t.Error("IsReady() returned no error for unreachable database")
-	}
+	require.Error(t, err)
 }
 
 func TestStoreExisting(t *testing.T) {
@@ -313,11 +321,16 @@ func cleanUpDB(t *testing.T, dm *DatabaseManager) {
 }
 
 func generateRandomIdentity() ent.Identity {
-	priv := make([]byte, 32)
-	rand.Read(priv)
+	uid := uuid.New()
 
-	pub := make([]byte, 64)
-	rand.Read(pub)
+	keystore := &MockKeystorer{}
+
+	c := ubirch.ECDSACryptoContext{Keystore: keystore}
+
+	err := c.GenerateKey(uid)
+	if err != nil {
+		panic(err)
+	}
 
 	sig := make([]byte, 64)
 	rand.Read(sig)
@@ -327,8 +340,8 @@ func generateRandomIdentity() ent.Identity {
 
 	return ent.Identity{
 		Uid:        uuid.New(),
-		PrivateKey: priv,
-		PublicKey:  []byte(base64.StdEncoding.EncodeToString(pub)),
+		PrivateKey: keystore.priv,
+		PublicKey:  keystore.pub,
 		Signature:  sig,
 		AuthToken:  base64.StdEncoding.EncodeToString(auth),
 	}
@@ -366,12 +379,12 @@ func checkIdentity(ctxManager ContextManager, id ent.Identity, wg *sync.WaitGrou
 
 	tx, err := ctxManager.StartTransaction(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("StartTransaction: %v", err)
 	}
 
 	sig, err := ctxManager.LoadSignature(tx, id.Uid)
 	if err != nil {
-		return err
+		return fmt.Errorf("LoadSignature: %v", err)
 	}
 	if !bytes.Equal(sig, id.Signature) {
 		return fmt.Errorf("LoadSignature returned unexpected value")
@@ -379,12 +392,12 @@ func checkIdentity(ctxManager ContextManager, id ent.Identity, wg *sync.WaitGrou
 
 	err = tx.Commit()
 	if err != nil {
-		return err
+		return fmt.Errorf("Commit: %v", err)
 	}
 
 	priv, err := ctxManager.LoadPrivateKey(id.Uid)
 	if err != nil {
-		return err
+		return fmt.Errorf("LoadPrivateKey: %v", err)
 	}
 	if !bytes.Equal(priv, id.PrivateKey) {
 		return fmt.Errorf("LoadPrivateKey returned unexpected value")
@@ -392,7 +405,7 @@ func checkIdentity(ctxManager ContextManager, id ent.Identity, wg *sync.WaitGrou
 
 	pub, err := ctxManager.LoadPublicKey(id.Uid)
 	if err != nil {
-		return err
+		return fmt.Errorf("LoadPublicKey: %v", err)
 	}
 	if !bytes.Equal(pub, id.PublicKey) {
 		return fmt.Errorf("LoadPublicKey returned unexpected value")
@@ -400,7 +413,7 @@ func checkIdentity(ctxManager ContextManager, id ent.Identity, wg *sync.WaitGrou
 
 	auth, err := ctxManager.LoadAuthToken(id.Uid)
 	if err != nil {
-		return err
+		return fmt.Errorf("LoadAuthToken: %v", err)
 	}
 	if auth != id.AuthToken {
 		return fmt.Errorf("LoadAuthToken returned unexpected value")
