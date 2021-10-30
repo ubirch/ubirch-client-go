@@ -18,10 +18,10 @@ import (
 	h "github.com/ubirch/ubirch-client-go/main/adapters/http_server"
 )
 
-type VerificationClient struct {
+type VerificationServiceClient struct {
 	VerifyServiceURL string
 }
 
-func (c *VerificationClient) RequestHash(hashBase64 string) (h.HTTPResponse, error) {
+func (c *VerificationServiceClient) RequestHash(hashBase64 string) (h.HTTPResponse, error) {
 	return Post(c.VerifyServiceURL, []byte(hashBase64), map[string]string{"content-type": "text/plain"})
 }

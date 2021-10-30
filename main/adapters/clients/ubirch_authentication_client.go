@@ -22,11 +22,11 @@ import (
 	h "github.com/ubirch/ubirch-client-go/main/adapters/http_server"
 )
 
-type AuthenticationClient struct {
+type AuthenticationServiceClient struct {
 	AuthServiceURL string
 }
 
-func (c *AuthenticationClient) SendToAuthService(uid uuid.UUID, auth string, upp []byte) (h.HTTPResponse, error) {
+func (c *AuthenticationServiceClient) SendToAuthService(uid uuid.UUID, auth string, upp []byte) (h.HTTPResponse, error) {
 	return Post(c.AuthServiceURL, upp, ubirchHeader(uid, auth))
 }
 

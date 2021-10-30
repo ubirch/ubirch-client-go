@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
 	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
@@ -49,8 +48,8 @@ type verificationResponse struct {
 
 type Verifier struct {
 	Protocol                      *repository.ExtendedProtocol
-	VerifyClient                  *clients.VerificationClient
-	IdentityClient                *clients.IdentityClient
+	RequestHash                   func(hashBase64 string) (h.HTTPResponse, error)
+	RequestPublicKeys             func(id uuid.UUID) ([]ubirch.SignedKeyRegistration, error)
 	VerifyFromKnownIdentitiesOnly bool
 }
 
@@ -79,7 +78,7 @@ func (v *Verifier) Verify(hash []byte) h.HTTPResponse {
 func (v *Verifier) loadUPP(hash []byte) (int, []byte, error) {
 	var resp h.HTTPResponse
 	var err error
-	hashBase64String := base64.StdEncoding.EncodeToString(hash)
+	hashBase64 := base64.StdEncoding.EncodeToString(hash)
 
 	n := 0
 	for stay, timeout := true, time.After(time.Second); stay; {
@@ -88,7 +87,7 @@ func (v *Verifier) loadUPP(hash []byte) (int, []byte, error) {
 		case <-timeout:
 			stay = false
 		default:
-			resp, err = v.VerifyClient.RequestHash(hashBase64String)
+			resp, err = v.RequestHash(hashBase64)
 			if err != nil {
 				return http.StatusInternalServerError, nil, fmt.Errorf("error sending verification request: %v", err)
 			}
@@ -101,7 +100,7 @@ func (v *Verifier) loadUPP(hash []byte) (int, []byte, error) {
 	}
 
 	if h.HttpFailed(resp.StatusCode) {
-		return resp.StatusCode, nil, fmt.Errorf("could not retrieve certificate for hash %s from UBIRCH verification service: - %d - %q", hashBase64String, resp.StatusCode, resp.Content)
+		return resp.StatusCode, nil, fmt.Errorf("could not retrieve certificate for hash %s from UBIRCH verification service: - %d - %q", hashBase64, resp.StatusCode, resp.Content)
 	}
 
 	vf := verification{}
@@ -155,7 +154,7 @@ func (v *Verifier) verifyUPP(upp []byte) (uuid.UUID, []byte, error) {
 func (v *Verifier) loadPublicKey(id uuid.UUID) error {
 	log.Debugf("requesting public key for identity %s from key service", id.String())
 
-	keys, err := v.IdentityClient.RequestPublicKeys(id)
+	keys, err := v.RequestPublicKeys(id)
 	if err != nil {
 		return err
 	}

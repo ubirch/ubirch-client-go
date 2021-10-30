@@ -118,24 +118,18 @@ func main() {
 		log.Fatal(err)
 	}
 
-	idClient := &clients.IdentityClient{
-		KeyServiceURL:      conf.KeyService,
-		IdentityServiceURL: conf.IdentityService,
-	}
-
-	authClient := &clients.AuthenticationClient{
-		AuthServiceURL: conf.Niomon,
-	}
-
-	verifyClient := &clients.VerificationClient{
-		VerifyServiceURL: conf.VerifyService,
-	}
+	client := &clients.ServiceClient{}
+	client.KeyServiceURL = conf.KeyService
+	client.IdentityServiceURL = conf.IdentityService
+	client.AuthServiceURL = conf.Niomon
+	client.VerifyServiceURL = conf.VerifyService
 
 	idHandler := &handlers.IdentityHandler{
-		Protocol:            protocol,
-		IdentityClient:      idClient,
-		SubjectCountry:      conf.CSR_Country,
-		SubjectOrganization: conf.CSR_Organization,
+		Protocol:              protocol,
+		SubmitKeyRegistration: client.SubmitKeyRegistration,
+		SubmitCSR:             client.SubmitCSR,
+		SubjectCountry:        conf.CSR_Country,
+		SubjectOrganization:   conf.CSR_Organization,
 	}
 
 	if initIdentities {
@@ -148,14 +142,14 @@ func main() {
 	}
 
 	signer := handlers.Signer{
-		Protocol:   protocol,
-		AuthClient: authClient,
+		Protocol:          protocol,
+		SendToAuthService: client.SendToAuthService,
 	}
 
 	verifier := handlers.Verifier{
 		Protocol:                      protocol,
-		IdentityClient:                idClient,
-		VerifyClient:                  verifyClient,
+		RequestHash:                   client.RequestHash,
+		RequestPublicKeys:             client.RequestPublicKeys,
 		VerifyFromKnownIdentitiesOnly: false, // TODO: make configurable
 	}
 

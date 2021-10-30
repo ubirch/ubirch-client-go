@@ -20,7 +20,6 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
 	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
 	"github.com/ubirch/ubirch-client-go/main/ent"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
@@ -30,10 +29,11 @@ import (
 )
 
 type IdentityHandler struct {
-	Protocol            *repository.ExtendedProtocol
-	IdentityClient      *clients.IdentityClient
-	SubjectCountry      string
-	SubjectOrganization string
+	Protocol              *repository.ExtendedProtocol
+	SubmitKeyRegistration func(uid uuid.UUID, auth string, cert []byte) error
+	SubmitCSR             func(uid uuid.UUID, csr []byte) error
+	SubjectCountry        string
+	SubjectOrganization   string
 }
 
 func (i *IdentityHandler) InitIdentities(identities map[string]string) error {
@@ -136,7 +136,7 @@ func (i *IdentityHandler) registerPublicKey(uid uuid.UUID, pubKeyPEM []byte, aut
 	}
 	log.Debugf("%s: CSR [der]: %x", uid, csr)
 
-	err = i.IdentityClient.SubmitKeyRegistration(uid, keyRegistration, auth)
+	err = i.SubmitKeyRegistration(uid, auth, keyRegistration)
 	if err != nil {
 		return nil, fmt.Errorf("key registration for UUID %s failed: %v", uid, err)
 	}
@@ -149,7 +149,7 @@ func (i *IdentityHandler) registerPublicKey(uid uuid.UUID, pubKeyPEM []byte, aut
 }
 
 func (i *IdentityHandler) submitCSROrLogError(uid uuid.UUID, csr []byte) {
-	err := i.IdentityClient.SubmitCSR(uid, csr)
+	err := i.SubmitCSR(uid, csr)
 	if err != nil {
 		log.Errorf("submitting CSR for UUID %s failed: %v", uid, err)
 	}

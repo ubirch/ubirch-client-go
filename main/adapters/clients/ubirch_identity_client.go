@@ -28,14 +28,14 @@ import (
 	h "github.com/ubirch/ubirch-client-go/main/adapters/http_server"
 )
 
-type IdentityClient struct {
+type IdentityServiceClient struct {
 	KeyServiceURL      string
 	IdentityServiceURL string
 }
 
 // RequestPublicKeys requests a devices public keys at the identity service
 // returns a list of the retrieved public key certificates
-func (c *IdentityClient) RequestPublicKeys(id uuid.UUID) ([]ubirch.SignedKeyRegistration, error) {
+func (c *IdentityServiceClient) RequestPublicKeys(id uuid.UUID) ([]ubirch.SignedKeyRegistration, error) {
 	url := c.KeyServiceURL + "/current/hardwareId/" + id.String()
 	resp, err := http.Get(url)
 	if err != nil {
@@ -69,7 +69,7 @@ func (c *IdentityClient) RequestPublicKeys(id uuid.UUID) ([]ubirch.SignedKeyRegi
 
 // IsKeyRegistered sends a request to the identity service to determine
 // if a specified public key is registered for the specified UUID
-func (c *IdentityClient) IsKeyRegistered(id uuid.UUID, pubKey []byte) (bool, error) {
+func (c *IdentityServiceClient) IsKeyRegistered(id uuid.UUID, pubKey []byte) (bool, error) {
 	certs, err := c.RequestPublicKeys(id)
 	if err != nil {
 		return false, err
@@ -83,7 +83,7 @@ func (c *IdentityClient) IsKeyRegistered(id uuid.UUID, pubKey []byte) (bool, err
 	return false, nil
 }
 
-func (c *IdentityClient) SubmitKeyRegistration(uid uuid.UUID, cert []byte, auth string) error {
+func (c *IdentityServiceClient) SubmitKeyRegistration(uid uuid.UUID, auth string, cert []byte) error {
 	log.Debugf("%s: registering public key at key service", uid)
 
 	keyRegHeader := ubirchHeader(uid, auth)
@@ -101,7 +101,7 @@ func (c *IdentityClient) SubmitKeyRegistration(uid uuid.UUID, cert []byte, auth 
 }
 
 // SubmitCSR submits a X.509 Certificate Signing Request for the public key to the identity service
-func (c *IdentityClient) SubmitCSR(uid uuid.UUID, csr []byte) error {
+func (c *IdentityServiceClient) SubmitCSR(uid uuid.UUID, csr []byte) error {
 	log.Debugf("%s: submitting CSR to identity service", uid)
 
 	CSRHeader := map[string]string{"content-type": "application/octet-stream"}

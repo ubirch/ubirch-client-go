@@ -9,6 +9,12 @@ import (
 	h "github.com/ubirch/ubirch-client-go/main/adapters/http_server"
 )
 
+type UbirchServiceClient struct {
+	IdentityServiceClient
+	AuthenticationServiceClient
+	VerificationServiceClient
+}
+
 // Post submits a message to a backend service
 // returns the response or encountered errors
 func Post(serviceURL string, data []byte, header map[string]string) (h.HTTPResponse, error) {
