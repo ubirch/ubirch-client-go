@@ -167,7 +167,7 @@ func main() {
 	}
 
 	// set up metrics
-	httpServer.Router.Method(http.MethodGet, "/metrics", prom.Handler())
+	httpServer.Router.Method(http.MethodGet, h.MetricsEndpoint, prom.Handler())
 
 	// set up endpoint for identity registration
 	httpServer.Router.Put(h.RegisterEndpoint, h.Register(conf.RegisterAuth, idHandler.InitIdentity))
@@ -203,8 +203,8 @@ func main() {
 	})
 
 	// set up endpoints for liveness and readiness checks
-	httpServer.Router.Get("/healthz", h.Health(serverID))
-	httpServer.Router.Get("/readyz", h.Ready(serverID, readinessChecks))
+	httpServer.Router.Get(h.LivenessCheckEndpoint, h.Health(serverID))
+	httpServer.Router.Get(h.ReadinessCheckEndpoint, h.Ready(serverID, readinessChecks))
 
 	// set up graceful shutdown handling
 	ctx, cancel := context.WithCancel(context.Background())
