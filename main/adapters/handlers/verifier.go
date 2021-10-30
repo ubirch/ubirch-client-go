@@ -172,7 +172,7 @@ func (v *Verifier) loadPublicKey(id uuid.UUID) error {
 		return err
 	}
 
-	return v.Protocol.Crypto.SetPublicKeyBytes(id, pubKeyBytes)
+	return v.Protocol.SetPublicKeyBytes(id, pubKeyBytes)
 }
 
 func getVerificationResponse(respCode int, hash []byte, upp []byte, id uuid.UUID, pkey []byte, errMsg string) h.HTTPResponse {
