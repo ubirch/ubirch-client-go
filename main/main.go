@@ -118,7 +118,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	client := &clients.ServiceClient{}
+	client := &clients.UbirchServiceClient{}
 	client.KeyServiceURL = conf.KeyService
 	client.IdentityServiceURL = conf.IdentityService
 	client.AuthServiceURL = conf.Niomon
