@@ -1,6 +1,7 @@
 package main
 
 import (
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -15,28 +16,53 @@ const (
 )
 
 func main() {
-	testCtx := NewTestCtx()
-	sender := NewSender(testCtx)
+	c := Config{}
+	err := c.Load(configFile)
+	if err != nil {
+		log.Fatalf("ERROR: unable to load configuration: %s", err)
+	}
 
-	for id, auth := range testCtx.identities {
-		err := sender.register(id, auth, testCtx.registerAuth)
+	identities := c.GetTestIdentities()
+	sender := NewSender()
+
+	for id, auth := range identities {
+		err := sender.register(id, auth, c.RegisterAuth)
 		if err != nil {
 			log.Fatal(err)
 		}
 	}
 
-	log.Infof("%d identities, %d requests each => sending [ %d ] requests", len(testCtx.identities), numberOfRequestsPerID, len(testCtx.identities)*numberOfRequestsPerID)
+	log.Infof("%d identities, %d requests each => sending [ %d ] requests", len(identities), numberOfRequestsPerID, len(identities)*numberOfRequestsPerID)
 	log.Infof("%3d requests per second per identity", requestsPerSecondPerID)
-	log.Infof("%3d requests per second overall", len(testCtx.identities)*requestsPerSecondPerID)
+	log.Infof("%3d requests per second overall", len(identities)*requestsPerSecondPerID)
 
+	wg := &sync.WaitGroup{}
 	start := time.Now()
 
-	for uid, auth := range testCtx.identities {
-		testCtx.wg.Add(1)
-		go sender.sendRequests(uid, auth)
+	i := 0
+	n := len(identities)
+	for uid, auth := range identities {
+		offset := time.Duration((i*1000)/n) * time.Millisecond
+		i += 1
+
+		wg.Add(1)
+		go sender.sendRequests(uid, auth, offset, wg)
 	}
 
-	testCtx.wg.Wait()
-	log.Infof(" = = = => [ %4d ] requests done after [ %7.3f ] seconds <= = = = ", len(testCtx.identities)*numberOfRequestsPerID, time.Since(start).Seconds())
-	testCtx.finish()
+	wg.Wait()
+	duration := time.Since(start)
+
+	sender.chainChecker.finish()
+
+	log.Infof("[ %6d ] requests done after [ %7.3f ] seconds ", len(identities)*numberOfRequestsPerID, duration.Seconds())
+
+	for status, count := range sender.statusCounter {
+		log.Infof("[ %6d ] x %s", count, status)
+	}
+
+	log.Infof("avg response time: %s", sender.getAvgRequestDuration().String())
+	avgReqsPerSec := float64(len(identities)*numberOfRequestsPerID) / duration.Seconds()
+	log.Infof("avg total throughput: %7.3f requests/second", avgReqsPerSec)
+	avgReqsPerSecSuccess := float64(sender.statusCounter["200 OK"]) / duration.Seconds()
+	log.Infof("avg successful throughput: %7.3f requests/second", avgReqsPerSecSuccess)
 }
