@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
+	"os/signal"
 	"path"
+	"syscall"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
@@ -64,7 +67,10 @@ func (srv *HTTPServer) AddServiceEndpoint(endpoint ServerEndpoint) {
 	srv.Router.Options(hashEndpointPath, endpoint.HandleOptions)
 }
 
-func (srv *HTTPServer) Serve(cancelCtx context.Context) error {
+func (srv *HTTPServer) Serve() error {
+	cancelCtx, cancel := context.WithCancel(context.Background())
+	go shutdown(cancel)
+
 	server := &http.Server{
 		Addr:         srv.Addr,
 		Handler:      srv.Router,
@@ -72,6 +78,7 @@ func (srv *HTTPServer) Serve(cancelCtx context.Context) error {
 		WriteTimeout: WriteTimeout,
 		IdleTimeout:  IdleTimeout,
 	}
+
 	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
 
 	go func() {
@@ -103,4 +110,17 @@ func (srv *HTTPServer) Serve(cancelCtx context.Context) error {
 	// wait for server to shut down gracefully
 	<-shutdownCtx.Done()
 	return nil
+}
+
+// shutdown handles graceful shutdown of the server when SIGINT or SIGTERM is received
+func shutdown(cancel context.CancelFunc) {
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+
+	// block until we receive a SIGINT or SIGTERM
+	sig := <-signals
+	log.Infof("shutting down after receiving: %v", sig)
+
+	// cancel the contexts
+	cancel()
 }

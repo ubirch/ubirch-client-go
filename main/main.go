@@ -15,13 +15,10 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"os"
-	"os/signal"
 	"path"
-	"syscall"
 
 	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
 	"github.com/ubirch/ubirch-client-go/main/adapters/handlers"
@@ -32,19 +29,6 @@ import (
 	h "github.com/ubirch/ubirch-client-go/main/adapters/http_server"
 	prom "github.com/ubirch/ubirch-client-go/main/prometheus"
 )
-
-// handle graceful shutdown
-func shutdown(cancel context.CancelFunc) {
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
-
-	// block until we receive a SIGINT or SIGTERM
-	sig := <-signals
-	log.Infof("shutting down after receiving: %v", sig)
-
-	// cancel the go routines contexts
-	cancel()
-}
 
 var (
 	// Version will be replaced with the tagged version during build time
@@ -206,14 +190,8 @@ func main() {
 	httpServer.Router.Get(h.LivenessCheckEndpoint, h.Health(serverID))
 	httpServer.Router.Get(h.ReadinessCheckEndpoint, h.Ready(serverID, readinessChecks))
 
-	// set up graceful shutdown handling
-	ctx, cancel := context.WithCancel(context.Background())
-	go shutdown(cancel)
-
-	// start HTTP server (blocks)
-	if err = httpServer.Serve(ctx); err != nil {
+	// start HTTP server (blocks until SIGINT or SIGTERM is received)
+	if err = httpServer.Serve(); err != nil {
 		log.Error(err)
 	}
-
-	log.Debug("shut down")
 }
