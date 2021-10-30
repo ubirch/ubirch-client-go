@@ -11,6 +11,6 @@ require (
 	github.com/prometheus/client_golang v1.11.0
 	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.7.0
-	github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.2.6-0.20211028200548-b1e45815d2e3
+	github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.2.6-0.20211030095918-6166906687b4
 	github.com/youmark/pkcs8 v0.0.0-20201027041543-1326539a0a0a
 )
