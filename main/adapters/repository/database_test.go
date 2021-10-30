@@ -253,6 +253,7 @@ func TestDatabaseLoad(t *testing.T) {
 
 type dbConfig struct {
 	PostgresDSN string
+	DbMaxConns  int
 }
 
 func getDatabaseConfig() (*dbConfig, error) {
@@ -294,7 +295,7 @@ func initDB() (*DatabaseManager, error) {
 		return nil, err
 	}
 
-	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, testTableName, 10)
+	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, testTableName, c.DbMaxConns)
 	if err != nil {
 		return nil, err
 	}
