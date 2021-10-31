@@ -46,7 +46,10 @@ const (
 	HashLen = 32
 )
 
-var UUIDPath = fmt.Sprintf("/{%s}", UUIDKey)
+var (
+	UUIDPath      = fmt.Sprintf("/{%s}", UUIDKey)
+	OperationPath = fmt.Sprintf("/{%s}", OperationKey)
+)
 
 type HTTPRequest struct {
 	ID   uuid.UUID

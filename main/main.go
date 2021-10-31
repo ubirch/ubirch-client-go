@@ -171,7 +171,7 @@ func main() {
 
 	// set up endpoint for signing
 	httpServer.AddServiceEndpoint(h.ServerEndpoint{
-		Path: path.Join(h.UUIDPath, h.OperationKey),
+		Path: path.Join(h.UUIDPath, h.OperationPath),
 		Service: &h.SigningService{
 			CheckAuth: protocol.CheckAuth,
 			Sign:      signer.Sign,
