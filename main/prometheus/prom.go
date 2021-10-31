@@ -78,6 +78,18 @@ var UpstreamResponseDuration = promauto.NewHistogram(prometheus.HistogramOpts{
 	Help: "Duration of HTTP responses from upstream server.",
 })
 
+var AuthCheckDuration = promauto.NewHistogram(
+	prometheus.HistogramOpts{
+		Name: "auth_check_duration",
+		Help: "Duration of the auth token being checked for validity.",
+	})
+
+var AuthCheckWithWaitDuration = promauto.NewHistogram(
+	prometheus.HistogramOpts{
+		Name: "auth_check_with_wait_duration",
+		Help: "Duration of the auth token being checked for validity including waiting time for semaphore.",
+	})
+
 func PromMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		rw := NewResponseWriter(w)

@@ -35,7 +35,7 @@ type TransactionCtx interface {
 	Rollback() error
 }
 
-func GetContextManager(c config.Config) (ContextManager, error) {
+func GetContextManager(c *config.Config) (ContextManager, error) {
 	if c.PostgresDSN != "" {
 		return NewSqlDatabaseInfo(c.PostgresDSN, PostgresIdentityTableName, c.DbMaxConns)
 	} else {

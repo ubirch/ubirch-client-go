@@ -120,11 +120,8 @@ func (dm *DatabaseManager) StoreNewIdentity(transactionCtx TransactionCtx, ident
 		dm.tableName)
 
 	_, err := tx.Exec(query, &identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.Signature, &identity.AuthToken)
-	if err != nil {
-		return err
-	}
 
-	return nil
+	return err
 }
 
 func (dm *DatabaseManager) LoadSignature(transactionCtx TransactionCtx, uid uuid.UUID) (signature []byte, err error) {
@@ -136,14 +133,11 @@ func (dm *DatabaseManager) LoadSignature(transactionCtx TransactionCtx, uid uuid
 	query := fmt.Sprintf("SELECT signature FROM %s WHERE uid = $1 FOR UPDATE", dm.tableName)
 
 	err = tx.QueryRow(query, uid).Scan(&signature)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, ErrNotExist
-		}
-		return nil, err
+	if err == sql.ErrNoRows {
+		return nil, ErrNotExist
 	}
 
-	return signature, nil
+	return signature, err
 }
 
 func (dm *DatabaseManager) StoreSignature(transactionCtx TransactionCtx, uid uuid.UUID, signature []byte) error {
@@ -155,11 +149,8 @@ func (dm *DatabaseManager) StoreSignature(transactionCtx TransactionCtx, uid uui
 	query := fmt.Sprintf("UPDATE %s SET signature = $1 WHERE uid = $2;", dm.tableName)
 
 	_, err := tx.Exec(query, &signature, uid)
-	if err != nil {
-		return err
-	}
 
-	return nil
+	return err
 }
 
 func (dm *DatabaseManager) LoadPrivateKey(uid uuid.UUID) (privateKey []byte, err error) {
@@ -167,13 +158,10 @@ func (dm *DatabaseManager) LoadPrivateKey(uid uuid.UUID) (privateKey []byte, err
 		query := fmt.Sprintf("SELECT private_key FROM %s WHERE uid = $1", dm.tableName)
 
 		err := dm.db.QueryRow(query, uid).Scan(&privateKey)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				return ErrNotExist
-			}
-			return err
+		if err == sql.ErrNoRows {
+			return ErrNotExist
 		}
-		return nil
+		return err
 	})
 
 	return privateKey, err
@@ -184,13 +172,10 @@ func (dm *DatabaseManager) LoadPublicKey(uid uuid.UUID) (publicKey []byte, err e
 		query := fmt.Sprintf("SELECT public_key FROM %s WHERE uid = $1", dm.tableName)
 
 		err := dm.db.QueryRow(query, uid).Scan(&publicKey)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				return ErrNotExist
-			}
-			return err
+		if err == sql.ErrNoRows {
+			return ErrNotExist
 		}
-		return nil
+		return err
 	})
 
 	return publicKey, err
@@ -201,13 +186,10 @@ func (dm *DatabaseManager) LoadAuthToken(uid uuid.UUID) (authToken string, err e
 		query := fmt.Sprintf("SELECT auth_token FROM %s WHERE uid = $1", dm.tableName)
 
 		err := dm.db.QueryRow(query, uid).Scan(&authToken)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				return ErrNotExist
-			}
-			return err
+		if err == sql.ErrNoRows {
+			return ErrNotExist
 		}
-		return nil
+		return err
 	})
 
 	return authToken, err

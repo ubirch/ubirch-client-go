@@ -15,13 +15,17 @@
 package repository
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/adapters/encryption"
+	"github.com/ubirch/ubirch-client-go/main/config"
 	"github.com/ubirch/ubirch-client-go/main/ent"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
+
+	pw "github.com/ubirch/ubirch-client-go/main/adapters/password-hashing"
 )
 
 type ExtendedProtocol struct {
@@ -29,17 +33,20 @@ type ExtendedProtocol struct {
 	ContextManager
 	keyEncrypter *encryption.KeyEncrypter
 	keyCache     *KeyCache
-	authCache    *sync.Map // {<uuid>: <auth token>}
+
+	pwHasher       *pw.Argon2idKeyDerivator
+	pwHasherParams *pw.Argon2idParams
+	authCache      *sync.Map // {<uuid>: <auth token>}
 }
 
-func NewExtendedProtocol(ctxManager ContextManager, secret []byte) (*ExtendedProtocol, error) {
+func NewExtendedProtocol(ctxManager ContextManager, conf *config.Config) (*ExtendedProtocol, error) {
 	keyCache := NewKeyCache()
 
 	crypto := &ubirch.ECDSACryptoContext{
 		Keystore: keyCache,
 	}
 
-	enc, err := encryption.NewKeyEncrypter(secret, crypto)
+	enc, err := encryption.NewKeyEncrypter(conf.SecretBytes32, crypto)
 	if err != nil {
 		return nil, err
 	}
@@ -51,6 +58,9 @@ func NewExtendedProtocol(ctxManager ContextManager, secret []byte) (*ExtendedPro
 		ContextManager: ctxManager,
 		keyEncrypter:   enc,
 		keyCache:       keyCache,
+
+		pwHasher:       pw.NewArgon2idKeyDerivator(conf.KdMaxTotalMemMiB),
+		pwHasherParams: pw.GetArgon2idParams(conf.KdParamMemMiB, conf.KdParamTime, conf.KdParamParallelism),
 		authCache:      &sync.Map{},
 	}
 
@@ -72,6 +82,12 @@ func (p *ExtendedProtocol) StoreNewIdentity(tx TransactionCtx, i ent.Identity) e
 
 	// store public key raw bytes
 	i.PublicKey, err = p.PublicKeyPEMToBytes(i.PublicKey)
+	if err != nil {
+		return err
+	}
+
+	// hash auth token
+	i.AuthToken, err = p.pwHasher.GeneratePasswordHash(context.Background(), i.AuthToken, p.pwHasherParams)
 	if err != nil {
 		return err
 	}
@@ -172,7 +188,7 @@ func (p *ExtendedProtocol) IsInitialized(uid uuid.UUID) (initialized bool, err e
 	return true, nil
 }
 
-func (p *ExtendedProtocol) CheckAuth(uid uuid.UUID, authToCheck string) (ok bool, found bool, err error) {
+func (p *ExtendedProtocol) CheckAuth(ctx context.Context, uid uuid.UUID, authToCheck string) (found, ok bool, err error) {
 	actualAuth, err := p.LoadAuthToken(uid)
 	if err == ErrNotExist {
 		return false, false, nil
@@ -181,7 +197,11 @@ func (p *ExtendedProtocol) CheckAuth(uid uuid.UUID, authToCheck string) (ok bool
 		return false, false, err
 	}
 
-	return actualAuth == authToCheck, true, nil
+	found = true
+
+	ok, err = p.pwHasher.CheckPassword(ctx, authToCheck, actualAuth)
+
+	return found, ok, err
 }
 
 func (p *ExtendedProtocol) checkIdentityAttributes(i ent.Identity) error {

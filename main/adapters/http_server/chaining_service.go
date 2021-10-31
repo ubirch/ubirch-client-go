@@ -11,7 +11,7 @@ import (
 )
 
 type ChainingService struct {
-	CheckAuth func(uuid.UUID, string) (bool, bool, error)
+	CheckAuth func(context.Context, uuid.UUID, string) (bool, bool, error)
 	Chain     func(HTTPRequest, context.Context) HTTPResponse
 }
 
@@ -30,7 +30,7 @@ func (s *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) 
 
 	msg.Auth = AuthToken(r.Header)
 
-	ok, found, err := s.CheckAuth(msg.ID, msg.Auth)
+	found, ok, err := s.CheckAuth(r.Context(), msg.ID, msg.Auth)
 	if err != nil {
 		log.Errorf("%s: %v", msg.ID, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)

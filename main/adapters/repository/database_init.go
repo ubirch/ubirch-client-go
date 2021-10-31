@@ -8,8 +8,10 @@ import (
 	"os"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/config"
 	"github.com/ubirch/ubirch-client-go/main/ent"
+	"golang.org/x/crypto/argon2"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -20,7 +22,7 @@ const (
 	PostgresIdentityTableName = "identity"
 	PostgresVersionTableName  = "version"
 	MigrationID               = "dbMigration"
-	MigrationVersion          = "1.0.1"
+	MigrationVersion          = "2.0"
 )
 
 type Migration struct {
@@ -44,7 +46,7 @@ func CreateTable(tableType int, tableName string) string {
 	return fmt.Sprintf(create[tableType], tableName)
 }
 
-func Migrate(c config.Config) error {
+func Migrate(c *config.Config, configDir string) error {
 	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, PostgresIdentityTableName, 3)
 	if err != nil {
 		return err
@@ -68,14 +70,14 @@ func Migrate(c config.Config) error {
 	}
 	log.Debugf("database migration version: %s / application migration version: %s", migration.Version, MigrationVersion)
 
-	p, err := NewExtendedProtocol(dm, c.SecretBytes32)
+	p, err := NewExtendedProtocol(dm, c)
 	if err != nil {
 		return err
 	}
 
 	if strings.HasPrefix(migration.Version, "0.") {
 		// migrate from file based context
-		identitiesToPort, err := getAllIdentitiesFromLegacyCtx(c)
+		identitiesToPort, err := getAllIdentitiesFromLegacyCtx(c, configDir)
 		if err != nil {
 			return err
 		}
@@ -88,20 +90,20 @@ func Migrate(c config.Config) error {
 		log.Infof("successfully migrated file based context into database")
 	}
 
-	//if strings.HasPrefix(migration.Version, "1.") {
-	//	err = hashAuthTokens(dm, p)
-	//	if err != nil {
-	//		return err
-	//	}
-	//
-	//	log.Infof("successfully hashed auth tokens in database")
-	//}
+	if strings.HasPrefix(migration.Version, "1.") {
+		err = hashAuthTokens(dm, p)
+		if err != nil {
+			return err
+		}
+
+		log.Infof("successfully hashed auth tokens in database")
+	}
 
 	migration.Version = MigrationVersion
 	return updateVersion(tx, migration)
 }
 
-func getAllIdentitiesFromLegacyCtx(c config.Config) ([]ent.Identity, error) {
+func getAllIdentitiesFromLegacyCtx(c *config.Config, configDir string) ([]ent.Identity, error) {
 	log.Infof("getting existing identities from file system")
 
 	secret16Bytes, err := base64.StdEncoding.DecodeString(c.Secret16Base64)
@@ -112,7 +114,7 @@ func getAllIdentitiesFromLegacyCtx(c config.Config) ([]ent.Identity, error) {
 		return nil, fmt.Errorf("invalid secret for legacy key store decoding: secret length must be 16 bytes (is %d)", len(secret16Bytes))
 	}
 
-	fileManager, err := NewFileManager(c.ConfigDir, secret16Bytes)
+	fileManager, err := NewFileManager(configDir, secret16Bytes)
 	if err != nil {
 		return nil, err
 	}
@@ -197,55 +199,105 @@ func migrateIdentities(p *ExtendedProtocol, identities []ent.Identity) error {
 	return tx.Commit()
 }
 
-//func hashAuthTokens(dm *DatabaseManager, p *ExtendedProtocol) error {
-//	query := fmt.Sprintf("SELECT uid, auth_token FROM %s FOR UPDATE", dm.tableName)
-//
-//	rows, err := dm.db.Query(query)
-//	if err != nil {
-//		return err
-//	}
-//	defer func(rows *sql.Rows) {
-//		err := rows.Close()
-//		if err != nil {
-//			log.Error(err)
-//		}
-//	}(rows)
-//
-//	var (
-//		uid  uuid.UUID
-//		auth string
-//	)
-//
-//	ctx, cancel := context.WithCancel(context.Background())
-//	defer cancel()
-//
-//	tx, err := dm.db.BeginTx(ctx, dm.options)
-//	if err != nil {
-//		return err
-//	}
-//
-//	for rows.Next() {
-//		err = rows.Scan(&uid, &auth)
-//		if err != nil {
-//			return err
-//		}
-//
-//		pwHash, err = p.PwHasher.GeneratePasswordHash(ctx, auth, p.PwHasherParams)
-//		if err != nil {
-//			return err
-//		}
-//
-//		err = dm.StoreAuth(tx, uid, pwHash)
-//		if err != nil {
-//			return err
-//		}
-//	}
-//	if rows.Err() != nil {
-//		return rows.Err()
-//	}
-//
-//	return tx.Commit()
-//}
+func hashAuthTokens(dm *DatabaseManager, p *ExtendedProtocol) error {
+	query := fmt.Sprintf("SELECT uid, auth_token FROM %s FOR UPDATE", dm.tableName)
+
+	rows, err := dm.db.Query(query)
+	if err != nil {
+		return err
+	}
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			log.Error(err)
+		}
+	}(rows)
+
+	var (
+		uid  uuid.UUID
+		auth string
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	for rows.Next() {
+		err = rows.Scan(&uid, &auth)
+		if err != nil {
+			return err
+		}
+
+		// make sure that the password is not already hashed before hashing
+		isHashed, err := isArgon2idPasswordHash(auth)
+		if err != nil {
+			return err
+		}
+
+		if isHashed {
+			continue
+		}
+
+		pwHash, err := p.pwHasher.GeneratePasswordHash(ctx, auth, p.pwHasherParams)
+		if err != nil {
+			return err
+		}
+
+		err = storeAuth(dm, uid, pwHash)
+		if err != nil {
+			return err
+		}
+	}
+
+	return rows.Err()
+}
+
+func isArgon2idPasswordHash(pw string) (bool, error) {
+	vals := strings.Split(pw, "$")
+	if len(vals) != 6 {
+		return false, nil
+	}
+
+	var (
+		version int
+		mem     uint32
+		time    uint32
+		threads uint8
+	)
+
+	_, err := fmt.Sscanf(vals[2], "v=%d", &version)
+	if err != nil {
+		return false, err
+	}
+
+	if version != argon2.Version {
+		return false, fmt.Errorf("unsupported argon2id version: %d", version)
+	}
+
+	_, err = fmt.Sscanf(vals[3], "m=%d,t=%d,p=%d", &mem, &time, &threads)
+	if err != nil {
+		return false, err
+	}
+
+	_, err = base64.RawStdEncoding.Strict().DecodeString(vals[4])
+	if err != nil {
+		return false, err
+	}
+
+	_, err = base64.RawStdEncoding.Strict().DecodeString(vals[5])
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+func storeAuth(dm *DatabaseManager, uid uuid.UUID, auth string) error {
+	query := fmt.Sprintf("UPDATE %s SET auth_token = $1 WHERE uid = $2;", dm.tableName)
+
+	_, err := dm.db.Exec(query, &auth, uid)
+
+	return err
+}
 
 func getVersion(ctx context.Context, dm *DatabaseManager, migration *Migration) (*sql.Tx, error) {
 	_, err := dm.db.Exec(CreateTable(PostgresVersion, PostgresVersionTableName))

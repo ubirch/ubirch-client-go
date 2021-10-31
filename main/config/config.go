@@ -41,51 +41,59 @@ const (
 
 	identitiesFileName = "identities.json" // [{ "uuid": "<uuid>", "password": "<auth>" }]
 
+	defaultCSRCountry      = "DE"
+	defaultCSROrganization = "ubirch GmbH"
+
 	defaultTCPAddr = ":8080"
 
 	defaultTLSCertFile = "cert.pem"
 	defaultTLSKeyFile  = "key.pem"
+
+	defaultKeyDerivationMaxTotalMemory   = 128
+	defaultKeyDerivationParamMemory      = 16
+	defaultKeyDerivationParamTime        = 2
+	defaultKeyDerivationParamParallelism = 8
 )
 
 var IsDevelopment bool
 
-// configuration of the client
 type Config struct {
-	Devices          map[string]string `json:"devices"`                              // maps UUIDs to backend auth tokens (mandatory)
-	Secret16Base64   string            `json:"secret" envconfig:"secret"`            // 16 bytes secret used to encrypt the key store (mandatory for migration) LEGACY
-	Secret32Base64   string            `json:"secret32" envconfig:"secret32"`        // 32 byte secret used to encrypt the key store (mandatory)
-	RegisterAuth     string            `json:"registerAuth"`                         // auth token needed for new identity registration
-	Env              string            `json:"env"`                                  // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
-	PostgresDSN      string            `json:"postgresDSN" envconfig:"POSTGRES_DSN"` // data source name for postgres database
-	DbMaxConns       int               `json:"dbMaxConns" envconfig:"DB_MAX_CONNS"`  // maximum number of open connections to the database
-	CSR_Country      string            `json:"CSR_country"`                          // subject country for public key Certificate Signing Requests
-	CSR_Organization string            `json:"CSR_organization"`                     // subject organization for public key Certificate Signing Requests
-	TCP_addr         string            `json:"TCP_addr"`                             // the TCP address for the server to listen on, in the form "host:port", defaults to ":8080"
-	TLS              bool              `json:"TLS"`                                  // enable serving HTTPS endpoints, defaults to 'false'
-	TLS_CertFile     string            `json:"TLSCertFile"`                          // filename of TLS certificate file name, defaults to "cert.pem"
-	TLS_KeyFile      string            `json:"TLSKeyFile"`                           // filename of TLS key file name, defaults to "key.pem"
-	CORS             bool              `json:"CORS"`                                 // enable CORS, defaults to 'false'
-	CORS_Origins     []string          `json:"CORS_origins"`                         // list of allowed origin hosts, defaults to ["*"]
-	Debug            bool              `json:"debug"`                                // enable extended debug output, defaults to 'false'
-	LogTextFormat    bool              `json:"logTextFormat"`                        // log in text format for better human readability, default format is JSON
-	SecretBytes32    []byte            // the decoded 32 byte key store secret for database (set automatically)
-	KeyService       string            // key service URL (set automatically)
-	IdentityService  string            // identity service URL (set automatically)
-	Niomon           string            // authentication service URL (set automatically)
-	VerifyService    string            // verification service URL (set automatically)
-	ConfigDir        string            // directory where config and protocol ctx are stored (set automatically)
+	Devices            map[string]string `json:"devices"`                                             // maps UUIDs to backend auth tokens (mandatory)
+	Secret16Base64     string            `json:"secret" envconfig:"secret"`                           // 16 bytes secret used to encrypt the key store (mandatory for migration) LEGACY
+	Secret32Base64     string            `json:"secret32" envconfig:"secret32"`                       // 32 byte secret used to encrypt the key store (mandatory)
+	RegisterAuth       string            `json:"registerAuth"`                                        // auth token needed for new identity registration
+	Env                string            `json:"env"`                                                 // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
+	PostgresDSN        string            `json:"postgresDSN" envconfig:"POSTGRES_DSN"`                // data source name for postgres database
+	DbMaxConns         int               `json:"dbMaxConns" envconfig:"DB_MAX_CONNS"`                 // maximum number of open connections to the database
+	TCP_addr           string            `json:"TCP_addr"`                                            // the TCP address for the server to listen on, in the form "host:port", defaults to ":8080"
+	TLS                bool              `json:"TLS"`                                                 // enable serving HTTPS endpoints, defaults to 'false'
+	TLS_CertFile       string            `json:"TLSCertFile"`                                         // filename of TLS certificate file name, defaults to "cert.pem"
+	TLS_KeyFile        string            `json:"TLSKeyFile"`                                          // filename of TLS key file name, defaults to "key.pem"
+	CORS               bool              `json:"CORS"`                                                // enable CORS, defaults to 'false'
+	CORS_Origins       []string          `json:"CORS_origins"`                                        // list of allowed origin hosts, defaults to ["*"]
+	CSR_Country        string            `json:"CSR_country"`                                         // subject country for public key Certificate Signing Requests
+	CSR_Organization   string            `json:"CSR_organization"`                                    // subject organization for public key Certificate Signing Requests
+	Debug              bool              `json:"debug"`                                               // enable extended debug output, defaults to 'false'
+	LogTextFormat      bool              `json:"logTextFormat"`                                       // log in text format for better human readability, default format is JSON
+	KdMaxTotalMemMiB   uint32            `json:"kdMaxTotalMemMiB" envconfig:"KD_MAX_TOTAL_MEM_MIB"`   // maximal total memory to use for key derivation at a time in MiB
+	KdParamMemMiB      uint32            `json:"kdParamMemMiB" envconfig:"KD_PARAM_MEM_MIB"`          // memory parameter for key derivation, specifies the size of the memory in MiB
+	KdParamTime        uint32            `json:"kdParamTime" envconfig:"KD_PARAM_TIME"`               // time parameter for key derivation, specifies the number of passes over the memory
+	KdParamParallelism uint8             `json:"kdParamParallelism" envconfig:"KD_PARAM_PARALLELISM"` // parallelism (threads) parameter for key derivation, specifies the number of threads and can be adjusted to the number of available CPUs
+	KeyService         string            // key service URL (set automatically)
+	IdentityService    string            // identity service URL (set automatically)
+	Niomon             string            // authentication service URL (set automatically)
+	VerifyService      string            // verification service URL (set automatically)
+	SecretBytes32      []byte            // the decoded 32 byte key store secret for database (set automatically)
 }
 
 func (c *Config) Load(configDir, filename string) error {
-	c.ConfigDir = configDir
-
 	// assume that we want to load from env instead of config files, if
 	// we have the UBIRCH_SECRET env variable set.
 	var err error
 	if os.Getenv("UBIRCH_SECRET32") != "" {
 		err = c.loadEnv()
 	} else {
-		err = c.loadFile(filename)
+		err = c.loadFile(filepath.Join(configDir, filename))
 	}
 	if err != nil {
 		return err
@@ -103,7 +111,7 @@ func (c *Config) Load(configDir, filename string) error {
 		log.SetFormatter(&log.TextFormatter{FullTimestamp: true, TimestampFormat: "2006-01-02 15:04:05.000 -0700"})
 	}
 
-	err = c.loadIdentitiesFile()
+	err = c.loadIdentitiesFile(configDir)
 	if err != nil {
 		return err
 	}
@@ -113,10 +121,10 @@ func (c *Config) Load(configDir, filename string) error {
 		return err
 	}
 
-	// set defaults
 	c.setDefaultCSR()
-	c.setDefaultTLS()
+	c.setDefaultTLS(configDir)
 	c.setDefaultCORS()
+	c.setKeyDerivationParams()
 	return c.setDefaultURLs()
 }
 
@@ -128,10 +136,9 @@ func (c *Config) loadEnv() error {
 
 // LoadFile reads the configuration from a json file
 func (c *Config) loadFile(filename string) error {
-	configFile := filepath.Join(c.ConfigDir, filename)
-	log.Infof("loading configuration from file: %s", configFile)
+	log.Infof("loading configuration from file: %s", filename)
 
-	fileHandle, err := os.Open(configFile)
+	fileHandle, err := os.Open(filename)
 	if err != nil {
 		return err
 	}
@@ -154,17 +161,17 @@ func (c *Config) checkMandatory() error {
 
 func (c *Config) setDefaultCSR() {
 	if c.CSR_Country == "" {
-		c.CSR_Country = "DE"
+		c.CSR_Country = defaultCSRCountry
 	}
 	log.Debugf("CSR Subject Country: %s", c.CSR_Country)
 
 	if c.CSR_Organization == "" {
-		c.CSR_Organization = "ubirch GmbH"
+		c.CSR_Organization = defaultCSROrganization
 	}
 	log.Debugf("CSR Subject Organization: %s", c.CSR_Organization)
 }
 
-func (c *Config) setDefaultTLS() {
+func (c *Config) setDefaultTLS(configDir string) {
 	if c.TCP_addr == "" {
 		c.TCP_addr = defaultTCPAddr
 	}
@@ -176,13 +183,13 @@ func (c *Config) setDefaultTLS() {
 		if c.TLS_CertFile == "" {
 			c.TLS_CertFile = defaultTLSCertFile
 		}
-		c.TLS_CertFile = filepath.Join(c.ConfigDir, c.TLS_CertFile)
+		c.TLS_CertFile = filepath.Join(configDir, c.TLS_CertFile)
 		log.Debugf(" - Cert: %s", c.TLS_CertFile)
 
 		if c.TLS_KeyFile == "" {
 			c.TLS_KeyFile = defaultTLSKeyFile
 		}
-		c.TLS_KeyFile = filepath.Join(c.ConfigDir, c.TLS_KeyFile)
+		c.TLS_KeyFile = filepath.Join(configDir, c.TLS_KeyFile)
 		log.Debugf(" -  Key: %s", c.TLS_KeyFile)
 	}
 }
@@ -195,6 +202,24 @@ func (c *Config) setDefaultCORS() {
 			c.CORS_Origins = []string{"*"} // allow all origins
 		}
 		log.Debugf(" - Allowed Origins: %v", c.CORS_Origins)
+	}
+}
+
+func (c *Config) setKeyDerivationParams() {
+	if c.KdMaxTotalMemMiB == 0 {
+		c.KdMaxTotalMemMiB = defaultKeyDerivationMaxTotalMemory
+	}
+
+	if c.KdParamMemMiB == 0 {
+		c.KdParamMemMiB = defaultKeyDerivationParamMemory
+	}
+
+	if c.KdParamTime == 0 {
+		c.KdParamTime = defaultKeyDerivationParamTime
+	}
+
+	if c.KdParamParallelism == 0 {
+		c.KdParamParallelism = defaultKeyDerivationParamParallelism
 	}
 }
 
@@ -237,8 +262,8 @@ func (c *Config) setDefaultURLs() error {
 
 // loadIdentitiesFile loads device identities from the identities JSON file.
 // Returns without error if file does not exist.
-func (c *Config) loadIdentitiesFile() error {
-	identitiesFile := filepath.Join(c.ConfigDir, identitiesFileName)
+func (c *Config) loadIdentitiesFile(configDir string) error {
+	identitiesFile := filepath.Join(configDir, identitiesFileName)
 
 	// if file does not exist, return right away
 	if _, err := os.Stat(identitiesFile); os.IsNotExist(err) {

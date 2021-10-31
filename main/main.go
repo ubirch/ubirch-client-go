@@ -70,14 +70,14 @@ func main() {
 	log.Printf("UBIRCH client (version=%s, revision=%s)", Version, Revision)
 
 	// read configuration
-	conf := config.Config{}
+	conf := &config.Config{}
 	err := conf.Load(configDir, configFile)
 	if err != nil {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
 
 	if migrate {
-		err := repository.Migrate(conf)
+		err := repository.Migrate(conf, configDir)
 		if err != nil {
 			log.Fatalf("migration failed: %v", err)
 		}
@@ -97,7 +97,7 @@ func main() {
 	}()
 	readinessChecks = append(readinessChecks, ctxManager.IsReady)
 
-	protocol, err := repository.NewExtendedProtocol(ctxManager, conf.SecretBytes32)
+	protocol, err := repository.NewExtendedProtocol(ctxManager, conf)
 	if err != nil {
 		log.Fatal(err)
 	}

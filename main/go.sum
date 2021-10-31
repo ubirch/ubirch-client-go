@@ -112,8 +112,8 @@ github.com/stretchr/testify v1.7.0 h1:nwc3DEeHmmLAfoZucVR881uASk0Mfjw8xYJ99tb5Cc
 github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/ubirch/go.crypto v0.1.2 h1:IYMOx19UgWt4+k7PydcOVtEWFiU10O8dHoof00j8IKw=
 github.com/ubirch/go.crypto v0.1.2/go.mod h1:aiZQ37CxSBS7cBLsFbTnDxGeg5RkH7Z5LKBYeNasIrw=
-github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.2.6-0.20211028200548-b1e45815d2e3 h1:6znw8clu3aVww85p1uyuM1nAUQ0v5T/8FIB8ZEsXPeM=
-github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.2.6-0.20211028200548-b1e45815d2e3/go.mod h1:JG7PGWaipe8AGzr0QCwtS3aLvI43JCMyQAmWtJ3svwo=
+github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.2.6-0.20211030095918-6166906687b4 h1:sJFHHbiBe8ODBGieSRGas7PmMO2F4TA2zJIgyvGXo84=
+github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.2.6-0.20211030095918-6166906687b4/go.mod h1:JG7PGWaipe8AGzr0QCwtS3aLvI43JCMyQAmWtJ3svwo=
 github.com/ugorji/go v1.1.7 h1:/68gy2h+1mWMrwZFeD1kQialdSzAb432dtpeJ42ovdo=
 github.com/ugorji/go v1.1.7/go.mod h1:kZn38zHttfInRq0xu/PH0az30d+z6vm202qpg1oXVMw=
 github.com/ugorji/go/codec v1.1.7 h1:2SvQaVZ1ouYrrKKwoSk2pzd4A9evlKJb9oTL+OaLUSs=
@@ -137,6 +137,7 @@ golang.org/x/oauth2 v0.0.0-20190226205417-e64efc72b421/go.mod h1:gOpvHmFTYa4Iltr
 golang.org/x/sync v0.0.0-20181108010431-42b317875d0f/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
 golang.org/x/sync v0.0.0-20181221193216-37e7f081c4d4/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
 golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
+golang.org/x/sync v0.0.0-20201207232520-09787c993a3a h1:DcqTD9SDLc+1P/r1EmRBwnVsrOwW+kk2vWf9n+1sGhs=
 golang.org/x/sync v0.0.0-20201207232520-09787c993a3a/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
 golang.org/x/sys v0.0.0-20180905080454-ebe1bf3edb33/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
 golang.org/x/sys v0.0.0-20181116152217-5ac8a444bdc5/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=

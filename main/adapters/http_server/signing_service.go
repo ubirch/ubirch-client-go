@@ -1,6 +1,7 @@
 package http_server
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
@@ -20,7 +21,7 @@ const (
 )
 
 type SigningService struct {
-	CheckAuth func(uuid.UUID, string) (bool, bool, error)
+	CheckAuth func(context.Context, uuid.UUID, string) (bool, bool, error)
 	Sign      func(HTTPRequest, Operation) HTTPResponse
 }
 
@@ -38,7 +39,7 @@ func (s *SigningService) HandleRequest(w http.ResponseWriter, r *http.Request) {
 
 	msg.Auth = AuthToken(r.Header)
 
-	ok, found, err := s.CheckAuth(msg.ID, msg.Auth)
+	found, ok, err := s.CheckAuth(r.Context(), msg.ID, msg.Auth)
 	if err != nil {
 		log.Errorf("%s: %v", msg.ID, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -51,7 +52,7 @@ func (s *SigningService) HandleRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !ok {
-		Error(msg.ID, w, err, http.StatusUnauthorized)
+		Error(msg.ID, w, fmt.Errorf("invalid auth token"), http.StatusUnauthorized)
 		return
 	}
 

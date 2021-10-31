@@ -12,7 +12,7 @@ func TestGetContextManagerDB(t *testing.T) {
 	dbConf, err := getDatabaseConfig()
 	require.NoError(t, err)
 
-	conf := config.Config{
+	conf := &config.Config{
 		PostgresDSN: dbConf.PostgresDSN,
 		DbMaxConns:  dbConf.DbMaxConns,
 	}
@@ -28,7 +28,7 @@ func TestGetContextManagerDB(t *testing.T) {
 }
 
 func TestGetContextManagerFile(t *testing.T) {
-	conf := config.Config{}
+	conf := &config.Config{}
 
 	_, err := GetContextManager(conf)
 	assert.Error(t, err)

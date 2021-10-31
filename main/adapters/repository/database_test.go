@@ -237,7 +237,7 @@ func TestDatabaseLoad(t *testing.T) {
 	for _, testId := range testIdentities {
 		wg.Add(1)
 		go func(id ent.Identity) {
-			err := checkIdentity(dm, id, wg)
+			err := checkIdentity(dm, id, dbCheckAuth, wg)
 			if err != nil {
 				t.Errorf("%s: %v", id.Uid, err)
 			}
@@ -372,7 +372,15 @@ func storeIdentity(ctxManager ContextManager, id ent.Identity, wg *sync.WaitGrou
 	return nil
 }
 
-func checkIdentity(ctxManager ContextManager, id ent.Identity, wg *sync.WaitGroup) error {
+func dbCheckAuth(auth, authToCheck string) error {
+	if auth != authToCheck {
+		return fmt.Errorf("auth check failed")
+	}
+
+	return nil
+}
+
+func checkIdentity(ctxManager ContextManager, id ent.Identity, checkAuth func(string, string) error, wg *sync.WaitGroup) error {
 	defer wg.Done()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -416,9 +424,6 @@ func checkIdentity(ctxManager ContextManager, id ent.Identity, wg *sync.WaitGrou
 	if err != nil {
 		return fmt.Errorf("LoadAuthToken: %v", err)
 	}
-	if auth != id.AuthToken {
-		return fmt.Errorf("LoadAuthToken returned unexpected value")
-	}
 
-	return nil
+	return checkAuth(auth, id.AuthToken)
 }
