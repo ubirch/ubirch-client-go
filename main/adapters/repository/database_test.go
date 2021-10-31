@@ -41,17 +41,11 @@ func TestDatabaseManager(t *testing.T) {
 	_, err = dm.LoadSignature(tx, testIdentity.Uid)
 	assert.Equal(t, ErrNotExist, err)
 
-	_, err = dm.LoadPrivateKey(testIdentity.Uid)
-	assert.Equal(t, ErrNotExist, err)
-
-	_, err = dm.LoadPublicKey(testIdentity.Uid)
-	assert.Equal(t, ErrNotExist, err)
-
-	_, err = dm.LoadAuthToken(testIdentity.Uid)
+	_, err = dm.LoadIdentity(testIdentity.Uid)
 	assert.Equal(t, ErrNotExist, err)
 
 	// store identity
-	err = dm.StoreNewIdentity(tx, testIdentity)
+	err = dm.StoreIdentity(tx, testIdentity)
 	require.NoError(t, err)
 
 	err = tx.Commit()
@@ -66,17 +60,11 @@ func TestDatabaseManager(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, testIdentity.Signature, sig)
 
-	priv, err := dm.LoadPrivateKey(testIdentity.Uid)
+	i, err := dm.LoadIdentity(testIdentity.Uid)
 	assert.NoError(t, err)
-	assert.Equal(t, testIdentity.PrivateKey, priv)
-
-	pub, err := dm.LoadPublicKey(testIdentity.Uid)
-	assert.NoError(t, err)
-	assert.Equal(t, testIdentity.PublicKey, pub)
-
-	auth, err := dm.LoadAuthToken(testIdentity.Uid)
-	assert.NoError(t, err)
-	assert.Equal(t, testIdentity.AuthToken, auth)
+	assert.Equal(t, testIdentity.PrivateKey, i.PrivateKey)
+	assert.Equal(t, testIdentity.PublicKey, i.PublicKey)
+	assert.Equal(t, testIdentity.AuthToken, i.AuthToken)
 }
 
 func TestDatabaseManager_SetSignature(t *testing.T) {
@@ -94,7 +82,7 @@ func TestDatabaseManager_SetSignature(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tx)
 
-	err = dm.StoreNewIdentity(tx, testIdentity)
+	err = dm.StoreIdentity(tx, testIdentity)
 	require.NoError(t, err)
 
 	err = tx.Commit()
@@ -166,7 +154,7 @@ func TestStoreExisting(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tx)
 
-	err = dm.StoreNewIdentity(tx, testIdentity)
+	err = dm.StoreIdentity(tx, testIdentity)
 	require.NoError(t, err)
 
 	err = tx.Commit()
@@ -177,7 +165,7 @@ func TestStoreExisting(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tx2)
 
-	err = dm.StoreNewIdentity(tx2, testIdentity)
+	err = dm.StoreIdentity(tx2, testIdentity)
 	assert.Error(t, err)
 }
 
@@ -196,13 +184,13 @@ func TestDatabaseManager_CancelTransaction(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tx)
 
-	err = dm.StoreNewIdentity(tx, testIdentity)
+	err = dm.StoreIdentity(tx, testIdentity)
 	require.NoError(t, err)
 
 	cancel()
 
 	// check not exists
-	_, err = dm.LoadAuthToken(testIdentity.Uid)
+	_, err = dm.LoadIdentity(testIdentity.Uid)
 	assert.Equal(t, ErrNotExist, err)
 }
 
@@ -359,9 +347,9 @@ func storeIdentity(ctxManager ContextManager, id ent.Identity, wg *sync.WaitGrou
 		return fmt.Errorf("StartTransaction: %v", err)
 	}
 
-	err = ctxManager.StoreNewIdentity(tx, id)
+	err = ctxManager.StoreIdentity(tx, id)
 	if err != nil {
-		return fmt.Errorf("StoreNewIdentity: %v", err)
+		return fmt.Errorf("StoreIdentity: %v", err)
 	}
 
 	err = tx.Commit()
@@ -404,26 +392,18 @@ func checkIdentity(ctxManager ContextManager, id ent.Identity, checkAuth func(st
 		return fmt.Errorf("Commit: %v", err)
 	}
 
-	priv, err := ctxManager.LoadPrivateKey(id.Uid)
+	fetchedId, err := ctxManager.LoadIdentity(id.Uid)
 	if err != nil {
-		return fmt.Errorf("LoadPrivateKey: %v", err)
-	}
-	if !bytes.Equal(priv, id.PrivateKey) {
-		return fmt.Errorf("LoadPrivateKey returned unexpected value")
+		return fmt.Errorf("LoadIdentity: %v", err)
 	}
 
-	pub, err := ctxManager.LoadPublicKey(id.Uid)
-	if err != nil {
-		return fmt.Errorf("LoadPublicKey: %v", err)
-	}
-	if !bytes.Equal(pub, id.PublicKey) {
-		return fmt.Errorf("LoadPublicKey returned unexpected value")
+	if !bytes.Equal(fetchedId.PrivateKey, id.PrivateKey) {
+		return fmt.Errorf("unexpected private key")
 	}
 
-	auth, err := ctxManager.LoadAuthToken(id.Uid)
-	if err != nil {
-		return fmt.Errorf("LoadAuthToken: %v", err)
+	if !bytes.Equal(fetchedId.PublicKey, id.PublicKey) {
+		return fmt.Errorf("unexpected public key")
 	}
 
-	return checkAuth(auth, id.AuthToken)
+	return checkAuth(fetchedId.AuthToken, id.AuthToken)
 }

@@ -17,14 +17,11 @@ var (
 type ContextManager interface {
 	StartTransaction(context.Context) (TransactionCtx, error)
 
-	StoreNewIdentity(TransactionCtx, ent.Identity) error
+	StoreIdentity(TransactionCtx, ent.Identity) error
+	LoadIdentity(uuid.UUID) (*ent.Identity, error)
 
-	LoadSignature(TransactionCtx, uuid.UUID) ([]byte, error)
 	StoreSignature(TransactionCtx, uuid.UUID, []byte) error
-
-	LoadPrivateKey(uuid.UUID) ([]byte, error)
-	LoadPublicKey(uuid.UUID) ([]byte, error)
-	LoadAuthToken(uuid.UUID) (string, error)
+	LoadSignature(TransactionCtx, uuid.UUID) ([]byte, error)
 
 	IsReady() error
 	Close() error

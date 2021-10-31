@@ -67,9 +67,9 @@ func NewExtendedProtocol(ctxManager ContextManager, conf *config.Config) (*Exten
 	return p, nil
 }
 
-func (p *ExtendedProtocol) StoreNewIdentity(tx TransactionCtx, i ent.Identity) error {
+func (p *ExtendedProtocol) StoreIdentity(tx TransactionCtx, i ent.Identity) error {
 	// check validity of identity attributes
-	err := p.checkIdentityAttributes(i)
+	err := p.checkIdentityAttributes(&i)
 	if err != nil {
 		return err
 	}
@@ -92,7 +92,44 @@ func (p *ExtendedProtocol) StoreNewIdentity(tx TransactionCtx, i ent.Identity) e
 		return err
 	}
 
-	return p.ContextManager.StoreNewIdentity(tx, i)
+	return p.ContextManager.StoreIdentity(tx, i)
+}
+
+func (p *ExtendedProtocol) LoadIdentity(uid uuid.UUID) (*ent.Identity, error) {
+	i, err := p.ContextManager.LoadIdentity(uid)
+	if err != nil {
+		return nil, err
+	}
+
+	// check validity of identity attributes
+	err = p.checkIdentityAttributes(i)
+	if err != nil {
+		return nil, err
+	}
+
+	i.PrivateKey, err = p.keyEncrypter.Decrypt(i.PrivateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	err = p.keyCache.SetPrivateKey(uid, i.PrivateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	i.PublicKey, err = p.PublicKeyBytesToPEM(i.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+
+	err = p.keyCache.SetPublicKey(uid, i.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+
+	p.authCache.Store(uid, i.AuthToken)
+
+	return i, nil
 }
 
 // StoreSignature stores the signature and commits the transaction
@@ -112,20 +149,12 @@ func (p *ExtendedProtocol) StoreSignature(tx TransactionCtx, uid uuid.UUID, sign
 func (p *ExtendedProtocol) LoadPrivateKey(uid uuid.UUID) (privKeyPEM []byte, err error) {
 	privKeyPEM, err = p.keyCache.GetPrivateKey(uid)
 	if err != nil {
-		encryptedPriv, err := p.ContextManager.LoadPrivateKey(uid)
+		i, err := p.LoadIdentity(uid)
 		if err != nil {
 			return nil, err
 		}
 
-		privKeyPEM, err = p.keyEncrypter.Decrypt(encryptedPriv)
-		if err != nil {
-			return nil, err
-		}
-
-		err = p.keyCache.SetPrivateKey(uid, privKeyPEM)
-		if err != nil {
-			return nil, err
-		}
+		privKeyPEM = i.PrivateKey
 	}
 
 	return privKeyPEM, nil
@@ -134,20 +163,12 @@ func (p *ExtendedProtocol) LoadPrivateKey(uid uuid.UUID) (privKeyPEM []byte, err
 func (p *ExtendedProtocol) LoadPublicKey(uid uuid.UUID) (pubKeyPEM []byte, err error) {
 	pubKeyPEM, err = p.keyCache.GetPublicKey(uid)
 	if err != nil {
-		publicKeyBytes, err := p.ContextManager.LoadPublicKey(uid)
+		i, err := p.LoadIdentity(uid)
 		if err != nil {
 			return nil, err
 		}
 
-		pubKeyPEM, err = p.PublicKeyBytesToPEM(publicKeyBytes)
-		if err != nil {
-			return nil, err
-		}
-
-		err = p.keyCache.SetPublicKey(uid, pubKeyPEM)
-		if err != nil {
-			return nil, err
-		}
+		pubKeyPEM = i.PublicKey
 	}
 
 	return pubKeyPEM, nil
@@ -161,16 +182,12 @@ func (p *ExtendedProtocol) LoadAuthToken(uid uuid.UUID) (auth string, err error)
 	}
 
 	if !found {
-		auth, err = p.ContextManager.LoadAuthToken(uid)
+		i, err := p.LoadIdentity(uid)
 		if err != nil {
 			return "", err
 		}
 
-		if len(auth) == 0 {
-			return "", fmt.Errorf("%s: empty auth token", uid)
-		}
-
-		p.authCache.Store(uid, auth)
+		auth = i.AuthToken
 	}
 
 	return auth, nil
@@ -204,7 +221,7 @@ func (p *ExtendedProtocol) CheckAuth(ctx context.Context, uid uuid.UUID, authToC
 	return found, ok, err
 }
 
-func (p *ExtendedProtocol) checkIdentityAttributes(i ent.Identity) error {
+func (p *ExtendedProtocol) checkIdentityAttributes(i *ent.Identity) error {
 	if i.Uid == uuid.Nil {
 		return fmt.Errorf("uuid has Nil value: %s", i.Uid)
 	}

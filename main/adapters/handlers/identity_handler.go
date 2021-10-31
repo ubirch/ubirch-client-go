@@ -103,7 +103,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) (csrPEM []byt
 		return nil, err
 	}
 
-	err = i.Protocol.StoreNewIdentity(tx, newIdentity)
+	err = i.Protocol.StoreIdentity(tx, newIdentity)
 	if err != nil {
 		return nil, err
 	}

@@ -58,7 +58,7 @@ func TestProtocol(t *testing.T) {
 	tx, err = p.StartTransaction(ctx)
 	require.NoError(t, err)
 
-	err = p.StoreNewIdentity(tx, testIdentity)
+	err = p.StoreIdentity(tx, testIdentity)
 	require.NoError(t, err)
 
 	err = tx.Commit()
@@ -133,7 +133,7 @@ func TestExtendedProtocol_StoreSignature(t *testing.T) {
 	tx, err := p.StartTransaction(ctx)
 	require.NoError(t, err)
 
-	err = p.StoreNewIdentity(tx, testIdentity)
+	err = p.StoreIdentity(tx, testIdentity)
 	require.NoError(t, err)
 
 	err = tx.Commit()
@@ -184,7 +184,7 @@ func TestExtendedProtocol_BadStoreSignature(t *testing.T) {
 	tx, err := p.StartTransaction(ctx)
 	require.NoError(t, err)
 
-	err = p.StoreNewIdentity(tx, testIdentity)
+	err = p.StoreIdentity(tx, testIdentity)
 	require.NoError(t, err)
 
 	err = tx.Commit()
@@ -224,7 +224,7 @@ func Test_StoreNewIdentity_BadUUID(t *testing.T) {
 	tx, err := p.StartTransaction(ctx)
 	require.NoError(t, err)
 
-	err = p.StoreNewIdentity(tx, i)
+	err = p.StoreIdentity(tx, i)
 	assert.Error(t, err)
 }
 
@@ -252,7 +252,7 @@ func Test_StoreNewIdentity_NilPrivateKey(t *testing.T) {
 	tx, err := p.StartTransaction(ctx)
 	require.NoError(t, err)
 
-	err = p.StoreNewIdentity(tx, i)
+	err = p.StoreIdentity(tx, i)
 	assert.Error(t, err)
 }
 
@@ -280,7 +280,7 @@ func Test_StoreNewIdentity_BadPrivateKey(t *testing.T) {
 	tx, err := p.StartTransaction(ctx)
 	require.NoError(t, err)
 
-	err = p.StoreNewIdentity(tx, i)
+	err = p.StoreIdentity(tx, i)
 	assert.Error(t, err)
 }
 
@@ -308,7 +308,7 @@ func Test_StoreNewIdentity_NilPublicKey(t *testing.T) {
 	tx, err := p.StartTransaction(ctx)
 	require.NoError(t, err)
 
-	err = p.StoreNewIdentity(tx, i)
+	err = p.StoreIdentity(tx, i)
 	assert.Error(t, err)
 }
 
@@ -336,7 +336,7 @@ func Test_StoreNewIdentity_BadPublicKey(t *testing.T) {
 	tx, err := p.StartTransaction(ctx)
 	require.NoError(t, err)
 
-	err = p.StoreNewIdentity(tx, i)
+	err = p.StoreIdentity(tx, i)
 	assert.Error(t, err)
 }
 
@@ -364,7 +364,7 @@ func Test_StoreNewIdentity_BadSignature(t *testing.T) {
 	tx, err := p.StartTransaction(ctx)
 	require.NoError(t, err)
 
-	err = p.StoreNewIdentity(tx, i)
+	err = p.StoreIdentity(tx, i)
 	assert.Error(t, err)
 }
 
@@ -392,7 +392,7 @@ func Test_StoreNewIdentity_BadAuth(t *testing.T) {
 	tx, err := p.StartTransaction(ctx)
 	require.NoError(t, err)
 
-	err = p.StoreNewIdentity(tx, i)
+	err = p.StoreIdentity(tx, i)
 	assert.Error(t, err)
 }
 
@@ -420,7 +420,7 @@ func TestExtendedProtocol_CheckAuth(t *testing.T) {
 	tx, err := p.StartTransaction(ctx)
 	require.NoError(t, err)
 
-	err = p.StoreNewIdentity(tx, i)
+	err = p.StoreIdentity(tx, i)
 	require.NoError(t, err)
 
 	err = tx.Commit()
@@ -456,7 +456,7 @@ func TestExtendedProtocol_CheckAuth_Invalid(t *testing.T) {
 	tx, err := p.StartTransaction(ctx)
 	require.NoError(t, err)
 
-	err = p.StoreNewIdentity(tx, i)
+	err = p.StoreIdentity(tx, i)
 	require.NoError(t, err)
 
 	err = tx.Commit()
@@ -514,7 +514,7 @@ func TestProtocol_Cache(t *testing.T) {
 	tx, err := p.StartTransaction(ctx)
 	require.NoError(t, err)
 
-	err = p.StoreNewIdentity(tx, testIdentity)
+	err = p.StoreIdentity(tx, testIdentity)
 	require.NoError(t, err)
 
 	err = tx.Commit()
@@ -624,7 +624,7 @@ func (m *mockCtxMngr) StartTransaction(ctx context.Context) (TransactionCtx, err
 	}, nil
 }
 
-func (m *mockCtxMngr) StoreNewIdentity(t TransactionCtx, id ent.Identity) error {
+func (m *mockCtxMngr) StoreIdentity(t TransactionCtx, id ent.Identity) error {
 	tx, ok := t.(*mockTx)
 	if !ok {
 		return fmt.Errorf("transactionCtx for mockCtxMngr is not of expected type *mockTx")
@@ -633,19 +633,12 @@ func (m *mockCtxMngr) StoreNewIdentity(t TransactionCtx, id ent.Identity) error 
 	return nil
 }
 
-func (m *mockCtxMngr) LoadSignature(t TransactionCtx, u uuid.UUID) ([]byte, error) {
-	tx, ok := t.(*mockTx)
-	if !ok {
-		return nil, fmt.Errorf("transactionCtx for mockCtxMngr is not of expected type *mockTx")
-	}
-
+func (m *mockCtxMngr) LoadIdentity(u uuid.UUID) (*ent.Identity, error) {
 	if m.id.Uid == uuid.Nil || m.id.Uid != u {
 		return nil, ErrNotExist
 	}
-
-	tx.idBuf = m.id
-
-	return m.id.Signature, nil
+	id := m.id
+	return &id, nil
 }
 
 func (m *mockCtxMngr) StoreSignature(t TransactionCtx, u uuid.UUID, s []byte) error {
@@ -662,25 +655,19 @@ func (m *mockCtxMngr) StoreSignature(t TransactionCtx, u uuid.UUID, s []byte) er
 	return nil
 }
 
-func (m *mockCtxMngr) LoadPrivateKey(u uuid.UUID) ([]byte, error) {
+func (m *mockCtxMngr) LoadSignature(t TransactionCtx, u uuid.UUID) ([]byte, error) {
+	tx, ok := t.(*mockTx)
+	if !ok {
+		return nil, fmt.Errorf("transactionCtx for mockCtxMngr is not of expected type *mockTx")
+	}
+
 	if m.id.Uid == uuid.Nil || m.id.Uid != u {
 		return nil, ErrNotExist
 	}
-	return m.id.PrivateKey, nil
-}
 
-func (m *mockCtxMngr) LoadPublicKey(u uuid.UUID) ([]byte, error) {
-	if m.id.Uid == uuid.Nil || m.id.Uid != u {
-		return nil, ErrNotExist
-	}
-	return m.id.PublicKey, nil
-}
+	tx.idBuf = m.id
 
-func (m *mockCtxMngr) LoadAuthToken(u uuid.UUID) (string, error) {
-	if m.id.Uid == uuid.Nil || m.id.Uid != u {
-		return "", ErrNotExist
-	}
-	return m.id.AuthToken, nil
+	return m.id.Signature, nil
 }
 
 func (m *mockCtxMngr) IsReady() error {

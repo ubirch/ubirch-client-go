@@ -190,7 +190,7 @@ func migrateIdentities(p *ExtendedProtocol, identities []ent.Identity) error {
 			continue
 		}
 
-		err = p.StoreNewIdentity(tx, id)
+		err = p.StoreIdentity(tx, id)
 		if err != nil {
 			return err
 		}

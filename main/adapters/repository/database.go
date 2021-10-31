@@ -109,7 +109,7 @@ func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx
 	return transactionCtx, err
 }
 
-func (dm *DatabaseManager) StoreNewIdentity(transactionCtx TransactionCtx, identity ent.Identity) error {
+func (dm *DatabaseManager) StoreIdentity(transactionCtx TransactionCtx, i ent.Identity) error {
 	tx, ok := transactionCtx.(*sql.Tx)
 	if !ok {
 		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
@@ -119,7 +119,36 @@ func (dm *DatabaseManager) StoreNewIdentity(transactionCtx TransactionCtx, ident
 		"INSERT INTO %s (uid, private_key, public_key, signature, auth_token) VALUES ($1, $2, $3, $4, $5);",
 		dm.tableName)
 
-	_, err := tx.Exec(query, &identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.Signature, &identity.AuthToken)
+	_, err := tx.Exec(query, &i.Uid, &i.PrivateKey, &i.PublicKey, &i.Signature, &i.AuthToken)
+
+	return err
+}
+
+func (dm *DatabaseManager) LoadIdentity(uid uuid.UUID) (*ent.Identity, error) {
+	i := ent.Identity{}
+
+	err := retry(func() error {
+		query := fmt.Sprintf("SELECT * FROM %s WHERE uid = $1", dm.tableName)
+
+		err := dm.db.QueryRow(query, uid.String()).Scan(&i.Uid, &i.PrivateKey, &i.PublicKey, &i.Signature, &i.AuthToken)
+		if err == sql.ErrNoRows {
+			return ErrNotExist
+		}
+		return err
+	})
+
+	return &i, err
+}
+
+func (dm *DatabaseManager) StoreSignature(transactionCtx TransactionCtx, uid uuid.UUID, signature []byte) error {
+	tx, ok := transactionCtx.(*sql.Tx)
+	if !ok {
+		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
+	}
+
+	query := fmt.Sprintf("UPDATE %s SET signature = $1 WHERE uid = $2;", dm.tableName)
+
+	_, err := tx.Exec(query, &signature, uid)
 
 	return err
 }
@@ -138,61 +167,6 @@ func (dm *DatabaseManager) LoadSignature(transactionCtx TransactionCtx, uid uuid
 	}
 
 	return signature, err
-}
-
-func (dm *DatabaseManager) StoreSignature(transactionCtx TransactionCtx, uid uuid.UUID, signature []byte) error {
-	tx, ok := transactionCtx.(*sql.Tx)
-	if !ok {
-		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
-	}
-
-	query := fmt.Sprintf("UPDATE %s SET signature = $1 WHERE uid = $2;", dm.tableName)
-
-	_, err := tx.Exec(query, &signature, uid)
-
-	return err
-}
-
-func (dm *DatabaseManager) LoadPrivateKey(uid uuid.UUID) (privateKey []byte, err error) {
-	err = retry(func() error {
-		query := fmt.Sprintf("SELECT private_key FROM %s WHERE uid = $1", dm.tableName)
-
-		err := dm.db.QueryRow(query, uid).Scan(&privateKey)
-		if err == sql.ErrNoRows {
-			return ErrNotExist
-		}
-		return err
-	})
-
-	return privateKey, err
-}
-
-func (dm *DatabaseManager) LoadPublicKey(uid uuid.UUID) (publicKey []byte, err error) {
-	err = retry(func() error {
-		query := fmt.Sprintf("SELECT public_key FROM %s WHERE uid = $1", dm.tableName)
-
-		err := dm.db.QueryRow(query, uid).Scan(&publicKey)
-		if err == sql.ErrNoRows {
-			return ErrNotExist
-		}
-		return err
-	})
-
-	return publicKey, err
-}
-
-func (dm *DatabaseManager) LoadAuthToken(uid uuid.UUID) (authToken string, err error) {
-	err = retry(func() error {
-		query := fmt.Sprintf("SELECT auth_token FROM %s WHERE uid = $1", dm.tableName)
-
-		err := dm.db.QueryRow(query, uid).Scan(&authToken)
-		if err == sql.ErrNoRows {
-			return ErrNotExist
-		}
-		return err
-	})
-
-	return authToken, err
 }
 
 func retry(f func() error) (err error) {
