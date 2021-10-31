@@ -107,6 +107,7 @@ func (p *ExtendedProtocol) LoadIdentity(uid uuid.UUID) (*ent.Identity, error) {
 		return nil, err
 	}
 
+	// load caches
 	i.PrivateKey, err = p.keyEncrypter.Decrypt(i.PrivateKey)
 	if err != nil {
 		return nil, err
