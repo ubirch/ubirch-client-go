@@ -60,6 +60,8 @@ func (i *IdentityHandler) InitIdentities(identities map[string]string) error {
 }
 
 func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) (csrPEM []byte, err error) {
+	log.Infof("%s: initializing identity", uid)
+
 	initialized, err := i.Protocol.IsInitialized(uid)
 	if err != nil {
 		return nil, fmt.Errorf("could not check if identity is already initialized: %v", err)
@@ -116,8 +118,6 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) (csrPEM []byt
 	if err != nil {
 		return nil, fmt.Errorf("commiting transaction to store new identity failed after successful registration at ubirch identity service: %v", err)
 	}
-
-	log.Infof("%s: identity initialized", uid)
 
 	return csrPEM, nil
 }
