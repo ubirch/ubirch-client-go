@@ -98,6 +98,74 @@ func TestProtocol(t *testing.T) {
 	assert.True(t, ok)
 }
 
+func TestExtendedProtocol_LoadPrivateKey(t *testing.T) {
+	testSecret := make([]byte, 32)
+	rand.Read(testSecret)
+
+	conf := &config.Config{
+		SecretBytes32:      testSecret,
+		KdMaxTotalMemMiB:   4,
+		KdParamMemMiB:      2,
+		KdParamTime:        1,
+		KdParamParallelism: 2,
+	}
+
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
+	require.NoError(t, err)
+
+	i := generateRandomIdentity()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := p.StartTransaction(ctx)
+	require.NoError(t, err)
+
+	err = p.StoreIdentity(tx, i)
+	require.NoError(t, err)
+
+	err = tx.Commit()
+	require.NoError(t, err)
+
+	priv, err := p.LoadPrivateKey(i.Uid)
+	require.NoError(t, err)
+	assert.Equal(t, i.PrivateKey, priv)
+}
+
+func TestExtendedProtocol_LoadPublicKey(t *testing.T) {
+	testSecret := make([]byte, 32)
+	rand.Read(testSecret)
+
+	conf := &config.Config{
+		SecretBytes32:      testSecret,
+		KdMaxTotalMemMiB:   4,
+		KdParamMemMiB:      2,
+		KdParamTime:        1,
+		KdParamParallelism: 2,
+	}
+
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
+	require.NoError(t, err)
+
+	i := generateRandomIdentity()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := p.StartTransaction(ctx)
+	require.NoError(t, err)
+
+	err = p.StoreIdentity(tx, i)
+	require.NoError(t, err)
+
+	err = tx.Commit()
+	require.NoError(t, err)
+
+	pub, err := p.LoadPublicKey(i.Uid)
+	require.NoError(t, err)
+	assert.Equal(t, i.PublicKey, pub)
+}
+
 func TestNewExtendedProtocol_BadSecret(t *testing.T) {
 	badSecret := make([]byte, 31)
 	rand.Read(badSecret)
