@@ -92,17 +92,11 @@ func (dm *DatabaseManager) IsReady() error {
 	if err := dm.db.Ping(); err != nil {
 		return fmt.Errorf("database not ready: %v", err)
 	}
-
-	// create table if it does not exist yet
-	_, err := dm.db.Exec(CreateTable(PostgresIdentity, dm.tableName))
-	if err != nil {
-		return fmt.Errorf("database connection was established but creating table failed: %v", err)
-	}
 	return nil
 }
 
 func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx TransactionCtx, err error) {
-	err = retry(func() error {
+	err = dm.retry(func() error {
 		transactionCtx, err = dm.db.BeginTx(ctx, dm.options)
 		return err
 	})
@@ -129,7 +123,7 @@ func (dm *DatabaseManager) LoadIdentity(uid uuid.UUID) (*ent.Identity, error) {
 
 	query := fmt.Sprintf("SELECT * FROM %s WHERE uid = $1", dm.tableName)
 
-	err := retry(func() error {
+	err := dm.retry(func() error {
 		err := dm.db.QueryRow(query, uid.String()).Scan(&i.Uid, &i.PrivateKey, &i.PublicKey, &i.Signature, &i.AuthToken)
 		if err == sql.ErrNoRows {
 			return ErrNotExist
@@ -169,10 +163,10 @@ func (dm *DatabaseManager) LoadSignature(transactionCtx TransactionCtx, uid uuid
 	return signature, err
 }
 
-func retry(f func() error) (err error) {
+func (dm *DatabaseManager) retry(f func() error) (err error) {
 	for retries := 0; retries <= maxRetries; retries++ {
 		err = f()
-		if err == nil || !isRecoverable(err) {
+		if err == nil || !dm.isRecoverable(err) {
 			break
 		}
 		log.Warnf("database recoverable error: %v (%d / %d)", err, retries+1, maxRetries+1)
@@ -181,9 +175,15 @@ func retry(f func() error) (err error) {
 	return err
 }
 
-func isRecoverable(err error) bool {
+func (dm *DatabaseManager) isRecoverable(err error) bool {
 	if pqErr, ok := err.(*pq.Error); ok {
 		switch pqErr.Code {
+		case "42P01": // undefined_table
+			_, err = dm.db.Exec(CreateTable(PostgresIdentity, dm.tableName))
+			if err != nil {
+				log.Errorf("creating DB table failed: %v", err)
+			}
+			return true
 		case "55P03", "53300", "53400": // lock_not_available, too_many_connections, configuration_limit_exceeded
 			time.Sleep(10 * time.Millisecond)
 			return true
