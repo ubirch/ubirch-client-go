@@ -87,7 +87,7 @@ func TestProtocol(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, testIdentity.PublicKey, pub)
 
-	found, ok, err := p.CheckAuth(context.Background(), testIdentity.Uid, testIdentity.AuthToken)
+	ok, found, err := p.CheckAuth(context.Background(), testIdentity.Uid, testIdentity.AuthToken)
 	require.NoError(t, err)
 	assert.True(t, found)
 	assert.True(t, ok)
@@ -426,7 +426,7 @@ func TestExtendedProtocol_CheckAuth(t *testing.T) {
 	err = tx.Commit()
 	require.NoError(t, err)
 
-	found, ok, err := p.CheckAuth(context.Background(), i.Uid, i.AuthToken)
+	ok, found, err := p.CheckAuth(context.Background(), i.Uid, i.AuthToken)
 	require.NoError(t, err)
 	assert.True(t, found)
 	assert.True(t, ok)
@@ -462,7 +462,7 @@ func TestExtendedProtocol_CheckAuth_Invalid(t *testing.T) {
 	err = tx.Commit()
 	require.NoError(t, err)
 
-	found, ok, err := p.CheckAuth(context.Background(), i.Uid, "invalid auth")
+	ok, found, err := p.CheckAuth(context.Background(), i.Uid, "invalid auth")
 	require.NoError(t, err)
 	assert.True(t, found)
 	assert.False(t, ok)
@@ -483,7 +483,7 @@ func TestExtendedProtocol_CheckAuth_NotFound(t *testing.T) {
 	p, err := NewExtendedProtocol(&mockCtxMngr{}, conf)
 	require.NoError(t, err)
 
-	found, ok, err := p.CheckAuth(context.Background(), uuid.New(), "auth")
+	ok, found, err := p.CheckAuth(context.Background(), uuid.New(), "auth")
 	require.NoError(t, err)
 	assert.False(t, found)
 	assert.False(t, ok)

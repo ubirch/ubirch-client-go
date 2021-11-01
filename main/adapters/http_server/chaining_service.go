@@ -30,7 +30,7 @@ func (s *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) 
 
 	msg.Auth = AuthToken(r.Header)
 
-	found, ok, err := s.CheckAuth(r.Context(), msg.ID, msg.Auth)
+	ok, found, err := s.CheckAuth(r.Context(), msg.ID, msg.Auth)
 	if err != nil {
 		log.Errorf("%s: %v", msg.ID, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
