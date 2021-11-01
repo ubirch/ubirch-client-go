@@ -45,12 +45,10 @@ func (i *IdentityHandler) InitIdentities(identities map[string]string) error {
 			return fmt.Errorf("invalid identity name \"%s\" (not a UUID): %s", name, err)
 		}
 
-		// make sure identity has an auth token
-		if len(auth) == 0 {
-			return fmt.Errorf("missing auth token for identity %s", name)
-		}
-
 		_, err = i.InitIdentity(uid, auth)
+		if err == h.ErrAlreadyInitialized {
+			continue
+		}
 		if err != nil {
 			return err
 		}

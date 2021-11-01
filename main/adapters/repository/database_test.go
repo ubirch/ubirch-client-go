@@ -321,6 +321,16 @@ func generateRandomIdentity() ent.Identity {
 		panic(err)
 	}
 
+	priv, err := keystore.GetPrivateKey(uid)
+	if err != nil {
+		panic(err)
+	}
+
+	pub, err := keystore.GetPublicKey(uid)
+	if err != nil {
+		panic(err)
+	}
+
 	sig := make([]byte, 64)
 	rand.Read(sig)
 
@@ -329,8 +339,8 @@ func generateRandomIdentity() ent.Identity {
 
 	return ent.Identity{
 		Uid:        uuid.New(),
-		PrivateKey: keystore.priv,
-		PublicKey:  keystore.pub,
+		PrivateKey: priv,
+		PublicKey:  pub,
 		Signature:  sig,
 		AuthToken:  base64.StdEncoding.EncodeToString(auth),
 	}
