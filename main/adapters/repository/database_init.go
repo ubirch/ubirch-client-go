@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/config"
@@ -47,7 +48,20 @@ func CreateTable(tableType int, tableName string) string {
 }
 
 func Migrate(c *config.Config, configDir string) error {
-	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, PostgresIdentityTableName, 3)
+	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, PostgresIdentityTableName, c.DbMaxConns)
+	if err != nil {
+		return err
+	}
+
+	for i := 0; i < 10; i++ {
+		err = dm.IsReady()
+		if err != nil {
+			log.Warn(err)
+			time.Sleep(3 * time.Second)
+			continue
+		}
+		break
+	}
 	if err != nil {
 		return err
 	}
