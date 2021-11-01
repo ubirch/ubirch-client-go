@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/ubirch/ubirch-client-go/main/ent"
@@ -34,17 +35,22 @@ func TestDatabaseManager(t *testing.T) {
 	defer cancel()
 
 	// check not exists
+	_, err = dm.LoadIdentity(testIdentity.Uid)
+	assert.Equal(t, ErrNotExist, err)
+
 	tx, err := dm.StartTransaction(ctx)
 	require.NoError(t, err)
-	require.NotNil(t, tx)
 
 	_, err = dm.LoadSignature(tx, testIdentity.Uid)
 	assert.Equal(t, ErrNotExist, err)
 
-	_, err = dm.LoadIdentity(testIdentity.Uid)
-	assert.Equal(t, ErrNotExist, err)
+	err = tx.Commit()
+	require.NoError(t, err)
 
 	// store identity
+	tx, err = dm.StartTransaction(ctx)
+	require.NoError(t, err)
+
 	err = dm.StoreIdentity(tx, testIdentity)
 	require.NoError(t, err)
 
@@ -212,10 +218,10 @@ func TestDatabaseLoad(t *testing.T) {
 	// store identities
 	for i, testId := range testIdentities {
 		wg.Add(1)
-		go func(idx int, identity ent.Identity) {
-			err := storeIdentity(dm, identity, wg)
+		go func(idx int, id ent.Identity) {
+			err := storeIdentity(dm, id, wg)
 			if err != nil {
-				t.Errorf("%s: identity could not be stored: %v", identity.Uid, err)
+				t.Errorf("%s: identity could not be stored: %v", id.Uid, err)
 			}
 		}(i, testId)
 	}
@@ -239,6 +245,38 @@ func TestDatabaseLoad(t *testing.T) {
 	//}
 }
 
+func TestDatabaseManager_Retry(t *testing.T) {
+	c, err := getDatabaseConfig()
+	require.NoError(t, err)
+
+	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, testTableName, 101)
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	wg := &sync.WaitGroup{}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	for i := 0; i < 101; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			_, err := dm.StartTransaction(ctx)
+			if err != nil {
+				if pqErr, ok := err.(*pq.Error); ok {
+					switch pqErr.Code {
+					case "55P03", "53300", "53400":
+						return
+					}
+				}
+				t.Error(err)
+			}
+		}()
+	}
+	wg.Wait()
+}
+
 type dbConfig struct {
 	PostgresDSN string
 	DbMaxConns  int
@@ -259,17 +297,10 @@ func getDatabaseConfig() (*dbConfig, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer fileHandle.Close()
 
 	c := &dbConfig{}
 	err = json.NewDecoder(fileHandle).Decode(c)
-	if err != nil {
-		if fileCloseErr := fileHandle.Close(); fileCloseErr != nil {
-			fmt.Print(fileCloseErr)
-		}
-		return nil, err
-	}
-
-	err = fileHandle.Close()
 	if err != nil {
 		return nil, err
 	}
@@ -284,11 +315,6 @@ func initDB() (*DatabaseManager, error) {
 	}
 
 	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, testTableName, c.DbMaxConns)
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = dm.db.Exec(CreateTable(PostgresIdentity, dm.tableName))
 	if err != nil {
 		return nil, err
 	}
@@ -381,27 +407,6 @@ func dbCheckAuth(auth, authToCheck string) error {
 func checkIdentity(ctxManager ContextManager, id ent.Identity, checkAuth func(string, string) error, wg *sync.WaitGroup) error {
 	defer wg.Done()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	tx, err := ctxManager.StartTransaction(ctx)
-	if err != nil {
-		return fmt.Errorf("StartTransaction: %v", err)
-	}
-
-	sig, err := ctxManager.LoadSignature(tx, id.Uid)
-	if err != nil {
-		return fmt.Errorf("LoadSignature: %v", err)
-	}
-	if !bytes.Equal(sig, id.Signature) {
-		return fmt.Errorf("LoadSignature returned unexpected value")
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return fmt.Errorf("Commit: %v", err)
-	}
-
 	fetchedId, err := ctxManager.LoadIdentity(id.Uid)
 	if err != nil {
 		return fmt.Errorf("LoadIdentity: %v", err)
@@ -415,5 +420,32 @@ func checkIdentity(ctxManager ContextManager, id ent.Identity, checkAuth func(st
 		return fmt.Errorf("unexpected public key")
 	}
 
-	return checkAuth(fetchedId.AuthToken, id.AuthToken)
+	err = checkAuth(fetchedId.AuthToken, id.AuthToken)
+	if err != nil {
+		return fmt.Errorf("checkAuth: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := ctxManager.StartTransaction(ctx)
+	if err != nil {
+		return fmt.Errorf("StartTransaction: %v", err)
+	}
+
+	sig, err := ctxManager.LoadSignature(tx, id.Uid)
+	if err != nil {
+		return fmt.Errorf("LoadSignature: %v", err)
+	}
+
+	if !bytes.Equal(sig, id.Signature) {
+		return fmt.Errorf("LoadSignature returned unexpected value")
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("Commit: %v", err)
+	}
+
+	return nil
 }

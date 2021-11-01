@@ -67,9 +67,9 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string, maxConns int) (*Databa
 		tableName: tableName,
 	}
 
-	if err = pg.Ping(); err != nil {
+	if err = dm.IsReady(); err != nil {
 		// if there is no connection to the database yet, continue anyway.
-		log.Warnf("database ping failed: %v", err)
+		log.Warn(err)
 	} else {
 		_, err = dm.db.Exec(CreateTable(PostgresIdentity, tableName))
 		if err != nil {
@@ -127,9 +127,9 @@ func (dm *DatabaseManager) StoreIdentity(transactionCtx TransactionCtx, i ent.Id
 func (dm *DatabaseManager) LoadIdentity(uid uuid.UUID) (*ent.Identity, error) {
 	i := ent.Identity{}
 
-	err := retry(func() error {
-		query := fmt.Sprintf("SELECT * FROM %s WHERE uid = $1", dm.tableName)
+	query := fmt.Sprintf("SELECT * FROM %s WHERE uid = $1", dm.tableName)
 
+	err := retry(func() error {
 		err := dm.db.QueryRow(query, uid.String()).Scan(&i.Uid, &i.PrivateKey, &i.PublicKey, &i.Signature, &i.AuthToken)
 		if err == sql.ErrNoRows {
 			return ErrNotExist
@@ -175,17 +175,20 @@ func retry(f func() error) (err error) {
 		if err == nil || !isRecoverable(err) {
 			break
 		}
-		log.Warnf("database recoverable error: %v (%d / %d)", err, retries, maxRetries)
+		log.Warnf("database recoverable error: %v (%d / %d)", err, retries+1, maxRetries+1)
 	}
 
 	return err
 }
 
 func isRecoverable(err error) bool {
-	if err.Error() == pq.ErrorCode("53300").Name() || // "53300": "too_many_connections",
-		err.Error() == pq.ErrorCode("53400").Name() { // "53400": "configuration_limit_exceeded",
-		time.Sleep(10 * time.Millisecond)
-		return true
+	if pqErr, ok := err.(*pq.Error); ok {
+		switch pqErr.Code {
+		case "55P03", "53300", "53400": // lock_not_available, too_many_connections, configuration_limit_exceeded
+			time.Sleep(10 * time.Millisecond)
+			return true
+		}
+		log.Errorf("%s = %s", err, pqErr.Code)
 	}
 	return false
 }

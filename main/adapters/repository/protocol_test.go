@@ -636,9 +636,11 @@ func TestProtocolLoad(t *testing.T) {
 	// store identities
 	for _, testId := range testIdentities {
 		wg.Add(1)
-		go func(identity ent.Identity) {
-			err := storeIdentity(p, identity, wg)
-			assert.NoError(t, err)
+		go func(id ent.Identity) {
+			err := storeIdentity(p, id, wg)
+			if err != nil {
+				t.Errorf("%s: identity could not be stored: %v", id.Uid, err)
+			}
 		}(testId)
 	}
 	wg.Wait()
@@ -648,7 +650,9 @@ func TestProtocolLoad(t *testing.T) {
 		wg.Add(1)
 		go func(id ent.Identity) {
 			err := checkIdentity(p, id, protocolCheckAuth, wg)
-			assert.NoError(t, err)
+			if err != nil {
+				t.Errorf("%s: %v", id.Uid, err)
+			}
 		}(testId)
 	}
 	wg.Wait()
