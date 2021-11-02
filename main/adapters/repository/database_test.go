@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/ubirch/ubirch-client-go/main/config"
 	"github.com/ubirch/ubirch-client-go/main/ent"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
@@ -246,7 +248,7 @@ func TestDatabaseLoad(t *testing.T) {
 }
 
 func TestDatabaseManager_Retry(t *testing.T) {
-	c, err := getDatabaseConfig()
+	c, err := getConfig()
 	require.NoError(t, err)
 
 	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, testIdentityTableName, 101)
@@ -277,19 +279,14 @@ func TestDatabaseManager_Retry(t *testing.T) {
 	wg.Wait()
 }
 
-type dbConfig struct {
-	PostgresDSN string
-	DbMaxConns  int
-}
-
-func getDatabaseConfig() (*dbConfig, error) {
-	configFileName := "../../config.json"
-	fileHandle, err := os.Open(configFileName)
+func getConfig() (*config.Config, error) {
+	configFileName := "config.json"
+	fileHandle, err := os.Open(filepath.Join("../../", configFileName))
 	if os.IsNotExist(err) {
 		return nil, fmt.Errorf("%v \n"+
 			"--------------------------------------------------------------------------------\n"+
-			"Please provide a configuration file \"%s\" which contains a DSN for\n"+
-			"a postgres database in order to test the database connection.\n"+
+			"Please provide a configuration file \"%s\" in the main directory which contains\n"+
+			"a DSN for a postgres database in order to test the database context management.\n\n"+
 			"{\n\t\"postgresDSN\": \"postgres://<username>:<password>@<hostname>:5432/<database>\"\n}\n"+
 			"--------------------------------------------------------------------------------",
 			err, configFileName)
@@ -299,7 +296,7 @@ func getDatabaseConfig() (*dbConfig, error) {
 	}
 	defer fileHandle.Close()
 
-	c := &dbConfig{}
+	c := &config.Config{}
 	err = json.NewDecoder(fileHandle).Decode(c)
 	if err != nil {
 		return nil, err
@@ -309,7 +306,7 @@ func getDatabaseConfig() (*dbConfig, error) {
 }
 
 func initDB() (*DatabaseManager, error) {
-	c, err := getDatabaseConfig()
+	c, err := getConfig()
 	if err != nil {
 		return nil, err
 	}

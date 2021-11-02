@@ -30,7 +30,7 @@ func setupMigrationTest(t *testing.T) *config.Config {
 	err := ioutil.WriteFile(contextFileName_Legacy, []byte(legacyProtocolCtxJson), filePerm)
 	require.NoError(t, err)
 
-	dbConf, err := getDatabaseConfig()
+	dbConf, err := getConfig()
 	require.NoError(t, err)
 
 	secretBytes32, _ := base64.StdEncoding.DecodeString(testSecret32Base64)

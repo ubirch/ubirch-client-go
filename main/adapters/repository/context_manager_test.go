@@ -9,7 +9,7 @@ import (
 )
 
 func TestGetContextManagerDB(t *testing.T) {
-	dbConf, err := getDatabaseConfig()
+	dbConf, err := getConfig()
 	require.NoError(t, err)
 
 	conf := &config.Config{
