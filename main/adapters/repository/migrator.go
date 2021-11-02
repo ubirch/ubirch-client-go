@@ -17,8 +17,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func Migrate(c *config.Config, configDir string) error {
-	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, PostgresIdentityTableName, c.DbMaxConns)
+func Migrate(c *config.Config, configDir, identityTableName, versionTableName string) error {
+	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, identityTableName, c.DbMaxConns)
 	if err != nil {
 		return err
 	}
@@ -40,26 +40,27 @@ func Migrate(c *config.Config, configDir string) error {
 	defer cancel()
 
 	migration := &Migration{
-		Id: MigrationID,
+		tableName: versionTableName,
+		id:        MigrationID,
 	}
 
-	tx, err := getVersion(txCtx, dm, migration)
+	err = migration.getVersion(txCtx, dm)
 	if err != nil {
 		return err
 	}
 
-	if migration.Version == MigrationVersion {
+	if migration.version == MigrationVersion {
 		log.Infof("database migration version already up to date")
 		return nil
 	}
-	log.Debugf("database migration version: %s / application migration version: %s", migration.Version, MigrationVersion)
+	log.Debugf("database migration version: %s / application migration version: %s", migration.version, MigrationVersion)
 
 	p, err := NewExtendedProtocol(dm, c)
 	if err != nil {
 		return err
 	}
 
-	if strings.HasPrefix(migration.Version, "0.") {
+	if strings.HasPrefix(migration.version, "0.") {
 		// migrate from file based context
 		identitiesToPort, err := getIdentitiesFromLegacyCtx(c, configDir)
 		if err != nil {
@@ -74,7 +75,7 @@ func Migrate(c *config.Config, configDir string) error {
 		log.Infof("successfully migrated file based context into database")
 	}
 
-	if strings.HasPrefix(migration.Version, "1.") {
+	if strings.HasPrefix(migration.version, "1.") {
 		err = hashAuthTokens(dm, p)
 		if err != nil {
 			return err
@@ -83,8 +84,8 @@ func Migrate(c *config.Config, configDir string) error {
 		log.Infof("successfully hashed auth tokens in database")
 	}
 
-	migration.Version = MigrationVersion
-	return updateVersion(tx, migration)
+	migration.version = MigrationVersion
+	return migration.updateVersion()
 }
 
 func getIdentitiesFromLegacyCtx(c *config.Config, configDir string) ([]ent.Identity, error) {

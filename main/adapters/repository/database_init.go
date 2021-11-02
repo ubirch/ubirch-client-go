@@ -16,8 +16,10 @@ const (
 )
 
 type Migration struct {
-	Id      string
-	Version string
+	tableName string
+	id        string
+	version   string
+	tx        *sql.Tx
 }
 
 var create = map[int]string{
@@ -38,48 +40,48 @@ func (dm *DatabaseManager) CreateTable(tableType int, tableName string) error {
 	return err
 }
 
-func getVersion(ctx context.Context, dm *DatabaseManager, migration *Migration) (*sql.Tx, error) {
-	err := dm.CreateTable(PostgresVersion, PostgresVersionTableName)
+func (m *Migration) getVersion(ctx context.Context, dm *DatabaseManager) error {
+	err := dm.CreateTable(PostgresVersion, m.tableName)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	tx, err := dm.db.BeginTx(ctx, dm.options)
+	m.tx, err = dm.db.BeginTx(ctx, dm.options)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	query := fmt.Sprintf("SELECT migration_version FROM %s WHERE id = $1 FOR UPDATE", PostgresVersionTableName)
+	query := fmt.Sprintf("SELECT migration_version FROM %s WHERE id = $1 FOR UPDATE", m.tableName)
 
-	err = tx.QueryRow(query, migration.Id).
-		Scan(&migration.Version)
+	err = m.tx.QueryRow(query, m.id).
+		Scan(&m.version)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			migration.Version = "0.0"
-			return tx, createVersionEntry(tx, migration)
+			m.version = "0.0"
+			return m.createVersionEntry()
 		} else {
-			return nil, fmt.Errorf("could not select version table entry %s: %v", migration.Id, err)
+			return fmt.Errorf("could not select version table entry %s: %v", m.id, err)
 		}
-	}
-	return tx, nil
-}
-
-func createVersionEntry(tx *sql.Tx, migration *Migration) error {
-	query := fmt.Sprintf("INSERT INTO %s (id, migration_version) VALUES ($1, $2);", PostgresVersionTableName)
-	_, err := tx.Exec(query,
-		&migration.Id, migration.Version)
-	if err != nil {
-		return fmt.Errorf("could not create version table entry %s with version %s: %v", migration.Id, migration.Version, err)
 	}
 	return nil
 }
 
-func updateVersion(tx *sql.Tx, migration *Migration) error {
-	query := fmt.Sprintf("UPDATE %s SET migration_version = $1 WHERE id = $2;", PostgresVersionTableName)
-	_, err := tx.Exec(query,
-		migration.Version, &migration.Id)
+func (m *Migration) createVersionEntry() error {
+	query := fmt.Sprintf("INSERT INTO %s (id, migration_version) VALUES ($1, $2);", m.tableName)
+	_, err := m.tx.Exec(query,
+		&m.id, m.version)
 	if err != nil {
-		return fmt.Errorf("could not update version table entry %s to version %s: %v", migration.Id, migration.Version, err)
+		return fmt.Errorf("could not create version table entry %s with version %s: %v", m.id, m.version, err)
 	}
-	return tx.Commit()
+	return nil
+}
+
+func (m *Migration) updateVersion() error {
+	query := fmt.Sprintf("UPDATE %s SET migration_version = $1 WHERE id = $2;", m.tableName)
+	_, err := m.tx.Exec(query,
+		m.version, &m.id)
+	if err != nil {
+		return fmt.Errorf("could not update version table entry %s to version %s: %v", m.id, m.version, err)
+	}
+	return m.tx.Commit()
 }
