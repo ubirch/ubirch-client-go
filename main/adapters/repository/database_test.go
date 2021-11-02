@@ -20,8 +20,8 @@ import (
 )
 
 const (
-	testTableName = "test_identity"
-	testLoad      = 100
+	testIdentityTableName = "test_identity"
+	testLoad              = 100
 )
 
 func TestDatabaseManager(t *testing.T) {
@@ -130,7 +130,7 @@ func TestNewSqlDatabaseInfo_NotReady(t *testing.T) {
 	unreachableDSN := "postgres://nousr:nopwd@localhost:0000/nodatabase"
 
 	// we expect no error here
-	dm, err := NewSqlDatabaseInfo(unreachableDSN, testTableName, 0)
+	dm, err := NewSqlDatabaseInfo(unreachableDSN, testIdentityTableName, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -249,7 +249,7 @@ func TestDatabaseManager_Retry(t *testing.T) {
 	c, err := getDatabaseConfig()
 	require.NoError(t, err)
 
-	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, testTableName, 101)
+	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, testIdentityTableName, 101)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -314,7 +314,7 @@ func initDB() (*DatabaseManager, error) {
 		return nil, err
 	}
 
-	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, testTableName, c.DbMaxConns)
+	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, testIdentityTableName, c.DbMaxConns)
 	if err != nil {
 		return nil, err
 	}
@@ -323,7 +323,7 @@ func initDB() (*DatabaseManager, error) {
 }
 
 func cleanUpDB(t *testing.T, dm *DatabaseManager) {
-	dropTableQuery := fmt.Sprintf("DROP TABLE %s;", testTableName)
+	dropTableQuery := fmt.Sprintf("DROP TABLE %s;", testIdentityTableName)
 	_, err := dm.db.Exec(dropTableQuery)
 	if err != nil {
 		t.Error(err)

@@ -71,7 +71,7 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string, maxConns int) (*Databa
 		// if there is no connection to the database yet, continue anyway.
 		log.Warn(err)
 	} else {
-		_, err = dm.db.Exec(CreateTable(PostgresIdentity, tableName))
+		err = dm.CreateTable(PostgresIdentity, tableName)
 		if err != nil {
 			return nil, fmt.Errorf("creating DB table failed: %v", err)
 		}
@@ -179,7 +179,7 @@ func (dm *DatabaseManager) isRecoverable(err error) bool {
 	if pqErr, ok := err.(*pq.Error); ok {
 		switch pqErr.Code {
 		case "42P01": // undefined_table
-			_, err = dm.db.Exec(CreateTable(PostgresIdentity, dm.tableName))
+			err = dm.CreateTable(PostgresIdentity, dm.tableName)
 			if err != nil {
 				log.Errorf("creating DB table failed: %v", err)
 			}
