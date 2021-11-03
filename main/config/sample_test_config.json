@@ -1,6 +1,7 @@
 {
   "devices": {
-    "12345678-abcd-bcde-cdef-123456789abc": "12345678-abcd-bcde-cdef-123456789abc"
+    "d7e92035-f230-4460-b9be-b4ba0df2aedd": "6adf21cc-082f-4414-84af-47bc7de97f4a"
   },
-  "secret": "sdSjtMh6C2oNgsiVcPx89RgcNYl8L6R9PhWU3iGIL+k="
+  "secret32": "w8cmOPTpLc3ZxsBHjcPglLbRnXa0kom+qpKKkG3rYX0=",
+  "registerAuth": "MRcVIHwtaXR/VNS5gscbXiiJkfO4bm/UFajCpdrr1SU="
 }
