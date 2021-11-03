@@ -113,7 +113,7 @@ func (s *Signer) Sign(msg h.HTTPRequest, op h.Operation) h.HTTPResponse {
 
 	_, err := s.Protocol.LoadPrivateKey(msg.ID)
 	if err != nil {
-		log.Errorf("%s: could not fetch private Key for UUID: %v", msg.ID, err)
+		log.Errorf("%s: could not load private key for UUID: %v", msg.ID, err)
 		return errorResponse(http.StatusInternalServerError, "")
 	}
 
