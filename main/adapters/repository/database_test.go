@@ -22,8 +22,7 @@ import (
 )
 
 const (
-	testIdentityTableName = "test_identity"
-	testLoad              = 100
+	testLoad = 100
 )
 
 func TestDatabaseManager(t *testing.T) {
@@ -132,7 +131,7 @@ func TestNewSqlDatabaseInfo_NotReady(t *testing.T) {
 	unreachableDSN := "postgres://nousr:nopwd@localhost:0000/nodatabase"
 
 	// we expect no error here
-	dm, err := NewSqlDatabaseInfo(unreachableDSN, testIdentityTableName, 0)
+	dm, err := NewSqlDatabaseInfo(unreachableDSN, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -251,7 +250,7 @@ func TestDatabaseManager_Retry(t *testing.T) {
 	c, err := getConfig()
 	require.NoError(t, err)
 
-	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, testIdentityTableName, 101)
+	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, 101)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -280,14 +279,15 @@ func TestDatabaseManager_Retry(t *testing.T) {
 }
 
 func getConfig() (*config.Config, error) {
-	configFileName := "config.json"
+	configFileName := "config_test.json"
 	fileHandle, err := os.Open(filepath.Join("../../", configFileName))
 	if os.IsNotExist(err) {
 		return nil, fmt.Errorf("%v \n"+
 			"--------------------------------------------------------------------------------\n"+
 			"Please provide a configuration file \"%s\" in the main directory which contains\n"+
 			"a DSN for a postgres database in order to test the database context management.\n\n"+
-			"{\n\t\"postgresDSN\": \"postgres://<username>:<password>@<hostname>:5432/<database>\"\n}\n"+
+			"!!! THIS MUST BE DIFFERENT FROM THE DSN USED FOR THE ACTUAL CONTEXT !!!\n\n"+
+			"{\n\t\"postgresDSN\": \"postgres://<username>:<password>@<hostname>:5432/<TEST-database>\"\n}\n"+
 			"--------------------------------------------------------------------------------",
 			err, configFileName)
 	}
@@ -311,7 +311,7 @@ func initDB() (*DatabaseManager, error) {
 		return nil, err
 	}
 
-	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, testIdentityTableName, c.DbMaxConns)
+	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, c.DbMaxConns)
 	if err != nil {
 		return nil, err
 	}
@@ -320,16 +320,12 @@ func initDB() (*DatabaseManager, error) {
 }
 
 func cleanUpDB(t *testing.T, dm *DatabaseManager) {
-	dropTableQuery := fmt.Sprintf("DROP TABLE %s;", testIdentityTableName)
+	dropTableQuery := fmt.Sprintf("DROP TABLE %s;", PostgresIdentityTableName)
 	_, err := dm.db.Exec(dropTableQuery)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	err = dm.Close()
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 }
 
 func generateRandomIdentity() ent.Identity {

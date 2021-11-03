@@ -17,8 +17,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func Migrate(c *config.Config, configDir, identityTableName, versionTableName string) error {
-	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, identityTableName, c.DbMaxConns)
+func Migrate(c *config.Config, configDir string) error {
+	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, c.DbMaxConns)
 	if err != nil {
 		return err
 	}
@@ -40,8 +40,7 @@ func Migrate(c *config.Config, configDir, identityTableName, versionTableName st
 	defer cancel()
 
 	migration := &Migration{
-		tableName: versionTableName,
-		id:        MigrationID,
+		id: MigrationID,
 	}
 
 	err = migration.getVersion(txCtx, dm)
@@ -185,7 +184,7 @@ func migrateIdentities(p *ExtendedProtocol, identities []ent.Identity) error {
 }
 
 func hashAuthTokens(dm *DatabaseManager, p *ExtendedProtocol) error {
-	query := fmt.Sprintf("SELECT uid, auth_token FROM %s FOR UPDATE", dm.tableName)
+	query := fmt.Sprintf("SELECT uid, auth_token FROM %s FOR UPDATE", PostgresIdentityTableName)
 
 	rows, err := dm.db.Query(query)
 	if err != nil {
@@ -276,7 +275,7 @@ func isArgon2idPasswordHash(pw string) (bool, error) {
 }
 
 func storeAuth(dm *DatabaseManager, uid uuid.UUID, auth string) error {
-	query := fmt.Sprintf("UPDATE %s SET auth_token = $1 WHERE uid = $2;", dm.tableName)
+	query := fmt.Sprintf("UPDATE %s SET auth_token = $1 WHERE uid = $2;", PostgresIdentityTableName)
 
 	_, err := dm.db.Exec(query, &auth, uid)
 

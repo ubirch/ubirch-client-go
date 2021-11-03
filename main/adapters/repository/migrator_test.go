@@ -13,16 +13,15 @@ import (
 )
 
 const (
-	testVersionTableName = "test_version"
-	testSecret16Base64   = "Z+08XlrEAkTf3Ss7eyMrCg=="
-	testSecret32Base64   = "CXbgnOK9QdAB44UaeMCKQIE33iCX4xCPDzbh+sQplRY="
+	testSecret16Base64 = "Z+08XlrEAkTf3Ss7eyMrCg=="
+	testSecret32Base64 = "CXbgnOK9QdAB44UaeMCKQIE33iCX4xCPDzbh+sQplRY="
 )
 
 func TestMigrate(t *testing.T) {
 	conf := setupMigrationTest(t)
 	defer cleanUpMigrationTest(t, conf.PostgresDSN)
 
-	err := Migrate(conf, "", testIdentityTableName, testVersionTableName)
+	err := Migrate(conf, "")
 	assert.NoError(t, err)
 }
 
@@ -72,10 +71,10 @@ func cleanUpMigrationTest(t *testing.T, dsn string) {
 	db, err := sql.Open(PostgreSql, dsn)
 	require.NoError(t, err)
 
-	_, err = db.Exec(fmt.Sprintf("DROP TABLE %s;", testIdentityTableName))
+	_, err = db.Exec(fmt.Sprintf("DROP TABLE %s;", PostgresIdentityTableName))
 	assert.NoError(t, err)
 
-	_, err = db.Exec(fmt.Sprintf("DROP TABLE %s;", testVersionTableName))
+	_, err = db.Exec(fmt.Sprintf("DROP TABLE %s;", PostgresVersionTableName))
 	assert.NoError(t, err)
 
 	err = db.Close()

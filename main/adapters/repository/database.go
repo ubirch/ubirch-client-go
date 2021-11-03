@@ -35,9 +35,8 @@ const (
 // DatabaseManager contains the postgres database connection, and offers methods
 // for interacting with the database.
 type DatabaseManager struct {
-	options   *sql.TxOptions
-	db        *sql.DB
-	tableName string
+	options *sql.TxOptions
+	db      *sql.DB
 }
 
 // Ensure Database implements the ContextManager interface
@@ -45,7 +44,7 @@ var _ ContextManager = (*DatabaseManager)(nil)
 
 // NewSqlDatabaseInfo takes a database connection string, returns a new initialized
 // database.
-func NewSqlDatabaseInfo(dataSourceName, tableName string, maxConns int) (*DatabaseManager, error) {
+func NewSqlDatabaseInfo(dataSourceName string, maxConns int) (*DatabaseManager, error) {
 	log.Infof("preparing postgres usage")
 
 	pg, err := sql.Open(PostgreSql, dataSourceName)
@@ -63,15 +62,14 @@ func NewSqlDatabaseInfo(dataSourceName, tableName string, maxConns int) (*Databa
 			Isolation: sql.LevelReadCommitted,
 			ReadOnly:  false,
 		},
-		db:        pg,
-		tableName: tableName,
+		db: pg,
 	}
 
 	if err = dm.IsReady(); err != nil {
 		// if there is no connection to the database yet, continue anyway.
 		log.Warn(err)
 	} else {
-		err = dm.CreateTable(PostgresIdentity, tableName)
+		err = dm.CreateTable(PostgresIdentity)
 		if err != nil {
 			return nil, fmt.Errorf("creating DB table failed: %v", err)
 		}
@@ -111,7 +109,7 @@ func (dm *DatabaseManager) StoreIdentity(transactionCtx TransactionCtx, i ent.Id
 
 	query := fmt.Sprintf(
 		"INSERT INTO %s (uid, private_key, public_key, signature, auth_token) VALUES ($1, $2, $3, $4, $5);",
-		dm.tableName)
+		PostgresIdentityTableName)
 
 	_, err := tx.Exec(query, &i.Uid, &i.PrivateKey, &i.PublicKey, &i.Signature, &i.AuthToken)
 
@@ -121,7 +119,7 @@ func (dm *DatabaseManager) StoreIdentity(transactionCtx TransactionCtx, i ent.Id
 func (dm *DatabaseManager) LoadIdentity(uid uuid.UUID) (*ent.Identity, error) {
 	i := ent.Identity{}
 
-	query := fmt.Sprintf("SELECT * FROM %s WHERE uid = $1", dm.tableName)
+	query := fmt.Sprintf("SELECT * FROM %s WHERE uid = $1", PostgresIdentityTableName)
 
 	err := dm.retry(func() error {
 		err := dm.db.QueryRow(query, uid.String()).Scan(&i.Uid, &i.PrivateKey, &i.PublicKey, &i.Signature, &i.AuthToken)
@@ -140,7 +138,7 @@ func (dm *DatabaseManager) StoreSignature(transactionCtx TransactionCtx, uid uui
 		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
-	query := fmt.Sprintf("UPDATE %s SET signature = $1 WHERE uid = $2;", dm.tableName)
+	query := fmt.Sprintf("UPDATE %s SET signature = $1 WHERE uid = $2;", PostgresIdentityTableName)
 
 	_, err := tx.Exec(query, &signature, uid)
 
@@ -153,7 +151,7 @@ func (dm *DatabaseManager) LoadSignature(transactionCtx TransactionCtx, uid uuid
 		return nil, fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
-	query := fmt.Sprintf("SELECT signature FROM %s WHERE uid = $1 FOR UPDATE", dm.tableName)
+	query := fmt.Sprintf("SELECT signature FROM %s WHERE uid = $1 FOR UPDATE", PostgresIdentityTableName)
 
 	err = tx.QueryRow(query, uid).Scan(&signature)
 	if err == sql.ErrNoRows {
@@ -179,7 +177,7 @@ func (dm *DatabaseManager) isRecoverable(err error) bool {
 	if pqErr, ok := err.(*pq.Error); ok {
 		switch pqErr.Code {
 		case "42P01": // undefined_table
-			err = dm.CreateTable(PostgresIdentity, dm.tableName)
+			err = dm.CreateTable(PostgresIdentity)
 			if err != nil {
 				log.Errorf("creating DB table failed: %v", err)
 			}

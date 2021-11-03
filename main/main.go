@@ -77,7 +77,7 @@ func main() {
 	}
 
 	if migrate {
-		err := repository.Migrate(conf, configDir, repository.PostgresIdentityTableName, repository.PostgresVersionTableName)
+		err := repository.Migrate(conf, configDir)
 		if err != nil {
 			log.Fatalf("migration failed: %v", err)
 		}

@@ -34,7 +34,7 @@ type TransactionCtx interface {
 
 func GetContextManager(c *config.Config) (ContextManager, error) {
 	if c.PostgresDSN != "" {
-		return NewSqlDatabaseInfo(c.PostgresDSN, PostgresIdentityTableName, c.DbMaxConns)
+		return NewSqlDatabaseInfo(c.PostgresDSN, c.DbMaxConns)
 	} else {
 		return nil, fmt.Errorf("file-based context management is not supported in the current version. " +
 			"Please set a postgres DSN in the configuration and conntect to a database or downgrade to a version < 2.0.0")
