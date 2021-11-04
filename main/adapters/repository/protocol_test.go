@@ -661,7 +661,7 @@ func TestProtocolLoad(t *testing.T) {
 func protocolCheckAuth(auth, authToCheck string) error {
 	pwHasher := &pw.Argon2idKeyDerivator{}
 
-	ok, err := pwHasher.CheckPassword(context.Background(), authToCheck, auth)
+	ok, err := pwHasher.CheckPassword(context.Background(), auth, authToCheck)
 	if err != nil {
 		return err
 	}

@@ -203,6 +203,14 @@ func (dm *DatabaseManager) LoadSignatureForUpdate(transactionCtx TransactionCtx,
 	return signature, err
 }
 
+func (dm *DatabaseManager) StoreAuth(uid uuid.UUID, auth string) error {
+	query := fmt.Sprintf("UPDATE %s SET auth_token = $1 WHERE uid = $2;", PostgresIdentityTableName)
+
+	_, err := dm.db.Exec(query, &auth, uid)
+
+	return err
+}
+
 func (dm *DatabaseManager) retry(f func() error) (err error) {
 	for retries := 0; retries <= maxRetries; retries++ {
 		err = f()

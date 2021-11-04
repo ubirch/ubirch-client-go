@@ -82,6 +82,14 @@ func (m *MockCtxMngr) LoadSignatureForUpdate(t TransactionCtx, u uuid.UUID) ([]b
 	return m.id.Signature, nil
 }
 
+func (m *MockCtxMngr) StoreAuth(uid uuid.UUID, auth string) error {
+	if m.id.Uid == uuid.Nil || m.id.Uid != uid {
+		return ErrNotExist
+	}
+	m.id.AuthToken = auth
+	return nil
+}
+
 func (m *MockCtxMngr) IsReady() error {
 	return nil
 }

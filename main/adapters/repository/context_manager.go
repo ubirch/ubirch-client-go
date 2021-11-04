@@ -27,6 +27,8 @@ type ContextManager interface {
 	StoreSignature(TransactionCtx, uuid.UUID, []byte) error
 	LoadSignatureForUpdate(TransactionCtx, uuid.UUID) ([]byte, error)
 
+	StoreAuth(uid uuid.UUID, auth string) error
+
 	IsReady() error
 	Close() error
 }

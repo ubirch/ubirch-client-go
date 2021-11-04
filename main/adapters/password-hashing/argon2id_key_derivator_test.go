@@ -27,7 +27,7 @@ func TestArgon2idKeyDerivator(t *testing.T) {
 	assert.Equal(t, int(params.SaltLen), len(salt))
 	assert.Equal(t, *params, *decodedParams)
 
-	ok, err := kd.CheckPassword(context.Background(), testAuth, pw)
+	ok, err := kd.CheckPassword(context.Background(), pw, testAuth)
 	require.NoError(t, err)
 	assert.True(t, ok)
 }
