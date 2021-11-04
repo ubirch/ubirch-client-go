@@ -157,6 +157,8 @@ func (i *IdentityHandler) submitCSROrLogError(uid uuid.UUID, csr []byte) {
 }
 
 func (i *IdentityHandler) CreateCSR(uid uuid.UUID) (csrPEM []byte, err error) {
+	log.Infof("%s: creating CSR", uid)
+
 	initialized, err := i.Protocol.IsInitialized(uid)
 	if err != nil {
 		return nil, fmt.Errorf("could not check if identity is known: %v", err)
