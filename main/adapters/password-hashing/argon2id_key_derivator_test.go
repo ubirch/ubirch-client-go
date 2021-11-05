@@ -126,15 +126,12 @@ func gen(wg *sync.WaitGroup, kd *Argon2idKeyDerivator, authBase64 string, params
 }
 
 func BenchmarkArgon2idKeyDerivator_TweakParams(b *testing.B) {
-	kd := &Argon2idKeyDerivator{}
+	memMiB := uint32(37)
+	time := uint32(1)
+	threads := uint8(4)
 
-	params := &Argon2idParams{
-		Memory:  37 * 1024,
-		Time:    1,
-		Threads: 4,
-		KeyLen:  24,
-		SaltLen: 16,
-	}
+	kd := &Argon2idKeyDerivator{}
+	params := GetArgon2idParams(memMiB, time, threads)
 	b.Log(argon2idParams(params))
 
 	auth := make([]byte, 32)
