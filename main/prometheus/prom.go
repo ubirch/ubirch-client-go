@@ -17,7 +17,7 @@ type responseWriter struct {
 }
 
 func NewResponseWriter(w http.ResponseWriter) *responseWriter {
-	return &responseWriter{w, http.StatusOK}
+	return &responseWriter{w, 0}
 }
 
 func (rw *responseWriter) WriteHeader(code int) {
