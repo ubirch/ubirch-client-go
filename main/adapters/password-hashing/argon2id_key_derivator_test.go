@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"math/rand"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -89,6 +90,38 @@ func BenchmarkArgon2idKeyDerivator_Default(b *testing.B) {
 		if err != nil {
 			b.Log(err)
 		}
+	}
+}
+
+const concurrency = 8
+
+func BenchmarkArgon2idKeyDerivator_Default_Concurrency(b *testing.B) {
+	kd := &Argon2idKeyDerivator{}
+	params := kd.DefaultParams()
+	b.Log(concurrency)
+	b.Log(argon2idParams(params))
+
+	auth := make([]byte, 32)
+	rand.Read(auth)
+	authBase64 := base64.StdEncoding.EncodeToString(auth)
+
+	wg := &sync.WaitGroup{}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		wg.Add(concurrency)
+		for n := 0; n < concurrency; n++ {
+			go gen(wg, kd, authBase64, params)
+		}
+		wg.Wait()
+	}
+}
+
+func gen(wg *sync.WaitGroup, kd *Argon2idKeyDerivator, authBase64 string, params *Argon2idParams) {
+	defer wg.Done()
+	_, err := kd.GeneratePasswordHash(context.Background(), authBase64, params)
+	if err != nil {
+		panic(err)
 	}
 }
 
