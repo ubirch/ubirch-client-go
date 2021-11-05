@@ -39,9 +39,9 @@ type Argon2idParams struct {
 	SaltLen uint32 // the length of the random salt in byte
 }
 
-func GetArgon2idParams(mem, time uint32, threads uint8) *Argon2idParams {
+func GetArgon2idParams(memMiB, time uint32, threads uint8) *Argon2idParams {
 	return &Argon2idParams{
-		Memory:  mem,
+		Memory:  memMiB * 1024,
 		Time:    time,
 		Threads: threads,
 		KeyLen:  KeyLen,
@@ -51,11 +51,11 @@ func GetArgon2idParams(mem, time uint32, threads uint8) *Argon2idParams {
 
 func (kd *Argon2idKeyDerivator) DefaultParams() *Argon2idParams {
 	// https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#argon2id
-	mem := uint32(15 * 1024)
+	memMiB := uint32(15)
 	time := uint32(2)
 	threads := uint8(4)
 
-	return GetArgon2idParams(mem, time, threads)
+	return GetArgon2idParams(memMiB, time, threads)
 }
 
 // GeneratePasswordHash derives a key from the password, salt, and cost parameters using Argon2id
