@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
@@ -199,6 +200,26 @@ func TestDatabaseManager_CancelTransaction(t *testing.T) {
 	// check not exists
 	_, err = dm.LoadIdentity(testIdentity.Uid)
 	assert.Equal(t, ErrNotExist, err)
+}
+
+func TestDatabaseManager_StartTransaction(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	c, err := getConfig()
+	require.NoError(t, err)
+
+	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, 1)
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	tx, err := dm.StartTransaction(ctx)
+	assert.NoError(t, err)
+	assert.NotNil(t, tx)
+
+	tx2, err := dm.StartTransaction(ctx)
+	assert.EqualError(t, err, "context deadline exceeded")
+	assert.Nil(t, tx2)
 }
 
 func TestDatabaseLoad(t *testing.T) {
