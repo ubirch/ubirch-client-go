@@ -28,7 +28,7 @@ func (rw *responseWriter) WriteHeader(code int) {
 var totalRequests = promauto.NewCounterVec(
 	prometheus.CounterOpts{
 		Name: "http_requests_total",
-		Help: "Number of get requests.",
+		Help: "Total number of HTTP requests.",
 	},
 	[]string{"path"},
 )
@@ -52,7 +52,7 @@ var httpDuration = promauto.NewHistogramVec(
 var IdentityCreationCounter = promauto.NewCounter(
 	prometheus.CounterOpts{
 		Name: "identity_creation_success",
-		Help: "Number of identities which have been successfully created and stored.",
+		Help: "Number of identities which have been successfully created, registered and stored.",
 	})
 
 var IdentityCreationDuration = promauto.NewHistogram(
