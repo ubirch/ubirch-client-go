@@ -28,9 +28,10 @@ func (s *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	ctx := r.Context()
 	msg.Auth = AuthToken(r.Header)
 
-	ok, found, err := s.CheckAuth(r.Context(), msg.ID, msg.Auth)
+	ok, found, err := s.CheckAuth(ctx, msg.ID, msg.Auth)
 	if err != nil {
 		log.Errorf("%s: %v", msg.ID, err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -53,6 +54,12 @@ func (s *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	resp := s.Chain(msg, r.Context())
-	SendResponse(w, resp)
+	resp := s.Chain(msg, ctx)
+
+	select {
+	case <-ctx.Done():
+		log.Warnf("chaining response could not be sent: http request %s", ctx.Err())
+	default:
+		SendResponse(w, resp)
+	}
 }
