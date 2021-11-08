@@ -110,8 +110,6 @@ github.com/stretchr/testify v1.7.0 h1:nwc3DEeHmmLAfoZucVR881uASk0Mfjw8xYJ99tb5Cc
 github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/ubirch/go.crypto v0.1.2 h1:IYMOx19UgWt4+k7PydcOVtEWFiU10O8dHoof00j8IKw=
 github.com/ubirch/go.crypto v0.1.2/go.mod h1:aiZQ37CxSBS7cBLsFbTnDxGeg5RkH7Z5LKBYeNasIrw=
-github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.2.6-0.20211030095918-6166906687b4 h1:sJFHHbiBe8ODBGieSRGas7PmMO2F4TA2zJIgyvGXo84=
-github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.2.6-0.20211030095918-6166906687b4/go.mod h1:JG7PGWaipe8AGzr0QCwtS3aLvI43JCMyQAmWtJ3svwo=
 github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.2.6-0.20211108150745-eaa9ee64b1ee h1:pNlEOFmT1g1oHZp8e1cLy5TDNb4waaS95uwBXhF9JoM=
 github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.2.6-0.20211108150745-eaa9ee64b1ee/go.mod h1:edMk+CtbW3ODrqcU0iYVBG8idrYWPrPCom+jXDhRDq0=
 github.com/ugorji/go v1.1.7 h1:/68gy2h+1mWMrwZFeD1kQialdSzAb432dtpeJ42ovdo=
