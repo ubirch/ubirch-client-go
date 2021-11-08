@@ -181,6 +181,25 @@ This means that the original data will have to be stored independently in order 
 >
 > See [reproducibility of hashes](#reproducibility-of-hashes).
 
+### Identity Registration
+
+Sending a registration request invokes the generation of a ECDSA key pair for signing UPPs. On success, the response
+contains an X.509 Certificate Signing Request in PEM format.
+
+    curl ${host}/register -X PUT \
+    -H "X-Auth-Token: <registerAuth>" \
+    -H "Content-Type: application/json" \
+    -d '{"uuid":"<uuid>", "password":"<password>"}' \
+    -i
+
+### CSR re-creation
+
+A CSR for an already registered identity can be retrieved from the CSR endpoint.
+
+    curl ${host}/{uuid}/csr -X GET \
+    -H "X-Auth-Token: <registerAuth>" \
+    -i
+
 ### UPP Signing Service
 
 Signing service endpoints require an authentication token, which corresponds to the `UUID` used in the request. The
@@ -280,8 +299,7 @@ Internally, the client sends a request to the UBIRCH authentication service (*Ni
 the sender (i.e. the `"response"`-filed in the JSON response body of the client). If no other errors occurred, the
 client will adopt the HTTP response status code of the backend response.
 
-> See
-the [swagger documentation](https://developer.ubirch.com/api.html?url=https://niomon.demo.ubirch.com/swagger/swagger.json#/Ubirch%20Protocol%20Packet/Receives%20Ubirch%20Protocol%20Packets)
+> See the [swagger documentation](https://developer.ubirch.com/api.html?url=https://niomon.demo.ubirch.com/swagger/swagger.json#/Ubirch%20Protocol%20Packet/Receives%20Ubirch%20Protocol%20Packets)
 for *Niomon* error codes.
 
 #### CURL Request Examples:
