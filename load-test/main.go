@@ -16,6 +16,8 @@ const (
 )
 
 func main() {
+	log.SetFormatter(&log.TextFormatter{FullTimestamp: true, TimestampFormat: "2006-01-02 15:04:05.000 -0700"})
+
 	c := Config{}
 	err := c.Load(configFile)
 	if err != nil {
