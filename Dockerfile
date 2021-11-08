@@ -7,16 +7,14 @@ ARG VERSION=devbuild
 ARG REVISION=0000000
 WORKDIR /app/main
 RUN \
-    CGO_ENABLED=0 \
     GOOS=linux \
     GOPROXY=https://proxy.golang.org,direct \
     go build -trimpath -ldflags "-buildid= -s -w -X main.Version=$VERSION -X main.Revision=$REVISION" -o main .
 
 
-FROM scratch
+FROM debian:bullseye
 VOLUME /data
 EXPOSE 8080/tcp
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=builder app/main/main ubirch-client
 ENTRYPOINT ["/ubirch-client"]
 CMD ["/data"]
