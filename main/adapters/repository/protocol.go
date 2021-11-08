@@ -16,7 +16,9 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"sync"
 
 	"github.com/google/uuid"
@@ -51,6 +53,11 @@ func NewExtendedProtocol(ctxManager ContextManager, conf *config.Config) (*Exten
 		return nil, err
 	}
 
+	argon2idParams := pw.GetArgon2idParams(conf.KdParamMemMiB, conf.KdParamTime, conf.KdParamParallelism,
+		conf.KdParamKeyLen, conf.KdParamSaltLen)
+	params, _ := json.Marshal(argon2idParams)
+	log.Debugf("initialize argon2id key derivation with parameters %s", params)
+
 	p := &ExtendedProtocol{
 		Protocol: ubirch.Protocol{
 			Crypto: crypto,
@@ -59,10 +66,9 @@ func NewExtendedProtocol(ctxManager ContextManager, conf *config.Config) (*Exten
 		keyEncrypter:   enc,
 		keyCache:       keyCache,
 
-		pwHasher: pw.NewArgon2idKeyDerivator(conf.KdMaxTotalMemMiB),
-		pwHasherParams: pw.GetArgon2idParams(conf.KdParamMemMiB, conf.KdParamTime, conf.KdParamParallelism,
-			conf.KdParamKeyLen, conf.KdParamSaltLen),
-		authCache: &sync.Map{},
+		pwHasher:       pw.NewArgon2idKeyDerivator(conf.KdMaxTotalMemMiB),
+		pwHasherParams: argon2idParams,
+		authCache:      &sync.Map{},
 	}
 
 	return p, nil
