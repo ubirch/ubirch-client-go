@@ -12,7 +12,9 @@ const (
 	PostgresIdentityTableName = "identity"
 	PostgresVersionTableName  = "version"
 	MigrationID               = "dbMigration"
-	MigrationVersion          = "2.0"
+	MigrationVersionNoDB      = "0.0"
+	MigrationVersionInit      = "1.0.1"
+	MigrationVersionLatest    = "2.0"
 )
 
 type Migration struct {
@@ -55,7 +57,7 @@ func (m *Migration) getVersion(ctx context.Context, dm *DatabaseManager) error {
 		Scan(&m.version)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			m.version = "0.0"
+			m.version = MigrationVersionNoDB
 			return m.createVersionEntry()
 		} else {
 			return fmt.Errorf("could not select version table entry %s: %v", m.id, err)

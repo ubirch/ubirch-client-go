@@ -48,18 +48,18 @@ func Migrate(c *config.Config, configDir string) error {
 		return err
 	}
 
-	if migration.version == MigrationVersion {
+	if migration.version == MigrationVersionLatest {
 		log.Infof("database migration version already up to date")
 		return nil
 	}
-	log.Debugf("database migration version: %s / application migration version: %s", migration.version, MigrationVersion)
+	log.Debugf("database migration version: %s / application migration version: %s", migration.version, MigrationVersionLatest)
 
 	p, err := NewExtendedProtocol(dm, c)
 	if err != nil {
 		return err
 	}
 
-	if strings.HasPrefix(migration.version, "0.") {
+	if migration.version == MigrationVersionNoDB {
 		// migrate from file based context
 		identitiesToPort, err := getIdentitiesFromLegacyCtx(c, configDir)
 		if err != nil {
@@ -74,7 +74,7 @@ func Migrate(c *config.Config, configDir string) error {
 		log.Infof("successfully migrated file based context into database")
 	}
 
-	if strings.HasPrefix(migration.version, "1.") {
+	if migration.version == MigrationVersionInit {
 		err = hashAuthTokens(dm, p)
 		if err != nil {
 			return err
@@ -83,7 +83,7 @@ func Migrate(c *config.Config, configDir string) error {
 		log.Infof("successfully hashed auth tokens in database")
 	}
 
-	migration.version = MigrationVersion
+	migration.version = MigrationVersionLatest
 	return migration.updateVersion()
 }
 
