@@ -16,9 +16,12 @@ import (
 )
 
 const (
-	KeyLen            = 24
-	SaltLen           = 16
-	stdEncodingFormat = "$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s"
+	DefaultMemory      uint32 = 15
+	DefaultTime        uint32 = 2
+	DefaultParallelism uint8  = 1
+	DefaultKeyLen      uint32 = 32
+	DefaultSaltLen     uint32 = 16
+	stdEncodingFormat         = "$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s"
 )
 
 type Argon2idKeyDerivator struct {
@@ -26,6 +29,10 @@ type Argon2idKeyDerivator struct {
 }
 
 func NewArgon2idKeyDerivator(maxTotalMemMiB uint32) *Argon2idKeyDerivator {
+	if maxTotalMemMiB == 0 {
+		maxTotalMemMiB = DefaultMemory
+	}
+
 	return &Argon2idKeyDerivator{
 		sem: semaphore.NewWeighted(int64(maxTotalMemMiB) * 1024),
 	}
@@ -39,23 +46,39 @@ type Argon2idParams struct {
 	SaltLen uint32 // the length of the random salt in byte
 }
 
-func GetArgon2idParams(memMiB, time uint32, threads uint8) *Argon2idParams {
+func GetArgon2idParams(memMiB, time uint32, threads uint8, keyLen, saltLen uint32) *Argon2idParams {
+	if memMiB == 0 {
+		memMiB = DefaultMemory
+	}
+
+	if time == 0 {
+		time = DefaultTime
+	}
+
+	if threads == 0 {
+		threads = DefaultParallelism
+	}
+
+	if keyLen == 0 {
+		keyLen = DefaultKeyLen
+	}
+
+	if saltLen == 0 {
+		saltLen = DefaultSaltLen
+	}
+
 	return &Argon2idParams{
 		Memory:  memMiB * 1024,
 		Time:    time,
 		Threads: threads,
-		KeyLen:  KeyLen,
-		SaltLen: SaltLen,
+		KeyLen:  keyLen,
+		SaltLen: saltLen,
 	}
 }
 
 func (kd *Argon2idKeyDerivator) DefaultParams() *Argon2idParams {
 	// https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#argon2id
-	memMiB := uint32(15)
-	time := uint32(2)
-	threads := uint8(4)
-
-	return GetArgon2idParams(memMiB, time, threads)
+	return GetArgon2idParams(DefaultMemory, DefaultTime, DefaultParallelism, DefaultKeyLen, DefaultSaltLen)
 }
 
 // GeneratePasswordHash derives a key from the password, salt, and cost parameters using Argon2id

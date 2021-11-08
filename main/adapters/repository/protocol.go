@@ -59,9 +59,10 @@ func NewExtendedProtocol(ctxManager ContextManager, conf *config.Config) (*Exten
 		keyEncrypter:   enc,
 		keyCache:       keyCache,
 
-		pwHasher:       pw.NewArgon2idKeyDerivator(conf.KdMaxTotalMemMiB),
-		pwHasherParams: pw.GetArgon2idParams(conf.KdParamMemMiB, conf.KdParamTime, conf.KdParamParallelism),
-		authCache:      &sync.Map{},
+		pwHasher: pw.NewArgon2idKeyDerivator(conf.KdMaxTotalMemMiB),
+		pwHasherParams: pw.GetArgon2idParams(conf.KdParamMemMiB, conf.KdParamTime, conf.KdParamParallelism,
+			conf.KdParamKeyLen, conf.KdParamSaltLen),
+		authCache: &sync.Map{},
 	}
 
 	return p, nil

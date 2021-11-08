@@ -52,7 +52,9 @@ const (
 	defaultKeyDerivationMaxTotalMemory   = 30
 	defaultKeyDerivationParamMemory      = 15
 	defaultKeyDerivationParamTime        = 2
-	defaultKeyDerivationParamParallelism = 4
+	defaultKeyDerivationParamParallelism = 1
+	defaultKeyDerivationKeyLen           = 32
+	defaultKeyDerivationSaltLen          = 16
 )
 
 var IsDevelopment bool
@@ -79,6 +81,8 @@ type Config struct {
 	KdParamMemMiB      uint32            `json:"kdParamMemMiB" envconfig:"KD_PARAM_MEM_MIB"`          // memory parameter for key derivation, specifies the size of the memory in MiB
 	KdParamTime        uint32            `json:"kdParamTime" envconfig:"KD_PARAM_TIME"`               // time parameter for key derivation, specifies the number of passes over the memory
 	KdParamParallelism uint8             `json:"kdParamParallelism" envconfig:"KD_PARAM_PARALLELISM"` // parallelism (threads) parameter for key derivation, specifies the number of threads and can be adjusted to the number of available CPUs
+	KdParamKeyLen      uint32            `json:"kdParamKeyLen" envconfig:"KD_PARAM_KEY_LEN"`          // key length parameter for key derivation, specifies the length of the resulting key in bytes
+	KdParamSaltLen     uint32            `json:"kdParamSaltLen" envconfig:"KD_PARAM_SALT_LEN"`        // salt length parameter for key derivation, specifies the length of the random salt in bytes
 	KeyService         string            // key service URL (set automatically)
 	IdentityService    string            // identity service URL (set automatically)
 	Niomon             string            // authentication service URL (set automatically)
@@ -220,6 +224,14 @@ func (c *Config) setKeyDerivationParams() {
 
 	if c.KdParamParallelism == 0 {
 		c.KdParamParallelism = defaultKeyDerivationParamParallelism
+	}
+
+	if c.KdParamKeyLen == 0 {
+		c.KdParamKeyLen = defaultKeyDerivationKeyLen
+	}
+
+	if c.KdParamSaltLen == 0 {
+		c.KdParamSaltLen = defaultKeyDerivationSaltLen
 	}
 }
 
