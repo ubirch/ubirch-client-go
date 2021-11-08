@@ -4,40 +4,37 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/config"
 	"github.com/ubirch/ubirch-client-go/main/ent"
 )
 
-const (
-	Commit   = true
-	Rollback = false
-)
-
 var (
-	ErrExists = errors.New("entry already exists")
+	ErrNotExist = errors.New("entry does not exist")
 )
 
 type ContextManager interface {
-	StartTransaction(ctx context.Context) (transactionCtx interface{}, err error)
-	StartTransactionWithLock(ctx context.Context, uid uuid.UUID) (transactionCtx interface{}, err error)
-	CloseTransaction(transactionCtx interface{}, commit bool) error
+	StartTransaction(context.Context) (TransactionCtx, error)
 
-	Exists(uid uuid.UUID) (bool, error)
+	StoreIdentity(TransactionCtx, ent.Identity) error
+	LoadIdentity(uuid.UUID) (*ent.Identity, error)
 
-	StoreNewIdentity(transactionCtx interface{}, identity *ent.Identity) error
-	FetchIdentity(transactionCtx interface{}, uid uuid.UUID) (*ent.Identity, error)
+	StoreSignature(TransactionCtx, uuid.UUID, []byte) error
+	LoadSignature(TransactionCtx, uuid.UUID) ([]byte, error)
 
-	SetSignature(transactionCtx interface{}, uid uuid.UUID, signature []byte) error
-
-	GetPrivateKey(uid uuid.UUID) ([]byte, error)
-	GetPublicKey(uid uuid.UUID) ([]byte, error)
-	GetAuthToken(uid uuid.UUID) (string, error)
+	IsReady() error
+	Close() error
 }
 
-func GetCtxManager(c config.Config) (ContextManager, error) {
+type TransactionCtx interface {
+	Commit() error
+	Rollback() error
+}
+
+func GetContextManager(c *config.Config) (ContextManager, error) {
 	if c.PostgresDSN != "" {
-		return NewSqlDatabaseInfo(c.PostgresDSN, PostgreSqlIdentityTableName)
+		return NewSqlDatabaseInfo(c.PostgresDSN, c.DbMaxConns)
 	} else {
 		return nil, fmt.Errorf("file-based context management is not supported in the current version. " +
 			"Please set a postgres DSN in the configuration and conntect to a database or downgrade to a version < 2.0.0")

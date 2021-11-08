@@ -17,12 +17,11 @@
 package handlers
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -30,7 +29,7 @@ import (
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
-	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
+	h "github.com/ubirch/ubirch-client-go/main/adapters/http_server"
 )
 
 type verification struct {
@@ -49,6 +48,8 @@ type verificationResponse struct {
 
 type Verifier struct {
 	Protocol                      *repository.ExtendedProtocol
+	RequestHash                   func(hashBase64 string) (h.HTTPResponse, error)
+	RequestPublicKeys             func(id uuid.UUID) ([]ubirch.SignedKeyRegistration, error)
 	VerifyFromKnownIdentitiesOnly bool
 }
 
@@ -75,42 +76,35 @@ func (v *Verifier) Verify(hash []byte) h.HTTPResponse {
 
 // loadUPP retrieves the UPP which contains a given hash from the ubirch backend
 func (v *Verifier) loadUPP(hash []byte) (int, []byte, error) {
-	var resp *http.Response
+	var resp h.HTTPResponse
 	var err error
-	hashBase64String := base64.StdEncoding.EncodeToString(hash)
+	hashBase64 := base64.StdEncoding.EncodeToString(hash)
 
 	n := 0
-	for stay, timeout := true, time.After(5*time.Second); stay; {
+	for stay, timeout := true, time.After(time.Second); stay; {
 		n++
 		select {
 		case <-timeout:
 			stay = false
 		default:
-			resp, err = http.Post(v.Protocol.VerifyServiceURL, "text/plain", strings.NewReader(hashBase64String))
+			resp, err = v.RequestHash(hashBase64)
 			if err != nil {
 				return http.StatusInternalServerError, nil, fmt.Errorf("error sending verification request: %v", err)
 			}
 			stay = h.HttpFailed(resp.StatusCode)
 			if stay {
-				_ = resp.Body.Close()
 				log.Debugf("Couldn't verify hash yet (%d). Retry... %d", resp.StatusCode, n)
-				time.Sleep(time.Second)
+				time.Sleep(200 * time.Millisecond)
 			}
 		}
 	}
-	//noinspection GoUnhandledErrorResult
-	defer resp.Body.Close()
 
 	if h.HttpFailed(resp.StatusCode) {
-		respBodyBytes, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			log.Warnf("unable to decode verification response: %v", err)
-		}
-		return resp.StatusCode, nil, fmt.Errorf("could not retrieve certificate for hash %s from UBIRCH verification service: - %s - %q", hashBase64String, resp.Status, respBodyBytes)
+		return resp.StatusCode, nil, fmt.Errorf("could not retrieve certificate for hash %s from UBIRCH verification service: - %d - %q", hashBase64, resp.StatusCode, resp.Content)
 	}
 
 	vf := verification{}
-	err = json.NewDecoder(resp.Body).Decode(&vf)
+	err = json.NewDecoder(bytes.NewBuffer(resp.Content)).Decode(&vf)
 	if err != nil {
 		return http.StatusBadGateway, nil, fmt.Errorf("unable to decode verification response: %v", err)
 	}
@@ -126,24 +120,26 @@ func (v *Verifier) verifyUPP(upp []byte) (uuid.UUID, []byte, error) {
 
 	id := uppStruct.GetUuid()
 
-	pubKeyPEM, err := v.Protocol.GetPublicKey(id)
-	if err != nil {
+	pubKeyPEM, err := v.Protocol.LoadPublicKey(id)
+	if err == repository.ErrNotExist {
 		if v.VerifyFromKnownIdentitiesOnly {
 			return id, nil, fmt.Errorf("retrieved certificate for requested hash is from unknown identity")
 		} else {
 			log.Warnf("couldn't get public key for identity %s from local context", id)
-			pubKeyBytes, err := v.loadPublicKey(id)
+			err := v.loadPublicKey(id)
 			if err != nil {
 				return id, nil, err
 			}
-			pubKeyPEM, err = v.Protocol.PublicKeyBytesToPEM(pubKeyBytes)
+			pubKeyPEM, err = v.Protocol.LoadPublicKey(id)
 			if err != nil {
 				return id, nil, err
 			}
 		}
+	} else if err != nil {
+		return id, nil, err
 	}
 
-	verified, err := v.Protocol.Verify(pubKeyPEM, upp)
+	verified, err := v.Protocol.Verify(id, upp)
 	if !verified {
 		if err != nil {
 			log.Error(err)
@@ -155,23 +151,28 @@ func (v *Verifier) verifyUPP(upp []byte) (uuid.UUID, []byte, error) {
 }
 
 // loadPublicKey retrieves the first valid public key associated with an identity from the key service
-func (v *Verifier) loadPublicKey(id uuid.UUID) (pubKeyBytes []byte, err error) {
+func (v *Verifier) loadPublicKey(id uuid.UUID) error {
 	log.Debugf("requesting public key for identity %s from key service", id.String())
 
-	keys, err := v.Protocol.RequestPublicKeys(id)
+	keys, err := v.RequestPublicKeys(id)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if len(keys) < 1 {
-		return nil, fmt.Errorf("no public key for identity %s registered at key service", id.String())
+		return fmt.Errorf("no public key for identity %s registered at key service", id.String())
 	} else if len(keys) > 1 {
 		log.Warnf("several public keys registered for identity %s", id.String())
 	}
 
 	log.Printf("retrieved public key for identity %s: %s", keys[0].PubKeyInfo.HwDeviceId, keys[0].PubKeyInfo.PubKey)
 
-	return base64.StdEncoding.DecodeString(keys[0].PubKeyInfo.PubKey)
+	pubKeyBytes, err := base64.StdEncoding.DecodeString(keys[0].PubKeyInfo.PubKey)
+	if err != nil {
+		return err
+	}
+
+	return v.Protocol.SetPublicKeyBytes(id, pubKeyBytes)
 }
 
 func getVerificationResponse(respCode int, hash []byte, upp []byte, id uuid.UUID, pkey []byte, errMsg string) h.HTTPResponse {

@@ -28,15 +28,15 @@ import (
 )
 
 const (
-	PostgreSql string = "postgres"
+	PostgreSql = "postgres"
+	maxRetries = 2
 )
 
 // DatabaseManager contains the postgres database connection, and offers methods
 // for interacting with the database.
 type DatabaseManager struct {
-	options   *sql.TxOptions
-	db        *sql.DB
-	tableName string
+	options *sql.TxOptions
+	db      *sql.DB
 }
 
 // Ensure Database implements the ContextManager interface
@@ -44,233 +44,149 @@ var _ ContextManager = (*DatabaseManager)(nil)
 
 // NewSqlDatabaseInfo takes a database connection string, returns a new initialized
 // database.
-func NewSqlDatabaseInfo(dataSourceName, tableName string) (*DatabaseManager, error) {
+func NewSqlDatabaseInfo(dataSourceName string, maxConns int) (*DatabaseManager, error) {
+	log.Infof("preparing postgres usage")
+
 	pg, err := sql.Open(PostgreSql, dataSourceName)
 	if err != nil {
 		return nil, err
 	}
-	pg.SetMaxOpenConns(100)
-	pg.SetMaxIdleConns(70)
+
+	pg.SetMaxOpenConns(maxConns)
+	pg.SetMaxIdleConns(maxConns)
 	pg.SetConnMaxLifetime(10 * time.Minute)
-	if err = pg.Ping(); err != nil {
-		return nil, err
-	}
+	pg.SetConnMaxIdleTime(1 * time.Minute)
 
-	log.Print("preparing postgres usage")
-
-	dbManager := &DatabaseManager{
+	dm := &DatabaseManager{
 		options: &sql.TxOptions{
 			Isolation: sql.LevelReadCommitted,
 			ReadOnly:  false,
 		},
-		db:        pg,
-		tableName: tableName,
+		db: pg,
 	}
 
-	if _, err = dbManager.db.Exec(CreateTable(PostgresIdentity, tableName)); err != nil {
-		return nil, err
-	}
-
-	return dbManager, nil
-}
-
-func (dm *DatabaseManager) Exists(uid uuid.UUID) (bool, error) {
-	var id string
-
-	query := fmt.Sprintf("SELECT uid FROM %s WHERE uid = $1", dm.tableName)
-
-	err := dm.db.QueryRow(query, uid.String()).Scan(&id)
-	if err != nil {
-		if dm.isConnectionAvailable(err) {
-			return dm.Exists(uid)
-		}
-		if err == sql.ErrNoRows {
-			return false, nil
-		} else {
-			return false, err
-		}
+	if err = dm.IsReady(); err != nil {
+		// if there is no connection to the database yet, continue anyway.
+		log.Warn(err)
 	} else {
-		return true, nil
-	}
-}
-
-func (dm *DatabaseManager) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
-	var privateKey []byte
-
-	query := fmt.Sprintf("SELECT private_key FROM %s WHERE uid = $1", dm.tableName)
-
-	err := dm.db.QueryRow(query, uid.String()).Scan(&privateKey)
-	if err != nil {
-		if dm.isConnectionAvailable(err) {
-			return dm.GetPrivateKey(uid)
+		err = dm.CreateTable(PostgresIdentity)
+		if err != nil {
+			return nil, fmt.Errorf("creating DB table failed: %v", err)
 		}
-		return nil, err
 	}
 
-	return privateKey, nil
+	return dm, nil
 }
 
-func (dm *DatabaseManager) GetPublicKey(uid uuid.UUID) ([]byte, error) {
-	var publicKey []byte
-
-	query := fmt.Sprintf("SELECT public_key FROM %s WHERE uid = $1", dm.tableName)
-
-	err := dm.db.QueryRow(query, uid.String()).Scan(&publicKey)
+func (dm *DatabaseManager) Close() error {
+	err := dm.db.Close()
 	if err != nil {
-		if dm.isConnectionAvailable(err) {
-			return dm.GetPublicKey(uid)
-		}
-		return nil, err
+		return fmt.Errorf("failed to close database: %v", err)
 	}
-
-	return publicKey, nil
+	return nil
 }
 
-func (dm *DatabaseManager) GetAuthToken(uid uuid.UUID) (string, error) {
-	var authToken string
-
-	query := fmt.Sprintf("SELECT auth_token FROM %s WHERE uid = $1", dm.tableName)
-
-	err := dm.db.QueryRow(query, uid.String()).Scan(&authToken)
-	if err != nil {
-		if dm.isConnectionAvailable(err) {
-			return dm.GetAuthToken(uid)
-		}
-		return "", err
+func (dm *DatabaseManager) IsReady() error {
+	if err := dm.db.Ping(); err != nil {
+		return fmt.Errorf("database not ready: %v", err)
 	}
-
-	return authToken, nil
+	return nil
 }
 
-func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
-	return dm.db.BeginTx(ctx, dm.options)
+func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx TransactionCtx, err error) {
+	err = dm.retry(func() error {
+		transactionCtx, err = dm.db.BeginTx(ctx, dm.options)
+		return err
+	})
+	return transactionCtx, err
 }
 
-// StartTransactionWithLock starts a transaction and acquires a lock on the row with the specified uuid as key.
-// Returns error if row does not exist.
-func (dm *DatabaseManager) StartTransactionWithLock(ctx context.Context, uid uuid.UUID) (transactionCtx interface{}, err error) {
-	tx, err := dm.db.BeginTx(ctx, dm.options)
-	if err != nil {
-		return nil, err
-	}
-
-	var id string
-
-	query := fmt.Sprintf("SELECT uid FROM %s WHERE uid = $1 FOR UPDATE", dm.tableName)
-
-	// lock row FOR UPDATE
-	err = tx.QueryRow(query, uid).Scan(&id)
-	if err != nil {
-		if dm.isConnectionAvailable(err) {
-			return dm.StartTransactionWithLock(ctx, uid)
-		}
-		return nil, err
-	}
-
-	return tx, nil
-}
-
-func (dm *DatabaseManager) CloseTransaction(transactionCtx interface{}, commit bool) error {
+func (dm *DatabaseManager) StoreIdentity(transactionCtx TransactionCtx, i ent.Identity) error {
 	tx, ok := transactionCtx.(*sql.Tx)
 	if !ok {
 		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
-	if commit {
-		return tx.Commit()
-	} else {
-		return tx.Rollback()
-	}
+	query := fmt.Sprintf(
+		"INSERT INTO %s (uid, private_key, public_key, signature, auth_token) VALUES ($1, $2, $3, $4, $5);",
+		PostgresIdentityTableName)
+
+	_, err := tx.Exec(query, &i.Uid, &i.PrivateKey, &i.PublicKey, &i.Signature, &i.AuthToken)
+
+	return err
 }
 
-func (dm *DatabaseManager) FetchIdentity(transactionCtx interface{}, uid uuid.UUID) (*ent.Identity, error) {
+func (dm *DatabaseManager) LoadIdentity(uid uuid.UUID) (*ent.Identity, error) {
+	i := ent.Identity{}
+
+	query := fmt.Sprintf("SELECT * FROM %s WHERE uid = $1", PostgresIdentityTableName)
+
+	err := dm.retry(func() error {
+		err := dm.db.QueryRow(query, uid.String()).Scan(&i.Uid, &i.PrivateKey, &i.PublicKey, &i.Signature, &i.AuthToken)
+		if err == sql.ErrNoRows {
+			return ErrNotExist
+		}
+		return err
+	})
+
+	return &i, err
+}
+
+func (dm *DatabaseManager) StoreSignature(transactionCtx TransactionCtx, uid uuid.UUID, signature []byte) error {
+	tx, ok := transactionCtx.(*sql.Tx)
+	if !ok {
+		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
+	}
+
+	query := fmt.Sprintf("UPDATE %s SET signature = $1 WHERE uid = $2;", PostgresIdentityTableName)
+
+	_, err := tx.Exec(query, &signature, uid)
+
+	return err
+}
+
+func (dm *DatabaseManager) LoadSignature(transactionCtx TransactionCtx, uid uuid.UUID) (signature []byte, err error) {
 	tx, ok := transactionCtx.(*sql.Tx)
 	if !ok {
 		return nil, fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
-	var id ent.Identity
+	query := fmt.Sprintf("SELECT signature FROM %s WHERE uid = $1 FOR UPDATE", PostgresIdentityTableName)
 
-	query := fmt.Sprintf("SELECT * FROM %s WHERE uid = $1", dm.tableName)
-
-	err := tx.QueryRow(query, uid.String()).Scan(&id.Uid, &id.PrivateKey, &id.PublicKey, &id.Signature, &id.AuthToken)
-	if err != nil {
-		if dm.isConnectionAvailable(err) {
-			return dm.FetchIdentity(tx, uid)
-		}
-		return nil, err
+	err = tx.QueryRow(query, uid).Scan(&signature)
+	if err == sql.ErrNoRows {
+		return nil, ErrNotExist
 	}
 
-	return &id, nil
+	return signature, err
 }
 
-func (dm *DatabaseManager) SetSignature(transactionCtx interface{}, uid uuid.UUID, signature []byte) error {
-	tx, ok := transactionCtx.(*sql.Tx)
-	if !ok {
-		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
-	}
-
-	query := fmt.Sprintf("UPDATE %s SET signature = $1 WHERE uid = $2;", dm.tableName)
-
-	_, err := tx.Exec(query, &signature, uid.String())
-	if err != nil {
-		if dm.isConnectionAvailable(err) {
-			return dm.SetSignature(tx, uid, signature)
+func (dm *DatabaseManager) retry(f func() error) (err error) {
+	for retries := 0; retries <= maxRetries; retries++ {
+		err = f()
+		if err == nil || !dm.isRecoverable(err) {
+			break
 		}
-		return err
+		log.Warnf("database recoverable error: %v (%d / %d)", err, retries+1, maxRetries+1)
 	}
 
-	return nil
+	return err
 }
 
-func (dm *DatabaseManager) StoreNewIdentity(transactionCtx interface{}, identity *ent.Identity) error {
-	tx, ok := transactionCtx.(*sql.Tx)
-	if !ok {
-		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
-	}
-
-	// make sure identity does not exist yet
-	var id string
-
-	query := fmt.Sprintf("SELECT uid FROM %s WHERE uid = $1 FOR UPDATE;", dm.tableName)
-
-	err := tx.QueryRow(query, identity.Uid).Scan(&id)
-	if err != nil {
-		if dm.isConnectionAvailable(err) {
-			return dm.StoreNewIdentity(tx, identity)
+func (dm *DatabaseManager) isRecoverable(err error) bool {
+	if pqErr, ok := err.(*pq.Error); ok {
+		switch pqErr.Code {
+		case "42P01": // undefined_table
+			err = dm.CreateTable(PostgresIdentity)
+			if err != nil {
+				log.Errorf("creating DB table failed: %v", err)
+			}
+			return true
+		case "55P03", "53300", "53400": // lock_not_available, too_many_connections, configuration_limit_exceeded
+			time.Sleep(10 * time.Millisecond)
+			return true
 		}
-		if err == sql.ErrNoRows {
-			// there were no rows, but otherwise no error occurred
-			return dm.storeIdentity(tx, identity)
-		} else {
-			return err
-		}
-	} else {
-		return ErrExists
-	}
-}
-
-func (dm *DatabaseManager) storeIdentity(tx *sql.Tx, identity *ent.Identity) error {
-	query := fmt.Sprintf(
-		"INSERT INTO %s (uid, private_key, public_key, signature, auth_token) VALUES ($1, $2, $3, $4, $5);",
-		dm.tableName)
-
-	_, err := tx.Exec(query, &identity.Uid, &identity.PrivateKey, &identity.PublicKey, &identity.Signature, &identity.AuthToken)
-	if err != nil {
-		if dm.isConnectionAvailable(err) {
-			return dm.storeIdentity(tx, identity)
-		}
-		return err
-	}
-
-	return nil
-}
-
-func (dm *DatabaseManager) isConnectionAvailable(err error) bool {
-	if err.Error() == pq.ErrorCode("53300").Name() || // "53300": "too_many_connections",
-		err.Error() == pq.ErrorCode("53400").Name() { // "53400": "configuration_limit_exceeded",
-		time.Sleep(100 * time.Millisecond)
-		return true
+		log.Errorf("%s = %s", err, pqErr.Code)
 	}
 	return false
 }

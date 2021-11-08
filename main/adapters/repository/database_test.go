@@ -4,191 +4,462 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"math/rand"
+	"os"
+	"path/filepath"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/ubirch/ubirch-client-go/main/config"
 	"github.com/ubirch/ubirch-client-go/main/ent"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
 const (
-	TestTableName  = "test_identity"
-	TestUUID       = "2336c75d-a14a-47dd-80d9-3cbe9d560433"
-	TestAuthToken  = "TEST_auth"
-	TestPrivKey    = "Qkp+ZVAlEKCQNvI+OCbY7LKcQVW5iKfFMfzedTI3uG0="
-	TestPubKey     = "bvXP3mQ42hXpcqo0ms7Lr1n6Q4L5CsS8HXk0mdXlsXLwYjd35jLlX3iHrXMgUH92N8ujbZ3h3TnLk8a0GikUbg=="
-	TestSignature  = "XqfjRkM0g9swes9osaoptFCFau4Qq3jX+bv+SwPLkUARs8MRm6uRj3VCbvF3JZUlHAEuXmAn849vV9e71KGjDQ=="
-	TestSignature2 = "Zr2GweEW6U/23BXBlR7MG7E0APYVtkhVSgtpUQ8e8EThtLEBjNIQcsX1B7bW3sbx8cBQQ9lBXFUPwaQ64X5HnQ=="
-)
-
-var (
-	testIdentity = initTestIdentity()
+	testLoad = 100
 )
 
 func TestDatabaseManager(t *testing.T) {
-	dbManager, err := initDB()
-	if err != nil {
-		t.Fatal(err)
-	}
+	dm, err := initDB()
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	testIdentity := generateRandomIdentity()
+
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cleanUp(t, dbManager, cancel)
+	defer cancel()
 
 	// check not exists
-	exists, err := dbManager.Exists(uuid.MustParse(testIdentity.Uid))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if exists {
-		t.Errorf("dbManager.Exists returned TRUE")
-	}
+	_, err = dm.LoadIdentity(testIdentity.Uid)
+	assert.Equal(t, ErrNotExist, err)
+
+	tx, err := dm.StartTransaction(ctx)
+	require.NoError(t, err)
+
+	_, err = dm.LoadSignature(tx, testIdentity.Uid)
+	assert.Equal(t, ErrNotExist, err)
+
+	err = tx.Commit()
+	require.NoError(t, err)
 
 	// store identity
-	tx, err := dbManager.StartTransaction(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
+	tx, err = dm.StartTransaction(ctx)
+	require.NoError(t, err)
 
-	err = dbManager.StoreNewIdentity(tx, testIdentity)
-	if err != nil {
-		t.Fatal(err)
-	}
+	err = dm.StoreIdentity(tx, testIdentity)
+	require.NoError(t, err)
 
-	err = dbManager.CloseTransaction(tx, Commit)
-	if err != nil {
-		t.Fatal(err)
-	}
+	err = tx.Commit()
+	require.NoError(t, err)
 
 	// check exists
-	exists, err = dbManager.Exists(uuid.MustParse(testIdentity.Uid))
+	tx, err = dm.StartTransaction(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, tx)
+
+	sig, err := dm.LoadSignature(tx, testIdentity.Uid)
+	assert.NoError(t, err)
+	assert.Equal(t, testIdentity.Signature, sig)
+
+	i, err := dm.LoadIdentity(testIdentity.Uid)
+	assert.NoError(t, err)
+	assert.Equal(t, testIdentity.PrivateKey, i.PrivateKey)
+	assert.Equal(t, testIdentity.PublicKey, i.PublicKey)
+	assert.Equal(t, testIdentity.AuthToken, i.AuthToken)
+}
+
+func TestDatabaseManager_SetSignature(t *testing.T) {
+	dm, err := initDB()
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	testIdentity := generateRandomIdentity()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// store identity
+	tx, err := dm.StartTransaction(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, tx)
+
+	err = dm.StoreIdentity(tx, testIdentity)
+	require.NoError(t, err)
+
+	err = tx.Commit()
+	require.NoError(t, err)
+
+	newSignature := make([]byte, 64)
+	rand.Read(newSignature)
+
+	tx, err = dm.StartTransaction(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, tx)
+
+	err = dm.StoreSignature(tx, testIdentity.Uid, newSignature)
+	require.NoError(t, err)
+
+	err = tx.Commit()
+	require.NoError(t, err)
+
+	tx2, err := dm.StartTransaction(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, tx2)
+
+	sig, err := dm.LoadSignature(tx2, testIdentity.Uid)
+	assert.NoError(t, err)
+	assert.Equal(t, newSignature, sig)
+}
+
+func TestNewSqlDatabaseInfo_Ready(t *testing.T) {
+	dm, err := initDB()
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	err = dm.IsReady()
+	require.NoError(t, err)
+}
+
+func TestNewSqlDatabaseInfo_NotReady(t *testing.T) {
+	// use DSN that is valid, but not reachable
+	unreachableDSN := "postgres://nousr:nopwd@localhost:0000/nodatabase"
+
+	// we expect no error here
+	dm, err := NewSqlDatabaseInfo(unreachableDSN, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !exists {
-		t.Errorf("dbManager.Exists returned FALSE")
-	}
+	defer func(dm *DatabaseManager) {
+		err := dm.Close()
+		if err != nil {
+			t.Error(err)
+		}
+	}(dm)
 
-	// get attributes
-	auth, err := dbManager.GetAuthToken(uuid.MustParse(testIdentity.Uid))
+	err = dm.IsReady()
+	require.Error(t, err)
+}
+
+func TestStoreExisting(t *testing.T) {
+	dm, err := initDB()
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	testIdentity := generateRandomIdentity()
+
+	// store identity
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := dm.StartTransaction(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, tx)
+
+	err = dm.StoreIdentity(tx, testIdentity)
+	require.NoError(t, err)
+
+	err = tx.Commit()
+	require.NoError(t, err)
+
+	// store same identity again
+	tx2, err := dm.StartTransaction(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, tx2)
+
+	err = dm.StoreIdentity(tx2, testIdentity)
+	assert.Error(t, err)
+}
+
+func TestDatabaseManager_CancelTransaction(t *testing.T) {
+	dm, err := initDB()
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	testIdentity := generateRandomIdentity()
+
+	// store identity, but cancel context, so transaction will be rolled back
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := dm.StartTransaction(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, tx)
+
+	err = dm.StoreIdentity(tx, testIdentity)
+	require.NoError(t, err)
+
+	cancel()
+
+	// check not exists
+	_, err = dm.LoadIdentity(testIdentity.Uid)
+	assert.Equal(t, ErrNotExist, err)
+}
+
+func TestDatabaseManager_StartTransaction(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	c, err := getConfig()
+	require.NoError(t, err)
+
+	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, 1)
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	tx, err := dm.StartTransaction(ctx)
+	assert.NoError(t, err)
+	assert.NotNil(t, tx)
+
+	tx2, err := dm.StartTransaction(ctx)
+	assert.EqualError(t, err, "context deadline exceeded")
+	assert.Nil(t, tx2)
+}
+
+func TestDatabaseLoad(t *testing.T) {
+	wg := &sync.WaitGroup{}
+
+	dm, err := initDB()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if auth != testIdentity.AuthToken {
-		t.Error("GetAuthToken returned unexpected value")
+	defer cleanUpDB(t, dm)
+
+	// generate identities
+	var testIdentities []ent.Identity
+	for i := 0; i < testLoad; i++ {
+		testIdentities = append(testIdentities, generateRandomIdentity())
 	}
 
-	pub, err := dbManager.GetPublicKey(uuid.MustParse(testIdentity.Uid))
+	// store identities
+	for i, testId := range testIdentities {
+		wg.Add(1)
+		go func(idx int, id ent.Identity) {
+			err := storeIdentity(dm, id, wg)
+			if err != nil {
+				t.Errorf("%s: identity could not be stored: %v", id.Uid, err)
+			}
+		}(i, testId)
+	}
+	wg.Wait()
+
+	// check identities
+	for _, testId := range testIdentities {
+		wg.Add(1)
+		go func(id ent.Identity) {
+			err := checkIdentity(dm, id, dbCheckAuth, wg)
+			if err != nil {
+				t.Errorf("%s: %v", id.Uid, err)
+			}
+		}(testId)
+	}
+	wg.Wait()
+
+	// FIXME
+	//if dm.db.Stats().OpenConnections > dm.db.Stats().Idle {
+	//	t.Errorf("%d open connections, %d idle", dm.db.Stats().OpenConnections, dm.db.Stats().Idle)
+	//}
+}
+
+func TestDatabaseManager_Retry(t *testing.T) {
+	c, err := getConfig()
+	require.NoError(t, err)
+
+	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, 101)
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	wg := &sync.WaitGroup{}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	for i := 0; i < 101; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			_, err := dm.StartTransaction(ctx)
+			if err != nil {
+				if pqErr, ok := err.(*pq.Error); ok {
+					switch pqErr.Code {
+					case "55P03", "53300", "53400":
+						return
+					}
+				}
+				t.Error(err)
+			}
+		}()
+	}
+	wg.Wait()
+}
+
+func getConfig() (*config.Config, error) {
+	configFileName := "config_test.json"
+	fileHandle, err := os.Open(filepath.Join("../../", configFileName))
+	if os.IsNotExist(err) {
+		return nil, fmt.Errorf("%v \n"+
+			"--------------------------------------------------------------------------------\n"+
+			"Please provide a configuration file \"%s\" in the main directory which contains\n"+
+			"a DSN for a postgres database in order to test the database context management.\n\n"+
+			"!!! THIS MUST BE DIFFERENT FROM THE DSN USED FOR THE ACTUAL CONTEXT !!!\n\n"+
+			"{\n\t\"postgresDSN\": \"postgres://<username>:<password>@<hostname>:5432/<TEST-database>\"\n}\n"+
+			"--------------------------------------------------------------------------------",
+			err, configFileName)
+	}
 	if err != nil {
-		t.Fatal(err)
+		return nil, err
 	}
-	if !bytes.Equal(pub, testIdentity.PublicKey) {
-		t.Error("GetPublicKey returned unexpected value")
-	}
+	defer fileHandle.Close()
 
-	priv, err := dbManager.GetPrivateKey(uuid.MustParse(testIdentity.Uid))
+	c := &config.Config{}
+	err = json.NewDecoder(fileHandle).Decode(c)
 	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(priv, testIdentity.PrivateKey) {
-		t.Error("GetPrivateKey returned unexpected value")
+		return nil, err
 	}
 
-	// fetch identity
-	tx, err = dbManager.StartTransactionWithLock(ctx, uuid.MustParse(testIdentity.Uid))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	id, err := dbManager.FetchIdentity(tx, uuid.MustParse(testIdentity.Uid))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if id.Uid != testIdentity.Uid {
-		t.Error("fetched unexpected uid value")
-	}
-	if id.AuthToken != testIdentity.AuthToken {
-		t.Error("fetched unexpected auth token value")
-	}
-	if !bytes.Equal(id.PrivateKey, testIdentity.PrivateKey) {
-		t.Error("fetched unexpected private key value")
-	}
-	if !bytes.Equal(id.PublicKey, testIdentity.PublicKey) {
-		t.Error("fetched unexpected public key value")
-	}
-	if !bytes.Equal(id.Signature, testIdentity.Signature) {
-		t.Error("fetched unexpected signature value")
-	}
-
-	// set signature
-	sig2, _ := base64.StdEncoding.DecodeString(TestSignature2)
-	err = dbManager.SetSignature(tx, uuid.MustParse(testIdentity.Uid), sig2)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = dbManager.CloseTransaction(tx, Commit)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// fetch identity to check signature
-	tx, err = dbManager.StartTransaction(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	id, err = dbManager.FetchIdentity(tx, uuid.MustParse(testIdentity.Uid))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = dbManager.CloseTransaction(tx, Commit)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if !bytes.Equal(id.Signature, sig2) {
-		t.Error("setting signature failed")
-	}
+	return c, nil
 }
 
 func initDB() (*DatabaseManager, error) {
-	conf := &config.Config{}
-	err := conf.Load("../../", "config.json")
+	c, err := getConfig()
 	if err != nil {
-		return nil, fmt.Errorf("ERROR: unable to load configuration: %s", err)
+		return nil, err
 	}
 
-	return NewSqlDatabaseInfo(conf.PostgresDSN, TestTableName)
+	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, c.DbMaxConns)
+	if err != nil {
+		return nil, err
+	}
+
+	return dm, nil
 }
 
-func initTestIdentity() *ent.Identity {
-	priv, _ := base64.StdEncoding.DecodeString(TestPrivKey)
-	pub, _ := base64.StdEncoding.DecodeString(TestPubKey)
-	sig, _ := base64.StdEncoding.DecodeString(TestSignature)
+func cleanUpDB(t *testing.T, dm *DatabaseManager) {
+	dropTableQuery := fmt.Sprintf("DROP TABLE %s;", PostgresIdentityTableName)
+	_, err := dm.db.Exec(dropTableQuery)
+	assert.NoError(t, err)
 
-	return &ent.Identity{
-		Uid:        uuid.MustParse(TestUUID).String(),
+	err = dm.Close()
+	assert.NoError(t, err)
+}
+
+func generateRandomIdentity() ent.Identity {
+	uid := uuid.New()
+
+	keystore := &MockKeystorer{}
+
+	c := ubirch.ECDSACryptoContext{Keystore: keystore}
+
+	err := c.GenerateKey(uid)
+	if err != nil {
+		panic(err)
+	}
+
+	priv, err := keystore.GetPrivateKey(uid)
+	if err != nil {
+		panic(err)
+	}
+
+	pub, err := keystore.GetPublicKey(uid)
+	if err != nil {
+		panic(err)
+	}
+
+	sig := make([]byte, 64)
+	rand.Read(sig)
+
+	auth := make([]byte, 16)
+	rand.Read(auth)
+
+	return ent.Identity{
+		Uid:        uuid.New(),
 		PrivateKey: priv,
 		PublicKey:  pub,
 		Signature:  sig,
-		AuthToken:  TestAuthToken,
+		AuthToken:  base64.StdEncoding.EncodeToString(auth),
 	}
 }
 
-func cleanUp(t *testing.T, dbManager *DatabaseManager, cancel context.CancelFunc) {
-	cancel()
+func storeIdentity(ctxManager ContextManager, id ent.Identity, wg *sync.WaitGroup) error {
+	defer wg.Done()
 
-	deleteQuery := fmt.Sprintf("DELETE FROM %s WHERE uid = $1;", TestTableName)
-	_, err := dbManager.db.Exec(deleteQuery, TestUUID)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := ctxManager.StartTransaction(ctx)
 	if err != nil {
-		t.Error(err)
+		return fmt.Errorf("StartTransaction: %v", err)
 	}
 
-	dropTableQuery := fmt.Sprintf("DROP TABLE %s;", TestTableName)
-	_, err = dbManager.db.Exec(dropTableQuery)
+	err = ctxManager.StoreIdentity(tx, id)
 	if err != nil {
-		t.Error(err)
+		return fmt.Errorf("StoreIdentity: %v", err)
 	}
+
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("Commit: %v", err)
+	}
+
+	return nil
+}
+
+func dbCheckAuth(auth, authToCheck string) error {
+	if auth != authToCheck {
+		return fmt.Errorf("auth check failed")
+	}
+
+	return nil
+}
+
+func checkIdentity(ctxManager ContextManager, id ent.Identity, checkAuth func(string, string) error, wg *sync.WaitGroup) error {
+	defer wg.Done()
+
+	fetchedId, err := ctxManager.LoadIdentity(id.Uid)
+	if err != nil {
+		return fmt.Errorf("LoadIdentity: %v", err)
+	}
+
+	if !bytes.Equal(fetchedId.PrivateKey, id.PrivateKey) {
+		return fmt.Errorf("unexpected private key")
+	}
+
+	if !bytes.Equal(fetchedId.PublicKey, id.PublicKey) {
+		return fmt.Errorf("unexpected public key")
+	}
+
+	err = checkAuth(fetchedId.AuthToken, id.AuthToken)
+	if err != nil {
+		return fmt.Errorf("checkAuth: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := ctxManager.StartTransaction(ctx)
+	if err != nil {
+		return fmt.Errorf("StartTransaction: %v", err)
+	}
+
+	sig, err := ctxManager.LoadSignature(tx, id.Uid)
+	if err != nil {
+		return fmt.Errorf("LoadSignature: %v", err)
+	}
+
+	if !bytes.Equal(sig, id.Signature) {
+		return fmt.Errorf("LoadSignature returned unexpected value")
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("Commit: %v", err)
+	}
+
+	return nil
 }

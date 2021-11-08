@@ -17,7 +17,7 @@ type responseWriter struct {
 }
 
 func NewResponseWriter(w http.ResponseWriter) *responseWriter {
-	return &responseWriter{w, http.StatusOK}
+	return &responseWriter{w, 0}
 }
 
 func (rw *responseWriter) WriteHeader(code int) {
@@ -25,15 +25,15 @@ func (rw *responseWriter) WriteHeader(code int) {
 	rw.ResponseWriter.WriteHeader(code)
 }
 
-var totalRequests = prometheus.NewCounterVec(
+var totalRequests = promauto.NewCounterVec(
 	prometheus.CounterOpts{
 		Name: "http_requests_total",
-		Help: "Number of get requests.",
+		Help: "Total number of HTTP requests.",
 	},
 	[]string{"path"},
 )
 
-var responseStatus = prometheus.NewCounterVec(
+var responseStatus = promauto.NewCounterVec(
 	prometheus.CounterOpts{
 		Name: "response_status",
 		Help: "Status of HTTP response",
@@ -49,44 +49,46 @@ var httpDuration = promauto.NewHistogramVec(
 	[]string{"path"},
 )
 
-var UpstreamResponseDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
-	Name:    "upstream_response_duration",
-	Help:    "Duration of HTTP responses from upstream server.",
-	Buckets: prometheus.LinearBuckets(0.01, 0.01, 10),
+var IdentityCreationCounter = promauto.NewCounter(
+	prometheus.CounterOpts{
+		Name: "identity_creation_success",
+		Help: "Number of identities which have been successfully created, registered and stored.",
+	})
+
+var IdentityCreationDuration = promauto.NewHistogram(
+	prometheus.HistogramOpts{
+		Name: "identity_creation_duration",
+		Help: "Duration of the identity being created, registered and stored.",
+	})
+
+var SignatureCreationCounter = promauto.NewCounter(
+	prometheus.CounterOpts{
+		Name: "signature_creation_success",
+		Help: "Number of successfully created signatures",
+	})
+
+var SignatureCreationDuration = promauto.NewHistogram(
+	prometheus.HistogramOpts{
+		Name: "signature_creation_duration",
+		Help: "Duration of the creation of a signed object",
+	})
+
+var UpstreamResponseDuration = promauto.NewHistogram(prometheus.HistogramOpts{
+	Name: "upstream_response_duration",
+	Help: "Duration of HTTP responses from upstream server.",
 })
 
-var SignatureCreationDuration = promauto.NewHistogram(prometheus.HistogramOpts{
-	Name:    "signature_creation_duration",
-	Help:    "Duration of the creation of a signed object",
-	Buckets: prometheus.LinearBuckets(0.01, 0.01, 10),
-})
+var AuthCheckDuration = promauto.NewHistogram(
+	prometheus.HistogramOpts{
+		Name: "auth_check_duration",
+		Help: "Duration of the auth token being checked for validity.",
+	})
 
-var SignatureCreationCounter = prometheus.NewCounter(prometheus.CounterOpts{
-	Name: "signature_creation_success",
-	Help: "Number of successfully created signatures",
-})
-
-var IdentityCreationDuration = promauto.NewHistogram(prometheus.HistogramOpts{
-	Name:    "identity_creation_duration",
-	Help:    "Duration of the identity being created, registered and stored.",
-	Buckets: prometheus.LinearBuckets(0.01, 0.01, 10),
-})
-
-var IdentityCreationCounter = prometheus.NewCounter(prometheus.CounterOpts{
-	Name: "identity_creation_success",
-	Help: "Number of identities which have been successfully created and stored.",
-})
-
-func RegisterPromMetrics() {
-	prometheus.Register(totalRequests)
-	prometheus.Register(responseStatus)
-	prometheus.Register(httpDuration)
-	prometheus.Register(UpstreamResponseDuration)
-	prometheus.Register(SignatureCreationDuration)
-	prometheus.Register(SignatureCreationCounter)
-	prometheus.Register(IdentityCreationDuration)
-	prometheus.Register(IdentityCreationCounter)
-}
+var AuthCheckWithWaitDuration = promauto.NewHistogram(
+	prometheus.HistogramOpts{
+		Name: "auth_check_with_wait_duration",
+		Help: "Duration of the auth token being checked for validity including waiting time for semaphore.",
+	})
 
 func PromMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -100,12 +102,9 @@ func PromMiddleware(next http.Handler) http.Handler {
 		httpDuration.WithLabelValues(path).Observe(time.Since(startTimer).Seconds())
 		totalRequests.WithLabelValues(path).Inc()
 		responseStatus.WithLabelValues(strconv.Itoa(statusCode)).Inc()
-
 	})
 }
 
-func InitPromMetrics(router *chi.Mux) {
-	RegisterPromMetrics()
-	router.Use(PromMiddleware)
-	router.Method(http.MethodGet, "/metrics", promhttp.Handler())
+func Handler() http.Handler {
+	return promhttp.Handler()
 }

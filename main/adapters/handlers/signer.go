@@ -15,40 +15,32 @@
 package handlers
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
-	"sync"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
-	"github.com/ubirch/ubirch-client-go/main/ent"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
-	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
+	h "github.com/ubirch/ubirch-client-go/main/adapters/http_server"
 	prom "github.com/ubirch/ubirch-client-go/main/prometheus"
 )
 
-type operation string
-
 const (
-	anchorHash  operation = "anchor"
-	disableHash operation = "disable"
-	enableHash  operation = "enable"
-	deleteHash  operation = "delete"
-
 	lenRequestID = 16
 )
 
-var hintLookup = map[operation]ubirch.Hint{
-	anchorHash:  ubirch.Binary,
-	disableHash: ubirch.Disable,
-	enableHash:  ubirch.Enable,
-	deleteHash:  ubirch.Delete,
+var hintLookup = map[h.Operation]ubirch.Hint{
+	h.AnchorHash:  ubirch.Binary,
+	h.DisableHash: ubirch.Disable,
+	h.EnableHash:  ubirch.Enable,
+	h.DeleteHash:  ubirch.Delete,
 }
 
 type signingResponse struct {
@@ -60,48 +52,34 @@ type signingResponse struct {
 }
 
 type Signer struct {
-	Protocol             *repository.ExtendedProtocol
-	AuthTokensBuffer     map[uuid.UUID]string
-	AuthTokenBufferMutex *sync.RWMutex
-}
-
-func (s *Signer) checkExists(uid uuid.UUID) (bool, error) {
-	s.AuthTokenBufferMutex.RLock()
-	_, found := s.AuthTokensBuffer[uid]
-	s.AuthTokenBufferMutex.RUnlock()
-
-	if !found {
-		return s.Protocol.Exists(uid)
-	}
-	return true, nil
-}
-
-func (s *Signer) getAuth(uid uuid.UUID) (auth string, err error) {
-	var found bool
-
-	s.AuthTokenBufferMutex.RLock()
-	auth, found = s.AuthTokensBuffer[uid]
-	s.AuthTokenBufferMutex.RUnlock()
-
-	if !found {
-		auth, err = s.Protocol.GetAuthToken(uid)
-		if err != nil {
-			return "", err
-		}
-
-		s.AuthTokenBufferMutex.Lock()
-		s.AuthTokensBuffer[uid] = auth
-		s.AuthTokenBufferMutex.Unlock()
-	}
-	return auth, nil
+	Protocol          *repository.ExtendedProtocol
+	SendToAuthService func(uid uuid.UUID, auth string, upp []byte) (h.HTTPResponse, error)
 }
 
 // handle incoming messages, create, sign and send a chained ubirch protocol packet (UPP) to the ubirch backend
-func (s *Signer) chain(msg h.HTTPRequest, tx interface{}, identity *ent.Identity) h.HTTPResponse {
+func (s *Signer) Chain(msg h.HTTPRequest, ctx context.Context) h.HTTPResponse {
 	log.Infof("%s: anchor hash [chained]: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
+	_, err := s.Protocol.LoadPrivateKey(msg.ID)
+	if err != nil {
+		log.Errorf("%s: could not fetch private Key for UUID: %v", msg.ID, err)
+		return errorResponse(http.StatusInternalServerError, "")
+	}
+
+	tx, err := s.Protocol.StartTransaction(ctx)
+	if err != nil {
+		log.Errorf("%s: initializing transaction failed: %v", msg.ID, err)
+		return errorResponse(http.StatusServiceUnavailable, "")
+	}
+
+	prevSignature, err := s.Protocol.LoadSignature(tx, msg.ID)
+	if err != nil {
+		log.Errorf("%s: could not fetch identity from storage: %v", msg.ID, err)
+		return errorResponse(http.StatusInternalServerError, "")
+	}
+
 	timer := prometheus.NewTimer(prom.SignatureCreationDuration)
-	uppBytes, err := s.getChainedUPP(msg.ID, msg.Hash, identity.PrivateKey, identity.Signature)
+	uppBytes, err := s.getChainedUPP(msg.ID, msg.Hash, prevSignature)
 	timer.ObserveDuration()
 	if err != nil {
 		log.Errorf("%s: could not create chained UPP: %v", msg.ID, err)
@@ -115,7 +93,7 @@ func (s *Signer) chain(msg h.HTTPRequest, tx interface{}, identity *ent.Identity
 	if h.HttpSuccess(resp.StatusCode) {
 		signature := uppBytes[len(uppBytes)-s.Protocol.SignatureLength():]
 
-		err = s.Protocol.SetSignature(tx, msg.ID, signature)
+		err = s.Protocol.StoreSignature(tx, msg.ID, signature)
 		if err != nil {
 			// this usually happens, if the request context was cancelled because the client already left (timeout or cancel)
 			log.Errorf("%s: storing signature failed: %v", msg.ID, err)
@@ -130,16 +108,16 @@ func (s *Signer) chain(msg h.HTTPRequest, tx interface{}, identity *ent.Identity
 	return resp
 }
 
-func (s *Signer) Sign(msg h.HTTPRequest, op operation) h.HTTPResponse {
+func (s *Signer) Sign(msg h.HTTPRequest, op h.Operation) h.HTTPResponse {
 	log.Infof("%s: %s hash: %s", msg.ID, op, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
-	privateKeyPEM, err := s.Protocol.GetPrivateKey(msg.ID)
+	_, err := s.Protocol.LoadPrivateKey(msg.ID)
 	if err != nil {
-		log.Errorf("%s: could not fetch private Key for UUID: %v", msg.ID, err)
+		log.Errorf("%s: could not load private key for UUID: %v", msg.ID, err)
 		return errorResponse(http.StatusInternalServerError, "")
 	}
 
-	uppBytes, err := s.getSignedUPP(msg.ID, msg.Hash, privateKeyPEM, op)
+	uppBytes, err := s.getSignedUPP(msg.ID, msg.Hash, op)
 	if err != nil {
 		log.Errorf("%s: could not create signed UPP: %v", msg.ID, err)
 		return errorResponse(http.StatusInternalServerError, "")
@@ -149,9 +127,8 @@ func (s *Signer) Sign(msg h.HTTPRequest, op operation) h.HTTPResponse {
 	return s.sendUPP(msg, uppBytes)
 }
 
-func (s *Signer) getChainedUPP(id uuid.UUID, hash []byte, privateKeyPEM, prevSignature []byte) ([]byte, error) {
+func (s *Signer) getChainedUPP(id uuid.UUID, hash [32]byte, prevSignature []byte) ([]byte, error) {
 	return s.Protocol.Sign(
-		privateKeyPEM,
 		&ubirch.ChainedUPP{
 			Version:       ubirch.Chained,
 			Uuid:          id,
@@ -161,14 +138,13 @@ func (s *Signer) getChainedUPP(id uuid.UUID, hash []byte, privateKeyPEM, prevSig
 		})
 }
 
-func (s *Signer) getSignedUPP(id uuid.UUID, hash []byte, privateKeyPEM []byte, op operation) ([]byte, error) {
+func (s *Signer) getSignedUPP(id uuid.UUID, hash [32]byte, op h.Operation) ([]byte, error) {
 	hint, found := hintLookup[op]
 	if !found {
 		return nil, fmt.Errorf("%s: invalid operation: \"%s\"", id, op)
 	}
 
 	return s.Protocol.Sign(
-		privateKeyPEM,
 		&ubirch.SignedUPP{
 			Version: ubirch.Signed,
 			Uuid:    id,
@@ -180,7 +156,7 @@ func (s *Signer) getSignedUPP(id uuid.UUID, hash []byte, privateKeyPEM []byte, o
 func (s *Signer) sendUPP(msg h.HTTPRequest, upp []byte) h.HTTPResponse {
 	// send UPP to ubirch backend
 	timer := prometheus.NewTimer(prom.UpstreamResponseDuration)
-	backendResp, err := s.Protocol.SendToAuthService(msg.ID, msg.Auth, upp)
+	backendResp, err := s.SendToAuthService(msg.ID, msg.Auth, upp)
 	timer.ObserveDuration()
 	if err != nil {
 		if os.IsTimeout(err) {

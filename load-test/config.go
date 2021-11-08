@@ -20,7 +20,7 @@ func (c *Config) Load(filename string) error {
 	return json.NewDecoder(fileHandle).Decode(c)
 }
 
-func getTestIdentities(c *Config) map[string]string {
+func (c *Config) GetTestIdentities() map[string]string {
 	testIdentities := make(map[string]string, numberOfTestIDs)
 
 	for uid, auth := range c.Devices {

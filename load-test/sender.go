@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -27,18 +28,26 @@ type HTTPResponse struct {
 }
 
 type Sender struct {
-	testCtx    *TestCtx
-	httpClient *http.Client
+	httpClient       *http.Client
+	chainChecker     *ChainChecker
+	statusCounter    map[string]int
+	statusCounterMtx *sync.Mutex
+	requestTimer     time.Duration
+	requestCounter   int
+	requestTimerMtx  *sync.Mutex
 }
 
-func NewSender(testCtx *TestCtx) *Sender {
+func NewSender() *Sender {
 	return &Sender{
-		testCtx:    testCtx,
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		httpClient:       &http.Client{Timeout: 30 * time.Second},
+		chainChecker:     NewChainChecker(),
+		statusCounter:    map[string]int{},
+		statusCounterMtx: &sync.Mutex{},
+		requestTimerMtx:  &sync.Mutex{},
 	}
 }
 
-func (s *Sender) register(id string, auth string, registerAuth string) error {
+func (s *Sender) register(id, auth, registerAuth string) error {
 	url := clientBaseURL + "/register"
 
 	header := http.Header{}
@@ -76,30 +85,32 @@ func (s *Sender) register(id string, auth string, registerAuth string) error {
 	case http.StatusConflict:
 		log.Debugf("%s: identity already registered", id)
 	default:
-		log.Warnf("%s: registration returned: %s", id, resp.Status)
+		return fmt.Errorf("%s: registration returned: %s", id, resp.Status)
 	}
 
 	return nil
 }
 
-func (s *Sender) sendRequests(id string, auth string) {
-	defer s.testCtx.wg.Done()
+func (s *Sender) sendRequests(id, auth string, offset time.Duration, wg *sync.WaitGroup) {
+	defer wg.Done()
 
 	clientURL := clientBaseURL + fmt.Sprintf("/%s/hash", id)
 	header := http.Header{}
 	header.Set("Content-Type", "application/octet-stream")
 	header.Set("X-Auth-Token", auth)
 
+	time.Sleep(offset)
+
 	for i := 0; i < numberOfRequestsPerID; i++ {
-		s.testCtx.wg.Add(1)
-		go s.sendAndCheckResponse(clientURL, header)
+		wg.Add(1)
+		go s.sendAndCheckResponse(clientURL, header, wg)
 
 		time.Sleep(time.Second / requestsPerSecondPerID)
 	}
 }
 
-func (s *Sender) sendAndCheckResponse(clientURL string, header http.Header) {
-	defer s.testCtx.wg.Done()
+func (s *Sender) sendAndCheckResponse(clientURL string, header http.Header, wg *sync.WaitGroup) {
+	defer wg.Done()
 
 	hash := make([]byte, 32)
 	_, err := rand.Read(hash)
@@ -119,7 +130,7 @@ func (s *Sender) sendAndCheckResponse(clientURL string, header http.Header) {
 		log.Error("HASH MISMATCH")
 	}
 	// check resp -> chain
-	s.testCtx.chainChecker.UPPs <- resp.UPP
+	s.chainChecker.UPPs <- resp.UPP
 }
 
 func (s *Sender) sendRequest(clientURL string, header http.Header, hash []byte) (SigningResponse, error) {
@@ -130,17 +141,23 @@ func (s *Sender) sendRequest(clientURL string, header http.Header, hash []byte) 
 
 	req.Header = header
 
+	start := time.Now()
+
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		return SigningResponse{}, err
 	}
 
+	duration := time.Now().Sub(start)
+
 	//noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()
 
-	s.testCtx.statusCounter.StatusCodes <- resp.Status
+	s.countStatus(resp.Status)
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode == http.StatusOK {
+		s.addTime(duration)
+	} else {
 		return SigningResponse{}, fmt.Errorf(resp.Status)
 	}
 
@@ -151,4 +168,24 @@ func (s *Sender) sendRequest(clientURL string, header http.Header, hash []byte) 
 	}
 
 	return clientResponse, nil
+}
+
+func (s *Sender) countStatus(status string) {
+	s.statusCounterMtx.Lock()
+	s.statusCounter[status] += 1
+	s.statusCounterMtx.Unlock()
+}
+
+func (s *Sender) addTime(dur time.Duration) {
+	s.requestTimerMtx.Lock()
+	s.requestTimer += dur
+	s.requestCounter += 1
+	s.requestTimerMtx.Unlock()
+}
+
+func (s *Sender) getAvgRequestDuration() time.Duration {
+	if s.requestCounter == 0 {
+		return 0
+	}
+	return s.requestTimer / time.Duration(s.requestCounter)
 }

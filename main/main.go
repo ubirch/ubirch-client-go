@@ -15,38 +15,20 @@
 package main
 
 import (
-	"context"
 	"fmt"
+	"net/http"
 	"os"
-	"os/signal"
-	"sync"
-	"syscall"
+	"path"
 
-	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
 	"github.com/ubirch/ubirch-client-go/main/adapters/handlers"
 	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
 	"github.com/ubirch/ubirch-client-go/main/config"
-	"github.com/ubirch/ubirch-client-go/main/uc"
-	"golang.org/x/sync/errgroup"
 
 	log "github.com/sirupsen/logrus"
-	h "github.com/ubirch/ubirch-client-go/main/adapters/httphelper"
+	h "github.com/ubirch/ubirch-client-go/main/adapters/http_server"
 	prom "github.com/ubirch/ubirch-client-go/main/prometheus"
 )
-
-// handle graceful shutdown
-func shutdown(cancel context.CancelFunc) {
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
-
-	// block until we receive a SIGINT or SIGTERM
-	sig := <-signals
-	log.Infof("shutting down after receiving: %v", sig)
-
-	// cancel the go routines contexts
-	cancel()
-}
 
 var (
 	// Version will be replaced with the tagged version during build time
@@ -64,10 +46,11 @@ func main() {
 	)
 
 	var (
-		configDir      string
-		migrate        bool
-		initIdentities bool
-		serverID       = fmt.Sprintf("%s/%s", serviceName, Version)
+		configDir       string
+		migrate         bool
+		initIdentities  bool
+		serverID        = fmt.Sprintf("%s/%s", serviceName, Version)
+		readinessChecks []func() error
 	)
 
 	if len(os.Args) > 1 {
@@ -87,53 +70,14 @@ func main() {
 	log.Printf("UBIRCH client (version=%s, revision=%s)", Version, Revision)
 
 	// read configuration
-	conf := config.Config{}
+	conf := &config.Config{}
 	err := conf.Load(configDir, configFile)
 	if err != nil {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
 
-	globals := handlers.Globals{
-		Config:  conf,
-		Version: Version,
-	}
-
-	// create a waitgroup that contains all asynchronous operations
-	// a cancellable context is used to stop the operations gracefully
-	ctx, cancel := context.WithCancel(context.Background())
-	g, ctx := errgroup.WithContext(ctx)
-
-	// set up graceful shutdown handling
-	go shutdown(cancel)
-
-	// set up HTTP server
-	httpServer := h.HTTPServer{
-		Router:   h.NewRouter(),
-		Addr:     conf.TCP_addr,
-		TLS:      conf.TLS,
-		CertFile: conf.TLS_CertFile,
-		KeyFile:  conf.TLS_KeyFile,
-	}
-	if conf.CORS && config.IsDevelopment { // never enable CORS on production stage
-		httpServer.SetUpCORS(conf.CORS_Origins, conf.Debug)
-	}
-
-	// start HTTP server
-	serverReadyCtx, serverReady := context.WithCancel(context.Background())
-	g.Go(func() error {
-		return httpServer.Serve(ctx, serverReady)
-	})
-	// wait for server to start
-	<-serverReadyCtx.Done()
-
-	// set up metrics
-	prom.InitPromMetrics(httpServer.Router)
-
-	// set up endpoint for liveliness checks
-	httpServer.Router.Get("/healtz", h.Health(serverID))
-
 	if migrate {
-		err := repository.Migrate(conf)
+		err := repository.Migrate(conf, configDir)
 		if err != nil {
 			log.Fatalf("migration failed: %v", err)
 		}
@@ -141,27 +85,35 @@ func main() {
 	}
 
 	// initialize ubirch protocol
-	ctxManager, err := repository.GetCtxManager(conf)
+	ctxManager, err := repository.GetContextManager(conf)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer func() {
+		err := ctxManager.Close()
+		if err != nil {
+			log.Error(err)
+		}
+	}()
+	readinessChecks = append(readinessChecks, ctxManager.IsReady)
+
+	protocol, err := repository.NewExtendedProtocol(ctxManager, conf)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	client := &clients.Client{
-		AuthServiceURL:     conf.Niomon,
-		VerifyServiceURL:   conf.VerifyService,
-		KeyServiceURL:      conf.KeyService,
-		IdentityServiceURL: conf.IdentityService,
-	}
-
-	protocol, err := repository.NewExtendedProtocol(ctxManager, conf.SecretBytes32, client)
-	if err != nil {
-		log.Fatal(err)
-	}
+	client := &clients.UbirchServiceClient{}
+	client.KeyServiceURL = conf.KeyService
+	client.IdentityServiceURL = conf.IdentityService
+	client.AuthServiceURL = conf.Niomon
+	client.VerifyServiceURL = conf.VerifyService
 
 	idHandler := &handlers.IdentityHandler{
-		Protocol:            protocol,
-		SubjectCountry:      conf.CSR_Country,
-		SubjectOrganization: conf.CSR_Organization,
+		Protocol:              protocol,
+		SubmitKeyRegistration: client.SubmitKeyRegistration,
+		SubmitCSR:             client.SubmitCSR,
+		SubjectCountry:        conf.CSR_Country,
+		SubjectOrganization:   conf.CSR_Organization,
 	}
 
 	if initIdentities {
@@ -174,66 +126,72 @@ func main() {
 	}
 
 	signer := handlers.Signer{
-		Protocol:             protocol,
-		AuthTokensBuffer:     map[uuid.UUID]string{},
-		AuthTokenBufferMutex: &sync.RWMutex{},
+		Protocol:          protocol,
+		SendToAuthService: client.SendToAuthService,
 	}
 
 	verifier := handlers.Verifier{
 		Protocol:                      protocol,
+		RequestHash:                   client.RequestHash,
+		RequestPublicKeys:             client.RequestPublicKeys,
 		VerifyFromKnownIdentitiesOnly: false, // TODO: make configurable
 	}
 
+	// set up HTTP server
+	httpServer := h.HTTPServer{
+		Router:   h.NewRouter(),
+		Addr:     conf.TCP_addr,
+		TLS:      conf.TLS,
+		CertFile: conf.TLS_CertFile,
+		KeyFile:  conf.TLS_KeyFile,
+	}
+
+	if conf.CORS && config.IsDevelopment { // never enable CORS on production stage
+		httpServer.SetUpCORS(conf.CORS_Origins, conf.Debug)
+	}
+
+	// set up metrics
+	httpServer.Router.Method(http.MethodGet, h.MetricsEndpoint, prom.Handler())
+
 	// set up endpoint for identity registration
-	identity := createIdentityUseCases(globals.Config.RegisterAuth, idHandler)
-	httpServer.Router.Put(fmt.Sprintf("/%s", h.RegisterEndpoint), identity.handler.Put(identity.storeIdentity, identity.checkIdentity))
+	httpServer.Router.Put(h.RegisterEndpoint, h.Register(conf.RegisterAuth, idHandler.InitIdentity))
+
+	// set up endpoint for CSRs
+	fetchCSREndpoint := path.Join(h.UUIDPath, h.CSREndpoint) // /<uuid>/csr
+	httpServer.Router.Get(fetchCSREndpoint, h.FetchCSR(conf.RegisterAuth, idHandler.CreateCSR))
 
 	// set up endpoint for chaining
 	httpServer.AddServiceEndpoint(h.ServerEndpoint{
-		Path: fmt.Sprintf("/{%s}", h.UUIDKey),
-		Service: &handlers.ChainingService{
-			Signer: &signer,
+		Path: h.UUIDPath,
+		Service: &h.ChainingService{
+			CheckAuth: protocol.CheckAuth,
+			Chain:     signer.Chain,
 		},
 	})
 
 	// set up endpoint for signing
 	httpServer.AddServiceEndpoint(h.ServerEndpoint{
-		Path: fmt.Sprintf("/{%s}/{%s}", h.UUIDKey, h.OperationKey),
-		Service: &handlers.SigningService{
-			Signer: &signer,
+		Path: path.Join(h.UUIDPath, h.OperationPath),
+		Service: &h.SigningService{
+			CheckAuth: protocol.CheckAuth,
+			Sign:      signer.Sign,
 		},
 	})
 
 	// set up endpoint for verification
 	httpServer.AddServiceEndpoint(h.ServerEndpoint{
-		Path: fmt.Sprintf("/%s", h.VerifyPath),
-		Service: &handlers.VerificationService{
-			Verifier: &verifier,
+		Path: h.VerifyPath,
+		Service: &h.VerificationService{
+			Verify: verifier.Verify,
 		},
 	})
 
-	// set up endpoint for readiness checks
-	httpServer.Router.Get("/readiness", h.Health(serverID))
-	log.Info("ready")
+	// set up endpoints for liveness and readiness checks
+	httpServer.Router.Get(h.LivenessCheckEndpoint, h.Health(serverID))
+	httpServer.Router.Get(h.ReadinessCheckEndpoint, h.Ready(serverID, readinessChecks))
 
-	// wait for all go routines of the waitgroup to return
-	if err = g.Wait(); err != nil {
+	// start HTTP server (blocks until SIGINT or SIGTERM is received)
+	if err = httpServer.Serve(); err != nil {
 		log.Error(err)
-	}
-
-	log.Debug("shut down client")
-}
-
-type identities struct {
-	handler       handlers.IdentityCreator
-	storeIdentity handlers.StoreIdentity
-	checkIdentity handlers.CheckIdentityExists
-}
-
-func createIdentityUseCases(auth string, handler *handlers.IdentityHandler) identities {
-	return identities{
-		handler:       handlers.NewIdentityCreator(auth),
-		storeIdentity: uc.NewIdentityStorer(handler),
-		checkIdentity: uc.NewIdentityChecker(handler),
 	}
 }

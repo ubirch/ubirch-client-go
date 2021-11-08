@@ -32,7 +32,8 @@ main/main
 /venv/
 /main/certs/
 /main/config.json
-/main/config/test_config.json
+/main/config_test.json
+/main/test_config.json
 /main/keys.json
 /main/signatures/
 /main/tokens/

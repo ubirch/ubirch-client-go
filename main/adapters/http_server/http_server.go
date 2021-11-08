@@ -1,16 +1,20 @@
-package httphelper
+package http_server
 
 import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
+	"os/signal"
 	"path"
+	"syscall"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/cors"
 
 	log "github.com/sirupsen/logrus"
+	prom "github.com/ubirch/ubirch-client-go/main/prometheus"
 )
 
 type Service interface {
@@ -36,6 +40,7 @@ type HTTPServer struct {
 
 func NewRouter() *chi.Mux {
 	router := chi.NewMux()
+	router.Use(prom.PromMiddleware)
 	router.Use(middleware.Timeout(GatewayTimeout))
 	return router
 }
@@ -62,7 +67,10 @@ func (srv *HTTPServer) AddServiceEndpoint(endpoint ServerEndpoint) {
 	srv.Router.Options(hashEndpointPath, endpoint.HandleOptions)
 }
 
-func (srv *HTTPServer) Serve(cancelCtx context.Context, serverReady context.CancelFunc) error {
+func (srv *HTTPServer) Serve() error {
+	cancelCtx, cancel := context.WithCancel(context.Background())
+	go shutdown(cancel)
+
 	server := &http.Server{
 		Addr:         srv.Addr,
 		Handler:      srv.Router,
@@ -70,6 +78,7 @@ func (srv *HTTPServer) Serve(cancelCtx context.Context, serverReady context.Canc
 		WriteTimeout: WriteTimeout,
 		IdleTimeout:  IdleTimeout,
 	}
+
 	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
 
 	go func() {
@@ -87,7 +96,6 @@ func (srv *HTTPServer) Serve(cancelCtx context.Context, serverReady context.Canc
 	}()
 
 	log.Infof("starting HTTP server")
-	serverReady()
 
 	var err error
 	if srv.TLS {
@@ -102,4 +110,17 @@ func (srv *HTTPServer) Serve(cancelCtx context.Context, serverReady context.Canc
 	// wait for server to shut down gracefully
 	<-shutdownCtx.Done()
 	return nil
+}
+
+// shutdown handles graceful shutdown of the server when SIGINT or SIGTERM is received
+func shutdown(cancel context.CancelFunc) {
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+
+	// block until we receive a SIGINT or SIGTERM
+	sig := <-signals
+	log.Infof("shutting down after receiving: %v", sig)
+
+	// cancel the contexts
+	cancel()
 }

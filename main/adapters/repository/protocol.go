@@ -16,64 +16,67 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	log "github.com/sirupsen/logrus"
+	"sync"
 
 	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
-	"github.com/ubirch/ubirch-client-go/main/adapters/encrypters"
+	"github.com/ubirch/ubirch-client-go/main/adapters/encryption"
+	"github.com/ubirch/ubirch-client-go/main/config"
 	"github.com/ubirch/ubirch-client-go/main/ent"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
+
+	pw "github.com/ubirch/ubirch-client-go/main/adapters/password-hashing"
 )
 
 type ExtendedProtocol struct {
 	ubirch.Protocol
-	*clients.Client
-	ctxManager   ContextManager
-	keyEncrypter *encrypters.KeyEncrypter
+	ContextManager
+	keyEncrypter *encryption.KeyEncrypter
+	keyCache     *KeyCache
+
+	pwHasher       *pw.Argon2idKeyDerivator
+	pwHasherParams *pw.Argon2idParams
+	authCache      *sync.Map // {<uuid>: <auth token>}
 }
 
-// Ensure ExtendedProtocol implements the ContextManager interface
-var _ ContextManager = (*ExtendedProtocol)(nil)
+func NewExtendedProtocol(ctxManager ContextManager, conf *config.Config) (*ExtendedProtocol, error) {
+	keyCache := NewKeyCache()
 
-func NewExtendedProtocol(ctxManager ContextManager, secret []byte, client *clients.Client) (*ExtendedProtocol, error) {
-	crypto := &ubirch.ECDSACryptoContext{}
+	crypto := &ubirch.ECDSACryptoContext{
+		Keystore: keyCache,
+	}
 
-	enc, err := encrypters.NewKeyEncrypter(secret, crypto)
+	enc, err := encryption.NewKeyEncrypter(conf.SecretBytes32, crypto)
 	if err != nil {
 		return nil, err
 	}
+
+	argon2idParams := pw.GetArgon2idParams(conf.KdParamMemMiB, conf.KdParamTime, conf.KdParamParallelism,
+		conf.KdParamKeyLen, conf.KdParamSaltLen)
+	params, _ := json.Marshal(argon2idParams)
+	log.Debugf("initialize argon2id key derivation with parameters %s", params)
 
 	p := &ExtendedProtocol{
 		Protocol: ubirch.Protocol{
 			Crypto: crypto,
 		},
-		Client:       client,
-		ctxManager:   ctxManager,
-		keyEncrypter: enc,
+		ContextManager: ctxManager,
+		keyEncrypter:   enc,
+		keyCache:       keyCache,
+
+		pwHasher:       pw.NewArgon2idKeyDerivator(conf.KdMaxTotalMemMiB),
+		pwHasherParams: argon2idParams,
+		authCache:      &sync.Map{},
 	}
 
 	return p, nil
 }
 
-func (p *ExtendedProtocol) StartTransaction(ctx context.Context) (transactionCtx interface{}, err error) {
-	return p.ctxManager.StartTransaction(ctx)
-}
-
-func (p *ExtendedProtocol) StartTransactionWithLock(ctx context.Context, uid uuid.UUID) (transactionCtx interface{}, err error) {
-	return p.ctxManager.StartTransactionWithLock(ctx, uid)
-}
-
-func (p *ExtendedProtocol) CloseTransaction(tx interface{}, commit bool) error {
-	return p.ctxManager.CloseTransaction(tx, commit)
-}
-
-func (p *ExtendedProtocol) Exists(uid uuid.UUID) (bool, error) {
-	return p.ctxManager.Exists(uid)
-}
-
-func (p *ExtendedProtocol) StoreNewIdentity(tx interface{}, i *ent.Identity) error {
+func (p *ExtendedProtocol) StoreIdentity(tx TransactionCtx, i ent.Identity) error {
 	// check validity of identity attributes
-	err := p.checkIdentityAttributes(i)
+	err := p.checkIdentityAttributes(&i)
 	if err != nil {
 		return err
 	}
@@ -90,99 +93,145 @@ func (p *ExtendedProtocol) StoreNewIdentity(tx interface{}, i *ent.Identity) err
 		return err
 	}
 
-	return p.ctxManager.StoreNewIdentity(tx, i)
+	// hash auth token
+	i.AuthToken, err = p.pwHasher.GeneratePasswordHash(context.Background(), i.AuthToken, p.pwHasherParams)
+	if err != nil {
+		return err
+	}
+
+	return p.ContextManager.StoreIdentity(tx, i)
 }
 
-func (p *ExtendedProtocol) FetchIdentity(tx interface{}, uid uuid.UUID) (*ent.Identity, error) {
-	i, err := p.ctxManager.FetchIdentity(tx, uid)
+func (p *ExtendedProtocol) LoadIdentity(uid uuid.UUID) (*ent.Identity, error) {
+	i, err := p.ContextManager.LoadIdentity(uid)
 	if err != nil {
 		return nil, err
 	}
 
+	// check validity of identity attributes
 	err = p.checkIdentityAttributes(i)
 	if err != nil {
 		return nil, err
 	}
 
-	// decrypt private key
+	// load caches
 	i.PrivateKey, err = p.keyEncrypter.Decrypt(i.PrivateKey)
 	if err != nil {
 		return nil, err
 	}
 
-	// return public key in PEM format
+	err = p.keyCache.SetPrivateKey(uid, i.PrivateKey)
+	if err != nil {
+		return nil, err
+	}
+
 	i.PublicKey, err = p.PublicKeyBytesToPEM(i.PublicKey)
 	if err != nil {
 		return nil, err
 	}
 
+	err = p.keyCache.SetPublicKey(uid, i.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+
+	p.authCache.Store(uid, i.AuthToken)
+
 	return i, nil
 }
 
-// FetchIdentityWithLock starts a transaction with lock and returns the locked identity
-func (p *ExtendedProtocol) FetchIdentityWithLock(ctx context.Context, uid uuid.UUID) (transactionCtx interface{}, identity *ent.Identity, err error) {
-	transactionCtx, err = p.StartTransactionWithLock(ctx, uid)
-	if err != nil {
-		return nil, nil, fmt.Errorf("starting transaction with lock failed: %v", err)
-	}
-
-	identity, err = p.FetchIdentity(transactionCtx, uid)
-	if err != nil {
-		return nil, nil, fmt.Errorf("could not fetch identity: %v", err)
-	}
-
-	return transactionCtx, identity, nil
-}
-
-// SetSignature stores the signature and commits the transaction
-func (p *ExtendedProtocol) SetSignature(tx interface{}, uid uuid.UUID, signature []byte) error {
+// StoreSignature stores the signature and commits the transaction
+func (p *ExtendedProtocol) StoreSignature(tx TransactionCtx, uid uuid.UUID, signature []byte) error {
 	if len(signature) != p.SignatureLength() {
 		return fmt.Errorf("invalid signature length: expected %d, got %d", p.SignatureLength(), len(signature))
 	}
 
-	err := p.ctxManager.SetSignature(tx, uid, signature)
+	err := p.ContextManager.StoreSignature(tx, uid, signature)
 	if err != nil {
 		return err
 	}
 
-	return p.CloseTransaction(tx, Commit)
+	return tx.Commit()
 }
 
-func (p *ExtendedProtocol) GetPrivateKey(uid uuid.UUID) ([]byte, error) {
-	encryptedPrivateKey, err := p.ctxManager.GetPrivateKey(uid)
+func (p *ExtendedProtocol) LoadPrivateKey(uid uuid.UUID) (privKeyPEM []byte, err error) {
+	privKeyPEM, err = p.keyCache.GetPrivateKey(uid)
 	if err != nil {
-		return nil, err
+		i, err := p.LoadIdentity(uid)
+		if err != nil {
+			return nil, err
+		}
+
+		privKeyPEM = i.PrivateKey
 	}
 
-	return p.keyEncrypter.Decrypt(encryptedPrivateKey)
+	return privKeyPEM, nil
 }
 
-func (p *ExtendedProtocol) GetPublicKey(uid uuid.UUID) (pubKeyPEM []byte, err error) {
-	publicKeyBytes, err := p.ctxManager.GetPublicKey(uid)
+func (p *ExtendedProtocol) LoadPublicKey(uid uuid.UUID) (pubKeyPEM []byte, err error) {
+	pubKeyPEM, err = p.keyCache.GetPublicKey(uid)
 	if err != nil {
-		return nil, err
+		i, err := p.LoadIdentity(uid)
+		if err != nil {
+			return nil, err
+		}
+
+		pubKeyPEM = i.PublicKey
 	}
 
-	return p.PublicKeyBytesToPEM(publicKeyBytes)
+	return pubKeyPEM, nil
 }
 
-func (p *ExtendedProtocol) GetAuthToken(uid uuid.UUID) (string, error) {
-	authToken, err := p.ctxManager.GetAuthToken(uid)
+func (p *ExtendedProtocol) LoadAuthToken(uid uuid.UUID) (auth string, err error) {
+	_auth, found := p.authCache.Load(uid)
+
+	if found {
+		auth, found = _auth.(string)
+	}
+
+	if !found {
+		i, err := p.LoadIdentity(uid)
+		if err != nil {
+			return "", err
+		}
+
+		auth = i.AuthToken
+	}
+
+	return auth, nil
+}
+
+func (p *ExtendedProtocol) IsInitialized(uid uuid.UUID) (initialized bool, err error) {
+	_, err = p.LoadAuthToken(uid)
+	if err == ErrNotExist {
+		return false, nil
+	}
 	if err != nil {
-		return "", err
+		return false, err
 	}
 
-	if len(authToken) == 0 {
-		return "", fmt.Errorf("%s: empty auth token", uid)
+	return true, nil
+}
+
+func (p *ExtendedProtocol) CheckAuth(ctx context.Context, uid uuid.UUID, authToCheck string) (ok, found bool, err error) {
+	actualAuth, err := p.LoadAuthToken(uid)
+	if err == ErrNotExist {
+		return false, false, nil
+	}
+	if err != nil {
+		return false, false, err
 	}
 
-	return authToken, nil
+	found = true
+
+	ok, err = p.pwHasher.CheckPassword(ctx, authToCheck, actualAuth)
+
+	return ok, found, err
 }
 
 func (p *ExtendedProtocol) checkIdentityAttributes(i *ent.Identity) error {
-	_, err := uuid.Parse(i.Uid)
-	if err != nil {
-		return fmt.Errorf("%s: %v", i.Uid, err)
+	if i.Uid == uuid.Nil {
+		return fmt.Errorf("uuid has Nil value: %s", i.Uid)
 	}
 
 	if len(i.PrivateKey) == 0 {
