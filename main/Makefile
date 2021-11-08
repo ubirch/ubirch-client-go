@@ -38,27 +38,15 @@ SRC_URL = https://gitlab.com/ubirch/ubirch-client-go.git
 GO = go
 GO_VERSION := 1.16
 LDFLAGS = -ldflags "-buildid= -s -w -X main.Version=$(VERSION) -X main.Revision=$(REVISION)"
-GO_BUILD = $(GO) build -tags="netgo" -trimpath $(LDFLAGS)
+GO_BUILD = $(GO) build -trimpath $(LDFLAGS)
 UPX=upx --quiet --quiet
 
 .PHONY: build
 build: binaries
 
 binaries: build/bin/$(NAME).linux_amd64
-binaries: build/bin/$(NAME).linux_arm
-binaries: build/bin/$(NAME).linux_arm64
-binaries: build/bin/$(NAME).linux_386
-binaries: build/bin/$(NAME).windows_amd64.exe
 build/bin/$(NAME).linux_amd64:
-	CGO=0 GOOS=linux GOARCH=amd64 $(GO_BUILD) -o $@ .
-build/bin/$(NAME).linux_arm:
-	CGO=0 GOOS=linux GOARCH=arm GOARM=7 $(GO_BUILD) -o $@ .
-build/bin/$(NAME).linux_arm64:
-	CGO=0 GOOS=linux GOARCH=arm64 $(GO_BUILD) -o $@ .
-build/bin/$(NAME).linux_386:
-	CGO=0 GOOS=linux GOARCH=386 $(GO_BUILD) -o $@ .
-build/bin/$(NAME).windows_amd64.exe:
-	CGO=0 GOOS=windows GOARCH=amd64 $(GO_BUILD) -o $@ .
+	GOOS=linux GOARCH=amd64 $(GO_BUILD) -o $@ .
 
 pack: binaries
 	$(UPX) build/bin/*
