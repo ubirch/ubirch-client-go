@@ -49,7 +49,7 @@ const (
 	defaultTLSCertFile = "cert.pem"
 	defaultTLSKeyFile  = "key.pem"
 
-	defaultKeyDerivationMaxTotalMemory   = 30
+	defaultKeyDerivationMaxTotalMemory   = 64
 	defaultKeyDerivationParamMemory      = 15
 	defaultKeyDerivationParamTime        = 2
 	defaultKeyDerivationParamParallelism = 1
