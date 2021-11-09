@@ -46,6 +46,9 @@ func TestDatabaseManager(t *testing.T) {
 	_, err = dm.LoadSignature(tx, testIdentity.Uid)
 	assert.Equal(t, ErrNotExist, err)
 
+	_, err = dm.LoadActiveFlag(tx, testIdentity.Uid)
+	assert.Equal(t, ErrNotExist, err)
+
 	err = tx.Commit()
 	require.NoError(t, err)
 
@@ -67,6 +70,10 @@ func TestDatabaseManager(t *testing.T) {
 	sig, err := dm.LoadSignature(tx, testIdentity.Uid)
 	assert.NoError(t, err)
 	assert.Equal(t, testIdentity.Signature, sig)
+
+	active, err := dm.LoadActiveFlag(tx, testIdentity.Uid)
+	assert.NoError(t, err)
+	assert.True(t, active)
 
 	i, err := dm.LoadIdentity(testIdentity.Uid)
 	require.NoError(t, err)
