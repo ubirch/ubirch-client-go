@@ -69,7 +69,7 @@ func TestDatabaseManager(t *testing.T) {
 	assert.Equal(t, testIdentity.Signature, sig)
 
 	i, err := dm.LoadIdentity(testIdentity.Uid)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, testIdentity.PrivateKey, i.PrivateKey)
 	assert.Equal(t, testIdentity.PublicKey, i.PublicKey)
 	assert.Equal(t, testIdentity.AuthToken, i.AuthToken)
