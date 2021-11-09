@@ -30,8 +30,8 @@ var create = map[int]string{
 		"private_key BYTEA NOT NULL, "+
 		"public_key BYTEA NOT NULL, "+
 		"signature BYTEA NOT NULL, "+
-		"auth_token VARCHAR(255) NOT NULL), "+
-		"active boolean NOT NULL DEFAULT(TRUE);", PostgresIdentityTableName),
+		"auth_token VARCHAR(255) NOT NULL, "+
+		"active boolean NOT NULL DEFAULT(TRUE));", PostgresIdentityTableName),
 	PostgresVersion: fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s("+
 		"id VARCHAR(255) NOT NULL PRIMARY KEY, "+
 		"migration_version VARCHAR(255) NOT NULL);", PostgresVersionTableName),
