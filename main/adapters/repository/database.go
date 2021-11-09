@@ -117,12 +117,14 @@ func (dm *DatabaseManager) StoreIdentity(transactionCtx TransactionCtx, i ent.Id
 }
 
 func (dm *DatabaseManager) LoadIdentity(uid uuid.UUID) (*ent.Identity, error) {
-	i := ent.Identity{}
+	i := ent.Identity{Uid: uid}
 
-	query := fmt.Sprintf("SELECT * FROM %s WHERE uid = $1", PostgresIdentityTableName)
+	query := fmt.Sprintf(
+		"SELECT private_key, public_key, signature, auth_token FROM %s WHERE uid = $1",
+		PostgresIdentityTableName)
 
 	err := dm.retry(func() error {
-		err := dm.db.QueryRow(query, uid.String()).Scan(&i.Uid, &i.PrivateKey, &i.PublicKey, &i.Signature, &i.AuthToken)
+		err := dm.db.QueryRow(query, uid).Scan(&i.PrivateKey, &i.PublicKey, &i.Signature, &i.AuthToken)
 		if err == sql.ErrNoRows {
 			return ErrNotExist
 		}
