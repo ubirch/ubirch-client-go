@@ -60,27 +60,31 @@ func Migrate(c *config.Config, configDir string) error {
 	}
 
 	if migration.version == MigrationVersionNoDB {
-		// migrate from file based context
-		identitiesToPort, err := getIdentitiesFromLegacyCtx(c, configDir)
+		err = migrateIdentities(c, configDir, p)
 		if err != nil {
-			return err
+			return fmt.Errorf("could not migrate file-based context to database: %v", err)
 		}
 
-		err = migrateIdentities(p, identitiesToPort)
-		if err != nil {
-			return err
-		}
-
-		log.Infof("successfully migrated file based context into database")
+		log.Infof("successfully migrated file-based context to database")
 	}
 
 	if migration.version == MigrationVersionInit {
 		err = hashAuthTokens(dm, p)
 		if err != nil {
-			return err
+			return fmt.Errorf("could not hash auth tokens in database: %v", err)
 		}
 
 		log.Infof("successfully hashed auth tokens in database")
+		migration.version = MigrationVersionHashedAuth
+	}
+
+	if migration.version == MigrationVersionHashedAuth {
+		err = addColumnActiveBoolean(dm)
+		if err != nil {
+			return fmt.Errorf("could not add column \"active\" to database table: %v", err)
+		}
+
+		log.Infof("successfully added column \"active\" to database table")
 	}
 
 	migration.version = MigrationVersionLatest
@@ -150,8 +154,14 @@ func getIdentitiesFromLegacyCtx(c *config.Config, configDir string) ([]ent.Ident
 	return allIdentities, nil
 }
 
-func migrateIdentities(p *ExtendedProtocol, identities []ent.Identity) error {
-	log.Infof("starting migration...")
+func migrateIdentities(c *config.Config, configDir string, p *ExtendedProtocol) error {
+	// migrate from file based context
+	identitiesToPort, err := getIdentitiesFromLegacyCtx(c, configDir)
+	if err != nil {
+		return err
+	}
+
+	log.Infof("starting migration from files to DB...")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -161,7 +171,7 @@ func migrateIdentities(p *ExtendedProtocol, identities []ent.Identity) error {
 		return err
 	}
 
-	for i, id := range identities {
+	for i, id := range identitiesToPort {
 		log.Infof("%4d: %s", i+1, id.Uid)
 
 		initialized, err := p.IsInitialized(id.Uid)
@@ -278,6 +288,15 @@ func storeAuth(dm *DatabaseManager, uid uuid.UUID, auth string) error {
 	query := fmt.Sprintf("UPDATE %s SET auth_token = $1 WHERE uid = $2;", PostgresIdentityTableName)
 
 	_, err := dm.db.Exec(query, &auth, uid)
+
+	return err
+}
+
+func addColumnActiveBoolean(dm *DatabaseManager) error {
+	query := fmt.Sprintf(
+		"ALTER TABLE %s ADD active boolean NOT NULL DEFAULT(TRUE)", PostgresIdentityTableName)
+
+	_, err := dm.db.Exec(query)
 
 	return err
 }
