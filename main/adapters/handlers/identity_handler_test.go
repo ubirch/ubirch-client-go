@@ -74,15 +74,7 @@ func TestIdentityHandler_InitIdentity(t *testing.T) {
 	assert.True(t, found)
 	assert.True(t, ok)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	tx, err := p.StartTransaction(ctx)
-	require.NoError(t, err)
-
-	signature, err := p.LoadSignature(tx, testUuid)
-	require.NoError(t, err)
-	assert.Equal(t, make([]byte, p.SignatureLength()), signature)
+	assert.Equal(t, make([]byte, p.SignatureLength()), initializedIdentity.Signature)
 
 	hash := make([]byte, p.HashLength())
 	rand.Read(hash)
