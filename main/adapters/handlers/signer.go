@@ -71,12 +71,6 @@ func (s *Signer) Chain(msg h.HTTPRequest, ctx context.Context) h.HTTPResponse {
 		return errorResponse(http.StatusBadRequest, "key deactivated")
 	}
 
-	_, err = s.Protocol.LoadPrivateKey(msg.ID)
-	if err != nil {
-		log.Errorf("%s: could not load private key: %v", msg.ID, err)
-		return errorResponse(http.StatusInternalServerError, "")
-	}
-
 	tx, err := s.Protocol.StartTransaction(ctx)
 	if err != nil {
 		log.Errorf("%s: initializing transaction failed: %v", msg.ID, err)
@@ -131,12 +125,6 @@ func (s *Signer) Sign(msg h.HTTPRequest, op h.Operation) h.HTTPResponse {
 	if !active {
 		log.Warnf("%s: key deactivated", msg.ID)
 		return errorResponse(http.StatusBadRequest, "key deactivated")
-	}
-
-	_, err = s.Protocol.LoadPrivateKey(msg.ID)
-	if err != nil {
-		log.Errorf("%s: could not load private key: %v", msg.ID, err)
-		return errorResponse(http.StatusInternalServerError, "")
 	}
 
 	uppBytes, err := s.getSignedUPP(msg.ID, msg.Hash, op)
