@@ -31,6 +31,7 @@ const (
 	HashEndpoint           = "/hash"
 	RegisterEndpoint       = "/register"
 	CSREndpoint            = "/csr"
+	ActiveUpdateEndpoint   = "/device/updateActive"
 	MetricsEndpoint        = "/metrics"
 	LivenessCheckEndpoint  = "/healthz"
 	ReadinessCheckEndpoint = "/readyz"
