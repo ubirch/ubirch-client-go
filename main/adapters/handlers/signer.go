@@ -72,9 +72,9 @@ func (s *Signer) Chain(msg h.HTTPRequest, ctx context.Context) h.HTTPResponse {
 		return errorResponse(http.StatusServiceUnavailable, "")
 	}
 
-	prevSignature, err := s.Protocol.LoadSignature(tx, msg.ID)
+	prevSignature, err := s.Protocol.LoadSignatureForUpdate(tx, msg.ID)
 	if err != nil {
-		log.Errorf("%s: could not fetch identity from storage: %v", msg.ID, err)
+		log.Errorf("%s: could not load signature: %v", msg.ID, err)
 		return errorResponse(http.StatusInternalServerError, "")
 	}
 
