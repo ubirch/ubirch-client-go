@@ -60,9 +60,20 @@ type Signer struct {
 func (s *Signer) Chain(msg h.HTTPRequest, ctx context.Context) h.HTTPResponse {
 	log.Infof("%s: anchor hash [chained]: %s", msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
-	_, err := s.Protocol.LoadPrivateKey(msg.ID)
+	active, err := s.Protocol.LoadActiveFlag(msg.ID)
 	if err != nil {
-		log.Errorf("%s: could not fetch private Key for UUID: %v", msg.ID, err)
+		log.Errorf("%s: could not load active flag: %v", msg.ID, err)
+		return errorResponse(http.StatusInternalServerError, "")
+	}
+
+	if !active {
+		log.Warnf("%s: key deactivated", msg.ID)
+		return errorResponse(http.StatusBadRequest, "key deactivated")
+	}
+
+	_, err = s.Protocol.LoadPrivateKey(msg.ID)
+	if err != nil {
+		log.Errorf("%s: could not load private key: %v", msg.ID, err)
 		return errorResponse(http.StatusInternalServerError, "")
 	}
 
@@ -111,9 +122,20 @@ func (s *Signer) Chain(msg h.HTTPRequest, ctx context.Context) h.HTTPResponse {
 func (s *Signer) Sign(msg h.HTTPRequest, op h.Operation) h.HTTPResponse {
 	log.Infof("%s: %s hash: %s", msg.ID, op, base64.StdEncoding.EncodeToString(msg.Hash[:]))
 
-	_, err := s.Protocol.LoadPrivateKey(msg.ID)
+	active, err := s.Protocol.LoadActiveFlag(msg.ID)
 	if err != nil {
-		log.Errorf("%s: could not load private key for UUID: %v", msg.ID, err)
+		log.Errorf("%s: could not load active flag: %v", msg.ID, err)
+		return errorResponse(http.StatusInternalServerError, "")
+	}
+
+	if !active {
+		log.Warnf("%s: key deactivated", msg.ID)
+		return errorResponse(http.StatusBadRequest, "key deactivated")
+	}
+
+	_, err = s.Protocol.LoadPrivateKey(msg.ID)
+	if err != nil {
+		log.Errorf("%s: could not load private key: %v", msg.ID, err)
 		return errorResponse(http.StatusInternalServerError, "")
 	}
 
