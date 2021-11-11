@@ -40,13 +40,16 @@ func TestDatabaseManager(t *testing.T) {
 	_, err = dm.LoadIdentity(testIdentity.Uid)
 	assert.Equal(t, ErrNotExist, err)
 
+	_, err = dm.LoadActiveFlag(testIdentity.Uid)
+	assert.Equal(t, ErrNotExist, err)
+
 	tx, err := dm.StartTransaction(ctx)
 	require.NoError(t, err)
 
-	_, err = dm.LoadSignature(tx, testIdentity.Uid)
+	_, err = dm.LoadActiveFlagForUpdate(tx, testIdentity.Uid)
 	assert.Equal(t, ErrNotExist, err)
 
-	_, err = dm.LoadActiveFlag(tx, testIdentity.Uid)
+	_, err = dm.LoadSignatureForUpdate(tx, testIdentity.Uid)
 	assert.Equal(t, ErrNotExist, err)
 
 	err = tx.Commit()
@@ -63,17 +66,24 @@ func TestDatabaseManager(t *testing.T) {
 	require.NoError(t, err)
 
 	// check exists
+	active, err := dm.LoadActiveFlag(testIdentity.Uid)
+	require.NoError(t, err)
+	assert.True(t, active)
+
 	tx, err = dm.StartTransaction(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, tx)
 
-	sig, err := dm.LoadSignature(tx, testIdentity.Uid)
-	assert.NoError(t, err)
+	active, err = dm.LoadActiveFlagForUpdate(tx, testIdentity.Uid)
+	require.NoError(t, err)
+	assert.True(t, active)
+
+	sig, err := dm.LoadSignatureForUpdate(tx, testIdentity.Uid)
+	require.NoError(t, err)
 	assert.Equal(t, testIdentity.Signature, sig)
 
-	active, err := dm.LoadActiveFlag(tx, testIdentity.Uid)
-	assert.NoError(t, err)
-	assert.True(t, active)
+	err = tx.Commit()
+	require.NoError(t, err)
 
 	i, err := dm.LoadIdentity(testIdentity.Uid)
 	require.NoError(t, err)
@@ -120,7 +130,7 @@ func TestDatabaseManager_SetSignature(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tx2)
 
-	sig, err := dm.LoadSignature(tx2, testIdentity.Uid)
+	sig, err := dm.LoadSignatureForUpdate(tx2, testIdentity.Uid)
 	assert.NoError(t, err)
 	assert.Equal(t, newSignature, sig)
 }
@@ -454,18 +464,18 @@ func checkIdentity(ctxManager ContextManager, id ent.Identity, checkAuth func(st
 		return fmt.Errorf("StartTransaction: %v", err)
 	}
 
-	sig, err := ctxManager.LoadSignature(tx, id.Uid)
+	sig, err := ctxManager.LoadSignatureForUpdate(tx, id.Uid)
 	if err != nil {
-		return fmt.Errorf("LoadSignature: %v", err)
-	}
-
-	if !bytes.Equal(sig, id.Signature) {
-		return fmt.Errorf("LoadSignature returned unexpected value")
+		return fmt.Errorf("LoadSignatureForUpdate: %v", err)
 	}
 
 	err = tx.Commit()
 	if err != nil {
 		return fmt.Errorf("Commit: %v", err)
+	}
+
+	if !bytes.Equal(sig, id.Signature) {
+		return fmt.Errorf("LoadSignatureForUpdate returned unexpected value")
 	}
 
 	return nil

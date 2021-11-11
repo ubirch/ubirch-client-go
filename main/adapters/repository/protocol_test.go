@@ -44,7 +44,7 @@ func TestProtocol(t *testing.T) {
 	tx, err := p.StartTransaction(ctx)
 	require.NoError(t, err)
 
-	_, err = p.LoadSignature(tx, testIdentity.Uid)
+	_, err = p.LoadSignatureForUpdate(tx, testIdentity.Uid)
 	assert.Equal(t, ErrNotExist, err)
 
 	err = tx.Commit()
@@ -77,7 +77,7 @@ func TestProtocol(t *testing.T) {
 	tx, err = p.StartTransaction(ctx)
 	require.NoError(t, err)
 
-	sig, err := p.LoadSignature(tx, testIdentity.Uid)
+	sig, err := p.LoadSignatureForUpdate(tx, testIdentity.Uid)
 	assert.NoError(t, err)
 	assert.Equal(t, testIdentity.Signature, sig)
 
@@ -218,7 +218,7 @@ func TestExtendedProtocol_StoreSignature(t *testing.T) {
 	tx, err = p.StartTransaction(ctx)
 	require.NoError(t, err)
 
-	_, err = p.LoadSignature(tx, testIdentity.Uid)
+	_, err = p.LoadSignatureForUpdate(tx, testIdentity.Uid)
 	require.NoError(t, err)
 
 	err = p.StoreSignature(tx, testIdentity.Uid, newSignature)
@@ -228,7 +228,7 @@ func TestExtendedProtocol_StoreSignature(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tx2)
 
-	sig, err := p.LoadSignature(tx2, testIdentity.Uid)
+	sig, err := p.LoadSignatureForUpdate(tx2, testIdentity.Uid)
 	assert.NoError(t, err)
 	assert.Equal(t, newSignature, sig)
 }
