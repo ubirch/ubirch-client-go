@@ -18,10 +18,10 @@ import (
 	"context"
 	"encoding/pem"
 	"fmt"
-	"github.com/ubirch/ubirch-client-go/main/auditlogger"
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
+	"github.com/ubirch/ubirch-client-go/main/auditlogger"
 	"github.com/ubirch/ubirch-client-go/main/ent"
 
 	log "github.com/sirupsen/logrus"
