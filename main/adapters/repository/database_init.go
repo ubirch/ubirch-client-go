@@ -9,12 +9,13 @@ import (
 const (
 	PostgresIdentity = iota
 	PostgresVersion
-	PostgresIdentityTableName = "identity"
-	PostgresVersionTableName  = "version"
-	MigrationID               = "dbMigration"
-	MigrationVersionNoDB      = "0.0"
-	MigrationVersionInit      = "1.0.1"
-	MigrationVersionLatest    = "2.0"
+	PostgresIdentityTableName  = "identity"
+	PostgresVersionTableName   = "version"
+	MigrationID                = "dbMigration"
+	MigrationVersionNoDB       = "0.0"
+	MigrationVersionInit       = "1.0.1"
+	MigrationVersionHashedAuth = "2.0"
+	MigrationVersionLatest     = "3.0"
 )
 
 type Migration struct {
@@ -29,7 +30,8 @@ var create = map[int]string{
 		"private_key BYTEA NOT NULL, "+
 		"public_key BYTEA NOT NULL, "+
 		"signature BYTEA NOT NULL, "+
-		"auth_token VARCHAR(255) NOT NULL);", PostgresIdentityTableName),
+		"auth_token VARCHAR(255) NOT NULL, "+
+		"active boolean NOT NULL DEFAULT(TRUE));", PostgresIdentityTableName),
 	PostgresVersion: fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s("+
 		"id VARCHAR(255) NOT NULL PRIMARY KEY, "+
 		"migration_version VARCHAR(255) NOT NULL);", PostgresVersionTableName),

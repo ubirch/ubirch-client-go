@@ -23,6 +23,7 @@ import (
 	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
 	"github.com/ubirch/ubirch-client-go/main/adapters/handlers"
 	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
+	"github.com/ubirch/ubirch-client-go/main/auditlogger"
 	"github.com/ubirch/ubirch-client-go/main/config"
 
 	log "github.com/sirupsen/logrus"
@@ -68,6 +69,7 @@ func main() {
 
 	log.SetFormatter(&log.JSONFormatter{})
 	log.Printf("UBIRCH client (version=%s, revision=%s)", Version, Revision)
+	auditlogger.SetServiceName(serviceName)
 
 	// read configuration
 	conf := &config.Config{}
@@ -111,6 +113,7 @@ func main() {
 	idHandler := &handlers.IdentityHandler{
 		Protocol:              protocol,
 		SubmitKeyRegistration: client.SubmitKeyRegistration,
+		RequestKeyDeletion:    client.RequestKeyDeletion,
 		SubmitCSR:             client.SubmitCSR,
 		SubjectCountry:        conf.CSR_Country,
 		SubjectOrganization:   conf.CSR_Organization,
@@ -155,6 +158,9 @@ func main() {
 
 	// set up endpoint for identity registration
 	httpServer.Router.Put(h.RegisterEndpoint, h.Register(conf.RegisterAuth, idHandler.InitIdentity))
+
+	// set up endpoint for key status updates (de-/re-activation)
+	httpServer.Router.Post(h.ActiveUpdateEndpoint, h.UpdateActive(conf.RegisterAuth, idHandler.DeactivateKey, idHandler.ReactivateKey))
 
 	// set up endpoint for CSRs
 	fetchCSREndpoint := path.Join(h.UUIDPath, h.CSREndpoint) // /<uuid>/csr

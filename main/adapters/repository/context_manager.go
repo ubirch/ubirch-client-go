@@ -20,8 +20,12 @@ type ContextManager interface {
 	StoreIdentity(TransactionCtx, ent.Identity) error
 	LoadIdentity(uuid.UUID) (*ent.Identity, error)
 
+	StoreActiveFlag(TransactionCtx, uuid.UUID, bool) error
+	LoadActiveFlagForUpdate(TransactionCtx, uuid.UUID) (bool, error)
+	LoadActiveFlag(uuid.UUID) (bool, error)
+
 	StoreSignature(TransactionCtx, uuid.UUID, []byte) error
-	LoadSignature(TransactionCtx, uuid.UUID) ([]byte, error)
+	LoadSignatureForUpdate(TransactionCtx, uuid.UUID) ([]byte, error)
 
 	IsReady() error
 	Close() error

@@ -83,11 +83,10 @@ func (c *IdentityServiceClient) IsKeyRegistered(id uuid.UUID, pubKey []byte) (bo
 	return false, nil
 }
 
-func (c *IdentityServiceClient) SubmitKeyRegistration(uid uuid.UUID, auth string, cert []byte) error {
+func (c *IdentityServiceClient) SubmitKeyRegistration(uid uuid.UUID, cert []byte) error {
 	log.Debugf("%s: registering public key at key service", uid)
 
-	keyRegHeader := ubirchHeader(uid, auth)
-	keyRegHeader["content-type"] = "application/json"
+	keyRegHeader := map[string]string{"content-type": "application/json"}
 
 	resp, err := Post(c.KeyServiceURL, cert, keyRegHeader)
 	if err != nil {
@@ -97,6 +96,22 @@ func (c *IdentityServiceClient) SubmitKeyRegistration(uid uuid.UUID, auth string
 		return fmt.Errorf("key registration failed: (%d) %q", resp.StatusCode, resp.Content)
 	}
 	log.Debugf("%s: key registration successful: (%d) %s", uid, resp.StatusCode, string(resp.Content))
+	return nil
+}
+
+func (c *IdentityServiceClient) RequestKeyDeletion(uid uuid.UUID, cert []byte) error {
+	log.Debugf("%s: deleting public key at key service", uid)
+
+	keyDelHeader := map[string]string{"content-type": "application/json"}
+
+	resp, err := Delete(c.KeyServiceURL, cert, keyDelHeader)
+	if err != nil {
+		return fmt.Errorf("error sending key deletion request: %v", err)
+	}
+	if h.HttpFailed(resp.StatusCode) {
+		return fmt.Errorf("key deletion failed: (%d) %q", resp.StatusCode, resp.Content)
+	}
+	log.Debugf("%s: key deletion successful: (%d) %s", uid, resp.StatusCode, string(resp.Content))
 	return nil
 }
 

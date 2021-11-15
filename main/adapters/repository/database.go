@@ -117,12 +117,14 @@ func (dm *DatabaseManager) StoreIdentity(transactionCtx TransactionCtx, i ent.Id
 }
 
 func (dm *DatabaseManager) LoadIdentity(uid uuid.UUID) (*ent.Identity, error) {
-	i := ent.Identity{}
+	i := ent.Identity{Uid: uid}
 
-	query := fmt.Sprintf("SELECT * FROM %s WHERE uid = $1", PostgresIdentityTableName)
+	query := fmt.Sprintf(
+		"SELECT private_key, public_key, signature, auth_token FROM %s WHERE uid = $1;",
+		PostgresIdentityTableName)
 
 	err := dm.retry(func() error {
-		err := dm.db.QueryRow(query, uid.String()).Scan(&i.Uid, &i.PrivateKey, &i.PublicKey, &i.Signature, &i.AuthToken)
+		err := dm.db.QueryRow(query, uid).Scan(&i.PrivateKey, &i.PublicKey, &i.Signature, &i.AuthToken)
 		if err == sql.ErrNoRows {
 			return ErrNotExist
 		}
@@ -130,6 +132,46 @@ func (dm *DatabaseManager) LoadIdentity(uid uuid.UUID) (*ent.Identity, error) {
 	})
 
 	return &i, err
+}
+
+func (dm *DatabaseManager) StoreActiveFlag(transactionCtx TransactionCtx, uid uuid.UUID, active bool) error {
+	tx, ok := transactionCtx.(*sql.Tx)
+	if !ok {
+		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
+	}
+
+	query := fmt.Sprintf("UPDATE %s SET active = $1 WHERE uid = $2;", PostgresIdentityTableName)
+
+	_, err := tx.Exec(query, &active, uid)
+
+	return err
+}
+
+func (dm *DatabaseManager) LoadActiveFlagForUpdate(transactionCtx TransactionCtx, uid uuid.UUID) (active bool, err error) {
+	tx, ok := transactionCtx.(*sql.Tx)
+	if !ok {
+		return false, fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
+	}
+
+	query := fmt.Sprintf("SELECT active FROM %s WHERE uid = $1 FOR UPDATE;", PostgresIdentityTableName)
+
+	err = tx.QueryRow(query, uid).Scan(&active)
+	if err == sql.ErrNoRows {
+		return false, ErrNotExist
+	}
+
+	return active, err
+}
+
+func (dm *DatabaseManager) LoadActiveFlag(uid uuid.UUID) (active bool, err error) {
+	query := fmt.Sprintf("SELECT active FROM %s WHERE uid = $1;", PostgresIdentityTableName)
+
+	err = dm.db.QueryRow(query, uid).Scan(&active)
+	if err == sql.ErrNoRows {
+		return false, ErrNotExist
+	}
+
+	return active, err
 }
 
 func (dm *DatabaseManager) StoreSignature(transactionCtx TransactionCtx, uid uuid.UUID, signature []byte) error {
@@ -145,13 +187,13 @@ func (dm *DatabaseManager) StoreSignature(transactionCtx TransactionCtx, uid uui
 	return err
 }
 
-func (dm *DatabaseManager) LoadSignature(transactionCtx TransactionCtx, uid uuid.UUID) (signature []byte, err error) {
+func (dm *DatabaseManager) LoadSignatureForUpdate(transactionCtx TransactionCtx, uid uuid.UUID) (signature []byte, err error) {
 	tx, ok := transactionCtx.(*sql.Tx)
 	if !ok {
 		return nil, fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
-	query := fmt.Sprintf("SELECT signature FROM %s WHERE uid = $1 FOR UPDATE", PostgresIdentityTableName)
+	query := fmt.Sprintf("SELECT signature FROM %s WHERE uid = $1 FOR UPDATE;", PostgresIdentityTableName)
 
 	err = tx.QueryRow(query, uid).Scan(&signature)
 	if err == sql.ErrNoRows {

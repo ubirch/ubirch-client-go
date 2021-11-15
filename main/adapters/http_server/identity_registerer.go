@@ -2,7 +2,6 @@ package http_server
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 
@@ -11,10 +10,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	prom "github.com/ubirch/ubirch-client-go/main/prometheus"
-)
-
-var (
-	ErrAlreadyInitialized = errors.New("identity already registered")
 )
 
 type RegistrationPayload struct {
@@ -55,10 +50,8 @@ func Register(registerAuth string, initialize InitializeIdentity) http.HandlerFu
 
 		SendResponse(w, HTTPResponse{
 			StatusCode: http.StatusOK,
-			Header: http.Header{
-				"Content-Type": {BinType},
-			},
-			Content: csr,
+			Header:     http.Header{"Content-Type": {BinType}},
+			Content:    csr,
 		})
 
 		prom.IdentityCreationCounter.Inc()

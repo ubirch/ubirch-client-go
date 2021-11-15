@@ -10,7 +10,8 @@ import (
 )
 
 type MockCtxMngr struct {
-	id ent.Identity
+	id     ent.Identity
+	active bool
 }
 
 var _ ContextManager = (*MockCtxMngr)(nil)
@@ -39,6 +40,19 @@ func (m *MockCtxMngr) LoadIdentity(u uuid.UUID) (*ent.Identity, error) {
 	return &id, nil
 }
 
+func (m *MockCtxMngr) StoreActiveFlag(t TransactionCtx, u uuid.UUID, a bool) error {
+	m.active = a
+	return nil
+}
+
+func (m *MockCtxMngr) LoadActiveFlagForUpdate(t TransactionCtx, u uuid.UUID) (bool, error) {
+	return m.active, nil
+}
+
+func (m *MockCtxMngr) LoadActiveFlag(u uuid.UUID) (bool, error) {
+	return m.active, nil
+}
+
 func (m *MockCtxMngr) StoreSignature(t TransactionCtx, u uuid.UUID, s []byte) error {
 	tx, ok := t.(*mockTx)
 	if !ok {
@@ -53,7 +67,7 @@ func (m *MockCtxMngr) StoreSignature(t TransactionCtx, u uuid.UUID, s []byte) er
 	return nil
 }
 
-func (m *MockCtxMngr) LoadSignature(t TransactionCtx, u uuid.UUID) ([]byte, error) {
+func (m *MockCtxMngr) LoadSignatureForUpdate(t TransactionCtx, u uuid.UUID) ([]byte, error) {
 	tx, ok := t.(*mockTx)
 	if !ok {
 		return nil, fmt.Errorf("transactionCtx for MockCtxMngr is not of expected type *mockTx")
@@ -85,11 +99,12 @@ var _ TransactionCtx = (*mockTx)(nil)
 
 func (m *mockTx) Commit() error {
 	*m.id = m.idBuf
+	*m = mockTx{}
 	return nil
 }
 
-func (m mockTx) Rollback() error {
-	m.idBuf = ent.Identity{}
+func (m *mockTx) Rollback() error {
+	*m = mockTx{}
 	return nil
 }
 

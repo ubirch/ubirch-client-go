@@ -18,9 +18,17 @@ type UbirchServiceClient struct {
 // Post submits a message to a backend service
 // returns the response or encountered errors
 func Post(serviceURL string, data []byte, header map[string]string) (h.HTTPResponse, error) {
+	return sendRequest(http.MethodPost, serviceURL, data, header)
+}
+
+func Delete(serviceURL string, data []byte, header map[string]string) (h.HTTPResponse, error) {
+	return sendRequest(http.MethodDelete, serviceURL, data, header)
+}
+
+func sendRequest(method string, serviceURL string, data []byte, header map[string]string) (h.HTTPResponse, error) {
 	client := &http.Client{Timeout: h.BackendRequestTimeout}
 
-	req, err := http.NewRequest(http.MethodPost, serviceURL, bytes.NewBuffer(data))
+	req, err := http.NewRequest(method, serviceURL, bytes.NewBuffer(data))
 	if err != nil {
 		return h.HTTPResponse{}, fmt.Errorf("can't make new post request: %v", err)
 	}
