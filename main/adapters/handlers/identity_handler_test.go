@@ -318,11 +318,11 @@ func TestIdentityHandler_InitIdentities(t *testing.T) {
 	require.Error(t, err)
 }
 
-func MockSubmitKeyRegistration(uuid.UUID, string, []byte) error {
+func MockSubmitKeyRegistration(uuid.UUID, []byte) error {
 	return nil
 }
 
-func MockSubmitKeyRegistrationBad(uuid.UUID, string, []byte) error {
+func MockSubmitKeyRegistrationBad(uuid.UUID, []byte) error {
 	return fmt.Errorf("fail")
 }
 
