@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/pem"
 	"fmt"
-	"net/http"
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
@@ -157,7 +156,7 @@ func (i *IdentityHandler) submitCSROrLogError(uid uuid.UUID, csr []byte) {
 func (i *IdentityHandler) CreateCSR(uid uuid.UUID) (csrPEM []byte, err error) {
 	initialized, err := i.Protocol.IsInitialized(uid)
 	if err != nil {
-		return nil, fmt.Errorf("could not check if identity is already initialized: %v", err)
+		return nil, fmt.Errorf("could not check if identity is known: %v", err)
 	}
 
 	if !initialized {
@@ -168,7 +167,7 @@ func (i *IdentityHandler) CreateCSR(uid uuid.UUID) (csrPEM []byte, err error) {
 
 	csr, err := i.Protocol.GetCSR(uid, i.SubjectCountry, i.SubjectOrganization)
 	if err != nil {
-		return nil, fmt.Errorf("creating CSR for UUID %s failed: %v", uid, err)
+		return nil, fmt.Errorf("creating CSR failed: %v", err)
 	}
 
 	csrPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
@@ -176,16 +175,14 @@ func (i *IdentityHandler) CreateCSR(uid uuid.UUID) (csrPEM []byte, err error) {
 	return csrPEM, nil
 }
 
-func (i *IdentityHandler) DeactivateKey(uid uuid.UUID) h.HTTPResponse {
+func (i *IdentityHandler) DeactivateKey(uid uuid.UUID) error {
 	initialized, err := i.Protocol.IsInitialized(uid)
 	if err != nil {
-		log.Errorf("%s: key deactivation failed: could not check if identity is initialized: %v", uid, err)
-		return errorResponse(http.StatusInternalServerError, "")
+		return fmt.Errorf("could not check if identity is known: %v", err)
 	}
 
 	if !initialized {
-		log.Warnf("%s: key deactivation failed: unknown uuid", uid)
-		return errorResponse(http.StatusNotFound, "unknown uuid")
+		return h.ErrUnknown
 	}
 
 	log.Infof("%s: deactivating key", uid)
@@ -196,64 +193,51 @@ func (i *IdentityHandler) DeactivateKey(uid uuid.UUID) h.HTTPResponse {
 
 	tx, err := i.Protocol.StartTransaction(ctx)
 	if err != nil {
-		log.Errorf("%s: key deactivation failed: initializing transaction failed: %v", uid, err)
-		return errorResponse(http.StatusServiceUnavailable, "")
+		return fmt.Errorf("initializing transaction failed: %v", err)
 	}
 
 	active, err := i.Protocol.LoadActiveFlagForUpdate(tx, uid)
 	if err != nil {
-		log.Errorf("%s: key deactivation failed: could not load active flag: %v", uid, err)
-		return errorResponse(http.StatusInternalServerError, "")
+		return fmt.Errorf("could not load active flag: %v", err)
 	}
 
 	if !active {
-		log.Warnf("%s: key already deactivated", uid)
-		return errorResponse(http.StatusConflict, "key already deactivated")
+		return h.ErrAlreadyDeactivated
 	}
 
 	err = i.Protocol.StoreActiveFlag(tx, uid, false)
 	if err != nil {
-		log.Errorf("%s: key deactivation failed: could not store active flag: %v", uid, err)
-		return errorResponse(http.StatusInternalServerError, "")
+		return fmt.Errorf("could not store active flag: %v", err)
 	}
 
 	// create self-signed key deletion request for identity service
 	keyDeletion, err := i.Protocol.GetSignedKeyDeletion(uid)
 	if err != nil {
-		log.Errorf("%s: key deactivation failed: could not create self-signed key deletion request: %v", uid, err)
-		return errorResponse(http.StatusInternalServerError, "")
+		return fmt.Errorf("could not create self-signed key deletion request: %v", err)
 	}
 
 	// send key deletion request to identity service
 	err = i.RequestKeyDeletion(uid, keyDeletion)
 	if err != nil {
-		log.Errorf("%s: %v", uid, err)
-		return errorResponse(http.StatusInternalServerError, "")
+		return err
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		log.Errorf("%s: commiting transaction to store active flag failed after successful key deletion at ubirch identity service: %v", uid, err)
-		return errorResponse(http.StatusInternalServerError, "")
+		return fmt.Errorf("%s: commiting transaction to store active flag failed after successful key deletion at ubirch identity service: %v", uid, err)
 	}
 
-	return h.HTTPResponse{
-		StatusCode: http.StatusOK,
-		Header:     http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
-		Content:    []byte("key deactivated"),
-	}
+	return nil
 }
 
-func (i *IdentityHandler) ReactivateKey(uid uuid.UUID) h.HTTPResponse {
+func (i *IdentityHandler) ReactivateKey(uid uuid.UUID) error {
 	initialized, err := i.Protocol.IsInitialized(uid)
 	if err != nil {
-		log.Errorf("%s: key reactivation failed: could not check if identity is initialized: %v", uid, err)
-		return errorResponse(http.StatusInternalServerError, "")
+		return fmt.Errorf("could not check if identity is known: %v", err)
 	}
 
 	if !initialized {
-		log.Warnf("%s: key reactivation failed: unknown uuid", uid)
-		return errorResponse(http.StatusNotFound, "unknown uuid")
+		return h.ErrUnknown
 	}
 
 	log.Infof("%s: reactivating key", uid)
@@ -264,43 +248,33 @@ func (i *IdentityHandler) ReactivateKey(uid uuid.UUID) h.HTTPResponse {
 
 	tx, err := i.Protocol.StartTransaction(ctx)
 	if err != nil {
-		log.Errorf("%s: key reactivation failed: initializing transaction failed: %v", uid, err)
-		return errorResponse(http.StatusServiceUnavailable, "")
+		return fmt.Errorf("initializing transaction failed: %v", err)
 	}
 
 	active, err := i.Protocol.LoadActiveFlagForUpdate(tx, uid)
 	if err != nil {
-		log.Errorf("%s: key reactivation failed: could not load active flag: %v", uid, err)
-		return errorResponse(http.StatusInternalServerError, "")
+		return fmt.Errorf("could not load active flag: %v", err)
 	}
 
 	if active {
-		log.Warnf("%s: key already activated", uid)
-		return errorResponse(http.StatusConflict, "key already activated")
+		return h.ErrAlreadyActivated
 	}
 
 	err = i.Protocol.StoreActiveFlag(tx, uid, true)
 	if err != nil {
-		log.Errorf("%s: key reactivation failed: could not store active flag: %v", uid, err)
-		return errorResponse(http.StatusInternalServerError, "")
+		return fmt.Errorf("could not store active flag: %v", err)
 	}
 
 	// register public key at the ubirch backend
 	_, err = i.registerPublicKey(uid)
 	if err != nil {
-		log.Errorf("%s: %v", uid, err)
-		return errorResponse(http.StatusInternalServerError, "")
+		return err
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		log.Errorf("%s: commiting transaction to store active flag failed after successful key registration at ubirch identity service: %v", uid, err)
-		return errorResponse(http.StatusInternalServerError, "")
+		return fmt.Errorf("%s: commiting transaction to store active flag failed after successful key registration at ubirch identity service: %v", uid, err)
 	}
 
-	return h.HTTPResponse{
-		StatusCode: http.StatusOK,
-		Header:     http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
-		Content:    []byte("key reactivated"),
-	}
+	return nil
 }

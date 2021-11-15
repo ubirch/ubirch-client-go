@@ -1,16 +1,11 @@
 package http_server
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/google/uuid"
 
 	log "github.com/sirupsen/logrus"
-)
-
-var (
-	ErrUnknown = errors.New("unknown identity")
 )
 
 type GetCSR func(uid uuid.UUID) (csr []byte, err error)
@@ -36,7 +31,7 @@ func FetchCSR(auth string, get GetCSR) http.HandlerFunc {
 			case ErrUnknown:
 				Error(uid, w, err, http.StatusNotFound)
 			default:
-				log.Errorf("%s: %v", uid, err)
+				log.Errorf("%s: FetchCSR: %v", uid, err)
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			}
 			return

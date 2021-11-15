@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -50,6 +51,11 @@ const (
 var (
 	UUIDPath      = fmt.Sprintf("/{%s}", UUIDKey)
 	OperationPath = fmt.Sprintf("/{%s}", OperationKey)
+
+	ErrUnknown            = errors.New("identity unknown")
+	ErrAlreadyInitialized = errors.New("identity already registered")
+	ErrAlreadyDeactivated = errors.New("key already deactivated")
+	ErrAlreadyActivated   = errors.New("key already activated")
 )
 
 type HTTPRequest struct {

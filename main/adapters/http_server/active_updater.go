@@ -16,31 +16,51 @@ type ActiveUpdatePayload struct {
 }
 
 func UpdateActive(auth string,
-	deactivate func(uid uuid.UUID) HTTPResponse,
-	reactivate func(uid uuid.UUID) HTTPResponse) http.HandlerFunc {
+	deactivate func(uid uuid.UUID) error,
+	reactivate func(uid uuid.UUID) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if AuthToken(r.Header) != auth {
-			log.Warnf("unauthorized key deactivation/reactivation attempt")
+			log.Warnf("unauthorized key de-/re-activation attempt")
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 			return
 		}
 
 		activeUpdatePayload, err := GetActiveUpdatePayload(r)
 		if err != nil {
-			log.Warnf("unsuccessful key deactivation/reactivation attempt: %v", err)
+			log.Warnf("unsuccessful key de-/re-activation attempt: %v", err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		resp := HTTPResponse{}
+		var action string
+
+		uid := activeUpdatePayload.Uid
 
 		if activeUpdatePayload.Active {
-			resp = reactivate(activeUpdatePayload.Uid)
+			action = "key reactivation"
+			err = reactivate(uid)
 		} else {
-			resp = deactivate(activeUpdatePayload.Uid)
+			action = "key deactivation"
+			err = deactivate(uid)
+		}
+		if err != nil {
+			switch err {
+			case ErrUnknown:
+				Error(uid, w, err, http.StatusNotFound)
+			case ErrAlreadyActivated, ErrAlreadyDeactivated:
+				Error(uid, w, err, http.StatusConflict)
+			default:
+				log.Errorf("%s: %s failed: %v", uid, action, err)
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			}
+			return
 		}
 
-		SendResponse(w, resp)
+		SendResponse(w, HTTPResponse{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
+			Content:    []byte(action + "successful"),
+		})
 	}
 }
 
