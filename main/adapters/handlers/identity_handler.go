@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/pem"
 	"fmt"
+	"github.com/ubirch/ubirch-client-go/main/auditlogger"
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
@@ -227,6 +228,9 @@ func (i *IdentityHandler) DeactivateKey(uid uuid.UUID) error {
 		return fmt.Errorf("%s: commiting transaction to store active flag failed after successful key deletion at ubirch identity service: %v", uid, err)
 	}
 
+	infos := fmt.Sprintf("\"hwDeviceId\":\"%s\"", uid)
+	auditlogger.AuditLog("deactivate", "device", infos)
+
 	return nil
 }
 
@@ -275,6 +279,9 @@ func (i *IdentityHandler) ReactivateKey(uid uuid.UUID) error {
 	if err != nil {
 		return fmt.Errorf("%s: commiting transaction to store active flag failed after successful key registration at ubirch identity service: %v", uid, err)
 	}
+
+	infos := fmt.Sprintf("\"hwDeviceId\":\"%s\"", uid)
+	auditlogger.AuditLog("activate", "device", infos)
 
 	return nil
 }

@@ -23,6 +23,7 @@ import (
 	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
 	"github.com/ubirch/ubirch-client-go/main/adapters/handlers"
 	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
+	"github.com/ubirch/ubirch-client-go/main/auditlogger"
 	"github.com/ubirch/ubirch-client-go/main/config"
 
 	log "github.com/sirupsen/logrus"
@@ -68,6 +69,7 @@ func main() {
 
 	log.SetFormatter(&log.JSONFormatter{})
 	log.Printf("UBIRCH client (version=%s, revision=%s)", Version, Revision)
+	auditlogger.SetServiceName(serviceName)
 
 	// read configuration
 	conf := &config.Config{}
