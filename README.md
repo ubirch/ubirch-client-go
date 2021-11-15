@@ -187,17 +187,35 @@ Sending a registration request invokes the generation of a ECDSA key pair for si
 contains an X.509 Certificate Signing Request in PEM format.
 
     curl ${host}/register -X PUT \
-    -H "X-Auth-Token: <registerAuth>" \
+    -H "X-Auth-Token: ${registerAuth}" \
     -H "Content-Type: application/json" \
-    -d '{"uuid":"<uuid>", "password":"<password>"}' \
+    -d '{"uuid":${device_uuid}, "password":${password}}' \
     -i
 
-### CSR re-creation
+### CSR Generation
 
 A CSR for an already registered identity can be retrieved from the CSR endpoint.
 
-    curl ${host}/{uuid}/csr -X GET \
-    -H "X-Auth-Token: <registerAuth>" \
+    curl ${host}/${uuid}/csr -X GET \
+    -H "X-Auth-Token: ${registerAuth}" \
+    -i
+
+### Key De-/Re-Activation
+
+A key can be de-activated ...
+
+    curl ${host}/device/updateActive -X POST \
+    -H "X-Auth-Token: ${registerAuth}" \
+    -H "Content-Type: application/json" \
+    -d '{"id":${device_uuid},"active":false}' \
+    -i
+
+... and re-activated .
+
+    curl ${host}/device/updateActive -X POST \
+    -H "X-Auth-Token: ${registerAuth}" \
+    -H "Content-Type: application/json" \
+    -d '{"id":${device_uuid},"active":true}' \
     -i
 
 ### UPP Signing Service
