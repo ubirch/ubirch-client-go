@@ -1,6 +1,8 @@
 package http_server
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -26,10 +28,24 @@ func SendResponse(w http.ResponseWriter, resp HTTPResponse) {
 	}
 }
 
-// Error is a wrapper for http.Error that additionally logs the uuid and error message to std.Output
-func Error(uid uuid.UUID, w http.ResponseWriter, err error, code int) {
-	log.Warnf("%s: %v", uid, err)
-	http.Error(w, err.Error(), code)
+type errorLog struct {
+	Uid    uuid.UUID `json:"uuid,omitempty"`
+	Path   string    `json:"path,omitempty"`
+	Error  string    `json:"error,omitempty"`
+	Status string    `json:"status,omitempty"`
+}
+
+// ClientError is a wrapper for http.Error that additionally logs uuid, request URL path, error message and status
+// to std.Output with logging lever "warning"
+func ClientError(uid uuid.UUID, r *http.Request, w http.ResponseWriter, errMsg string, code int) {
+	errLog, _ := json.Marshal(errorLog{
+		Uid:    uid,
+		Path:   r.URL.Path,
+		Error:  errMsg,
+		Status: fmt.Sprintf("%d %s", code, http.StatusText(code)),
+	})
+	log.Warnf("ClientError: %s", errLog)
+	http.Error(w, errMsg, code)
 }
 
 func Health(server string) http.HandlerFunc {

@@ -15,7 +15,7 @@ var _ Service = (*VerificationService)(nil)
 func (v *VerificationService) HandleRequest(w http.ResponseWriter, r *http.Request) {
 	hash, err := GetHash(r)
 	if err != nil {
-		Error(uuid.Nil, w, err, http.StatusBadRequest)
+		ClientError(uuid.Nil, r, w, err.Error(), http.StatusBadRequest)
 		return
 	}
 

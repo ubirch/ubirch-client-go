@@ -2,7 +2,6 @@ package http_server
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -24,7 +23,7 @@ func (s *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) 
 
 	msg.ID, err = GetUUID(r)
 	if err != nil {
-		Error(msg.ID, w, err, http.StatusNotFound)
+		ClientError(msg.ID, r, w, err.Error(), http.StatusNotFound)
 		return
 	}
 
@@ -39,18 +38,18 @@ func (s *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if !found {
-		Error(msg.ID, w, fmt.Errorf("unknown UUID"), http.StatusNotFound)
+		ClientError(msg.ID, r, w, "unknown UUID", http.StatusNotFound)
 		return
 	}
 
 	if !ok {
-		Error(msg.ID, w, fmt.Errorf("invalid auth token"), http.StatusUnauthorized)
+		ClientError(msg.ID, r, w, "invalid auth token", http.StatusUnauthorized)
 		return
 	}
 
 	msg.Hash, err = GetHash(r)
 	if err != nil {
-		Error(msg.ID, w, err, http.StatusBadRequest)
+		ClientError(msg.ID, r, w, err.Error(), http.StatusBadRequest)
 		return
 	}
 

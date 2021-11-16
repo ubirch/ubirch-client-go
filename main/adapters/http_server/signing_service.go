@@ -33,7 +33,7 @@ func (s *SigningService) HandleRequest(w http.ResponseWriter, r *http.Request) {
 
 	msg.ID, err = GetUUID(r)
 	if err != nil {
-		Error(msg.ID, w, err, http.StatusNotFound)
+		ClientError(msg.ID, r, w, err.Error(), http.StatusNotFound)
 		return
 	}
 
@@ -47,24 +47,24 @@ func (s *SigningService) HandleRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !found {
-		Error(msg.ID, w, fmt.Errorf("unknown UUID"), http.StatusNotFound)
+		ClientError(msg.ID, r, w, "unknown UUID", http.StatusNotFound)
 		return
 	}
 
 	if !ok {
-		Error(msg.ID, w, fmt.Errorf("invalid auth token"), http.StatusUnauthorized)
+		ClientError(msg.ID, r, w, "invalid auth token", http.StatusUnauthorized)
 		return
 	}
 
 	op, err := getOperation(r)
 	if err != nil {
-		Error(msg.ID, w, err, http.StatusNotFound)
+		ClientError(msg.ID, r, w, err.Error(), http.StatusNotFound)
 		return
 	}
 
 	msg.Hash, err = GetHash(r)
 	if err != nil {
-		Error(msg.ID, w, err, http.StatusBadRequest)
+		ClientError(msg.ID, r, w, err.Error(), http.StatusBadRequest)
 		return
 	}
 

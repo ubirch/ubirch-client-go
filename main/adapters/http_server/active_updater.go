@@ -48,9 +48,9 @@ func UpdateActive(auth string,
 		if err != nil {
 			switch err {
 			case ErrUnknown:
-				Error(uid, w, err, http.StatusNotFound)
+				ClientError(uid, r, w, err.Error(), http.StatusNotFound)
 			case ErrAlreadyActivated, ErrAlreadyDeactivated:
-				Error(uid, w, err, http.StatusConflict)
+				ClientError(uid, r, w, err.Error(), http.StatusConflict)
 			default:
 				log.Errorf("%s: %s failed: %v", uid, action, err)
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
