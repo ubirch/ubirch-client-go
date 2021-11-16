@@ -32,8 +32,7 @@ func (s *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) 
 
 	ok, found, err := s.CheckAuth(ctx, msg.ID, msg.Auth)
 	if err != nil {
-		log.Errorf("%s: %v", msg.ID, err)
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		ServerError(msg.ID, r, w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 

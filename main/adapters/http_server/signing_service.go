@@ -7,8 +7,6 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type Operation string
@@ -41,8 +39,7 @@ func (s *SigningService) HandleRequest(w http.ResponseWriter, r *http.Request) {
 
 	ok, found, err := s.CheckAuth(r.Context(), msg.ID, msg.Auth)
 	if err != nil {
-		log.Errorf("%s: %v", msg.ID, err)
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		ServerError(msg.ID, r, w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 

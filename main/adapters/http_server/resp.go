@@ -48,6 +48,19 @@ func ClientError(uid uuid.UUID, r *http.Request, w http.ResponseWriter, errMsg s
 	http.Error(w, errMsg, code)
 }
 
+// ServerError is a wrapper for http.Error that additionally logs uuid, request URL path, error message and status
+//// to std.Output with logging lever "error". It does not send the error message to the client.
+func ServerError(uid uuid.UUID, r *http.Request, w http.ResponseWriter, errMsg string, code int) {
+	errLog, _ := json.Marshal(errorLog{
+		Uid:    uid,
+		Path:   r.URL.Path,
+		Error:  errMsg,
+		Status: fmt.Sprintf("%d %s", code, http.StatusText(code)),
+	})
+	log.Errorf("ServerError: %s", errLog)
+	http.Error(w, http.StatusText(code), code)
+}
+
 func Health(server string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Server", server)

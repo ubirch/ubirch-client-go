@@ -52,8 +52,7 @@ func UpdateActive(auth string,
 			case ErrAlreadyActivated, ErrAlreadyDeactivated:
 				ClientError(uid, r, w, err.Error(), http.StatusConflict)
 			default:
-				log.Errorf("%s: %s failed: %v", uid, action, err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				ServerError(uid, r, w, fmt.Sprint(action, " failed: ", err), http.StatusInternalServerError)
 			}
 			return
 		}

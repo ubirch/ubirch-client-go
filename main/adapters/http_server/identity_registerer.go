@@ -42,8 +42,7 @@ func Register(registerAuth string, initialize InitializeIdentity) http.HandlerFu
 			case ErrAlreadyInitialized:
 				ClientError(idPayload.Uid, r, w, err.Error(), http.StatusConflict)
 			default:
-				log.Errorf("%s: identity registration failed: %v", idPayload.Uid, err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				ServerError(idPayload.Uid, r, w, err.Error(), http.StatusInternalServerError)
 			}
 			return
 		}

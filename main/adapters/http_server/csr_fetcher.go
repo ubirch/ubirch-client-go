@@ -31,8 +31,7 @@ func FetchCSR(auth string, get GetCSR) http.HandlerFunc {
 			case ErrUnknown:
 				ClientError(uid, r, w, err.Error(), http.StatusNotFound)
 			default:
-				log.Errorf("%s: FetchCSR: %v", uid, err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				ServerError(uid, r, w, err.Error(), http.StatusInternalServerError)
 			}
 			return
 		}
