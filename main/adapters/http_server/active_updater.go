@@ -1,8 +1,10 @@
 package http_server
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -70,8 +72,14 @@ func GetActiveUpdatePayload(r *http.Request) (*ActiveUpdatePayload, error) {
 		return nil, fmt.Errorf("invalid content-type: expected %s, got %s", JSONType, contentType)
 	}
 
+	reqBodyBytes, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return nil, err
+	}
+	log.Debugf("%s : %s", r.RequestURI, string(reqBodyBytes))
+
 	payload := &ActiveUpdatePayload{}
-	decoder := json.NewDecoder(r.Body)
+	decoder := json.NewDecoder(bytes.NewBuffer(reqBodyBytes))
 	if err := decoder.Decode(&payload); err != nil {
 		return nil, err
 	}
