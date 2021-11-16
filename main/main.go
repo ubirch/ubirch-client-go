@@ -160,7 +160,7 @@ func main() {
 	httpServer.Router.Put(h.RegisterEndpoint, h.Register(conf.RegisterAuth, idHandler.InitIdentity))
 
 	// set up endpoint for key status updates (de-/re-activation)
-	httpServer.Router.Post(h.ActiveUpdateEndpoint, h.UpdateActive(conf.RegisterAuth, idHandler.DeactivateKey, idHandler.ReactivateKey))
+	httpServer.Router.Put(h.ActiveUpdateEndpoint, h.UpdateActive(conf.RegisterAuth, idHandler.DeactivateKey, idHandler.ReactivateKey))
 
 	// set up endpoint for CSRs
 	fetchCSREndpoint := path.Join(h.UUIDPath, h.CSREndpoint) // /<uuid>/csr

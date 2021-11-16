@@ -204,7 +204,7 @@ A CSR for an already registered identity can be retrieved from the CSR endpoint.
 
 A key can be de-activated ...
 
-    curl ${host}/device/updateActive -X POST \
+    curl ${host}/device/updateActive -X PUT \
     -H "X-Auth-Token: ${registerAuth}" \
     -H "Content-Type: application/json" \
     -d '{"id":${device_uuid},"active":false}' \
@@ -212,7 +212,7 @@ A key can be de-activated ...
 
 ... and re-activated .
 
-    curl ${host}/device/updateActive -X POST \
+    curl ${host}/device/updateActive -X PUT \
     -H "X-Auth-Token: ${registerAuth}" \
     -H "Content-Type: application/json" \
     -d '{"id":${device_uuid},"active":true}' \
