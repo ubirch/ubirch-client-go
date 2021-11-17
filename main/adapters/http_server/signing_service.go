@@ -7,8 +7,6 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type Operation string
@@ -33,7 +31,7 @@ func (s *SigningService) HandleRequest(w http.ResponseWriter, r *http.Request) {
 
 	msg.ID, err = GetUUID(r)
 	if err != nil {
-		Error(msg.ID, w, err, http.StatusNotFound)
+		ClientError(msg.ID, r, w, err.Error(), http.StatusNotFound)
 		return
 	}
 
@@ -41,30 +39,29 @@ func (s *SigningService) HandleRequest(w http.ResponseWriter, r *http.Request) {
 
 	ok, found, err := s.CheckAuth(r.Context(), msg.ID, msg.Auth)
 	if err != nil {
-		log.Errorf("%s: %v", msg.ID, err)
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		ServerError(msg.ID, r, w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	if !found {
-		Error(msg.ID, w, fmt.Errorf("unknown UUID"), http.StatusNotFound)
+		ClientError(msg.ID, r, w, "unknown UUID", http.StatusNotFound)
 		return
 	}
 
 	if !ok {
-		Error(msg.ID, w, fmt.Errorf("invalid auth token"), http.StatusUnauthorized)
+		ClientError(msg.ID, r, w, "invalid auth token", http.StatusUnauthorized)
 		return
 	}
 
 	op, err := getOperation(r)
 	if err != nil {
-		Error(msg.ID, w, err, http.StatusNotFound)
+		ClientError(msg.ID, r, w, err.Error(), http.StatusNotFound)
 		return
 	}
 
 	msg.Hash, err = GetHash(r)
 	if err != nil {
-		Error(msg.ID, w, err, http.StatusBadRequest)
+		ClientError(msg.ID, r, w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
