@@ -36,7 +36,7 @@ type errorLog struct {
 }
 
 // ClientError is a wrapper for http.Error that additionally logs uuid, request URL path, error message and status
-// to std.Output with logging lever "warning"
+// with logging level "warning"
 func ClientError(uid uuid.UUID, r *http.Request, w http.ResponseWriter, errMsg string, code int) {
 	errLog, _ := json.Marshal(errorLog{
 		Uid:    uid,
@@ -49,7 +49,7 @@ func ClientError(uid uuid.UUID, r *http.Request, w http.ResponseWriter, errMsg s
 }
 
 // ServerError is a wrapper for http.Error that additionally logs uuid, request URL path, error message and status
-//// to std.Output with logging lever "error". It does not send the error message to the client.
+// with logging level "error". The error message is not sent to the client.
 func ServerError(uid uuid.UUID, r *http.Request, w http.ResponseWriter, errMsg string, code int) {
 	errLog, _ := json.Marshal(errorLog{
 		Uid:    uid,
