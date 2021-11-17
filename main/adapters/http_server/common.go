@@ -119,7 +119,7 @@ func getHashFromHashRequest(header http.Header, data []byte) (hash Sha256Sum, er
 		return hash, nil
 	default:
 		return Sha256Sum{}, fmt.Errorf("invalid content-type for hash: "+
-			"expected (\"%s\" | \"%s\")", BinType, TextType)
+			"expected (\"%s\" | \"%s\"), got \"%s\"", BinType, TextType, ContentType(header))
 	}
 }
 
@@ -138,7 +138,7 @@ func getHashFromDataRequest(header http.Header, data []byte) (hash Sha256Sum, er
 		return sha256.Sum256(data), nil
 	default:
 		return Sha256Sum{}, fmt.Errorf("invalid content-type for original data: "+
-			"expected (\"%s\" | \"%s\")", BinType, JSONType)
+			"expected (\"%s\" | \"%s\"), got \"%s\"", BinType, JSONType, ContentType(header))
 	}
 }
 
