@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"sync"
 
 	"github.com/google/uuid"
@@ -27,6 +26,7 @@ import (
 	"github.com/ubirch/ubirch-client-go/main/ent"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
+	log "github.com/sirupsen/logrus"
 	pw "github.com/ubirch/ubirch-client-go/main/adapters/password-hashing"
 )
 
@@ -36,9 +36,8 @@ type ExtendedProtocol struct {
 	keyEncrypter *encryption.KeyEncrypter
 	keyCache     *KeyCache
 
-	pwHasher       *pw.Argon2idKeyDerivator
-	pwHasherParams *pw.Argon2idParams
-	authCache      *sync.Map // {<uuid>: <auth token>}
+	pwHasher  *pw.Argon2idKeyDerivator
+	authCache *sync.Map // {<uuid>: <auth token>}
 }
 
 func NewExtendedProtocol(ctxManager ContextManager, conf *config.Config) (*ExtendedProtocol, error) {
@@ -66,9 +65,8 @@ func NewExtendedProtocol(ctxManager ContextManager, conf *config.Config) (*Exten
 		keyEncrypter:   enc,
 		keyCache:       keyCache,
 
-		pwHasher:       pw.NewArgon2idKeyDerivator(conf.KdMaxTotalMemMiB),
-		pwHasherParams: argon2idParams,
-		authCache:      &sync.Map{},
+		pwHasher:  pw.NewArgon2idKeyDerivator(conf.KdMaxTotalMemMiB, argon2idParams, conf.KdUpdateParams),
+		authCache: &sync.Map{},
 	}
 
 	return p, nil
@@ -94,9 +92,9 @@ func (p *ExtendedProtocol) StoreIdentity(tx TransactionCtx, i ent.Identity) erro
 	}
 
 	// hash auth token
-	i.AuthToken, err = p.pwHasher.GeneratePasswordHash(context.Background(), i.AuthToken, p.pwHasherParams)
+	i.AuthToken, err = p.pwHasher.GeneratePasswordHash(context.Background(), i.AuthToken)
 	if err != nil {
-		return err
+		return fmt.Errorf("generating password hash failed: %v", err)
 	}
 
 	return p.ContextManager.StoreIdentity(tx, i)
@@ -224,7 +222,25 @@ func (p *ExtendedProtocol) CheckAuth(ctx context.Context, uid uuid.UUID, authToC
 
 	found = true
 
-	ok, err = p.pwHasher.CheckPassword(ctx, authToCheck, actualAuth)
+	needsUpdate, ok, err := p.pwHasher.CheckPassword(ctx, actualAuth, authToCheck)
+	if err != nil || !ok {
+		return ok, found, err
+	}
+
+	if needsUpdate {
+		// todo: lock row for update
+		updatedHash, err := p.pwHasher.GeneratePasswordHash(context.Background(), authToCheck)
+		if err != nil {
+			log.Errorf("%s: could not generate new password hash: %v", uid, err)
+		} else {
+			err = p.ContextManager.StoreAuth(uid, updatedHash)
+			if err != nil {
+				log.Errorf("could not store updated password hash: %v", err)
+			} else {
+				p.authCache.Store(uid, updatedHash)
+			}
+		}
+	}
 
 	return ok, found, err
 }

@@ -221,12 +221,12 @@ func hashAuthTokens(dm *DatabaseManager, p *ExtendedProtocol) error {
 			continue
 		}
 
-		pwHash, err := p.pwHasher.GeneratePasswordHash(ctx, auth, p.pwHasherParams)
+		pwHash, err := p.pwHasher.GeneratePasswordHash(ctx, auth)
 		if err != nil {
 			return err
 		}
 
-		err = storeAuth(dm, uid, pwHash)
+		err = dm.StoreAuth(uid, pwHash)
 		if err != nil {
 			return err
 		}
@@ -272,14 +272,6 @@ func isArgon2idPasswordHash(pw string) (bool, error) {
 	}
 
 	return true, nil
-}
-
-func storeAuth(dm *DatabaseManager, uid uuid.UUID, auth string) error {
-	query := fmt.Sprintf("UPDATE %s SET auth_token = $1 WHERE uid = $2;", PostgresIdentityTableName)
-
-	_, err := dm.db.Exec(query, &auth, uid)
-
-	return err
 }
 
 func addColumnActiveBoolean(dm *DatabaseManager) error {
