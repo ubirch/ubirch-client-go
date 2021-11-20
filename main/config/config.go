@@ -49,7 +49,6 @@ const (
 	defaultTLSCertFile = "cert.pem"
 	defaultTLSKeyFile  = "key.pem"
 
-	defaultKeyDerivationMaxTotalMemory   = 64
 	defaultKeyDerivationParamMemory      = 15
 	defaultKeyDerivationParamTime        = 2
 	defaultKeyDerivationParamParallelism = 1
@@ -210,10 +209,6 @@ func (c *Config) setDefaultCORS() {
 }
 
 func (c *Config) setKeyDerivationParams() {
-	if c.KdMaxTotalMemMiB == 0 {
-		c.KdMaxTotalMemMiB = defaultKeyDerivationMaxTotalMemory
-	}
-
 	if c.KdParamMemMiB == 0 {
 		c.KdParamMemMiB = defaultKeyDerivationParamMemory
 	}
