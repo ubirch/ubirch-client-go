@@ -228,21 +228,36 @@ func (p *ExtendedProtocol) CheckAuth(ctx context.Context, uid uuid.UUID, authToC
 	}
 
 	if needsUpdate {
-		// todo: lock row for update
-		updatedHash, err := p.pwHasher.GeneratePasswordHash(context.Background(), authToCheck)
-		if err != nil {
-			log.Errorf("%s: could not generate new password hash: %v", uid, err)
-		} else {
-			err = p.ContextManager.StoreAuth(uid, updatedHash)
-			if err != nil {
-				log.Errorf("could not store updated password hash: %v", err)
-			} else {
-				p.authCache.Store(uid, updatedHash)
-			}
+		if err := p.updatePwHash(uid, authToCheck); err != nil {
+			log.Errorf("%s: password hash update failed: %v", uid, err)
 		}
 	}
 
 	return ok, found, err
+}
+
+func (p *ExtendedProtocol) updatePwHash(uid uuid.UUID, authToCheck string) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := p.StartTransaction(ctx)
+	if err != nil {
+		return fmt.Errorf("could not initialize transaction: %v", err)
+	}
+
+	updatedHash, err := p.pwHasher.GeneratePasswordHash(ctx, authToCheck)
+	if err != nil {
+		return fmt.Errorf("could not generate new password hash: %v", err)
+	}
+
+	err = p.ContextManager.StoreAuth(tx, uid, updatedHash)
+	if err != nil {
+		return fmt.Errorf("could not store updated password hash: %v", err)
+	}
+
+	p.authCache.Store(uid, updatedHash)
+
+	return nil
 }
 
 func (p *ExtendedProtocol) checkIdentityAttributes(i *ent.Identity) error {

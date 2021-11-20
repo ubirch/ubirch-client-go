@@ -203,12 +203,33 @@ func (dm *DatabaseManager) LoadSignatureForUpdate(transactionCtx TransactionCtx,
 	return signature, err
 }
 
-func (dm *DatabaseManager) StoreAuth(uid uuid.UUID, auth string) error {
+func (dm *DatabaseManager) StoreAuth(transactionCtx TransactionCtx, uid uuid.UUID, auth string) error {
+	tx, ok := transactionCtx.(*sql.Tx)
+	if !ok {
+		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
+	}
+
 	query := fmt.Sprintf("UPDATE %s SET auth_token = $1 WHERE uid = $2;", PostgresIdentityTableName)
 
-	_, err := dm.db.Exec(query, &auth, uid)
+	_, err := tx.Exec(query, &auth, uid)
 
 	return err
+}
+
+func (dm *DatabaseManager) LoadAuthForUpdate(transactionCtx TransactionCtx, uid uuid.UUID) (auth string, err error) {
+	tx, ok := transactionCtx.(*sql.Tx)
+	if !ok {
+		return "", fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
+	}
+
+	query := fmt.Sprintf("SELECT auth_token FROM %s WHERE uid = $1 FOR UPDATE;", PostgresIdentityTableName)
+
+	err = tx.QueryRow(query, uid).Scan(&auth)
+	if err == sql.ErrNoRows {
+		return "", ErrNotExist
+	}
+
+	return auth, err
 }
 
 func (dm *DatabaseManager) retry(f func() error) (err error) {
