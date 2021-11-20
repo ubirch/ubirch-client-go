@@ -56,7 +56,7 @@ func TestProtocol(t *testing.T) {
 	_, err = p.LoadPublicKey(testIdentity.Uid)
 	assert.Equal(t, ErrNotExist, err)
 
-	_, err = p.LoadAuthToken(testIdentity.Uid)
+	_, err = p.LoadAuth(testIdentity.Uid)
 	assert.Equal(t, ErrNotExist, err)
 
 	// store identity
@@ -666,7 +666,7 @@ func protocolCheckAuth(auth, authToCheck string) error {
 		return err
 	}
 	if !ok {
-		return fmt.Errorf("LoadAuthToken returned unexpected value")
+		return fmt.Errorf("LoadAuth returned unexpected value")
 	}
 	return nil
 }

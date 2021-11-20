@@ -180,7 +180,7 @@ func (p *ExtendedProtocol) LoadPublicKey(uid uuid.UUID) (pubKeyPEM []byte, err e
 	return pubKeyPEM, nil
 }
 
-func (p *ExtendedProtocol) LoadAuthToken(uid uuid.UUID) (auth string, err error) {
+func (p *ExtendedProtocol) LoadAuth(uid uuid.UUID) (auth string, err error) {
 	_auth, found := p.authCache.Load(uid)
 
 	if found {
@@ -200,7 +200,7 @@ func (p *ExtendedProtocol) LoadAuthToken(uid uuid.UUID) (auth string, err error)
 }
 
 func (p *ExtendedProtocol) IsInitialized(uid uuid.UUID) (initialized bool, err error) {
-	_, err = p.LoadAuthToken(uid)
+	_, err = p.LoadAuth(uid)
 	if err == ErrNotExist {
 		return false, nil
 	}
@@ -212,7 +212,7 @@ func (p *ExtendedProtocol) IsInitialized(uid uuid.UUID) (initialized bool, err e
 }
 
 func (p *ExtendedProtocol) CheckAuth(ctx context.Context, uid uuid.UUID, authToCheck string) (ok, found bool, err error) {
-	actualAuth, err := p.LoadAuthToken(uid)
+	pwHah, err := p.LoadAuth(uid)
 	if err == ErrNotExist {
 		return false, false, nil
 	}
@@ -222,7 +222,7 @@ func (p *ExtendedProtocol) CheckAuth(ctx context.Context, uid uuid.UUID, authToC
 
 	found = true
 
-	needsUpdate, ok, err := p.pwHasher.CheckPassword(ctx, actualAuth, authToCheck)
+	needsUpdate, ok, err := p.pwHasher.CheckPassword(ctx, pwHah, authToCheck)
 	if err != nil || !ok {
 		return ok, found, err
 	}
