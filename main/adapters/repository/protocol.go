@@ -245,6 +245,11 @@ func (p *ExtendedProtocol) updatePwHash(uid uuid.UUID, authToCheck string) error
 		return fmt.Errorf("could not initialize transaction: %v", err)
 	}
 
+	_, err = p.ContextManager.LoadAuthForUpdate(tx, uid)
+	if err != nil {
+		return fmt.Errorf("could not aquire lock for update: %v", err)
+	}
+
 	updatedHash, err := p.pwHasher.GeneratePasswordHash(ctx, authToCheck)
 	if err != nil {
 		return fmt.Errorf("could not generate new password hash: %v", err)
