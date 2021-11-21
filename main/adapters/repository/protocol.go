@@ -56,7 +56,9 @@ func NewExtendedProtocol(ctxManager ContextManager, conf *config.Config) (*Exten
 		conf.KdParamKeyLen, conf.KdParamSaltLen)
 	params, _ := json.Marshal(argon2idParams)
 	log.Debugf("initialize argon2id key derivation with parameters %s", params)
-	log.Debugf("max. total memory to use for key derivation at a time: %d MiB", conf.KdMaxTotalMemMiB)
+	if conf.KdMaxTotalMemMiB != 0 {
+		log.Debugf("max. total memory to use for key derivation at a time: %d MiB", conf.KdMaxTotalMemMiB)
+	}
 	if conf.KdUpdateParams {
 		log.Debugf("key derivation parameter update for already existing password hashes enabled")
 	}
@@ -241,6 +243,8 @@ func (p *ExtendedProtocol) CheckAuth(ctx context.Context, uid uuid.UUID, authToC
 }
 
 func (p *ExtendedProtocol) updatePwHash(uid uuid.UUID, authToCheck string) error {
+	log.Infof("%s: updating password hash", uid)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
