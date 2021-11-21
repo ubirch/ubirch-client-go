@@ -268,6 +268,11 @@ func (p *ExtendedProtocol) updatePwHash(uid uuid.UUID, authToCheck string) error
 		return fmt.Errorf("could not store updated password hash: %v", err)
 	}
 
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("could not commit transaction after storing updated password hash: %v", err)
+	}
+
 	p.authCache.Store(uid, updatedHash)
 
 	return nil
