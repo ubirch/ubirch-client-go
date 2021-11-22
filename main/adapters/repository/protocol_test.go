@@ -557,12 +557,9 @@ func TestExtendedProtocol_CheckAuth_Update(t *testing.T) {
 	pwHash, err := kd.GeneratePasswordHash(ctx, testAuth)
 	require.NoError(t, err)
 
-	ctxMngr := &MockCtxMngr{
-		id: ent.Identity{
-			Uid:       uid,
-			AuthToken: pwHash,
-		},
-	}
+	ctxMngr := &MockCtxMngr{}
+	ctxMngr.id.Uid = uid
+	ctxMngr.id.AuthToken = pwHash
 
 	p := &ExtendedProtocol{
 		ContextManager: ctxMngr,
