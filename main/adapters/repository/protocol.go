@@ -218,7 +218,7 @@ func (p *ExtendedProtocol) IsInitialized(uid uuid.UUID) (initialized bool, err e
 }
 
 func (p *ExtendedProtocol) CheckAuth(ctx context.Context, uid uuid.UUID, authToCheck string) (ok, found bool, err error) {
-	pwHah, err := p.LoadAuth(uid)
+	pwHash, err := p.LoadAuth(uid)
 	if err == ErrNotExist {
 		return false, false, nil
 	}
@@ -228,7 +228,7 @@ func (p *ExtendedProtocol) CheckAuth(ctx context.Context, uid uuid.UUID, authToC
 
 	found = true
 
-	needsUpdate, ok, err := p.pwHasher.CheckPassword(ctx, pwHah, authToCheck)
+	needsUpdate, ok, err := p.pwHasher.CheckPassword(ctx, pwHash, authToCheck)
 	if err != nil || !ok {
 		return ok, found, err
 	}
