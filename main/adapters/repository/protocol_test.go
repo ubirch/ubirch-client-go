@@ -577,9 +577,7 @@ func TestExtendedProtocol_CheckAuth_Update(t *testing.T) {
 	assert.True(t, found)
 	assert.True(t, ok)
 
-	updatedPwHash, found := p.authCache.Load(uid)
-	require.True(t, found)
-	assert.NotEqual(t, pwHash, updatedPwHash)
+	assert.NotEqual(t, pwHash, ctxMngr.id.AuthToken)
 }
 
 func TestProtocol_Cache(t *testing.T) {
