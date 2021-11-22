@@ -5,7 +5,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
-	"fmt"
+	"errors"
 	"math/rand"
 	"testing"
 
@@ -119,7 +119,7 @@ func TestIdentityHandler_InitIdentity_BadRegistration(t *testing.T) {
 	}
 
 	_, err = idHandler.InitIdentity(testUuid, testAuth)
-	assert.Error(t, err)
+	assert.Equal(t, MockSubmitKeyRegistrationErr, err)
 
 	_, err = p.LoadIdentity(testUuid)
 	assert.Equal(t, r.ErrNotExist, err)
@@ -255,6 +255,66 @@ func TestIdentityHandler_DeactivateKey(t *testing.T) {
 	assert.False(t, active)
 }
 
+func TestIdentityHandler_DeactivateKey_Unknown(t *testing.T) {
+	p, err := r.NewExtendedProtocol(&r.MockCtxMngr{}, conf)
+	require.NoError(t, err)
+
+	idHandler := &IdentityHandler{
+		Protocol:              p,
+		SubmitKeyRegistration: MockSubmitKeyRegistration,
+		RequestKeyDeletion:    MockSubmitKeyDeletion,
+		SubmitCSR:             MockSubmitCSR,
+		SubjectCountry:        "AA",
+		SubjectOrganization:   "test GmbH",
+	}
+
+	err = idHandler.DeactivateKey(testUuid)
+	assert.Equal(t, err, h.ErrUnknown)
+}
+
+func TestIdentityHandler_DeactivateKey_AlreadyDeactivated(t *testing.T) {
+	p, err := r.NewExtendedProtocol(&r.MockCtxMngr{}, conf)
+	require.NoError(t, err)
+
+	idHandler := &IdentityHandler{
+		Protocol:              p,
+		SubmitKeyRegistration: MockSubmitKeyRegistration,
+		RequestKeyDeletion:    MockSubmitKeyDeletion,
+		SubmitCSR:             MockSubmitCSR,
+		SubjectCountry:        "AA",
+		SubjectOrganization:   "test GmbH",
+	}
+
+	_, err = idHandler.InitIdentity(testUuid, testAuth)
+	require.NoError(t, err)
+
+	err = idHandler.DeactivateKey(testUuid)
+	require.NoError(t, err)
+
+	err = idHandler.DeactivateKey(testUuid)
+	require.Equal(t, h.ErrAlreadyDeactivated, err)
+}
+
+func TestIdentityHandler_DeactivateKey_BadKeyDeletion(t *testing.T) {
+	p, err := r.NewExtendedProtocol(&r.MockCtxMngr{}, conf)
+	require.NoError(t, err)
+
+	idHandler := &IdentityHandler{
+		Protocol:              p,
+		SubmitKeyRegistration: MockSubmitKeyRegistration,
+		RequestKeyDeletion:    MockSubmitKeyDeletionBad,
+		SubmitCSR:             MockSubmitCSR,
+		SubjectCountry:        "AA",
+		SubjectOrganization:   "test GmbH",
+	}
+
+	_, err = idHandler.InitIdentity(testUuid, testAuth)
+	require.NoError(t, err)
+
+	err = idHandler.DeactivateKey(testUuid)
+	require.Equal(t, MockSubmitKeyDeletionErr, err)
+}
+
 func TestIdentityHandler_ReactivateKey(t *testing.T) {
 	p, err := r.NewExtendedProtocol(&r.MockCtxMngr{}, conf)
 	require.NoError(t, err)
@@ -286,26 +346,94 @@ func TestIdentityHandler_ReactivateKey(t *testing.T) {
 	assert.True(t, active)
 }
 
+func TestIdentityHandler_ReactivateKey_Unknown(t *testing.T) {
+	p, err := r.NewExtendedProtocol(&r.MockCtxMngr{}, conf)
+	require.NoError(t, err)
+
+	idHandler := &IdentityHandler{
+		Protocol:              p,
+		SubmitKeyRegistration: MockSubmitKeyRegistration,
+		RequestKeyDeletion:    MockSubmitKeyDeletion,
+		SubmitCSR:             MockSubmitCSR,
+		SubjectCountry:        "AA",
+		SubjectOrganization:   "test GmbH",
+	}
+
+	err = idHandler.ReactivateKey(testUuid)
+	assert.Equal(t, err, h.ErrUnknown)
+}
+
+func TestIdentityHandler_ReactivateKey_AlreadyDeactivated(t *testing.T) {
+	p, err := r.NewExtendedProtocol(&r.MockCtxMngr{}, conf)
+	require.NoError(t, err)
+
+	idHandler := &IdentityHandler{
+		Protocol:              p,
+		SubmitKeyRegistration: MockSubmitKeyRegistration,
+		RequestKeyDeletion:    MockSubmitKeyDeletion,
+		SubmitCSR:             MockSubmitCSR,
+		SubjectCountry:        "AA",
+		SubjectOrganization:   "test GmbH",
+	}
+
+	_, err = idHandler.InitIdentity(testUuid, testAuth)
+	require.NoError(t, err)
+
+	err = idHandler.ReactivateKey(testUuid)
+	require.Equal(t, h.ErrAlreadyActivated, err)
+}
+
+func TestIdentityHandler_ReactivateKey_BadKeyRegistration(t *testing.T) {
+	p, err := r.NewExtendedProtocol(&r.MockCtxMngr{}, conf)
+	require.NoError(t, err)
+
+	idHandler := &IdentityHandler{
+		Protocol:              p,
+		SubmitKeyRegistration: MockSubmitKeyRegistration,
+		RequestKeyDeletion:    MockSubmitKeyDeletion,
+		SubmitCSR:             MockSubmitCSR,
+		SubjectCountry:        "AA",
+		SubjectOrganization:   "test GmbH",
+	}
+
+	_, err = idHandler.InitIdentity(testUuid, testAuth)
+	require.NoError(t, err)
+
+	err = idHandler.DeactivateKey(testUuid)
+	require.NoError(t, err)
+
+	idHandler.SubmitKeyRegistration = MockSubmitKeyRegistrationBad
+
+	err = idHandler.ReactivateKey(testUuid)
+	require.Equal(t, MockSubmitKeyRegistrationErr, err)
+}
+
 func MockSubmitKeyRegistration(uuid.UUID, []byte) error {
 	return nil
 }
 
+var MockSubmitKeyRegistrationErr = errors.New("MockSubmitKeyRegistrationBad")
+
 func MockSubmitKeyRegistrationBad(uuid.UUID, []byte) error {
-	return fmt.Errorf("fail")
+	return MockSubmitKeyRegistrationErr
 }
 
 func MockSubmitKeyDeletion(uuid.UUID, []byte) error {
 	return nil
 }
 
+var MockSubmitKeyDeletionErr = errors.New("MockSubmitKeyDeletionBad")
+
 func MockSubmitKeyDeletionBad(uuid.UUID, []byte) error {
-	return fmt.Errorf("fail")
+	return MockSubmitKeyDeletionErr
 }
 
 func MockSubmitCSR(uuid.UUID, []byte) error {
 	return nil
 }
 
+var MockSubmitCSRErr = errors.New("MockSubmitCSRBad")
+
 func MockSubmitCSRBad(uuid.UUID, []byte) error {
-	return fmt.Errorf("fail")
+	return MockSubmitCSRErr
 }
