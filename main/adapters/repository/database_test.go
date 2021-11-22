@@ -3,6 +3,7 @@ package repository
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -373,6 +374,21 @@ func TestDatabaseLoad(t *testing.T) {
 	//if dm.db.Stats().OpenConnections > dm.db.Stats().Idle {
 	//	t.Errorf("%d open connections, %d idle", dm.db.Stats().OpenConnections, dm.db.Stats().Idle)
 	//}
+}
+
+func TestDatabaseManager_RecoverUndefinedTable(t *testing.T) {
+	c, err := getConfig()
+	require.NoError(t, err)
+
+	pg, err := sql.Open(PostgreSql, c.PostgresDSN)
+
+	dm := &DatabaseManager{
+		options: &sql.TxOptions{},
+		db:      pg,
+	}
+
+	_, err = dm.LoadIdentity(uuid.New())
+	assert.Equal(t, ErrNotExist, err)
 }
 
 func TestDatabaseManager_Retry(t *testing.T) {
