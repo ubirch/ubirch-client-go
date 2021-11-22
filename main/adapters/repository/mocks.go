@@ -9,16 +9,20 @@ import (
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
-type MockCtxMngr struct {
-	id     ent.Identity
+type extendedId struct {
+	ent.Identity
 	active bool
+}
+
+type MockCtxMngr struct {
+	id extendedId
 }
 
 var _ ContextManager = (*MockCtxMngr)(nil)
 
 func (m *MockCtxMngr) StartTransaction(ctx context.Context) (TransactionCtx, error) {
 	return &mockTx{
-		idBuf: ent.Identity{},
+		idBuf: extendedId{},
 		id:    &m.id,
 	}, nil
 }
@@ -28,7 +32,8 @@ func (m *MockCtxMngr) StoreIdentity(t TransactionCtx, id ent.Identity) error {
 	if !ok {
 		return fmt.Errorf("transactionCtx for MockCtxMngr is not of expected type *mockTx")
 	}
-	tx.idBuf = id
+	tx.idBuf = extendedId{Identity: id, active: true}
+
 	return nil
 }
 
@@ -37,20 +42,20 @@ func (m *MockCtxMngr) LoadIdentity(u uuid.UUID) (*ent.Identity, error) {
 		return nil, ErrNotExist
 	}
 	id := m.id
-	return &id, nil
+	return &id.Identity, nil
 }
 
 func (m *MockCtxMngr) StoreActiveFlag(t TransactionCtx, u uuid.UUID, a bool) error {
-	m.active = a
+	m.id.active = a
 	return nil
 }
 
 func (m *MockCtxMngr) LoadActiveFlagForUpdate(t TransactionCtx, u uuid.UUID) (bool, error) {
-	return m.active, nil
+	return m.id.active, nil
 }
 
 func (m *MockCtxMngr) LoadActiveFlag(u uuid.UUID) (bool, error) {
-	return m.active, nil
+	return m.id.active, nil
 }
 
 func (m *MockCtxMngr) StoreSignature(t TransactionCtx, u uuid.UUID, s []byte) error {
@@ -120,8 +125,8 @@ func (m *MockCtxMngr) Close() error {
 }
 
 type mockTx struct {
-	idBuf ent.Identity
-	id    *ent.Identity
+	idBuf extendedId
+	id    *extendedId
 }
 
 var _ TransactionCtx = (*mockTx)(nil)
