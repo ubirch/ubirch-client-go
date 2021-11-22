@@ -231,7 +231,7 @@ func hashAuthTokens(dm *DatabaseManager, p *ExtendedProtocol) error {
 			continue
 		}
 
-		pwHash, err := p.pwHasher.GeneratePasswordHash(ctx, auth, p.pwHasherParams)
+		pwHash, err := p.pwHasher.GeneratePasswordHash(ctx, auth)
 		if err != nil {
 			return err
 		}

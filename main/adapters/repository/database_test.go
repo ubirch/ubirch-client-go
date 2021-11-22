@@ -120,6 +120,10 @@ func TestDatabaseManager_SetSignature(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tx)
 
+	sig, err := dm.LoadSignatureForUpdate(tx, testIdentity.Uid)
+	require.NoError(t, err)
+	assert.Equal(t, testIdentity.Signature, sig)
+
 	err = dm.StoreSignature(tx, testIdentity.Uid, newSignature)
 	require.NoError(t, err)
 
@@ -130,9 +134,56 @@ func TestDatabaseManager_SetSignature(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tx2)
 
-	sig, err := dm.LoadSignatureForUpdate(tx2, testIdentity.Uid)
-	assert.NoError(t, err)
+	sig, err = dm.LoadSignatureForUpdate(tx2, testIdentity.Uid)
+	require.NoError(t, err)
 	assert.Equal(t, newSignature, sig)
+}
+
+func TestDatabaseManager_StoreAuth(t *testing.T) {
+	dm, err := initDB()
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	testIdentity := generateRandomIdentity()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// store identity
+	tx, err := dm.StartTransaction(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, tx)
+
+	err = dm.StoreIdentity(tx, testIdentity)
+	require.NoError(t, err)
+
+	err = tx.Commit()
+	require.NoError(t, err)
+
+	newAuth := make([]byte, 64)
+	rand.Read(newAuth)
+
+	tx, err = dm.StartTransaction(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, tx)
+
+	auth, err := dm.LoadAuthForUpdate(tx, testIdentity.Uid)
+	require.NoError(t, err)
+	assert.Equal(t, testIdentity.AuthToken, auth)
+
+	err = dm.StoreAuth(tx, testIdentity.Uid, base64.StdEncoding.EncodeToString(newAuth))
+	require.NoError(t, err)
+
+	err = tx.Commit()
+	require.NoError(t, err)
+
+	tx2, err := dm.StartTransaction(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, tx2)
+
+	auth, err = dm.LoadAuthForUpdate(tx2, testIdentity.Uid)
+	require.NoError(t, err)
+	assert.Equal(t, base64.StdEncoding.EncodeToString(newAuth), auth)
 }
 
 func TestNewSqlDatabaseInfo_Ready(t *testing.T) {
@@ -231,7 +282,7 @@ func TestDatabaseManager_StartTransaction(t *testing.T) {
 	defer cleanUpDB(t, dm)
 
 	tx, err := dm.StartTransaction(ctx)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, tx)
 
 	tx2, err := dm.StartTransaction(ctx)

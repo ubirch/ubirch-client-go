@@ -82,6 +82,35 @@ func (m *MockCtxMngr) LoadSignatureForUpdate(t TransactionCtx, u uuid.UUID) ([]b
 	return m.id.Signature, nil
 }
 
+func (m *MockCtxMngr) StoreAuth(t TransactionCtx, u uuid.UUID, a string) error {
+	tx, ok := t.(*mockTx)
+	if !ok {
+		return fmt.Errorf("transactionCtx for MockCtxMngr is not of expected type *mockTx")
+	}
+
+	if tx.idBuf.Uid == uuid.Nil || tx.idBuf.Uid != u {
+		return fmt.Errorf("tx invalid")
+	}
+
+	tx.idBuf.AuthToken = a
+	return nil
+}
+
+func (m *MockCtxMngr) LoadAuthForUpdate(t TransactionCtx, u uuid.UUID) (string, error) {
+	tx, ok := t.(*mockTx)
+	if !ok {
+		return "", fmt.Errorf("transactionCtx for MockCtxMngr is not of expected type *mockTx")
+	}
+
+	if m.id.Uid == uuid.Nil || m.id.Uid != u {
+		return "", ErrNotExist
+	}
+
+	tx.idBuf = m.id
+
+	return m.id.AuthToken, nil
+}
+
 func (m *MockCtxMngr) IsReady() error {
 	return nil
 }

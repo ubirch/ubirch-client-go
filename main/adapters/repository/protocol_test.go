@@ -38,17 +38,8 @@ func TestProtocol(t *testing.T) {
 
 	// check not exists
 	exists, err := p.IsInitialized(testIdentity.Uid)
-	assert.NoError(t, err)
-	assert.False(t, exists)
-
-	tx, err := p.StartTransaction(ctx)
 	require.NoError(t, err)
-
-	_, err = p.LoadSignatureForUpdate(tx, testIdentity.Uid)
-	assert.Equal(t, ErrNotExist, err)
-
-	err = tx.Commit()
-	assert.NoError(t, err)
+	assert.False(t, exists)
 
 	_, err = p.LoadPrivateKey(testIdentity.Uid)
 	assert.Equal(t, ErrNotExist, err)
@@ -56,11 +47,11 @@ func TestProtocol(t *testing.T) {
 	_, err = p.LoadPublicKey(testIdentity.Uid)
 	assert.Equal(t, ErrNotExist, err)
 
-	_, err = p.LoadAuthToken(testIdentity.Uid)
+	_, err = p.LoadAuth(testIdentity.Uid)
 	assert.Equal(t, ErrNotExist, err)
 
 	// store identity
-	tx, err = p.StartTransaction(ctx)
+	tx, err := p.StartTransaction(ctx)
 	require.NoError(t, err)
 
 	err = p.StoreIdentity(tx, testIdentity)
@@ -71,25 +62,15 @@ func TestProtocol(t *testing.T) {
 
 	// check exists
 	exists, err = p.IsInitialized(testIdentity.Uid)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.True(t, exists)
 
-	tx, err = p.StartTransaction(ctx)
-	require.NoError(t, err)
-
-	sig, err := p.LoadSignatureForUpdate(tx, testIdentity.Uid)
-	assert.NoError(t, err)
-	assert.Equal(t, testIdentity.Signature, sig)
-
-	err = tx.Commit()
-	assert.NoError(t, err)
-
 	priv, err := p.LoadPrivateKey(testIdentity.Uid)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, testIdentity.PrivateKey, priv)
 
 	pub, err := p.LoadPublicKey(testIdentity.Uid)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, testIdentity.PublicKey, pub)
 
 	ok, found, err := p.CheckAuth(context.Background(), testIdentity.Uid, testIdentity.AuthToken)
@@ -218,8 +199,9 @@ func TestExtendedProtocol_StoreSignature(t *testing.T) {
 	tx, err = p.StartTransaction(ctx)
 	require.NoError(t, err)
 
-	_, err = p.LoadSignatureForUpdate(tx, testIdentity.Uid)
+	sig, err := p.LoadSignatureForUpdate(tx, testIdentity.Uid)
 	require.NoError(t, err)
+	assert.Equal(t, testIdentity.Signature, sig)
 
 	err = p.StoreSignature(tx, testIdentity.Uid, newSignature)
 	require.NoError(t, err)
@@ -228,8 +210,8 @@ func TestExtendedProtocol_StoreSignature(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tx2)
 
-	sig, err := p.LoadSignatureForUpdate(tx2, testIdentity.Uid)
-	assert.NoError(t, err)
+	sig, err = p.LoadSignatureForUpdate(tx2, testIdentity.Uid)
+	require.NoError(t, err)
 	assert.Equal(t, newSignature, sig)
 }
 
@@ -499,7 +481,7 @@ func TestExtendedProtocol_CheckAuth(t *testing.T) {
 	err = tx.Commit()
 	require.NoError(t, err)
 
-	ok, found, err := p.CheckAuth(context.Background(), i.Uid, i.AuthToken)
+	ok, found, err := p.CheckAuth(ctx, i.Uid, i.AuthToken)
 	require.NoError(t, err)
 	assert.True(t, found)
 	assert.True(t, ok)
@@ -535,7 +517,7 @@ func TestExtendedProtocol_CheckAuth_Invalid(t *testing.T) {
 	err = tx.Commit()
 	require.NoError(t, err)
 
-	ok, found, err := p.CheckAuth(context.Background(), i.Uid, "invalid auth")
+	ok, found, err := p.CheckAuth(ctx, i.Uid, "invalid auth")
 	require.NoError(t, err)
 	assert.True(t, found)
 	assert.False(t, ok)
@@ -560,6 +542,42 @@ func TestExtendedProtocol_CheckAuth_NotFound(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, found)
 	assert.False(t, ok)
+}
+
+func TestExtendedProtocol_CheckAuth_Update(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	uid := uuid.New()
+	testAuth := "password123"
+	kd := &pw.Argon2idKeyDerivator{
+		Params: pw.GetArgon2idParams(pw.DefaultMemory, pw.DefaultTime,
+			2*pw.DefaultParallelism, pw.DefaultKeyLen, pw.DefaultSaltLen),
+	}
+	pwHash, err := kd.GeneratePasswordHash(ctx, testAuth)
+	require.NoError(t, err)
+
+	ctxMngr := &MockCtxMngr{
+		id: ent.Identity{
+			Uid:       uid,
+			AuthToken: pwHash,
+		},
+	}
+
+	p := &ExtendedProtocol{
+		ContextManager: ctxMngr,
+		pwHasher:       pw.NewArgon2idKeyDerivator(0, pw.GetDefaultArgon2idParams(), true),
+		authCache:      &sync.Map{},
+	}
+
+	p.authCache.Store(uid, pwHash)
+
+	ok, found, err := p.CheckAuth(ctx, uid, testAuth)
+	require.NoError(t, err)
+	assert.True(t, found)
+	assert.True(t, ok)
+
+	assert.NotEqual(t, pwHash, ctxMngr.id.AuthToken)
 }
 
 func TestProtocol_Cache(t *testing.T) {
@@ -661,12 +679,12 @@ func TestProtocolLoad(t *testing.T) {
 func protocolCheckAuth(auth, authToCheck string) error {
 	pwHasher := &pw.Argon2idKeyDerivator{}
 
-	ok, err := pwHasher.CheckPassword(context.Background(), authToCheck, auth)
+	_, ok, err := pwHasher.CheckPassword(context.Background(), auth, authToCheck)
 	if err != nil {
 		return err
 	}
 	if !ok {
-		return fmt.Errorf("LoadAuthToken returned unexpected value")
+		return fmt.Errorf("LoadAuth returned unexpected value")
 	}
 	return nil
 }

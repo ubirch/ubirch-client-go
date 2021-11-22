@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"sync"
 
 	"github.com/google/uuid"
@@ -27,6 +26,7 @@ import (
 	"github.com/ubirch/ubirch-client-go/main/ent"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
+	log "github.com/sirupsen/logrus"
 	pw "github.com/ubirch/ubirch-client-go/main/adapters/password-hashing"
 )
 
@@ -36,9 +36,8 @@ type ExtendedProtocol struct {
 	keyEncrypter *encryption.KeyEncrypter
 	keyCache     *KeyCache
 
-	pwHasher       *pw.Argon2idKeyDerivator
-	pwHasherParams *pw.Argon2idParams
-	authCache      *sync.Map // {<uuid>: <auth token>}
+	pwHasher  *pw.Argon2idKeyDerivator
+	authCache *sync.Map // {<uuid>: <auth token>}
 }
 
 func NewExtendedProtocol(ctxManager ContextManager, conf *config.Config) (*ExtendedProtocol, error) {
@@ -57,6 +56,12 @@ func NewExtendedProtocol(ctxManager ContextManager, conf *config.Config) (*Exten
 		conf.KdParamKeyLen, conf.KdParamSaltLen)
 	params, _ := json.Marshal(argon2idParams)
 	log.Debugf("initialize argon2id key derivation with parameters %s", params)
+	if conf.KdMaxTotalMemMiB != 0 {
+		log.Debugf("max. total memory to use for key derivation at a time: %d MiB", conf.KdMaxTotalMemMiB)
+	}
+	if conf.KdUpdateParams {
+		log.Debugf("key derivation parameter update for already existing password hashes enabled")
+	}
 
 	p := &ExtendedProtocol{
 		Protocol: ubirch.Protocol{
@@ -66,9 +71,8 @@ func NewExtendedProtocol(ctxManager ContextManager, conf *config.Config) (*Exten
 		keyEncrypter:   enc,
 		keyCache:       keyCache,
 
-		pwHasher:       pw.NewArgon2idKeyDerivator(conf.KdMaxTotalMemMiB),
-		pwHasherParams: argon2idParams,
-		authCache:      &sync.Map{},
+		pwHasher:  pw.NewArgon2idKeyDerivator(conf.KdMaxTotalMemMiB, argon2idParams, conf.KdUpdateParams),
+		authCache: &sync.Map{},
 	}
 
 	return p, nil
@@ -94,9 +98,9 @@ func (p *ExtendedProtocol) StoreIdentity(tx TransactionCtx, i ent.Identity) erro
 	}
 
 	// hash auth token
-	i.AuthToken, err = p.pwHasher.GeneratePasswordHash(context.Background(), i.AuthToken, p.pwHasherParams)
+	i.AuthToken, err = p.pwHasher.GeneratePasswordHash(context.Background(), i.AuthToken)
 	if err != nil {
-		return err
+		return fmt.Errorf("generating password hash failed: %v", err)
 	}
 
 	return p.ContextManager.StoreIdentity(tx, i)
@@ -182,7 +186,7 @@ func (p *ExtendedProtocol) LoadPublicKey(uid uuid.UUID) (pubKeyPEM []byte, err e
 	return pubKeyPEM, nil
 }
 
-func (p *ExtendedProtocol) LoadAuthToken(uid uuid.UUID) (auth string, err error) {
+func (p *ExtendedProtocol) LoadAuth(uid uuid.UUID) (auth string, err error) {
 	_auth, found := p.authCache.Load(uid)
 
 	if found {
@@ -202,7 +206,7 @@ func (p *ExtendedProtocol) LoadAuthToken(uid uuid.UUID) (auth string, err error)
 }
 
 func (p *ExtendedProtocol) IsInitialized(uid uuid.UUID) (initialized bool, err error) {
-	_, err = p.LoadAuthToken(uid)
+	_, err = p.LoadAuth(uid)
 	if err == ErrNotExist {
 		return false, nil
 	}
@@ -214,7 +218,7 @@ func (p *ExtendedProtocol) IsInitialized(uid uuid.UUID) (initialized bool, err e
 }
 
 func (p *ExtendedProtocol) CheckAuth(ctx context.Context, uid uuid.UUID, authToCheck string) (ok, found bool, err error) {
-	actualAuth, err := p.LoadAuthToken(uid)
+	pwHash, err := p.LoadAuth(uid)
 	if err == ErrNotExist {
 		return false, false, nil
 	}
@@ -224,9 +228,54 @@ func (p *ExtendedProtocol) CheckAuth(ctx context.Context, uid uuid.UUID, authToC
 
 	found = true
 
-	ok, err = p.pwHasher.CheckPassword(ctx, authToCheck, actualAuth)
+	needsUpdate, ok, err := p.pwHasher.CheckPassword(ctx, pwHash, authToCheck)
+	if err != nil || !ok {
+		return ok, found, err
+	}
+
+	if needsUpdate {
+		if err := p.updatePwHash(uid, authToCheck); err != nil {
+			log.Errorf("%s: password hash update failed: %v", uid, err)
+		}
+	}
 
 	return ok, found, err
+}
+
+func (p *ExtendedProtocol) updatePwHash(uid uuid.UUID, authToCheck string) error {
+	log.Infof("%s: updating password hash", uid)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := p.StartTransaction(ctx)
+	if err != nil {
+		return fmt.Errorf("could not initialize transaction: %v", err)
+	}
+
+	_, err = p.ContextManager.LoadAuthForUpdate(tx, uid)
+	if err != nil {
+		return fmt.Errorf("could not aquire lock for update: %v", err)
+	}
+
+	updatedHash, err := p.pwHasher.GeneratePasswordHash(ctx, authToCheck)
+	if err != nil {
+		return fmt.Errorf("could not generate new password hash: %v", err)
+	}
+
+	err = p.ContextManager.StoreAuth(tx, uid, updatedHash)
+	if err != nil {
+		return fmt.Errorf("could not store updated password hash: %v", err)
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("could not commit transaction after storing updated password hash: %v", err)
+	}
+
+	p.authCache.Store(uid, updatedHash)
+
+	return nil
 }
 
 func (p *ExtendedProtocol) checkIdentityAttributes(i *ent.Identity) error {
