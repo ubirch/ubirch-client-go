@@ -92,6 +92,46 @@ func TestDatabaseManager(t *testing.T) {
 	assert.Equal(t, testIdentity.AuthToken, i.AuthToken)
 }
 
+func TestDatabaseManager_StoreActiveFlag(t *testing.T) {
+	dm, err := initDB()
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	testIdentity := generateRandomIdentity()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// store identity
+	tx, err := dm.StartTransaction(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, tx)
+
+	err = dm.StoreIdentity(tx, testIdentity)
+	require.NoError(t, err)
+
+	err = tx.Commit()
+	require.NoError(t, err)
+
+	tx, err = dm.StartTransaction(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, tx)
+
+	active, err := dm.LoadActiveFlagForUpdate(tx, testIdentity.Uid)
+	require.NoError(t, err)
+	assert.True(t, active)
+
+	err = dm.StoreActiveFlag(tx, testIdentity.Uid, !active)
+	require.NoError(t, err)
+
+	err = tx.Commit()
+	require.NoError(t, err)
+
+	active, err = dm.LoadActiveFlag(testIdentity.Uid)
+	require.NoError(t, err)
+	assert.False(t, active)
+}
+
 func TestDatabaseManager_SetSignature(t *testing.T) {
 	dm, err := initDB()
 	require.NoError(t, err)
