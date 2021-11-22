@@ -15,33 +15,59 @@ import (
 func TestArgon2idKeyDerivator(t *testing.T) {
 	testAuth := generateRandomAuth()
 
-	kd := NewArgon2idKeyDerivator(15)
-	params := kd.DefaultParams()
+	kd := NewArgon2idKeyDerivator(DefaultMemory, GetDefaultArgon2idParams(), true)
 
-	pw, err := kd.GeneratePasswordHash(context.Background(), testAuth, params)
+	pw, err := kd.GeneratePasswordHash(context.Background(), testAuth)
 	require.NoError(t, err)
 
 	decodedParams, salt, hash, err := decodePasswordHash(pw)
 	require.NoError(t, err)
-	assert.Equal(t, int(params.KeyLen), len(hash))
-	assert.Equal(t, int(params.SaltLen), len(salt))
-	assert.Equal(t, *params, *decodedParams)
+	assert.Equal(t, int(kd.Params.KeyLen), len(hash))
+	assert.Equal(t, int(kd.Params.SaltLen), len(salt))
+	assert.Equal(t, *kd.Params, *decodedParams)
 
-	ok, err := kd.CheckPassword(context.Background(), pw, testAuth)
+	needsUpdate, ok, err := kd.CheckPassword(context.Background(), pw, testAuth)
 	require.NoError(t, err)
 	assert.True(t, ok)
+	assert.False(t, needsUpdate)
+}
+
+func TestArgon2idKeyDerivator_CheckPassword_NeedsUpdate(t *testing.T) {
+	testAuth := generateRandomAuth()
+
+	kd := &Argon2idKeyDerivator{
+		Params:       GetDefaultArgon2idParams(),
+		updateParams: true,
+	}
+
+	pw, err := kd.GeneratePasswordHash(context.Background(), testAuth)
+	require.NoError(t, err)
+
+	decodedParams, salt, hash, err := decodePasswordHash(pw)
+	require.NoError(t, err)
+	assert.Equal(t, int(kd.Params.KeyLen), len(hash))
+	assert.Equal(t, int(kd.Params.SaltLen), len(salt))
+	assert.Equal(t, *kd.Params, *decodedParams)
+
+	kd.Params.Memory *= 2
+
+	needsUpdate, ok, err := kd.CheckPassword(context.Background(), pw, testAuth)
+	require.NoError(t, err)
+	assert.True(t, ok)
+	assert.True(t, needsUpdate)
 }
 
 func TestArgon2idKeyDerivator_NotEqual(t *testing.T) {
 	testAuth := generateRandomAuth()
 
-	kd := &Argon2idKeyDerivator{}
-	params := kd.DefaultParams()
+	kd := &Argon2idKeyDerivator{
+		Params: GetDefaultArgon2idParams(),
+	}
 
-	pw1, err := kd.GeneratePasswordHash(context.Background(), testAuth, params)
+	pw1, err := kd.GeneratePasswordHash(context.Background(), testAuth)
 	require.NoError(t, err)
 
-	pw2, err := kd.GeneratePasswordHash(context.Background(), testAuth, params)
+	pw2, err := kd.GeneratePasswordHash(context.Background(), testAuth)
 	require.NoError(t, err)
 
 	_, _, hash1, err := decodePasswordHash(pw1)
@@ -75,10 +101,18 @@ func TestDecode(t *testing.T) {
 	asserter.Equal(hash, testHash)
 }
 
+func TestGetArgon2idParams(t *testing.T) {
+	defaultParams := GetDefaultArgon2idParams()
+	params := GetArgon2idParams(0, 0, 0, 0, 0)
+
+	assert.Equal(t, *defaultParams, *params)
+}
+
 func BenchmarkArgon2idKeyDerivator_Default(b *testing.B) {
-	kd := &Argon2idKeyDerivator{}
-	params := kd.DefaultParams()
-	b.Log(argon2idParams(params))
+	kd := &Argon2idKeyDerivator{
+		Params: GetDefaultArgon2idParams(),
+	}
+	b.Log(argon2idParams(kd.Params))
 
 	auth := make([]byte, 32)
 	rand.Read(auth)
@@ -86,7 +120,7 @@ func BenchmarkArgon2idKeyDerivator_Default(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := kd.GeneratePasswordHash(context.Background(), authBase64, params)
+		_, err := kd.GeneratePasswordHash(context.Background(), authBase64)
 		if err != nil {
 			b.Log(err)
 		}
@@ -96,10 +130,11 @@ func BenchmarkArgon2idKeyDerivator_Default(b *testing.B) {
 const concurrency = 8
 
 func BenchmarkArgon2idKeyDerivator_Default_Concurrency(b *testing.B) {
-	kd := &Argon2idKeyDerivator{}
-	params := kd.DefaultParams()
+	kd := &Argon2idKeyDerivator{
+		Params: GetDefaultArgon2idParams(),
+	}
 	b.Log(concurrency)
-	b.Log(argon2idParams(params))
+	b.Log(argon2idParams(kd.Params))
 
 	auth := make([]byte, 32)
 	rand.Read(auth)
@@ -111,15 +146,15 @@ func BenchmarkArgon2idKeyDerivator_Default_Concurrency(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		wg.Add(concurrency)
 		for n := 0; n < concurrency; n++ {
-			go gen(wg, kd, authBase64, params)
+			go gen(wg, kd, authBase64)
 		}
 		wg.Wait()
 	}
 }
 
-func gen(wg *sync.WaitGroup, kd *Argon2idKeyDerivator, authBase64 string, params *Argon2idParams) {
+func gen(wg *sync.WaitGroup, kd *Argon2idKeyDerivator, authBase64 string) {
 	defer wg.Done()
-	_, err := kd.GeneratePasswordHash(context.Background(), authBase64, params)
+	_, err := kd.GeneratePasswordHash(context.Background(), authBase64)
 	if err != nil {
 		panic(err)
 	}
@@ -130,9 +165,10 @@ func BenchmarkArgon2idKeyDerivator_TweakParams(b *testing.B) {
 	time := uint32(1)
 	threads := uint8(4)
 
-	kd := &Argon2idKeyDerivator{}
-	params := GetArgon2idParams(memMiB, time, threads, DefaultKeyLen, DefaultSaltLen)
-	b.Log(argon2idParams(params))
+	kd := &Argon2idKeyDerivator{
+		Params: GetArgon2idParams(memMiB, time, threads, DefaultKeyLen, DefaultSaltLen),
+	}
+	b.Log(argon2idParams(kd.Params))
 
 	auth := make([]byte, 32)
 	rand.Read(auth)
@@ -140,7 +176,7 @@ func BenchmarkArgon2idKeyDerivator_TweakParams(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := kd.GeneratePasswordHash(context.Background(), authBase64, params)
+		_, err := kd.GeneratePasswordHash(context.Background(), authBase64)
 		if err != nil {
 			b.Log(err)
 		}

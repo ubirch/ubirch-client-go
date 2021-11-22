@@ -82,6 +82,7 @@ type Config struct {
 	KdParamParallelism uint8             `json:"kdParamParallelism" envconfig:"KD_PARAM_PARALLELISM"` // parallelism (threads) parameter for key derivation, specifies the number of threads and can be adjusted to the number of available CPUs
 	KdParamKeyLen      uint32            `json:"kdParamKeyLen" envconfig:"KD_PARAM_KEY_LEN"`          // key length parameter for key derivation, specifies the length of the resulting key in bytes
 	KdParamSaltLen     uint32            `json:"kdParamSaltLen" envconfig:"KD_PARAM_SALT_LEN"`        // salt length parameter for key derivation, specifies the length of the random salt in bytes
+	KdUpdateParams     bool              `json:"kdUpdateParams" envconfig:"KD_UPDATE_PARAMS"`         // update key derivation parameters of already existing password hashes
 	KeyService         string            // key service URL (set automatically)
 	IdentityService    string            // identity service URL (set automatically)
 	Niomon             string            // authentication service URL (set automatically)

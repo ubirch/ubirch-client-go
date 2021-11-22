@@ -25,16 +25,22 @@ const (
 )
 
 type Argon2idKeyDerivator struct {
-	sem *semaphore.Weighted
+	sem          *semaphore.Weighted
+	Params       *Argon2idParams
+	updateParams bool
 }
 
-func NewArgon2idKeyDerivator(maxTotalMemMiB uint32) *Argon2idKeyDerivator {
-	if maxTotalMemMiB == 0 {
-		maxTotalMemMiB = DefaultMemory
+func NewArgon2idKeyDerivator(maxTotalMemMiB uint32, params *Argon2idParams, updateParams bool) *Argon2idKeyDerivator {
+	var s *semaphore.Weighted = nil
+
+	if maxTotalMemMiB != 0 {
+		s = semaphore.NewWeighted(int64(maxTotalMemMiB) * 1024)
 	}
 
 	return &Argon2idKeyDerivator{
-		sem: semaphore.NewWeighted(int64(maxTotalMemMiB) * 1024),
+		sem:          s,
+		Params:       params,
+		updateParams: updateParams,
 	}
 }
 
@@ -76,7 +82,7 @@ func GetArgon2idParams(memMiB, time uint32, threads uint8, keyLen, saltLen uint3
 	}
 }
 
-func (kd *Argon2idKeyDerivator) DefaultParams() *Argon2idParams {
+func GetDefaultArgon2idParams() *Argon2idParams {
 	// https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#argon2id
 	return GetArgon2idParams(DefaultMemory, DefaultTime, DefaultParallelism, DefaultKeyLen, DefaultSaltLen)
 }
@@ -84,30 +90,34 @@ func (kd *Argon2idKeyDerivator) DefaultParams() *Argon2idParams {
 // GeneratePasswordHash derives a key from the password, salt, and cost parameters using Argon2id
 // returning the standard encoded representation of the hashed password
 // https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-argon2-03
-func (kd *Argon2idKeyDerivator) GeneratePasswordHash(ctx context.Context, pw string, params *Argon2idParams) (string, error) {
-	salt := make([]byte, params.SaltLen)
+func (kd *Argon2idKeyDerivator) GeneratePasswordHash(ctx context.Context, pw string) (string, error) {
+	if kd.Params == nil {
+		return "", fmt.Errorf("Argon2idParams for key derivation not set")
+	}
+
+	salt := make([]byte, kd.Params.SaltLen)
 	_, err := rand.Read(salt)
 	if err != nil {
 		return "", err
 	}
 
 	if kd.sem != nil {
-		err = kd.sem.Acquire(ctx, int64(params.Memory))
+		err = kd.sem.Acquire(ctx, int64(kd.Params.Memory))
 		if err != nil {
 			return "", fmt.Errorf("failed to acquire semaphore for key derivation: %v", err)
 		}
-		defer kd.sem.Release(int64(params.Memory))
+		defer kd.sem.Release(int64(kd.Params.Memory))
 	}
 
-	hash := argon2.IDKey([]byte(pw), salt, params.Time, params.Memory, params.Threads, params.KeyLen)
+	hash := argon2.IDKey([]byte(pw), salt, kd.Params.Time, kd.Params.Memory, kd.Params.Threads, kd.Params.KeyLen)
 
-	return encodePasswordHash(params, salt, hash), nil
+	return encodePasswordHash(kd.Params, salt, hash), nil
 }
 
-func (kd *Argon2idKeyDerivator) CheckPassword(ctx context.Context, pwToCheck string, pwHash string) (bool, error) {
+func (kd *Argon2idKeyDerivator) CheckPassword(ctx context.Context, pwHash, pwToCheck string) (needsUpdate, ok bool, err error) {
 	p, salt, hash, err := decodePasswordHash(pwHash)
 	if err != nil {
-		return false, fmt.Errorf("failed to decode argon2id password hash: %v", err)
+		return false, false, fmt.Errorf("failed to decode argon2id password hash: %v", err)
 	}
 
 	if kd.sem != nil {
@@ -115,7 +125,7 @@ func (kd *Argon2idKeyDerivator) CheckPassword(ctx context.Context, pwToCheck str
 		defer timerWait.ObserveDuration()
 		err = kd.sem.Acquire(ctx, int64(p.Memory))
 		if err != nil {
-			return false, fmt.Errorf("failed to acquire semaphore for key derivation: %v", err)
+			return false, false, fmt.Errorf("failed to acquire semaphore for key derivation: %v", err)
 		}
 		defer kd.sem.Release(int64(p.Memory))
 	}
@@ -124,7 +134,17 @@ func (kd *Argon2idKeyDerivator) CheckPassword(ctx context.Context, pwToCheck str
 	defer timerAuth.ObserveDuration()
 	hashToCheck := argon2.IDKey([]byte(pwToCheck), salt, p.Time, p.Memory, p.Threads, p.KeyLen)
 
-	return bytes.Equal(hash, hashToCheck), nil
+	if !bytes.Equal(hash, hashToCheck) {
+		return false, false, nil
+	}
+
+	if kd.updateParams {
+		if *p != *kd.Params {
+			return true, true, nil
+		}
+	}
+
+	return false, true, nil
 }
 
 func encodePasswordHash(params *Argon2idParams, salt, hash []byte) string {
