@@ -255,6 +255,37 @@ func TestIdentityHandler_DeactivateKey(t *testing.T) {
 	assert.False(t, active)
 }
 
+func TestIdentityHandler_ReactivateKey(t *testing.T) {
+	p, err := r.NewExtendedProtocol(&r.MockCtxMngr{}, conf)
+	require.NoError(t, err)
+
+	idHandler := &IdentityHandler{
+		Protocol:              p,
+		SubmitKeyRegistration: MockSubmitKeyRegistration,
+		RequestKeyDeletion:    MockSubmitKeyDeletion,
+		SubmitCSR:             MockSubmitCSR,
+		SubjectCountry:        "AA",
+		SubjectOrganization:   "test GmbH",
+	}
+
+	_, err = idHandler.InitIdentity(testUuid, testAuth)
+	require.NoError(t, err)
+
+	err = idHandler.DeactivateKey(testUuid)
+	require.NoError(t, err)
+
+	active, err := idHandler.Protocol.LoadActiveFlag(testUuid)
+	require.NoError(t, err)
+	assert.False(t, active)
+
+	err = idHandler.ReactivateKey(testUuid)
+	require.NoError(t, err)
+
+	active, err = idHandler.Protocol.LoadActiveFlag(testUuid)
+	require.NoError(t, err)
+	assert.True(t, active)
+}
+
 func MockSubmitKeyRegistration(uuid.UUID, []byte) error {
 	return nil
 }

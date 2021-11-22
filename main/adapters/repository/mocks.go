@@ -46,11 +46,31 @@ func (m *MockCtxMngr) LoadIdentity(u uuid.UUID) (*ent.Identity, error) {
 }
 
 func (m *MockCtxMngr) StoreActiveFlag(t TransactionCtx, u uuid.UUID, a bool) error {
-	m.id.active = a
+	tx, ok := t.(*mockTx)
+	if !ok {
+		return fmt.Errorf("transactionCtx for MockCtxMngr is not of expected type *mockTx")
+	}
+
+	if tx.idBuf.Uid == uuid.Nil || tx.idBuf.Uid != u {
+		return fmt.Errorf("tx invalid")
+	}
+
+	tx.idBuf.active = a
 	return nil
 }
 
 func (m *MockCtxMngr) LoadActiveFlagForUpdate(t TransactionCtx, u uuid.UUID) (bool, error) {
+	tx, ok := t.(*mockTx)
+	if !ok {
+		return false, fmt.Errorf("transactionCtx for MockCtxMngr is not of expected type *mockTx")
+	}
+
+	if m.id.Uid == uuid.Nil || m.id.Uid != u {
+		return false, ErrNotExist
+	}
+
+	tx.idBuf = m.id
+
 	return m.id.active, nil
 }
 
