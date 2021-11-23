@@ -180,6 +180,44 @@ func TestDatabaseManager_SetSignature(t *testing.T) {
 	assert.Equal(t, newSignature, sig)
 }
 
+func TestDatabaseManager_LoadSignatureForUpdate(t *testing.T) {
+	dm, err := initDB()
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	testIdentity := generateRandomIdentity()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// store identity
+	tx, err := dm.StartTransaction(ctx)
+	require.NoError(t, err)
+
+	err = dm.StoreIdentity(tx, testIdentity)
+	require.NoError(t, err)
+
+	err = tx.Commit()
+	require.NoError(t, err)
+
+	// get lock on signature
+	tx, err = dm.StartTransaction(ctx)
+	require.NoError(t, err)
+
+	_, err = dm.LoadSignatureForUpdate(tx, testIdentity.Uid)
+	require.NoError(t, err)
+
+	// try to get lock on signature again and wait a second for the lock before context gets canceled
+	ctxWithTimeout, cancelWithTimeout := context.WithTimeout(context.Background(), time.Second)
+	defer cancelWithTimeout()
+
+	tx2, err := dm.StartTransaction(ctxWithTimeout)
+	require.NoError(t, err)
+
+	_, err = dm.LoadSignatureForUpdate(tx2, testIdentity.Uid)
+	assert.EqualError(t, err, "pq: canceling statement due to user request")
+}
+
 func TestDatabaseManager_StoreAuth(t *testing.T) {
 	dm, err := initDB()
 	require.NoError(t, err)
