@@ -3,6 +3,7 @@ package repository
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -52,7 +53,10 @@ func TestDatabaseManager(t *testing.T) {
 	_, err = dm.LoadSignatureForUpdate(tx, testIdentity.Uid)
 	assert.Equal(t, ErrNotExist, err)
 
-	err = tx.Commit()
+	_, err = dm.LoadAuthForUpdate(tx, testIdentity.Uid)
+	assert.Equal(t, ErrNotExist, err)
+
+	err = tx.Rollback()
 	require.NoError(t, err)
 
 	// store identity
@@ -82,6 +86,10 @@ func TestDatabaseManager(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, testIdentity.Signature, sig)
 
+	auth, err := dm.LoadAuthForUpdate(tx, testIdentity.Uid)
+	require.NoError(t, err)
+	assert.Equal(t, testIdentity.AuthToken, auth)
+
 	err = tx.Commit()
 	require.NoError(t, err)
 
@@ -90,6 +98,46 @@ func TestDatabaseManager(t *testing.T) {
 	assert.Equal(t, testIdentity.PrivateKey, i.PrivateKey)
 	assert.Equal(t, testIdentity.PublicKey, i.PublicKey)
 	assert.Equal(t, testIdentity.AuthToken, i.AuthToken)
+}
+
+func TestDatabaseManager_StoreActiveFlag(t *testing.T) {
+	dm, err := initDB()
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	testIdentity := generateRandomIdentity()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// store identity
+	tx, err := dm.StartTransaction(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, tx)
+
+	err = dm.StoreIdentity(tx, testIdentity)
+	require.NoError(t, err)
+
+	err = tx.Commit()
+	require.NoError(t, err)
+
+	tx, err = dm.StartTransaction(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, tx)
+
+	active, err := dm.LoadActiveFlagForUpdate(tx, testIdentity.Uid)
+	require.NoError(t, err)
+	assert.True(t, active)
+
+	err = dm.StoreActiveFlag(tx, testIdentity.Uid, !active)
+	require.NoError(t, err)
+
+	err = tx.Commit()
+	require.NoError(t, err)
+
+	active, err = dm.LoadActiveFlag(testIdentity.Uid)
+	require.NoError(t, err)
+	assert.False(t, active)
 }
 
 func TestDatabaseManager_SetSignature(t *testing.T) {
@@ -137,6 +185,44 @@ func TestDatabaseManager_SetSignature(t *testing.T) {
 	sig, err = dm.LoadSignatureForUpdate(tx2, testIdentity.Uid)
 	require.NoError(t, err)
 	assert.Equal(t, newSignature, sig)
+}
+
+func TestDatabaseManager_LoadSignatureForUpdate(t *testing.T) {
+	dm, err := initDB()
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	testIdentity := generateRandomIdentity()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// store identity
+	tx, err := dm.StartTransaction(ctx)
+	require.NoError(t, err)
+
+	err = dm.StoreIdentity(tx, testIdentity)
+	require.NoError(t, err)
+
+	err = tx.Commit()
+	require.NoError(t, err)
+
+	// get lock on signature
+	tx, err = dm.StartTransaction(ctx)
+	require.NoError(t, err)
+
+	_, err = dm.LoadSignatureForUpdate(tx, testIdentity.Uid)
+	require.NoError(t, err)
+
+	// try to get lock on signature again and wait a second for the lock before context gets canceled
+	ctxWithTimeout, cancelWithTimeout := context.WithTimeout(context.Background(), time.Second)
+	defer cancelWithTimeout()
+
+	tx2, err := dm.StartTransaction(ctxWithTimeout)
+	require.NoError(t, err)
+
+	_, err = dm.LoadSignatureForUpdate(tx2, testIdentity.Uid)
+	assert.EqualError(t, err, "pq: canceling statement due to user request")
 }
 
 func TestDatabaseManager_StoreAuth(t *testing.T) {
@@ -290,6 +376,36 @@ func TestDatabaseManager_StartTransaction(t *testing.T) {
 	assert.Nil(t, tx2)
 }
 
+func TestDatabaseManager_InvalidTransactionCtx(t *testing.T) {
+	dm, err := initDB()
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	i := ent.Identity{}
+	mockCtx := &mockTx{}
+
+	err = dm.StoreIdentity(mockCtx, i)
+	assert.EqualError(t, err, "transactionCtx for database manager is not of expected type *sql.Tx")
+
+	err = dm.StoreActiveFlag(mockCtx, i.Uid, false)
+	assert.EqualError(t, err, "transactionCtx for database manager is not of expected type *sql.Tx")
+
+	_, err = dm.LoadActiveFlagForUpdate(mockCtx, i.Uid)
+	assert.EqualError(t, err, "transactionCtx for database manager is not of expected type *sql.Tx")
+
+	err = dm.StoreSignature(mockCtx, i.Uid, nil)
+	assert.EqualError(t, err, "transactionCtx for database manager is not of expected type *sql.Tx")
+
+	_, err = dm.LoadSignatureForUpdate(mockCtx, i.Uid)
+	assert.EqualError(t, err, "transactionCtx for database manager is not of expected type *sql.Tx")
+
+	err = dm.StoreAuth(mockCtx, i.Uid, "")
+	assert.EqualError(t, err, "transactionCtx for database manager is not of expected type *sql.Tx")
+
+	_, err = dm.LoadAuthForUpdate(mockCtx, i.Uid)
+	assert.EqualError(t, err, "transactionCtx for database manager is not of expected type *sql.Tx")
+}
+
 func TestDatabaseLoad(t *testing.T) {
 	wg := &sync.WaitGroup{}
 
@@ -333,6 +449,21 @@ func TestDatabaseLoad(t *testing.T) {
 	//if dm.db.Stats().OpenConnections > dm.db.Stats().Idle {
 	//	t.Errorf("%d open connections, %d idle", dm.db.Stats().OpenConnections, dm.db.Stats().Idle)
 	//}
+}
+
+func TestDatabaseManager_RecoverUndefinedTable(t *testing.T) {
+	c, err := getConfig()
+	require.NoError(t, err)
+
+	pg, err := sql.Open(PostgreSql, c.PostgresDSN)
+
+	dm := &DatabaseManager{
+		options: &sql.TxOptions{},
+		db:      pg,
+	}
+
+	_, err = dm.LoadIdentity(uuid.New())
+	assert.Equal(t, ErrNotExist, err)
 }
 
 func TestDatabaseManager_Retry(t *testing.T) {

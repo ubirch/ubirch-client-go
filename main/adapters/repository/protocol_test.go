@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"math/rand"
 	"sync"
@@ -16,18 +17,12 @@ import (
 	pw "github.com/ubirch/ubirch-client-go/main/adapters/password-hashing"
 )
 
+var (
+	testSecret, _ = base64.StdEncoding.DecodeString("ZQJt1OC9+4OZtgZLLT9mX25BbrZdxtOQBjK4GyRF2fQ=")
+	conf          = &config.Config{SecretBytes32: testSecret}
+)
+
 func TestProtocol(t *testing.T) {
-	testSecret := make([]byte, 32)
-	rand.Read(testSecret)
-
-	conf := &config.Config{
-		SecretBytes32:      testSecret,
-		KdMaxTotalMemMiB:   4,
-		KdParamMemMiB:      2,
-		KdParamTime:        1,
-		KdParamParallelism: 2,
-	}
-
 	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
 	require.NoError(t, err)
 
@@ -80,17 +75,6 @@ func TestProtocol(t *testing.T) {
 }
 
 func TestExtendedProtocol_LoadPrivateKey(t *testing.T) {
-	testSecret := make([]byte, 32)
-	rand.Read(testSecret)
-
-	conf := &config.Config{
-		SecretBytes32:      testSecret,
-		KdMaxTotalMemMiB:   4,
-		KdParamMemMiB:      2,
-		KdParamTime:        1,
-		KdParamParallelism: 2,
-	}
-
 	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
 	require.NoError(t, err)
 
@@ -114,17 +98,6 @@ func TestExtendedProtocol_LoadPrivateKey(t *testing.T) {
 }
 
 func TestExtendedProtocol_LoadPublicKey(t *testing.T) {
-	testSecret := make([]byte, 32)
-	rand.Read(testSecret)
-
-	conf := &config.Config{
-		SecretBytes32:      testSecret,
-		KdMaxTotalMemMiB:   4,
-		KdParamMemMiB:      2,
-		KdParamTime:        1,
-		KdParamParallelism: 2,
-	}
-
 	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
 	require.NoError(t, err)
 
@@ -152,11 +125,7 @@ func TestNewExtendedProtocol_BadSecret(t *testing.T) {
 	rand.Read(badSecret)
 
 	conf := &config.Config{
-		SecretBytes32:      badSecret,
-		KdMaxTotalMemMiB:   4,
-		KdParamMemMiB:      2,
-		KdParamTime:        1,
-		KdParamParallelism: 2,
+		SecretBytes32: badSecret,
 	}
 
 	_, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
@@ -164,17 +133,6 @@ func TestNewExtendedProtocol_BadSecret(t *testing.T) {
 }
 
 func TestExtendedProtocol_StoreSignature(t *testing.T) {
-	testSecret := make([]byte, 32)
-	rand.Read(testSecret)
-
-	conf := &config.Config{
-		SecretBytes32:      testSecret,
-		KdMaxTotalMemMiB:   4,
-		KdParamMemMiB:      2,
-		KdParamTime:        1,
-		KdParamParallelism: 2,
-	}
-
 	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
 	require.NoError(t, err)
 
@@ -216,17 +174,6 @@ func TestExtendedProtocol_StoreSignature(t *testing.T) {
 }
 
 func TestExtendedProtocol_BadStoreSignature(t *testing.T) {
-	testSecret := make([]byte, 32)
-	rand.Read(testSecret)
-
-	conf := &config.Config{
-		SecretBytes32:      testSecret,
-		KdMaxTotalMemMiB:   4,
-		KdParamMemMiB:      2,
-		KdParamTime:        1,
-		KdParamParallelism: 2,
-	}
-
 	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
 	require.NoError(t, err)
 
@@ -256,17 +203,6 @@ func TestExtendedProtocol_BadStoreSignature(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_BadUUID(t *testing.T) {
-	testSecret := make([]byte, 32)
-	rand.Read(testSecret)
-
-	conf := &config.Config{
-		SecretBytes32:      testSecret,
-		KdMaxTotalMemMiB:   4,
-		KdParamMemMiB:      2,
-		KdParamTime:        1,
-		KdParamParallelism: 2,
-	}
-
 	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
 	require.NoError(t, err)
 
@@ -284,17 +220,6 @@ func Test_StoreNewIdentity_BadUUID(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_NilPrivateKey(t *testing.T) {
-	testSecret := make([]byte, 32)
-	rand.Read(testSecret)
-
-	conf := &config.Config{
-		SecretBytes32:      testSecret,
-		KdMaxTotalMemMiB:   4,
-		KdParamMemMiB:      2,
-		KdParamTime:        1,
-		KdParamParallelism: 2,
-	}
-
 	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
 	require.NoError(t, err)
 
@@ -312,17 +237,6 @@ func Test_StoreNewIdentity_NilPrivateKey(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_BadPrivateKey(t *testing.T) {
-	testSecret := make([]byte, 32)
-	rand.Read(testSecret)
-
-	conf := &config.Config{
-		SecretBytes32:      testSecret,
-		KdMaxTotalMemMiB:   4,
-		KdParamMemMiB:      2,
-		KdParamTime:        1,
-		KdParamParallelism: 2,
-	}
-
 	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
 	require.NoError(t, err)
 
@@ -340,17 +254,6 @@ func Test_StoreNewIdentity_BadPrivateKey(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_NilPublicKey(t *testing.T) {
-	testSecret := make([]byte, 32)
-	rand.Read(testSecret)
-
-	conf := &config.Config{
-		SecretBytes32:      testSecret,
-		KdMaxTotalMemMiB:   4,
-		KdParamMemMiB:      2,
-		KdParamTime:        1,
-		KdParamParallelism: 2,
-	}
-
 	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
 	require.NoError(t, err)
 
@@ -368,17 +271,6 @@ func Test_StoreNewIdentity_NilPublicKey(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_BadPublicKey(t *testing.T) {
-	testSecret := make([]byte, 32)
-	rand.Read(testSecret)
-
-	conf := &config.Config{
-		SecretBytes32:      testSecret,
-		KdMaxTotalMemMiB:   4,
-		KdParamMemMiB:      2,
-		KdParamTime:        1,
-		KdParamParallelism: 2,
-	}
-
 	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
 	require.NoError(t, err)
 
@@ -396,17 +288,6 @@ func Test_StoreNewIdentity_BadPublicKey(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_BadSignature(t *testing.T) {
-	testSecret := make([]byte, 32)
-	rand.Read(testSecret)
-
-	conf := &config.Config{
-		SecretBytes32:      testSecret,
-		KdMaxTotalMemMiB:   4,
-		KdParamMemMiB:      2,
-		KdParamTime:        1,
-		KdParamParallelism: 2,
-	}
-
 	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
 	require.NoError(t, err)
 
@@ -424,17 +305,6 @@ func Test_StoreNewIdentity_BadSignature(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_BadAuth(t *testing.T) {
-	testSecret := make([]byte, 32)
-	rand.Read(testSecret)
-
-	conf := &config.Config{
-		SecretBytes32:      testSecret,
-		KdMaxTotalMemMiB:   4,
-		KdParamMemMiB:      2,
-		KdParamTime:        1,
-		KdParamParallelism: 2,
-	}
-
 	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
 	require.NoError(t, err)
 
@@ -452,17 +322,6 @@ func Test_StoreNewIdentity_BadAuth(t *testing.T) {
 }
 
 func TestExtendedProtocol_CheckAuth(t *testing.T) {
-	testSecret := make([]byte, 32)
-	rand.Read(testSecret)
-
-	conf := &config.Config{
-		SecretBytes32:      testSecret,
-		KdMaxTotalMemMiB:   4,
-		KdParamMemMiB:      2,
-		KdParamTime:        1,
-		KdParamParallelism: 2,
-	}
-
 	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
 	require.NoError(t, err)
 
@@ -488,17 +347,6 @@ func TestExtendedProtocol_CheckAuth(t *testing.T) {
 }
 
 func TestExtendedProtocol_CheckAuth_Invalid(t *testing.T) {
-	testSecret := make([]byte, 32)
-	rand.Read(testSecret)
-
-	conf := &config.Config{
-		SecretBytes32:      testSecret,
-		KdMaxTotalMemMiB:   4,
-		KdParamMemMiB:      2,
-		KdParamTime:        1,
-		KdParamParallelism: 2,
-	}
-
 	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
 	require.NoError(t, err)
 
@@ -524,17 +372,6 @@ func TestExtendedProtocol_CheckAuth_Invalid(t *testing.T) {
 }
 
 func TestExtendedProtocol_CheckAuth_NotFound(t *testing.T) {
-	testSecret := make([]byte, 32)
-	rand.Read(testSecret)
-
-	conf := &config.Config{
-		SecretBytes32:      testSecret,
-		KdMaxTotalMemMiB:   4,
-		KdParamMemMiB:      2,
-		KdParamTime:        1,
-		KdParamParallelism: 2,
-	}
-
 	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
 	require.NoError(t, err)
 
@@ -557,12 +394,9 @@ func TestExtendedProtocol_CheckAuth_Update(t *testing.T) {
 	pwHash, err := kd.GeneratePasswordHash(ctx, testAuth)
 	require.NoError(t, err)
 
-	ctxMngr := &MockCtxMngr{
-		id: ent.Identity{
-			Uid:       uid,
-			AuthToken: pwHash,
-		},
-	}
+	ctxMngr := &MockCtxMngr{}
+	ctxMngr.id.Uid = uid
+	ctxMngr.id.AuthToken = pwHash
 
 	p := &ExtendedProtocol{
 		ContextManager: ctxMngr,
@@ -582,17 +416,6 @@ func TestExtendedProtocol_CheckAuth_Update(t *testing.T) {
 
 func TestProtocol_Cache(t *testing.T) {
 	wg := &sync.WaitGroup{}
-
-	testSecret := make([]byte, 32)
-	rand.Read(testSecret)
-
-	conf := &config.Config{
-		SecretBytes32:      testSecret,
-		KdMaxTotalMemMiB:   4,
-		KdParamMemMiB:      2,
-		KdParamTime:        1,
-		KdParamParallelism: 2,
-	}
 
 	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
 	require.NoError(t, err)
@@ -628,17 +451,6 @@ func TestProtocolLoad(t *testing.T) {
 	dm, err := initDB()
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
-
-	testSecret := make([]byte, 32)
-	rand.Read(testSecret)
-
-	conf := &config.Config{
-		SecretBytes32:      testSecret,
-		KdMaxTotalMemMiB:   4,
-		KdParamMemMiB:      2,
-		KdParamTime:        1,
-		KdParamParallelism: 2,
-	}
 
 	p, err := NewExtendedProtocol(dm, conf)
 	require.NoError(t, err)
