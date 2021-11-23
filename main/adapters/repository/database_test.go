@@ -53,7 +53,10 @@ func TestDatabaseManager(t *testing.T) {
 	_, err = dm.LoadSignatureForUpdate(tx, testIdentity.Uid)
 	assert.Equal(t, ErrNotExist, err)
 
-	err = tx.Commit()
+	_, err = dm.LoadAuthForUpdate(tx, testIdentity.Uid)
+	assert.Equal(t, ErrNotExist, err)
+
+	err = tx.Rollback()
 	require.NoError(t, err)
 
 	// store identity
@@ -82,6 +85,10 @@ func TestDatabaseManager(t *testing.T) {
 	sig, err := dm.LoadSignatureForUpdate(tx, testIdentity.Uid)
 	require.NoError(t, err)
 	assert.Equal(t, testIdentity.Signature, sig)
+
+	auth, err := dm.LoadAuthForUpdate(tx, testIdentity.Uid)
+	require.NoError(t, err)
+	assert.Equal(t, testIdentity.AuthToken, auth)
 
 	err = tx.Commit()
 	require.NoError(t, err)
@@ -367,6 +374,36 @@ func TestDatabaseManager_StartTransaction(t *testing.T) {
 	tx2, err := dm.StartTransaction(ctx)
 	assert.EqualError(t, err, "context deadline exceeded")
 	assert.Nil(t, tx2)
+}
+
+func TestDatabaseManager_InvalidTransactionCtx(t *testing.T) {
+	dm, err := initDB()
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	i := ent.Identity{}
+	mockCtx := &mockTx{}
+
+	err = dm.StoreIdentity(mockCtx, i)
+	assert.EqualError(t, err, "transactionCtx for database manager is not of expected type *sql.Tx")
+
+	err = dm.StoreActiveFlag(mockCtx, i.Uid, false)
+	assert.EqualError(t, err, "transactionCtx for database manager is not of expected type *sql.Tx")
+
+	_, err = dm.LoadActiveFlagForUpdate(mockCtx, i.Uid)
+	assert.EqualError(t, err, "transactionCtx for database manager is not of expected type *sql.Tx")
+
+	err = dm.StoreSignature(mockCtx, i.Uid, nil)
+	assert.EqualError(t, err, "transactionCtx for database manager is not of expected type *sql.Tx")
+
+	_, err = dm.LoadSignatureForUpdate(mockCtx, i.Uid)
+	assert.EqualError(t, err, "transactionCtx for database manager is not of expected type *sql.Tx")
+
+	err = dm.StoreAuth(mockCtx, i.Uid, "")
+	assert.EqualError(t, err, "transactionCtx for database manager is not of expected type *sql.Tx")
+
+	_, err = dm.LoadAuthForUpdate(mockCtx, i.Uid)
+	assert.EqualError(t, err, "transactionCtx for database manager is not of expected type *sql.Tx")
 }
 
 func TestDatabaseLoad(t *testing.T) {
