@@ -368,6 +368,34 @@ func TestExtendedProtocol_CheckAuth_Invalid(t *testing.T) {
 	assert.False(t, ok)
 }
 
+func TestExtendedProtocol_CheckAuth_Invalid_Cached(t *testing.T) {
+	ctxMngr := &MockCtxMngr{}
+	p, err := NewExtendedProtocol(ctxMngr, conf)
+	require.NoError(t, err)
+
+	i := generateRandomIdentity()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// store identity
+	tx, err := p.StartTransaction(ctx)
+	require.NoError(t, err)
+
+	err = p.StoreIdentity(tx, i)
+	require.NoError(t, err)
+
+	err = tx.Commit()
+	require.NoError(t, err)
+
+	p.authCache.Store(i.Uid, ctxMngr.id.AuthToken)
+
+	ok, found, err := p.CheckAuth(ctx, i.Uid, "invalid auth")
+	require.NoError(t, err)
+	assert.True(t, found)
+	assert.False(t, ok)
+}
+
 func TestExtendedProtocol_CheckAuth_NotFound(t *testing.T) {
 	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
 	require.NoError(t, err)
