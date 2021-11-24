@@ -139,8 +139,6 @@ func (p *ExtendedProtocol) LoadIdentity(uid uuid.UUID) (*ent.Identity, error) {
 		return nil, err
 	}
 
-	p.authCache.Store(uid, i.AuthToken)
-
 	return i, nil
 }
 
@@ -186,27 +184,8 @@ func (p *ExtendedProtocol) LoadPublicKey(uid uuid.UUID) (pubKeyPEM []byte, err e
 	return pubKeyPEM, nil
 }
 
-func (p *ExtendedProtocol) LoadAuth(uid uuid.UUID) (auth string, err error) {
-	_auth, found := p.authCache.Load(uid)
-
-	if found {
-		auth, found = _auth.(string)
-	}
-
-	if !found {
-		i, err := p.LoadIdentity(uid)
-		if err != nil {
-			return "", err
-		}
-
-		auth = i.AuthToken
-	}
-
-	return auth, nil
-}
-
 func (p *ExtendedProtocol) IsInitialized(uid uuid.UUID) (initialized bool, err error) {
-	_, err = p.LoadAuth(uid)
+	_, err = p.LoadPrivateKey(uid)
 	if err == ErrNotExist {
 		return false, nil
 	}
@@ -218,20 +197,31 @@ func (p *ExtendedProtocol) IsInitialized(uid uuid.UUID) (initialized bool, err e
 }
 
 func (p *ExtendedProtocol) CheckAuth(ctx context.Context, uid uuid.UUID, authToCheck string) (ok, found bool, err error) {
-	pwHash, err := p.LoadAuth(uid)
+	_auth, found := p.authCache.Load(uid)
+
+	if found {
+		if auth, ok := _auth.(string); ok {
+			return auth == authToCheck, found, err
+		}
+	}
+
+	i, err := p.LoadIdentity(uid)
 	if err == ErrNotExist {
-		return false, false, nil
+		return ok, found, nil
 	}
 	if err != nil {
-		return false, false, err
+		return ok, found, err
 	}
 
 	found = true
 
-	needsUpdate, ok, err := p.pwHasher.CheckPassword(ctx, pwHash, authToCheck)
+	needsUpdate, ok, err := p.pwHasher.CheckPassword(ctx, i.AuthToken, authToCheck)
 	if err != nil || !ok {
 		return ok, found, err
 	}
+
+	// auth check was successful
+	p.authCache.Store(uid, authToCheck)
 
 	if needsUpdate {
 		if err := p.updatePwHash(uid, authToCheck); err != nil {
@@ -272,8 +262,6 @@ func (p *ExtendedProtocol) updatePwHash(uid uuid.UUID, authToCheck string) error
 	if err != nil {
 		return fmt.Errorf("could not commit transaction after storing updated password hash: %v", err)
 	}
-
-	p.authCache.Store(uid, updatedHash)
 
 	return nil
 }

@@ -42,9 +42,6 @@ func TestProtocol(t *testing.T) {
 	_, err = p.LoadPublicKey(testIdentity.Uid)
 	assert.Equal(t, ErrNotExist, err)
 
-	_, err = p.LoadAuth(testIdentity.Uid)
-	assert.Equal(t, ErrNotExist, err)
-
 	// store identity
 	tx, err := p.StartTransaction(ctx)
 	require.NoError(t, err)
@@ -382,36 +379,70 @@ func TestExtendedProtocol_CheckAuth_NotFound(t *testing.T) {
 }
 
 func TestExtendedProtocol_CheckAuth_Update(t *testing.T) {
+	ctxMngr := &MockCtxMngr{}
+	conf.KdUpdateParams = true
+	p, err := NewExtendedProtocol(ctxMngr, conf)
+	require.NoError(t, err)
+
+	i := generateRandomIdentity()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	uid := uuid.New()
-	testAuth := "password123"
-	kd := &pw.Argon2idKeyDerivator{
-		Params: pw.GetArgon2idParams(pw.DefaultMemory, pw.DefaultTime,
-			2*pw.DefaultParallelism, pw.DefaultKeyLen, pw.DefaultSaltLen),
-	}
-	pwHash, err := kd.GeneratePasswordHash(ctx, testAuth)
+	// store identity
+	tx, err := p.StartTransaction(ctx)
 	require.NoError(t, err)
 
-	ctxMngr := &MockCtxMngr{}
-	ctxMngr.id.Uid = uid
-	ctxMngr.id.AuthToken = pwHash
-
-	p := &ExtendedProtocol{
-		ContextManager: ctxMngr,
-		pwHasher:       pw.NewArgon2idKeyDerivator(0, pw.GetDefaultArgon2idParams(), true),
-		authCache:      &sync.Map{},
-	}
-
-	p.authCache.Store(uid, pwHash)
-
-	ok, found, err := p.CheckAuth(ctx, uid, testAuth)
+	err = p.StoreIdentity(tx, i)
 	require.NoError(t, err)
-	assert.True(t, found)
-	assert.True(t, ok)
 
-	assert.NotEqual(t, pwHash, ctxMngr.id.AuthToken)
+	err = tx.Commit()
+	require.NoError(t, err)
+
+	pwHashPreUpdate := ctxMngr.id.AuthToken
+	p.pwHasher.Params = pw.GetArgon2idParams(pw.DefaultMemory, pw.DefaultTime,
+		2*pw.DefaultParallelism, pw.DefaultKeyLen, pw.DefaultSaltLen)
+
+	ok, found, err := p.CheckAuth(ctx, i.Uid, i.AuthToken)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.True(t, ok)
+
+	assert.NotEqual(t, pwHashPreUpdate, ctxMngr.id.AuthToken)
+
+	ok, found, err = p.CheckAuth(ctx, i.Uid, i.AuthToken)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.True(t, ok)
+}
+
+func TestExtendedProtocol_CheckAuth_AuthCache(t *testing.T) {
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
+	require.NoError(t, err)
+
+	i := generateRandomIdentity()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// store identity
+	tx, err := p.StartTransaction(ctx)
+	require.NoError(t, err)
+
+	err = p.StoreIdentity(tx, i)
+	require.NoError(t, err)
+
+	err = tx.Commit()
+	require.NoError(t, err)
+
+	ok, found, err := p.CheckAuth(ctx, i.Uid, i.AuthToken)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.True(t, ok)
+
+	cachedAuth, found := p.authCache.Load(i.Uid)
+	require.True(t, found)
+	assert.Equal(t, i.AuthToken, cachedAuth.(string))
 }
 
 func TestProtocol_Cache(t *testing.T) {
