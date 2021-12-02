@@ -61,8 +61,9 @@ func ServerError(uid uuid.UUID, r *http.Request, w http.ResponseWriter, errMsg s
 	http.Error(w, http.StatusText(code), code)
 }
 
+// Health is a liveness probe.
 func Health(server string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Server", server)
 		w.Header().Set("Content-Type", TextType)
 		w.WriteHeader(http.StatusOK)

@@ -20,12 +20,14 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"path"
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/http_server"
+	urlpkg "net/url"
 )
 
 type IdentityServiceClient struct {
@@ -36,8 +38,12 @@ type IdentityServiceClient struct {
 // RequestPublicKeys requests a devices public keys at the identity service
 // returns a list of the retrieved public key certificates
 func (c *IdentityServiceClient) RequestPublicKeys(id uuid.UUID) ([]ubirch.SignedKeyRegistration, error) {
-	url := c.KeyServiceURL + "/current/hardwareId/" + id.String()
-	resp, err := http.Get(url)
+	url, err := urlpkg.Parse(c.KeyServiceURL)
+	if err != nil {
+		return nil, fmt.Errorf("key service URL could not be parsed: %v", err)
+	}
+	url.Path = path.Join(url.Path, "current/hardwareId", id.String())
+	resp, err := http.Get(url.String())
 	if err != nil {
 		return nil, fmt.Errorf("unable to retrieve public key info: %v", err)
 	}

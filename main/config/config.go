@@ -142,13 +142,20 @@ func (c *Config) loadEnv() error {
 func (c *Config) loadFile(filename string) error {
 	log.Infof("loading configuration from file: %s", filename)
 
-	fileHandle, err := os.Open(filename)
+	fileHandle, err := os.Open(filepath.Clean(filename))
 	if err != nil {
 		return err
 	}
-	defer fileHandle.Close()
 
-	return json.NewDecoder(fileHandle).Decode(c)
+	err = json.NewDecoder(fileHandle).Decode(c)
+	if err != nil {
+		if fileCloseErr := fileHandle.Close(); fileCloseErr != nil {
+			log.Error(fileCloseErr)
+		}
+		return err
+	}
+
+	return fileHandle.Close()
 }
 
 func (c *Config) checkMandatory() error {
@@ -278,14 +285,22 @@ func (c *Config) loadIdentitiesFile(configDir string) error {
 		return nil
 	}
 
-	fileHandle, err := os.Open(identitiesFile)
+	fileHandle, err := os.Open(filepath.Clean(identitiesFile))
 	if err != nil {
 		return err
 	}
-	defer fileHandle.Close()
 
 	var identities []map[string]string
+
 	err = json.NewDecoder(fileHandle).Decode(&identities)
+	if err != nil {
+		if fileCloseErr := fileHandle.Close(); fileCloseErr != nil {
+			log.Error(fileCloseErr)
+		}
+		return err
+	}
+
+	err = fileHandle.Close()
 	if err != nil {
 		return err
 	}

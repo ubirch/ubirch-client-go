@@ -26,9 +26,7 @@ type ServerEndpoint struct {
 	Service
 }
 
-func (*ServerEndpoint) HandleOptions(http.ResponseWriter, *http.Request) {
-	return
-}
+func (*ServerEndpoint) HandleOptions(http.ResponseWriter, *http.Request) {}
 
 type HTTPServer struct {
 	Router   *chi.Mux
@@ -85,7 +83,8 @@ func (srv *HTTPServer) Serve() error {
 		<-cancelCtx.Done()
 		server.SetKeepAlivesEnabled(false) // disallow clients to create new long-running conns
 
-		shutdownWithTimeoutCtx, _ := context.WithTimeout(shutdownCtx, ShutdownTimeout)
+		shutdownWithTimeoutCtx, shutdownWithTimeoutCancel := context.WithTimeout(shutdownCtx, ShutdownTimeout)
+		defer shutdownWithTimeoutCancel()
 		defer shutdownCancel()
 
 		if err := server.Shutdown(shutdownWithTimeoutCtx); err != nil {

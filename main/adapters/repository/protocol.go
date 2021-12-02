@@ -284,7 +284,7 @@ func (p *ExtendedProtocol) checkIdentityAttributes(i *ent.Identity) error {
 	}
 
 	if len(i.AuthToken) == 0 {
-		return fmt.Errorf("%s: empty auth token", i.Uid)
+		return fmt.Errorf("empty auth token")
 	}
 
 	return nil

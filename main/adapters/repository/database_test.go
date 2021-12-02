@@ -287,9 +287,7 @@ func TestNewSqlDatabaseInfo_NotReady(t *testing.T) {
 
 	// we expect no error here
 	dm, err := NewSqlDatabaseInfo(unreachableDSN, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer func(dm *DatabaseManager) {
 		err := dm.Close()
 		if err != nil {
@@ -410,9 +408,7 @@ func TestDatabaseLoad(t *testing.T) {
 	wg := &sync.WaitGroup{}
 
 	dm, err := initDB()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
 	// generate identities
@@ -456,6 +452,7 @@ func TestDatabaseManager_RecoverUndefinedTable(t *testing.T) {
 	require.NoError(t, err)
 
 	pg, err := sql.Open(PostgreSql, c.PostgresDSN)
+	require.NoError(t, err)
 
 	dm := &DatabaseManager{
 		options: &sql.TxOptions{},

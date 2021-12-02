@@ -10,7 +10,6 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-client-go/main/ent"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
@@ -30,7 +29,6 @@ type FileManager struct {
 	keyFile           string
 	signatureDir      string
 	authTokenDir      string
-	identities        []ent.Identity
 	EncryptedKeystore *ubirch.EncryptedKeystore
 	keystoreMutex     *sync.RWMutex
 }
@@ -178,10 +176,10 @@ func loadFile(file string, dest interface{}) error {
 	if _, err := os.Stat(file); os.IsNotExist(err) { // if file does not exist yet, return right away
 		return nil
 	}
-	contextBytes, err := ioutil.ReadFile(file)
+	contextBytes, err := ioutil.ReadFile(filepath.Clean(file))
 	if err != nil {
 		file = file + ".bck"
-		contextBytes, err = ioutil.ReadFile(file)
+		contextBytes, err = ioutil.ReadFile(filepath.Clean(file))
 		if err != nil {
 			return err
 		}
