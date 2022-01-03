@@ -56,7 +56,7 @@ func (s *ChainingService) HandleRequest(w http.ResponseWriter, r *http.Request) 
 
 	select {
 	case <-ctx.Done():
-		log.Warnf("chaining response could not be sent: http request %s", ctx.Err())
+		log.Warnf("%s: chaining response could not be sent: http request %s", msg.ID, ctx.Err())
 	default:
 		SendResponse(w, resp)
 	}
