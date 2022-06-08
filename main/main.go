@@ -67,7 +67,11 @@ func main() {
 		}
 	}
 
-	log.SetFormatter(&log.JSONFormatter{})
+	log.SetFormatter(&log.JSONFormatter{
+		FieldMap: log.FieldMap{
+			log.FieldKeyMsg: "message",
+		},
+	})
 	log.Printf("UBIRCH client (version=%s, revision=%s)", Version, Revision)
 	auditlogger.SetServiceName(serviceName)
 
