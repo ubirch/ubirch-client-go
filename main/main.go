@@ -54,6 +54,14 @@ func main() {
 		readinessChecks []func() error
 	)
 
+	log.SetFormatter(&log.JSONFormatter{
+		FieldMap: log.FieldMap{
+			log.FieldKeyMsg: "message",
+		},
+	})
+	log.Printf("UBIRCH client (version=%s, revision=%s)", Version, Revision)
+	auditlogger.SetServiceName(serviceName)
+
 	if len(os.Args) > 1 {
 		for i, arg := range os.Args[1:] {
 			log.Infof("arg #%d: %s", i+1, arg)
@@ -66,14 +74,6 @@ func main() {
 			}
 		}
 	}
-
-	log.SetFormatter(&log.JSONFormatter{
-		FieldMap: log.FieldMap{
-			log.FieldKeyMsg: "message",
-		},
-	})
-	log.Printf("UBIRCH client (version=%s, revision=%s)", Version, Revision)
-	auditlogger.SetServiceName(serviceName)
 
 	// read configuration
 	conf := &config.Config{}
