@@ -99,7 +99,7 @@ func (c *IdentityServiceClient) SubmitKeyRegistration(uid uuid.UUID, cert []byte
 		return fmt.Errorf("error sending key registration: %v", err)
 	}
 	if h.HttpFailed(resp.StatusCode) {
-		return fmt.Errorf("key registration failed: (%d) %q", resp.StatusCode, resp.Content)
+		return fmt.Errorf("key registration unsuccessful: request to %s failed: (%d) %q", c.KeyServiceURL, resp.StatusCode, resp.Content)
 	}
 	log.Debugf("%s: key registration successful: (%d) %s", uid, resp.StatusCode, string(resp.Content))
 	return nil
@@ -115,7 +115,7 @@ func (c *IdentityServiceClient) RequestKeyDeletion(uid uuid.UUID, cert []byte) e
 		return fmt.Errorf("error sending key deletion request: %v", err)
 	}
 	if h.HttpFailed(resp.StatusCode) {
-		return fmt.Errorf("key deletion failed: (%d) %q", resp.StatusCode, resp.Content)
+		return fmt.Errorf("key deletion unsuccessful: request to %s failed: (%d) %q", c.KeyServiceURL, resp.StatusCode, resp.Content)
 	}
 	log.Debugf("%s: key deletion successful: (%d) %s", uid, resp.StatusCode, string(resp.Content))
 	return nil
@@ -132,7 +132,7 @@ func (c *IdentityServiceClient) SubmitCSR(uid uuid.UUID, csr []byte) error {
 		return fmt.Errorf("error sending CSR: %v", err)
 	}
 	if h.HttpFailed(resp.StatusCode) {
-		return fmt.Errorf("request to %s failed: (%d) %q", c.IdentityServiceURL, resp.StatusCode, resp.Content)
+		return fmt.Errorf("CSR submission unsuccessful: request to %s failed: (%d) %q", c.IdentityServiceURL, resp.StatusCode, resp.Content)
 	}
 	log.Debugf("%s: CSR submitted: (%d) %s", uid, resp.StatusCode, string(resp.Content))
 	return nil
