@@ -18,9 +18,15 @@ import (
 )
 
 func Migrate(c *config.Config, configDir string) error {
-	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, c.DbMaxConns)
+	ctxManager, err := GetContextManager(c)
 	if err != nil {
 		return err
+	}
+
+	dm, ok := ctxManager.(*DatabaseManager)
+	if !ok {
+		return fmt.Errorf("context migration only supported in direction file to database. " +
+			"Please set a DSN for a postgreSQL or SQLite database in the configuration")
 	}
 
 	for i := 0; i < 10; i++ {
@@ -194,7 +200,7 @@ func migrateIdentities(c *config.Config, configDir string, p *ExtendedProtocol) 
 }
 
 func hashAuthTokens(dm *DatabaseManager, p *ExtendedProtocol) error {
-	query := fmt.Sprintf("SELECT uid, auth_token FROM %s FOR UPDATE", PostgresIdentityTableName)
+	query := fmt.Sprintf("SELECT uid, auth_token FROM %s FOR UPDATE", IdentityTableName)
 
 	rows, err := dm.db.Query(query)
 	if err != nil {
@@ -285,7 +291,7 @@ func isArgon2idPasswordHash(pw string) (bool, error) {
 }
 
 func storeAuth(dm *DatabaseManager, uid uuid.UUID, auth string) error {
-	query := fmt.Sprintf("UPDATE %s SET auth_token = $1 WHERE uid = $2;", PostgresIdentityTableName)
+	query := fmt.Sprintf("UPDATE %s SET auth_token = $1 WHERE uid = $2;", IdentityTableName)
 
 	_, err := dm.db.Exec(query, &auth, uid)
 
@@ -294,7 +300,7 @@ func storeAuth(dm *DatabaseManager, uid uuid.UUID, auth string) error {
 
 func addColumnActiveBoolean(dm *DatabaseManager) error {
 	query := fmt.Sprintf(
-		"ALTER TABLE %s ADD active boolean NOT NULL DEFAULT(TRUE)", PostgresIdentityTableName)
+		"ALTER TABLE %s ADD active boolean NOT NULL DEFAULT(TRUE)", IdentityTableName)
 
 	_, err := dm.db.Exec(query)
 
