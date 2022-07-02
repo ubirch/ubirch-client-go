@@ -1,34 +1,24 @@
 package repository
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"encoding/base64"
-	"encoding/json"
-	"fmt"
 	"math/rand"
-	"os"
 	"path/filepath"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/lib/pq"
+	"github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/ubirch/ubirch-client-go/main/config"
 	"github.com/ubirch/ubirch-client-go/main/ent"
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
-const (
-	testLoad = 100
-)
-
-func TestDatabaseManager(t *testing.T) {
-	dm, err := initDB()
+func TestDatabaseManager_sqlite(t *testing.T) {
+	dm, err := initSQLiteDB(t)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -100,8 +90,8 @@ func TestDatabaseManager(t *testing.T) {
 	assert.Equal(t, testIdentity.AuthToken, i.AuthToken)
 }
 
-func TestDatabaseManager_StoreActiveFlag(t *testing.T) {
-	dm, err := initDB()
+func TestDatabaseManager_sqlite_StoreActiveFlag(t *testing.T) {
+	dm, err := initSQLiteDB(t)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -140,8 +130,8 @@ func TestDatabaseManager_StoreActiveFlag(t *testing.T) {
 	assert.False(t, active)
 }
 
-func TestDatabaseManager_SetSignature(t *testing.T) {
-	dm, err := initDB()
+func TestDatabaseManager_sqlite_SetSignature(t *testing.T) {
+	dm, err := initSQLiteDB(t)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -187,8 +177,8 @@ func TestDatabaseManager_SetSignature(t *testing.T) {
 	assert.Equal(t, newSignature, sig)
 }
 
-func TestDatabaseManager_LoadSignatureForUpdate(t *testing.T) {
-	dm, err := initDB()
+func TestDatabaseManager_sqlite_LoadSignatureForUpdate(t *testing.T) {
+	dm, err := initSQLiteDB(t)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -214,19 +204,22 @@ func TestDatabaseManager_LoadSignatureForUpdate(t *testing.T) {
 	_, err = dm.LoadSignatureForUpdate(tx, testIdentity.Uid)
 	require.NoError(t, err)
 
+	newSig := make([]byte, 64)
+	rand.Read(newSig)
+
+	err = dm.StoreSignature(tx, testIdentity.Uid, newSig)
+	require.NoError(t, err)
+
 	// try to get lock on signature again and wait a second for the lock before context gets canceled
 	ctxWithTimeout, cancelWithTimeout := context.WithTimeout(context.Background(), time.Second)
 	defer cancelWithTimeout()
 
-	tx2, err := dm.StartTransaction(ctxWithTimeout)
-	require.NoError(t, err)
-
-	_, err = dm.LoadSignatureForUpdate(tx2, testIdentity.Uid)
-	assert.EqualError(t, err, "pq: canceling statement due to user request")
+	_, err = dm.StartTransaction(ctxWithTimeout)
+	assert.EqualError(t, err, "context deadline exceeded")
 }
 
-func TestDatabaseManager_StoreAuth(t *testing.T) {
-	dm, err := initDB()
+func TestDatabaseManager_sqlite_StoreAuth(t *testing.T) {
+	dm, err := initSQLiteDB(t)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -272,8 +265,8 @@ func TestDatabaseManager_StoreAuth(t *testing.T) {
 	assert.Equal(t, base64.StdEncoding.EncodeToString(newAuth), auth)
 }
 
-func TestNewSqlDatabaseInfo_Ready(t *testing.T) {
-	dm, err := initDB()
+func TestNewSqlDatabaseInfo_Ready_sqlite(t *testing.T) {
+	dm, err := initSQLiteDB(t)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -281,26 +274,8 @@ func TestNewSqlDatabaseInfo_Ready(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestNewSqlDatabaseInfo_NotReady(t *testing.T) {
-	// use DSN that is valid, but not reachable
-	unreachableDSN := "postgres://nousr:nopwd@localhost:0000/nodatabase"
-
-	// we expect no error here
-	dm, err := NewSqlDatabaseInfo(PostgreSQL, unreachableDSN, 0)
-	require.NoError(t, err)
-	defer func(dm *DatabaseManager) {
-		err := dm.Close()
-		if err != nil {
-			t.Error(err)
-		}
-	}(dm)
-
-	err = dm.IsReady()
-	require.Error(t, err)
-}
-
-func TestStoreExisting(t *testing.T) {
-	dm, err := initDB()
+func TestStoreExisting_sqlite(t *testing.T) {
+	dm, err := initSQLiteDB(t)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -329,8 +304,8 @@ func TestStoreExisting(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestDatabaseManager_CancelTransaction(t *testing.T) {
-	dm, err := initDB()
+func TestDatabaseManager_sqlite_CancelTransaction(t *testing.T) {
+	dm, err := initSQLiteDB(t)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -354,16 +329,15 @@ func TestDatabaseManager_CancelTransaction(t *testing.T) {
 	assert.Equal(t, ErrNotExist, err)
 }
 
-func TestDatabaseManager_StartTransaction(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
+func TestDatabaseManager_sqlite_StartTransaction(t *testing.T) {
+	dsn := filepath.Join(t.TempDir(), "test.db")
 
-	c, err := getConfig()
-	require.NoError(t, err)
-
-	dm, err := NewSqlDatabaseInfo(PostgreSQL, c.PostgresDSN, 1)
+	dm, err := NewSqlDatabaseInfo(SQLite, dsn, 1)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
 
 	tx, err := dm.StartTransaction(ctx)
 	require.NoError(t, err)
@@ -374,8 +348,8 @@ func TestDatabaseManager_StartTransaction(t *testing.T) {
 	assert.Nil(t, tx2)
 }
 
-func TestDatabaseManager_InvalidTransactionCtx(t *testing.T) {
-	dm, err := initDB()
+func TestDatabaseManager_sqlite_InvalidTransactionCtx(t *testing.T) {
+	dm, err := initSQLiteDB(t)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -404,10 +378,10 @@ func TestDatabaseManager_InvalidTransactionCtx(t *testing.T) {
 	assert.EqualError(t, err, "transactionCtx for database manager is not of expected type *sql.Tx")
 }
 
-func TestDatabaseLoad(t *testing.T) {
+func TestDatabaseLoad_sqlite(t *testing.T) {
 	wg := &sync.WaitGroup{}
 
-	dm, err := initDB()
+	dm, err := initSQLiteDB(t)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -447,28 +421,22 @@ func TestDatabaseLoad(t *testing.T) {
 	//}
 }
 
-func TestDatabaseManager_RecoverUndefinedTable(t *testing.T) {
-	c, err := getConfig()
-	require.NoError(t, err)
-
-	pg, err := sql.Open(PostgreSQL, c.PostgresDSN)
+func TestDatabaseManager_sqlite_RecoverUndefinedTable(t *testing.T) {
+	db, err := sql.Open(SQLite, filepath.Join(t.TempDir(), "test.db"))
 	require.NoError(t, err)
 
 	dm := &DatabaseManager{
 		options:    &sql.TxOptions{},
-		db:         pg,
-		driverName: PostgreSQL,
+		db:         db,
+		driverName: SQLite,
 	}
 
 	_, err = dm.LoadIdentity(uuid.New())
 	assert.Equal(t, ErrNotExist, err)
 }
 
-func TestDatabaseManager_Retry(t *testing.T) {
-	c, err := getConfig()
-	require.NoError(t, err)
-
-	dm, err := NewSqlDatabaseInfo(PostgreSQL, c.PostgresDSN, 101)
+func TestDatabaseManager_sqlite_Retry(t *testing.T) {
+	dm, err := initSQLiteDB(t)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -476,16 +444,16 @@ func TestDatabaseManager_Retry(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	for i := 0; i < 101; i++ {
+	for i := 0; i < 2; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 
 			_, err := dm.StartTransaction(ctx)
 			if err != nil {
-				if pqErr, ok := err.(*pq.Error); ok {
-					switch pqErr.Code {
-					case "55P03", "53300", "53400":
+				if liteErr, ok := err.(sqlite3.Error); ok {
+					switch liteErr.Code {
+					case sqlite3.ErrBusy, sqlite3.ErrLocked:
 						return
 					}
 				}
@@ -496,167 +464,8 @@ func TestDatabaseManager_Retry(t *testing.T) {
 	wg.Wait()
 }
 
-func getConfig() (*config.Config, error) {
-	configFileName := "config_test.json"
-	fileHandle, err := os.Open(filepath.Join("../../", configFileName))
-	if os.IsNotExist(err) {
-		return nil, fmt.Errorf("%v \n"+
-			"--------------------------------------------------------------------------------\n"+
-			"Please provide a configuration file \"%s\" in the main directory which contains\n"+
-			"a DSN for a postgres database in order to test the database context management.\n\n"+
-			"!!! THIS MUST BE DIFFERENT FROM THE DSN USED FOR THE ACTUAL CONTEXT !!!\n\n"+
-			"{\n\t\"postgresDSN\": \"postgres://<username>:<password>@<hostname>:5432/<TEST-database>\"\n}\n"+
-			"--------------------------------------------------------------------------------",
-			err, configFileName)
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer fileHandle.Close()
+func initSQLiteDB(t *testing.T) (*DatabaseManager, error) {
+	dsn := filepath.Join(t.TempDir(), "test.db?_journal_mode=WAL&_txlock=exclusive")
 
-	c := &config.Config{}
-	err = json.NewDecoder(fileHandle).Decode(c)
-	if err != nil {
-		return nil, err
-	}
-
-	return c, nil
-}
-
-func initDB() (*DatabaseManager, error) {
-	c, err := getConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	dm, err := NewSqlDatabaseInfo(PostgreSQL, c.PostgresDSN, c.DbMaxConns)
-	if err != nil {
-		return nil, err
-	}
-
-	return dm, nil
-}
-
-func cleanUpDB(t *testing.T, dm *DatabaseManager) {
-	dropTableQuery := fmt.Sprintf("DROP TABLE %s;", IdentityTableName)
-	_, err := dm.db.Exec(dropTableQuery)
-	assert.NoError(t, err)
-
-	err = dm.Close()
-	assert.NoError(t, err)
-}
-
-func generateRandomIdentity() ent.Identity {
-	uid := uuid.New()
-
-	keystore := &MockKeystorer{}
-
-	c := ubirch.ECDSACryptoContext{Keystore: keystore}
-
-	err := c.GenerateKey(uid)
-	if err != nil {
-		panic(err)
-	}
-
-	priv, err := keystore.GetPrivateKey(uid)
-	if err != nil {
-		panic(err)
-	}
-
-	pub, err := keystore.GetPublicKey(uid)
-	if err != nil {
-		panic(err)
-	}
-
-	sig := make([]byte, 64)
-	rand.Read(sig)
-
-	auth := make([]byte, 16)
-	rand.Read(auth)
-
-	return ent.Identity{
-		Uid:        uuid.New(),
-		PrivateKey: priv,
-		PublicKey:  pub,
-		Signature:  sig,
-		AuthToken:  base64.StdEncoding.EncodeToString(auth),
-	}
-}
-
-func storeIdentity(ctxManager ContextManager, id ent.Identity, wg *sync.WaitGroup) error {
-	defer wg.Done()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	tx, err := ctxManager.StartTransaction(ctx)
-	if err != nil {
-		return fmt.Errorf("StartTransaction: %v", err)
-	}
-
-	err = ctxManager.StoreIdentity(tx, id)
-	if err != nil {
-		return fmt.Errorf("StoreIdentity: %v", err)
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return fmt.Errorf("Commit: %v", err)
-	}
-
-	return nil
-}
-
-func dbCheckAuth(auth, authToCheck string) error {
-	if auth != authToCheck {
-		return fmt.Errorf("auth check failed")
-	}
-
-	return nil
-}
-
-func checkIdentity(ctxManager ContextManager, id ent.Identity, checkAuth func(string, string) error, wg *sync.WaitGroup) error {
-	defer wg.Done()
-
-	fetchedId, err := ctxManager.LoadIdentity(id.Uid)
-	if err != nil {
-		return fmt.Errorf("LoadIdentity: %v", err)
-	}
-
-	if !bytes.Equal(fetchedId.PrivateKey, id.PrivateKey) {
-		return fmt.Errorf("unexpected private key")
-	}
-
-	if !bytes.Equal(fetchedId.PublicKey, id.PublicKey) {
-		return fmt.Errorf("unexpected public key")
-	}
-
-	err = checkAuth(fetchedId.AuthToken, id.AuthToken)
-	if err != nil {
-		return fmt.Errorf("checkAuth: %v", err)
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	tx, err := ctxManager.StartTransaction(ctx)
-	if err != nil {
-		return fmt.Errorf("StartTransaction: %v", err)
-	}
-
-	sig, err := ctxManager.LoadSignatureForUpdate(tx, id.Uid)
-	if err != nil {
-		return fmt.Errorf("LoadSignatureForUpdate: %v", err)
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return fmt.Errorf("Commit: %v", err)
-	}
-
-	if !bytes.Equal(sig, id.Signature) {
-		return fmt.Errorf("LoadSignatureForUpdate returned unexpected value")
-	}
-
-	return nil
+	return NewSqlDatabaseInfo(SQLite, dsn, 0)
 }
