@@ -68,13 +68,13 @@ func cleanUpMigrationTest(t *testing.T, dsn string) {
 		assert.NoError(t, err)
 	}
 
-	db, err := sql.Open(PostgreSql, dsn)
+	db, err := sql.Open(PostgreSQL, dsn)
 	require.NoError(t, err)
 
-	_, err = db.Exec(fmt.Sprintf("DROP TABLE %s;", PostgresIdentityTableName))
+	_, err = db.Exec(fmt.Sprintf("DROP TABLE %s;", IdentityTableName))
 	assert.NoError(t, err)
 
-	_, err = db.Exec(fmt.Sprintf("DROP TABLE %s;", PostgresVersionTableName))
+	_, err = db.Exec(fmt.Sprintf("DROP TABLE %s;", VersionTableName))
 	assert.NoError(t, err)
 
 	err = db.Close()

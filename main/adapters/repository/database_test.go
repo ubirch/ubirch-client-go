@@ -286,7 +286,7 @@ func TestNewSqlDatabaseInfo_NotReady(t *testing.T) {
 	unreachableDSN := "postgres://nousr:nopwd@localhost:0000/nodatabase"
 
 	// we expect no error here
-	dm, err := NewSqlDatabaseInfo(unreachableDSN, 0)
+	dm, err := NewSqlDatabaseInfo(PostgreSQL, unreachableDSN, 0)
 	require.NoError(t, err)
 	defer func(dm *DatabaseManager) {
 		err := dm.Close()
@@ -361,7 +361,7 @@ func TestDatabaseManager_StartTransaction(t *testing.T) {
 	c, err := getConfig()
 	require.NoError(t, err)
 
-	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, 1)
+	dm, err := NewSqlDatabaseInfo(PostgreSQL, c.PostgresDSN, 1)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -451,12 +451,13 @@ func TestDatabaseManager_RecoverUndefinedTable(t *testing.T) {
 	c, err := getConfig()
 	require.NoError(t, err)
 
-	pg, err := sql.Open(PostgreSql, c.PostgresDSN)
+	pg, err := sql.Open(PostgreSQL, c.PostgresDSN)
 	require.NoError(t, err)
 
 	dm := &DatabaseManager{
-		options: &sql.TxOptions{},
-		db:      pg,
+		options:    &sql.TxOptions{},
+		db:         pg,
+		driverName: PostgreSQL,
 	}
 
 	_, err = dm.LoadIdentity(uuid.New())
@@ -467,7 +468,7 @@ func TestDatabaseManager_Retry(t *testing.T) {
 	c, err := getConfig()
 	require.NoError(t, err)
 
-	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, 101)
+	dm, err := NewSqlDatabaseInfo(PostgreSQL, c.PostgresDSN, 101)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -528,7 +529,7 @@ func initDB() (*DatabaseManager, error) {
 		return nil, err
 	}
 
-	dm, err := NewSqlDatabaseInfo(c.PostgresDSN, c.DbMaxConns)
+	dm, err := NewSqlDatabaseInfo(PostgreSQL, c.PostgresDSN, c.DbMaxConns)
 	if err != nil {
 		return nil, err
 	}
@@ -537,7 +538,7 @@ func initDB() (*DatabaseManager, error) {
 }
 
 func cleanUpDB(t *testing.T, dm *DatabaseManager) {
-	dropTableQuery := fmt.Sprintf("DROP TABLE %s;", PostgresIdentityTableName)
+	dropTableQuery := fmt.Sprintf("DROP TABLE %s;", IdentityTableName)
 	_, err := dm.db.Exec(dropTableQuery)
 	assert.NoError(t, err)
 
