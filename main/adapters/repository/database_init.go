@@ -9,8 +9,12 @@ import (
 const (
 	PostgresIdentity = iota
 	PostgresVersion
-	PostgresIdentityTableName  = "identity"
-	PostgresVersionTableName   = "version"
+	SQLiteIdentity
+	SQLiteVersion
+
+	IdentityTableName = "identity"
+	VersionTableName  = "version"
+
 	MigrationID                = "dbMigration"
 	MigrationVersionNoDB       = "0.0"
 	MigrationVersionInit       = "1.0.1"
@@ -31,10 +35,21 @@ var create = map[int]string{
 		"public_key BYTEA NOT NULL, "+
 		"signature BYTEA NOT NULL, "+
 		"auth_token VARCHAR(255) NOT NULL, "+
-		"active boolean NOT NULL DEFAULT(TRUE));", PostgresIdentityTableName),
+		"active boolean NOT NULL DEFAULT(TRUE));", IdentityTableName),
 	PostgresVersion: fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s("+
 		"id VARCHAR(255) NOT NULL PRIMARY KEY, "+
-		"migration_version VARCHAR(255) NOT NULL);", PostgresVersionTableName),
+		"migration_version VARCHAR(255) NOT NULL);", VersionTableName),
+
+	SQLiteIdentity: fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s("+
+		"uid TEXT NOT NULL PRIMARY KEY, "+
+		"private_key BLOB NOT NULL, "+
+		"public_key BLOB NOT NULL, "+
+		"signature BLOB NOT NULL, "+
+		"auth_token TEXT NOT NULL, "+
+		"active INTEGER NOT NULL DEFAULT(TRUE));", IdentityTableName),
+	SQLiteVersion: fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s("+
+		"id TEXT NOT NULL PRIMARY KEY, "+
+		"migration_version TEXT NOT NULL);", VersionTableName),
 }
 
 func (dm *DatabaseManager) CreateTable(tableType int) error {
@@ -53,7 +68,7 @@ func (m *Migration) getVersion(ctx context.Context, dm *DatabaseManager) error {
 		return err
 	}
 
-	query := fmt.Sprintf("SELECT migration_version FROM %s WHERE id = $1 FOR UPDATE", PostgresVersionTableName)
+	query := fmt.Sprintf("SELECT migration_version FROM %s WHERE id = $1 FOR UPDATE", VersionTableName)
 
 	err = m.tx.QueryRow(query, m.id).
 		Scan(&m.version)
@@ -69,7 +84,7 @@ func (m *Migration) getVersion(ctx context.Context, dm *DatabaseManager) error {
 }
 
 func (m *Migration) createVersionEntry() error {
-	query := fmt.Sprintf("INSERT INTO %s (id, migration_version) VALUES ($1, $2);", PostgresVersionTableName)
+	query := fmt.Sprintf("INSERT INTO %s (id, migration_version) VALUES ($1, $2);", VersionTableName)
 	_, err := m.tx.Exec(query,
 		&m.id, m.version)
 	if err != nil {
@@ -79,7 +94,7 @@ func (m *Migration) createVersionEntry() error {
 }
 
 func (m *Migration) updateVersion() error {
-	query := fmt.Sprintf("UPDATE %s SET migration_version = $1 WHERE id = $2;", PostgresVersionTableName)
+	query := fmt.Sprintf("UPDATE %s SET migration_version = $1 WHERE id = $2;", VersionTableName)
 	_, err := m.tx.Exec(query,
 		m.version, &m.id)
 	if err != nil {
