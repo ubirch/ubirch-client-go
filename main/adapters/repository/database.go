@@ -172,7 +172,12 @@ func (dm *DatabaseManager) LoadActiveFlagForUpdate(transactionCtx TransactionCtx
 		return false, fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
-	query := fmt.Sprintf("SELECT active FROM %s WHERE uid = $1 FOR UPDATE;", IdentityTableName)
+	query := fmt.Sprintf("SELECT active FROM %s WHERE uid = $1", IdentityTableName)
+
+	if dm.driverName == PostgreSQL {
+		query += " FOR UPDATE"
+	}
+	query += ";"
 
 	err = tx.QueryRow(query, uid).Scan(&active)
 	if err == sql.ErrNoRows {
@@ -212,7 +217,12 @@ func (dm *DatabaseManager) LoadSignatureForUpdate(transactionCtx TransactionCtx,
 		return nil, fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
-	query := fmt.Sprintf("SELECT signature FROM %s WHERE uid = $1 FOR UPDATE;", IdentityTableName)
+	query := fmt.Sprintf("SELECT signature FROM %s WHERE uid = $1", IdentityTableName)
+
+	if dm.driverName == PostgreSQL {
+		query += " FOR UPDATE"
+	}
+	query += ";"
 
 	err = tx.QueryRow(query, uid).Scan(&signature)
 	if err == sql.ErrNoRows {
@@ -241,7 +251,12 @@ func (dm *DatabaseManager) LoadAuthForUpdate(transactionCtx TransactionCtx, uid 
 		return "", fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
-	query := fmt.Sprintf("SELECT auth_token FROM %s WHERE uid = $1 FOR UPDATE;", IdentityTableName)
+	query := fmt.Sprintf("SELECT auth_token FROM %s WHERE uid = $1", IdentityTableName)
+
+	if dm.driverName == PostgreSQL {
+		query += " FOR UPDATE"
+	}
+	query += ";"
 
 	err = tx.QueryRow(query, uid).Scan(&auth)
 	if err == sql.ErrNoRows {
@@ -268,23 +283,33 @@ func (dm *DatabaseManager) isRecoverable(err error) bool {
 	case PostgreSQL:
 		if pqErr, ok := err.(*pq.Error); ok {
 			switch pqErr.Code {
+			case "55P03", "53300", "53400": // lock_not_available, too_many_connections, configuration_limit_exceeded
+				time.Sleep(10 * time.Millisecond)
+				return true
 			case "42P01": // undefined_table
 				err = dm.CreateTable(PostgresIdentity)
 				if err != nil {
 					log.Errorf("creating DB table failed: %v", err)
 				}
 				return true
-			case "55P03", "53300", "53400": // lock_not_available, too_many_connections, configuration_limit_exceeded
+			}
+			log.Errorf("unexpected postgres database error: %s", pqErr)
+		}
+	case SQLite:
+		if liteErr, ok := err.(sqlite3.Error); ok {
+			if liteErr.Code == sqlite3.ErrBusy ||
+				liteErr.Code == sqlite3.ErrLocked {
 				time.Sleep(10 * time.Millisecond)
 				return true
 			}
-			log.Errorf("unexpected postgres database error: %s, pq error code: %s", err, pqErr.Code)
-		}
-	case SQLite:
-		if err.Error() == sqlite3.ErrBusy.Error() ||
-			err.Error() == sqlite3.ErrLocked.Error() {
-			time.Sleep(10 * time.Millisecond)
-			return true
+			if liteErr.Code == sqlite3.ErrError {
+				err = dm.CreateTable(SQLiteIdentity)
+				if err != nil {
+					log.Errorf("creating DB table failed: %v", err)
+				}
+				return true
+			}
+			log.Errorf("unexpected sqlite database error: %s", liteErr)
 		}
 	}
 	return false
