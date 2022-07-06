@@ -233,7 +233,7 @@ func getSigningResponse(respCode int, msg h.HTTPRequest, upp []byte, backendResp
 	}
 
 	if h.HttpFailed(respCode) {
-		log.Errorf("%s: request failed: (%d) %s", msg.ID, respCode, string(signingResp))
+		log.Errorf("%s: request to ubirch authentication service (niomon) failed: (%d) %s", msg.ID, respCode, string(signingResp))
 	}
 
 	return h.HTTPResponse{
