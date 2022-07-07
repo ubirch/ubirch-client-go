@@ -22,15 +22,15 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	"github.com/mattn/go-sqlite3"
 	"github.com/ubirch/ubirch-client-go/main/ent"
+	"modernc.org/sqlite"
 
 	log "github.com/sirupsen/logrus"
 )
 
 const (
 	PostgreSQL = "postgres"
-	SQLite     = "sqlite3"
+	SQLite     = "sqlite"
 
 	maxRetries = 2
 )
@@ -296,13 +296,13 @@ func (dm *DatabaseManager) isRecoverable(err error) bool {
 			log.Errorf("unexpected postgres database error: %s", pqErr)
 		}
 	case SQLite:
-		if liteErr, ok := err.(sqlite3.Error); ok {
-			if liteErr.Code == sqlite3.ErrBusy ||
-				liteErr.Code == sqlite3.ErrLocked {
-				time.Sleep(10 * time.Millisecond)
+		if liteErr, ok := err.(*sqlite.Error); ok {
+			if liteErr.Code() == 5 || // SQLITE_BUSY
+				liteErr.Code() == 6 { // SQLITE_LOCKED
+				time.Sleep(100 * time.Millisecond)
 				return true
 			}
-			if liteErr.Code == sqlite3.ErrError {
+			if liteErr.Code() == 1 { // SQLITE_ERROR
 				err = dm.CreateTable(SQLiteIdentity)
 				if err != nil {
 					log.Errorf("creating DB table failed: %v", err)

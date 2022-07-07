@@ -11,10 +11,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/ubirch/ubirch-client-go/main/ent"
+	"modernc.org/sqlite"
 )
 
 func TestDatabaseManager_sqlite(t *testing.T) {
@@ -442,9 +442,9 @@ func TestDatabaseManager_sqlite_Retry(t *testing.T) {
 
 			_, err := dm.StartTransaction(ctx)
 			if err != nil {
-				if liteErr, ok := err.(sqlite3.Error); ok {
-					switch liteErr.Code {
-					case sqlite3.ErrBusy, sqlite3.ErrLocked:
+				if liteErr, ok := err.(*sqlite.Error); ok {
+					if liteErr.Code() == 5 || // SQLITE_BUSY
+						liteErr.Code() == 6 { // SQLITE_LOCKED
 						return
 					}
 				}
@@ -456,7 +456,11 @@ func TestDatabaseManager_sqlite_Retry(t *testing.T) {
 }
 
 func initSQLiteDB(t *testing.T) (*DatabaseManager, error) {
-	dsn := filepath.Join(t.TempDir(), "test.db?_journal_mode=WAL&_txlock=exclusive")
+	// "github.com/mattn/go-sqlite3"
+	//dsn := filepath.Join(t.TempDir(), "test.db?_journal_mode=WAL&_txlock=exclusive")
+
+	// "modernc.org/sqlite"
+	dsn := filepath.Join(t.TempDir(), "test.db?_pragma=journal_mode(WAL)&_txlock=exclusive&_pragma=busy_timeout(1000)")
 
 	return NewSqlDatabaseInfo(SQLite, dsn, 0)
 }
