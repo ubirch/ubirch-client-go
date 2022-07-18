@@ -272,14 +272,16 @@ The response body consists of either an error message, or a JSON map with
 
 - the data hash,
 - the UPP, which contains that data hash and was sent to the UBIRCH backend by the client,
+- the public key, that corresponds to the private key with which the UPP was signed,
 - the response from the UBIRCH backend,
 - the unique request ID
-- *possibly:* a description of an occurred error (**the `error`-key is only present in case an error occurred**)
+- *optional:* a description of an occurred error (**the `error`-key is only present in case an error occurred**)
 
 ```fundamental
 {
   "hash": "<base64 encoded data hash>",
   "upp": "<base64 encoded UPP containing the data hash>",
+  "publicKey": "<base64 encoded raw public key>",
   "response": {
     "statusCode": <backend response status code (int)>,
     "header": {<backend response header (map[string][]string)>},

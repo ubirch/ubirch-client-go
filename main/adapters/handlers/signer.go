@@ -45,10 +45,11 @@ var hintLookup = map[h.Operation]ubirch.Hint{
 
 type signingResponse struct {
 	Error     string         `json:"error,omitempty"`
-	Hash      []byte         `json:"hash,omitempty"`
-	UPP       []byte         `json:"upp,omitempty"`
-	Response  h.HTTPResponse `json:"response,omitempty"`
-	RequestID string         `json:"requestID,omitempty"`
+	Hash      []byte         `json:"hash"`
+	UPP       []byte         `json:"upp"`
+	PublicKey []byte         `json:"publicKey"`
+	Response  h.HTTPResponse `json:"response"`
+	RequestID string         `json:"requestID"`
 }
 
 type Signer struct {
@@ -194,7 +195,12 @@ func (s *Signer) sendUPP(msg h.HTTPRequest, upp []byte) h.HTTPResponse {
 		}
 	}
 
-	return getSigningResponse(backendResp.StatusCode, msg, upp, backendResp, requestID, "")
+	pub, err := s.Protocol.GetPublicKeyBytes(msg.ID)
+	if err != nil {
+		log.Warnf("%s: could not get public key: %v", msg.ID, err)
+	}
+
+	return getSigningResponse(msg, upp, pub, backendResp, requestID)
 }
 
 func getRequestID(respUPP ubirch.UPP) (string, error) {
@@ -220,24 +226,24 @@ func errorResponse(code int, message string) h.HTTPResponse {
 	}
 }
 
-func getSigningResponse(respCode int, msg h.HTTPRequest, upp []byte, backendResp h.HTTPResponse, requestID string, errMsg string) h.HTTPResponse {
+func getSigningResponse(msg h.HTTPRequest, upp []byte, pub []byte, backendResp h.HTTPResponse, requestID string) h.HTTPResponse {
 	signingResp, err := json.Marshal(signingResponse{
 		Hash:      msg.Hash[:],
 		UPP:       upp,
+		PublicKey: pub,
 		Response:  backendResp,
 		RequestID: requestID,
-		Error:     errMsg,
 	})
 	if err != nil {
 		log.Warnf("error serializing signing response: %v", err)
 	}
 
-	if h.HttpFailed(respCode) {
-		log.Errorf("%s: request to ubirch authentication service (niomon) failed: (%d) %s", msg.ID, respCode, string(signingResp))
+	if h.HttpFailed(backendResp.StatusCode) {
+		log.Errorf("%s: request to ubirch authentication service (niomon) failed: (%d) %s", msg.ID, backendResp.StatusCode, string(signingResp))
 	}
 
 	return h.HTTPResponse{
-		StatusCode: respCode,
+		StatusCode: backendResp.StatusCode,
 		Header:     http.Header{"Content-Type": {"application/json"}},
 		Content:    signingResp,
 	}
