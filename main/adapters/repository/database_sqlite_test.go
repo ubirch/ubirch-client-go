@@ -201,15 +201,6 @@ func TestDatabaseManager_sqlite_LoadSignatureForUpdate(t *testing.T) {
 	tx, err = dm.StartTransaction(ctx)
 	require.NoError(t, err)
 
-	_, err = dm.LoadSignatureForUpdate(tx, testIdentity.Uid)
-	require.NoError(t, err)
-
-	newSig := make([]byte, 64)
-	rand.Read(newSig)
-
-	err = dm.StoreSignature(tx, testIdentity.Uid, newSig)
-	require.NoError(t, err)
-
 	// try to get lock on signature again and wait a second for the lock before context gets canceled
 	ctxWithTimeout, cancelWithTimeout := context.WithTimeout(context.Background(), time.Second)
 	defer cancelWithTimeout()
