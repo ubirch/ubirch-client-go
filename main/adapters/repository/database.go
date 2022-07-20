@@ -298,7 +298,8 @@ func (dm *DatabaseManager) isRecoverable(err error) bool {
 	case SQLite:
 		if liteErr, ok := err.(*sqlite.Error); ok {
 			if liteErr.Code() == 5 || // SQLITE_BUSY
-				liteErr.Code() == 6 { // SQLITE_LOCKED
+				liteErr.Code() == 6 || // SQLITE_LOCKED
+				liteErr.Code() == 261 { // SQLITE_BUSY_RECOVERY
 				time.Sleep(100 * time.Millisecond)
 				return true
 			}
