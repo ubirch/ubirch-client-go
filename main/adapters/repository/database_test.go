@@ -539,7 +539,10 @@ func initDB() (*DatabaseManager, error) {
 
 func cleanUpDB(t *testing.T, dm *DatabaseManager) {
 	dropTableQuery := fmt.Sprintf("DROP TABLE %s;", IdentityTableName)
-	_, err := dm.db.Exec(dropTableQuery)
+	err := dm.retry(func() error {
+		_, err := dm.db.Exec(dropTableQuery)
+		return err
+	})
 	assert.NoError(t, err)
 
 	err = dm.Close()

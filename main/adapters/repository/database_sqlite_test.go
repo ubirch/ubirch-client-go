@@ -38,13 +38,6 @@ func TestDatabaseManager_sqlite(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tx)
 
-	defer func() {
-		err := tx.Rollback()
-		if err != nil && err != sql.ErrTxDone {
-			t.Errorf("transaction context rollback failed: %v", err)
-		}
-	}()
-
 	_, err = dm.LoadActiveFlagForUpdate(tx, testIdentity.Uid)
 	assert.Equal(t, ErrNotExist, err)
 
@@ -62,13 +55,6 @@ func TestDatabaseManager_sqlite(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tx)
 
-	defer func() {
-		err := tx.Rollback()
-		if err != nil && err != sql.ErrTxDone {
-			t.Errorf("transaction context rollback failed: %v", err)
-		}
-	}()
-
 	err = dm.StoreIdentity(tx, testIdentity)
 	require.NoError(t, err)
 
@@ -83,13 +69,6 @@ func TestDatabaseManager_sqlite(t *testing.T) {
 	tx, err = dm.StartTransaction(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, tx)
-
-	defer func() {
-		err := tx.Rollback()
-		if err != nil && err != sql.ErrTxDone {
-			t.Errorf("transaction context rollback failed: %v", err)
-		}
-	}()
 
 	active, err = dm.LoadActiveFlagForUpdate(tx, testIdentity.Uid)
 	require.NoError(t, err)
@@ -128,13 +107,6 @@ func TestDatabaseManager_sqlite_StoreActiveFlag(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tx)
 
-	defer func() {
-		err := tx.Rollback()
-		if err != nil && err != sql.ErrTxDone {
-			t.Errorf("transaction context rollback failed: %v", err)
-		}
-	}()
-
 	err = dm.StoreIdentity(tx, testIdentity)
 	require.NoError(t, err)
 
@@ -144,13 +116,6 @@ func TestDatabaseManager_sqlite_StoreActiveFlag(t *testing.T) {
 	tx, err = dm.StartTransaction(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, tx)
-
-	defer func() {
-		err := tx.Rollback()
-		if err != nil && err != sql.ErrTxDone {
-			t.Errorf("transaction context rollback failed: %v", err)
-		}
-	}()
 
 	active, err := dm.LoadActiveFlagForUpdate(tx, testIdentity.Uid)
 	require.NoError(t, err)
@@ -182,13 +147,6 @@ func TestDatabaseManager_sqlite_SetSignature(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tx)
 
-	defer func() {
-		err := tx.Rollback()
-		if err != nil && err != sql.ErrTxDone {
-			t.Errorf("transaction context rollback failed: %v", err)
-		}
-	}()
-
 	err = dm.StoreIdentity(tx, testIdentity)
 	require.NoError(t, err)
 
@@ -201,13 +159,6 @@ func TestDatabaseManager_sqlite_SetSignature(t *testing.T) {
 	tx, err = dm.StartTransaction(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, tx)
-
-	defer func() {
-		err := tx.Rollback()
-		if err != nil && err != sql.ErrTxDone {
-			t.Errorf("transaction context rollback failed: %v", err)
-		}
-	}()
 
 	sig, err := dm.LoadSignatureForUpdate(tx, testIdentity.Uid)
 	require.NoError(t, err)
@@ -222,13 +173,6 @@ func TestDatabaseManager_sqlite_SetSignature(t *testing.T) {
 	tx2, err := dm.StartTransaction(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, tx2)
-
-	defer func() {
-		err := tx2.Rollback()
-		if err != nil && err != sql.ErrTxDone {
-			t.Errorf("transaction context rollback failed: %v", err)
-		}
-	}()
 
 	sig, err = dm.LoadSignatureForUpdate(tx2, testIdentity.Uid)
 	require.NoError(t, err)
@@ -250,13 +194,6 @@ func TestDatabaseManager_sqlite_LoadSignatureForUpdate(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tx)
 
-	defer func() {
-		err := tx.Rollback()
-		if err != nil && err != sql.ErrTxDone {
-			t.Errorf("transaction context rollback failed: %v", err)
-		}
-	}()
-
 	err = dm.StoreIdentity(tx, testIdentity)
 	require.NoError(t, err)
 
@@ -267,13 +204,6 @@ func TestDatabaseManager_sqlite_LoadSignatureForUpdate(t *testing.T) {
 	tx, err = dm.StartTransaction(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, tx)
-
-	defer func() {
-		err := tx.Rollback()
-		if err != nil && err != sql.ErrTxDone {
-			t.Errorf("transaction context rollback failed: %v", err)
-		}
-	}()
 
 	// try to get lock on signature again and wait a second for the lock before context gets canceled
 	ctxWithTimeout, cancelWithTimeout := context.WithTimeout(context.Background(), time.Second)
@@ -298,13 +228,6 @@ func TestDatabaseManager_sqlite_StoreAuth(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tx)
 
-	defer func() {
-		err := tx.Rollback()
-		if err != nil && err != sql.ErrTxDone {
-			t.Errorf("transaction context rollback failed: %v", err)
-		}
-	}()
-
 	err = dm.StoreIdentity(tx, testIdentity)
 	require.NoError(t, err)
 
@@ -317,13 +240,6 @@ func TestDatabaseManager_sqlite_StoreAuth(t *testing.T) {
 	tx, err = dm.StartTransaction(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, tx)
-
-	defer func() {
-		err := tx.Rollback()
-		if err != nil && err != sql.ErrTxDone {
-			t.Errorf("transaction context rollback failed: %v", err)
-		}
-	}()
 
 	auth, err := dm.LoadAuthForUpdate(tx, testIdentity.Uid)
 	require.NoError(t, err)
@@ -338,13 +254,6 @@ func TestDatabaseManager_sqlite_StoreAuth(t *testing.T) {
 	tx2, err := dm.StartTransaction(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, tx2)
-
-	defer func() {
-		err := tx2.Rollback()
-		if err != nil && err != sql.ErrTxDone {
-			t.Errorf("transaction context rollback failed: %v", err)
-		}
-	}()
 
 	auth, err = dm.LoadAuthForUpdate(tx2, testIdentity.Uid)
 	require.NoError(t, err)
@@ -375,13 +284,6 @@ func TestStoreExisting_sqlite(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tx)
 
-	defer func() {
-		err := tx.Rollback()
-		if err != nil && err != sql.ErrTxDone {
-			t.Errorf("transaction context rollback failed: %v", err)
-		}
-	}()
-
 	err = dm.StoreIdentity(tx, testIdentity)
 	require.NoError(t, err)
 
@@ -392,13 +294,6 @@ func TestStoreExisting_sqlite(t *testing.T) {
 	tx2, err := dm.StartTransaction(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, tx2)
-
-	defer func() {
-		err := tx2.Rollback()
-		if err != nil && err != sql.ErrTxDone {
-			t.Errorf("transaction context rollback failed: %v", err)
-		}
-	}()
 
 	err = dm.StoreIdentity(tx2, testIdentity)
 	assert.Error(t, err)
@@ -419,13 +314,6 @@ func TestDatabaseManager_sqlite_CancelTransaction(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tx)
 
-	defer func() {
-		err := tx.Rollback()
-		if err != nil && err != sql.ErrTxDone {
-			t.Errorf("transaction context rollback failed: %v", err)
-		}
-	}()
-
 	err = dm.StoreIdentity(tx, testIdentity)
 	require.NoError(t, err)
 
@@ -434,6 +322,16 @@ func TestDatabaseManager_sqlite_CancelTransaction(t *testing.T) {
 	// check not exists
 	_, err = dm.LoadIdentity(testIdentity.Uid)
 	assert.Equal(t, ErrNotExist, err)
+
+	ctx, cancel = context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err = dm.StartTransaction(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, tx)
+
+	err = dm.StoreIdentity(tx, testIdentity)
+	require.NoError(t, err)
 }
 
 func TestDatabaseManager_sqlite_StartTransaction(t *testing.T) {
@@ -453,6 +351,53 @@ func TestDatabaseManager_sqlite_StartTransaction(t *testing.T) {
 	tx2, err := dm.StartTransaction(ctx)
 	assert.EqualError(t, err, "context deadline exceeded")
 	assert.Nil(t, tx2)
+}
+
+func TestDatabaseManager_sqlite_StartTransaction2(t *testing.T) {
+	dm, err := initSQLiteDB(t)
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	testIdentity := generateRandomIdentity()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := dm.StartTransaction(ctx)
+	require.NoError(t, err)
+	assert.NotNil(t, tx)
+
+	err = dm.StoreIdentity(tx, testIdentity)
+	require.NoError(t, err)
+
+	err = tx.Commit()
+	require.NoError(t, err)
+
+	tx, err = dm.StartTransaction(ctx)
+	require.NoError(t, err)
+	assert.NotNil(t, tx)
+
+	sig1, err := dm.LoadSignatureForUpdate(tx, testIdentity.Uid)
+	require.NoError(t, err)
+
+	newSig := make([]byte, 64)
+	rand.Read(newSig)
+
+	err = dm.StoreSignature(tx, testIdentity.Uid, newSig)
+	require.NoError(t, err)
+
+	cancel()
+
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	defer cancel2()
+
+	tx2, err := dm.StartTransaction(ctx2)
+	require.NoError(t, err)
+	assert.NotNil(t, tx2)
+
+	sig2, err := dm.LoadSignatureForUpdate(tx2, testIdentity.Uid)
+	require.NoError(t, err)
+	assert.Equal(t, sig1, sig2)
 }
 
 func TestDatabaseManager_sqlite_InvalidTransactionCtx(t *testing.T) {
@@ -553,13 +498,6 @@ func TestDatabaseManager_sqlite_Retry(t *testing.T) {
 	tx, err := dm.StartTransaction(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, tx)
-
-	defer func() {
-		err := tx.Rollback()
-		if err != nil && err != sql.ErrTxDone {
-			t.Errorf("transaction context rollback failed: %v", err)
-		}
-	}()
 
 	tx2, err := dm.StartTransaction(ctx)
 	require.Error(t, err)
