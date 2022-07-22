@@ -9,6 +9,7 @@ import (
 	"github.com/ubirch/ubirch-client-go/main/config"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -19,7 +20,7 @@ const (
 
 func TestMigrate(t *testing.T) {
 	conf := setupMigrationTest(t)
-	defer cleanUpMigrationTest(t, conf.PostgresDSN)
+	defer cleanUpMigrationTest(t, conf.SqliteDSN)
 
 	err := Migrate(conf, "")
 	assert.NoError(t, err)
@@ -29,17 +30,14 @@ func setupMigrationTest(t *testing.T) *config.Config {
 	err := ioutil.WriteFile(contextFileName_Legacy, []byte(legacyProtocolCtxJson), filePerm)
 	require.NoError(t, err)
 
-	dbConf, err := getConfig()
-	require.NoError(t, err)
-
 	secretBytes32, _ := base64.StdEncoding.DecodeString(testSecret32Base64)
 
 	return &config.Config{
 		Devices:            devices,
 		Secret16Base64:     testSecret16Base64,
 		SecretBytes32:      secretBytes32,
-		PostgresDSN:        dbConf.PostgresDSN,
-		DbMaxConns:         dbConf.DbMaxConns,
+		SqliteDSN:          filepath.Join(t.TempDir(), "test.db?_pragma=journal_mode(WAL)&_txlock=exclusive&_pragma=busy_timeout(1000)"),
+		DbMaxConns:         0,
 		KdMaxTotalMemMiB:   4,
 		KdParamMemMiB:      2,
 		KdParamTime:        1,
@@ -68,7 +66,7 @@ func cleanUpMigrationTest(t *testing.T, dsn string) {
 		assert.NoError(t, err)
 	}
 
-	db, err := sql.Open(PostgreSQL, dsn)
+	db, err := sql.Open(SQLite, dsn)
 	require.NoError(t, err)
 
 	_, err = db.Exec(fmt.Sprintf("DROP TABLE %s;", IdentityTableName))

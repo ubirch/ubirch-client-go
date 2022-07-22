@@ -507,7 +507,7 @@ func TestProtocol_Cache(t *testing.T) {
 func TestProtocolLoad(t *testing.T) {
 	wg := &sync.WaitGroup{}
 
-	dm, err := initDB()
+	dm, err := initSQLiteDB(t)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
