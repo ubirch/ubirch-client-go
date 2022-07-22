@@ -200,7 +200,12 @@ func migrateIdentities(c *config.Config, configDir string, p *ExtendedProtocol) 
 }
 
 func hashAuthTokens(dm *DatabaseManager, p *ExtendedProtocol) error {
-	query := fmt.Sprintf("SELECT uid, auth_token FROM %s FOR UPDATE", IdentityTableName)
+	query := fmt.Sprintf("SELECT uid, auth_token FROM %s", IdentityTableName)
+
+	if dm.driverName == PostgreSQL {
+		query += " FOR UPDATE"
+	}
+	query += ";"
 
 	rows, err := dm.db.Query(query)
 	if err != nil {

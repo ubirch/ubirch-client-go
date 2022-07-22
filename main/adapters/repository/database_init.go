@@ -2,7 +2,7 @@ package repository
 
 import (
 	"context"
-	"database/sql"
+	"database/sql" // TODO: Drivers that do not support context cancellation will not return until after the query is completed.
 	"fmt"
 )
 
@@ -68,7 +68,12 @@ func (m *Migration) getVersion(ctx context.Context, dm *DatabaseManager) error {
 		return err
 	}
 
-	query := fmt.Sprintf("SELECT migration_version FROM %s WHERE id = $1 FOR UPDATE", VersionTableName)
+	query := fmt.Sprintf("SELECT migration_version FROM %s WHERE id = $1", VersionTableName)
+
+	if dm.driverName == PostgreSQL {
+		query += " FOR UPDATE"
+	}
+	query += ";"
 
 	err = m.tx.QueryRow(query, m.id).
 		Scan(&m.version)
