@@ -11,8 +11,9 @@ UPP data is sent to the UBIRCH client via HTTP requests. The client can receive 
 package which will be formatted and hashed (SHA256) by the client, or the binary representation of a SHA256 hash that is
 directly added as payload to the UPP.
 
-The UBIRCH client stores its signing keys and the signature of the last UPP persistently to ensure an intact chain after
-a restart.
+The UBIRCH client is able to handle multiple cryptographic identities (i.e. for multiple LAN based devices).
+For each identity, the signing key and the signature of the last UPP are stored persistently to ensure an intact chain
+after a restart.
 
 ![UBIRCH client](images/ubirch_client.png)
 
@@ -64,28 +65,22 @@ make publish IMAGE_TAG=stable # will tag a multi-arch image with the selected ta
 
 ## Configuration
 
-The client is able to handle multiple cryptographic identities (i.e. for multiple LAN based devices). The UUIDs for
-these devices must be declared in the configuration together with their respective authentication token for the UBIRCH
-backend. Only requests from *known* UUIDs will be accepted by the client.
-
 The configuration can be set via a configuration file (`config.json`) or environment variables.
 
-At start-up, the client will first check if the `UBIRCH_SECRET` environment variable exists and, if it does exist, load
-the configuration from the environment variables. If the `UBIRCH_SECRET` environment variable is not set or empty, the
-client will try to load the `config.json`-file from the working directory. If neither exist, the client will abort and
-exit.
+There are three mandatory configurations:
 
-The only mandatory configurations are
+1. a DSN to connect to a postgreSQL database, where the protocol context (i.e. keys, previous signatures, auth
+   tokens) can be stored
+2. a 32 byte base64 encoded secret, which will be used to encrypt the signing keys
+3. a static authentication token to protect the registration endpoint
 
-1. the `devices`-map, which maps device UUIDs to their authentication token
+> You can generate a random 32 byte base64 encoded secret in a Linux/macOS terminal
+> with `head -c 32 /dev/urandom | base64`
 
-> - A UUID can be generated in a Linux/macOS terminal with the `uuidgen` command
-> - See [here](#how-to-acquire-the-ubirch-backend-token) how to acquire the authentication token
-
-2. a 16 byte base64 encoded `secret`, which is used to encrypt the signing keys
-
-> You can generate a random 16 byte base64 encoded secret in a Linux/macOS terminal
-> with `head -c 16 /dev/urandom | base64`
+At start-up, the client will first check if the `UBIRCH_SECRET32` environment variable exists and, if it does exist,
+load the configuration from the environment variables. If the `UBIRCH_SECRET32` environment variable is not set or
+empty, the client will try to load the `config.json`-file from the working directory. If neither exist, the client will
+abort and exit.
 
 ### File Based Configuration
 
@@ -93,23 +88,20 @@ The only mandatory configurations are
 
 ```json
 {
-  "devices": {
-    "<UUID>": "<ubirch backend auth token>"
-  },
-  "secret": "<16 byte secret used to encrypt the key store (base64 encoded)>"
+  "postgresDSN": "postgres://<username>:<password>@<hostname>:5432/<database>",
+  "secret32": "<32 byte secret (base64 encoded)>",
+  "registerAuth": "<static auth token for register endpoint>"
 }
 ```
 
 > See [example_config.json](main/config/example_config.json) as an example for file-based configuration.
 
-Alternatively, the device UUIDs and their corresponding authentication tokens can also be set through a file
-"`identities.json`". See example: [example_identities.json](main/config/example_identities.json)
-
 ### Environment Based Configuration
 
 ```shell
-UBIRCH_DEVICES=<UUID>:<ubirch backend auth token>
-UBIRCH_SECRET=<16 byte secret used to encrypt the key store (base64 encoded)>
+UBIRCH_POSTGRES_DSN=postgres://<username>:<password>@<hostname>:5432/<database>
+UBIRCH_SECRET32=<32 byte secret (base64 encoded)>
+UBIRCH_REGISTERAUTH=<static auth token for register endpoint>
 ```
 
 > See [example.env](main/config/example.env) as an example for environment-based configuration.
@@ -135,26 +127,22 @@ the [releases](https://github.com/ubirch/ubirch-client-go/releases/latest)
 and pull the latest release from Docker Hub using the release tag, e.g.:
 
 ```console
-docker pull ubirch/ubirch-client:v1.2.2
+docker pull ubirch/ubirch-client:v2.2.3
 ```
 
 To start the multi-arch Docker image on any system, run:
 
 ```console
-docker run -v $(pwd):/data -p <host_port>:8080 ubirch/ubirch-client:v1.2.2
+docker run -v $(pwd):/data --network host ubirch/ubirch-client:v2.2.3
 ```
 
-> replace `<host_port>` with the desired TCP network port on the host (e.g. `-p 8080:8080`)
-
-The default configuration directory inside the docker container is `/data`. The docker image mounts the current
+The configuration directory inside the docker container is `/data`. The docker image mounts the current
 directory (`$(pwd)`) into the */data* path to load the configuration file (if configuration is not set via environment
-variables), and the TLS certificate and key files (if TLS is enabled). If no DSN (database) is set in the configuration,
-the image stores the protocol context
-(i.e. keystore and last signatures) in this directory as well, in which case the directory must be writable.
+variables), and the TLS certificate and key files (if TLS is enabled).
 
 It is also possible to pass an absolute path instead of `$(pwd)`.
 
-If the */data* path is not used for either configuration file, TLS cert files, or to store the protocol context,
+If the */data* path is not used for either configuration file, nor TLS cert files,
 the `-v $(pwd):/data` parameter can be omitted.
 
 ## Interface Description
@@ -187,24 +175,6 @@ A CSR for an already registered identity can be retrieved from the CSR endpoint.
 
     curl ${host}/${uuid}/csr -X GET \
     -H "X-Auth-Token: ${registerAuth}" \
-    -i
-
-### Key De-/Re-Activation
-
-A key can be de-activated ...
-
-    curl ${host}/device/updateActive -X PUT \
-    -H "X-Auth-Token: ${registerAuth}" \
-    -H "Content-Type: application/json" \
-    -d '{"id":${device_uuid},"active":false}' \
-    -i
-
-... and re-activated .
-
-    curl ${host}/device/updateActive -X PUT \
-    -H "X-Auth-Token: ${registerAuth}" \
-    -H "Content-Type: application/json" \
-    -d '{"id":${device_uuid},"active":true}' \
     -i
 
 ### UPP Signing
@@ -287,23 +257,25 @@ The response body consists of either an error message, or a JSON map with
 
 #### Error Codes
 
-| HTTP response status code | orig. data | hash | description |
-|---------------------------|---------------------|---------------|-------------|
-| 200 - OK | x | x | success |
-| 400 - Bad Request | x | x | unable to read request body |
-|                   | x |   | invalid content-type for original data (≠ `application/octet-stream` or `application/json`) |
-|                   | x |   | unable to parse JSON request body (*only for content-type `application/json`*) |
-|                   |   | x | invalid content-type for hash (≠ `application/octet-stream` or `text/plain`) |
-|                   |   | x | decoding hash failed (*only for content-type `text/plain`*) |
-|                   |   | x | invalid SHA256 hash size (≠ 32 bytes) |
-| 401 - Unauthorized | x | x | unknown UUID |
-|                    | x | x | invalid auth token |
-| 404 - Not Found | x | x | invalid UUID  |
-|                 | x | x | invalid operation (≠ `anchor` / `disable` / `enable` / `delete`) |
-| 500 - Internal Server Error | x | x | signing failed |
-|                             | x | x | sending request to server failed |
-| 503 - Service Temporarily Unavailable | x | x | service busy |
-| 504 - Gateway Timeout | x | x | service was unable to produce a timely response |
+| HTTP response status code             | orig. data | hash | description                                                                                 |
+|---------------------------------------|------------|------|---------------------------------------------------------------------------------------------|
+| 200 - OK                              | x          | x    | success                                                                                     |
+| 400 - Bad Request                     | x          | x    | unable to read request body                                                                 |
+|                                       | x          |      | invalid content-type for original data (≠ `application/octet-stream` or `application/json`) |
+|                                       | x          |      | unable to parse JSON request body (*only for
+content-type `application/json`*)              |
+|                                       |            | x    | invalid content-type for hash (≠ `application/octet-stream` or `text/plain`)                |
+|                                       |            | x    | decoding hash failed (*only for
+content-type `text/plain`*)                                 |
+|                                       |            | x    | invalid SHA256 hash size (≠ 32 bytes)                                                       |
+| 401 - Unauthorized                    | x          | x    | unknown UUID                                                                                |
+|                                       | x          | x    | invalid auth token                                                                          |
+| 404 - Not Found                       | x          | x    | invalid UUID                                                                                |
+|                                       | x          | x    | invalid operation (≠ `anchor` / `disable` / `enable` / `delete`)                            |
+| 500 - Internal Server Error           | x          | x    | signing failed                                                                              |
+|                                       | x          | x    | sending request to server failed                                                            |
+| 503 - Service Temporarily Unavailable | x          | x    | service busy                                                                                |
+| 504 - Gateway Timeout                 | x          | x    | service was unable to produce a timely response                                             |
 
 Internally, the client sends a request to the UBIRCH authentication service (*Niomon*) and forwards its response back to
 the sender (i.e. the `"response"`-filed in the JSON response body of the client). If no other errors occurred, the
@@ -434,6 +406,24 @@ The response body consists of either an error message, or a JSON map with
   "error": "error message"
 }
 ```
+
+### Key De-/Re-Activation
+
+A key can be de-activated ...
+
+    curl ${host}/device/updateActive -X PUT \
+    -H "X-Auth-Token: ${registerAuth}" \
+    -H "Content-Type: application/json" \
+    -d '{"id":${device_uuid},"active":false}' \
+    -i
+
+... and re-activated .
+
+    curl ${host}/device/updateActive -X PUT \
+    -H "X-Auth-Token: ${registerAuth}" \
+    -H "Content-Type: application/json" \
+    -d '{"id":${device_uuid},"active":true}' \
+    -i
 
 ### TCP Address
 
