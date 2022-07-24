@@ -6,13 +6,8 @@
   "secret32": "sdSjtMh6C2oNgsiVcPx89RgcNYl8L6R9PhWU3iGIL+k=",
   "registerAuth": "S3GyUaoZ8CuElP8NM/NzSTPdO3ABREIsJT1Hie8esb8=",
   "env": "prod",
-  "DSN_InitDb": true,
-  "DSN_Host": "database-host-name",
-  "DSN_User": "database-user-name",
-  "DSN_Password": "database-password",
-  "DSN_Database": "database-name",
-  "CSR_country": "DE",
-  "CSR_organization": "ubirch GmbH",
+  "postgresDSN": "postgres://<username>:<password>@<hostname>:5432/<database>",
+  "dbMaxConns": 20,
   "TCP_addr": ":8080",
   "TLS": true,
   "TLSCertFile": "certs/cert.pem",
@@ -22,6 +17,15 @@
     "https://foo.com",
     "https://*.bar.com"
   ],
+  "CSR_country": "DE",
+  "CSR_organization": "ubirch GmbH",
   "debug": true,
-  "logTextFormat": true
+  "logTextFormat": true,
+  "kdMaxTotalMemMiB": 10,
+  "kdParamMemMiB": 1,
+  "kdParamTime": 100,
+  "kdParamParallelism": 4,
+  "kdParamKeyLen": 32,
+  "kdParamSaltLen": 24,
+  "kdUpdateParams": true
 }
