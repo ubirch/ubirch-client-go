@@ -111,7 +111,11 @@ under [Optional Configurations](#optional-configurations).
 
 ## Identity Initialization
 
-Before signing requests can be processed, an identity has to be initialized. The initialization consists of three parts:
+The UBIRCH client is able to handle multiple cryptographic identities.
+An identity has a universally unique identifier (UUID), private and public key, and an auth token.
+Before signing requests can be processed, an identity has to be initialized.
+
+The initialization consists of three parts:
 
 - key generation (ECDSA)
 - public key registration at the UBIRCH backend
@@ -141,12 +145,13 @@ their authentication token.
 - add the `devices`-map to your `config.json`-file:
   ```json
     "devices": {
-      "<UUID>": "<ubirch backend auth token>"
+      "<UUID>": "<ubirch backend auth token>",
+      "<another UUID>": "<another ubirch backend auth token>"
     }
   ```
 - or as environment variable:
     ```shell
-    UBIRCH_DEVICES=<UUID>:<ubirch backend auth token>
+    UBIRCH_DEVICES=<UUID>:<ubirch backend auth token>,<another UUID>:<another ubirch backend auth token>
     ```
 
 Alternatively, the device UUIDs and their corresponding authentication tokens can also be set through a file
@@ -706,7 +711,7 @@ By default, the log of the client is in JSON format. To change it to a (more hum
 
 1. Configuration
 
-   First, you will need a device UUID, that is registered with the ubirch backend, and a corresponding auth token for
+   First, you will need a device UUID, that is registered with the UBIRCH backend, and a corresponding auth token for
    that device. You will also need a secret to encrypt the locally stored private keys:
     1. Generate a UUID for your device. On Linux/macOS, simply enter `uuidgen` in your terminal. Alternatively, you can
        use an [online tool](https://www.uuidtools.com/v4).
@@ -784,7 +789,7 @@ By default, the log of the client is in JSON format. To change it to a (more hum
    **Floating-point numbers and integers greater than 2<sup>53</sup> are not allowed as values for the JSON data
    package!**
 
-   You also need to set the `X-Auth-Token`-header with your ubirch backend auth token from step 1.
+   You also need to set the `X-Auth-Token`-header with your UBIRCH backend auth token from step 1.
 
    Here is an example of how a request to the client would look like using `CURL`:
    ```console
@@ -800,7 +805,8 @@ By default, the log of the client is in JSON format. To change it to a (more hum
 
    When the client receives a request, it hashes the data from the request body and creates a chained Ubirch Protocol
    Package (UPP) with the data hash as payload. The UPP will be signed with the private key of the device and sent to
-   the ubirch backend. There, the signature will be verified with the previously registered public key.
+   the UBIRCH backend. There, the signature will be verified with the previously registered public key.
+
    The output should look like this:
     ```console
     INFO[2021-03-01 18:52:59.471 +0100] 50b1a5bb-83cd-4251-b674-b3c71a058fc3: anchoring hash: CDUvtOIBnnZ8im/UXQn5G/q5EK9l2Bqy+HyMgSzPZoA=
@@ -844,7 +850,7 @@ By default, the log of the client is in JSON format. To change it to a (more hum
    If you get a response code other than `200`, it means that something went wrong. In this case the client will respond
    with an error message. You can also find error messages in the console output of the client.
 
-1. To stop the client, press `ctrl` + `c`.
+4. To stop the client, press `ctrl` + `c`.
 
 ## Verification
 
