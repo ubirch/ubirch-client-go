@@ -737,7 +737,7 @@ By default, the log of the client is in JSON format. To change it to a (more hum
     
    ---
 
-3. Anchor your data fingerprint
+3. Seal your data
 
    The client is now listening for HTTP requests on port `8080`. You can either...
     - send JSON data to the `/<UUID>`-endpoint with `Content-Type: application/json`-header, or
