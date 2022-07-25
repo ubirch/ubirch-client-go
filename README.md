@@ -109,16 +109,48 @@ UBIRCH_REGISTERAUTH=<static auth token for register endpoint>
 All further configuration parameters have default values, that can be changed as described
 under [Optional Configurations](#optional-configurations).
 
-### How to acquire the ubirch backend token
+## Identity Initialization
+
+Before signing requests can be processed, an identity has to be initialized. The initialization consists of three parts:
+
+- key generation (ECDSA)
+- public key registration at the UBIRCH backend
+- storing of the context in the database
+
+The initialization can be triggered via [HTTP request](#identity-registration)
+or [configuration](#identity-initialization-via-configuration).
+
+Either way, the first step is to register the identity's UUID with the UBIRCH backend
+and acquire an authentication token.
+
+> A UUID can easily be generated in a Linux/macOS terminal with the `uuidgen` command.
+
+### How to acquire the UBIRCH backend authentication token
 
 - Create an account at the [**UBIRCH web UI**](https://console.prod.ubirch.com/) and log in.
 - Go to **Things** (in the menu on the left) and click the green `+ ADD NEW DEVICE`-button.
 - Enter your UUID to the **ID** field and, optionally, a description. Then click on `register`.
 - After successful registration, you can click on your UUID to open the settings and copy the **"password"** (which
-  looks like a UUID) from the `apiConfig`. This is the UBIRCH backend auth token needed for the configuration of the
-  client.
+  looks like a UUID) from the `apiConfig`. This is the UBIRCH backend authentication token for your device.
 
-[Jump back to Configuration](#configuration)
+### Identity initialization via configuration
+
+It is possible to declare identities (devices) in the configuration with a `devices`-map, which maps device UUIDs to
+their authentication token.
+
+- add the `devices`-map to your `config.json`-file:
+  ```json
+    "devices": {
+      "<UUID>": "<ubirch backend auth token>"
+    }
+  ```
+- or as environment variable:
+    ```shell
+    UBIRCH_DEVICES=<UUID>:<ubirch backend auth token>
+    ```
+
+Alternatively, the device UUIDs and their corresponding authentication tokens can also be set through a file
+`identities.json`. See example: [example_identities.json](main/config/example_identities.json)
 
 ## Run Client in Docker container
 
@@ -169,6 +201,8 @@ contains an X.509 Certificate Signing Request in PEM format.
     -d '{"uuid":${device_uuid}, "password":${password}}' \
     -i
 
+The "password" is the [UBIRCH backend authentication token](#how-to-acquire-the-ubirch-backend-authentication-token).
+
 ### CSR Generation
 
 A CSR for an already registered identity can be retrieved from the CSR endpoint.
@@ -186,7 +220,7 @@ token must be sent with the request header. Without it, the client will not acce
 |----------------|------------------------------------------|
 | `X-Auth-Token` | UBIRCH backend token related to `<UUID>` |
 
-> See [how to acquire the ubirch backend token](#how-to-acquire-the-ubirch-backend-token).
+> See [how to acquire the UBIRCH backend token](#how-to-acquire-the-ubirch-backend-authentication-token).
 
 #### Anchoring Hashes (chained)
 
