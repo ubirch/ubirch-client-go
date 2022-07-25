@@ -760,10 +760,11 @@ By default, the log of the client is in JSON format. To change it to a (more hum
     INFO[2021-03-01 18:41:20.291 +0100] protocol context will be stored in local file system
     INFO[2021-03-01 18:41:20.291 +0100] generating new key pair for UUID 50b1a5bb-83cd-4251-b674-b3c71a058fc3
     INFO[2021-03-01 18:41:20.664 +0100] 50b1a5bb-83cd-4251-b674-b3c71a058fc3: registering public key at key service: https://key.prod.ubirch.com/api/keyService/v1/pubkey
-    INFO[2021-03-01 18:41:21.755 +0100] 50b1a5bb-83cd-4251-b674-b3c71a058fc3: submitting CSR to identity service: https://identity.prod.ubirch.com/api/certs/v1/csr/register
     INFO[2021-03-01 18:41:22.130 +0100] starting HTTP service
     ```
    That means the client is running and ready!
+
+   If you want, you can now go back to the UBIRCH web UI and see the freshly registered public key under `PublicKeys`.
 
    ---
    **WARNING**
@@ -807,14 +808,15 @@ By default, the log of the client is in JSON format. To change it to a (more hum
    Package (UPP) with the data hash as payload. The UPP will be signed with the private key of the device and sent to
    the UBIRCH backend. There, the signature will be verified with the previously registered public key.
 
-   The output should look like this:
+   The console output of the client should look like this:
     ```console
     INFO[2021-03-01 18:52:59.471 +0100] 50b1a5bb-83cd-4251-b674-b3c71a058fc3: anchoring hash: CDUvtOIBnnZ8im/UXQn5G/q5EK9l2Bqy+HyMgSzPZoA=
     INFO[2021-03-01 18:53:00.313 +0100] 50b1a5bb-83cd-4251-b674-b3c71a058fc3: request ID: 0f11686e-aee3-4e97-8d0d-793a0c31d969
     ```
-   Take note of the hash!
 
-   If your request was submitted, you'll get a `200` response code.
+   Take note of the hash for [verification](#verification).
+
+   If your request was successful, you'll get the HTTP response code `200`.
 
    The HTTP response body is a JSON map. It contains the data hash, the UPP, which was created by the client and sent
    to the UBIRCH backend, and the UBIRCH backend response. The content of the UBIRCH backend response is a
@@ -916,7 +918,7 @@ endpoint for a quick check, that verifies that the hash was received by the UBIR
 https://verify.prod.ubirch.com/api/upp
 ```
 
-... and another endpoint, which additionally checks the chain:
+... and another endpoint, which additionally checks the chain, but not the blockchain anchor:
 
 ```fundamental
 https://verify.prod.ubirch.com/api/upp/verify
