@@ -315,12 +315,12 @@ The response body consists of either an error message, or a JSON map with
 | 504 - Gateway Timeout | x | x | service was unable to produce a timely response |
 
 Internally, the client sends a request to the UBIRCH authentication service (*Niomon*) and forwards its response back to
-the sender (i.e. the `"response"`-filed in the JSON response body of the client). If no other errors occurred, the
-client will adopt the HTTP response status code of the backend response.
+the sender (i.e. the `"response"`-filed in the JSON response body of the client). If no errors occurred before sending
+the request to Niomon, the client will simply forward the HTTP response status code that Niomon returned.
 
-> See the
-> [swagger documentation](https://developer.ubirch.com/api.html?url=https://niomon.demo.ubirch.com/swagger/swagger.json#/Ubirch%20Protocol%20Packet/Receives%20Ubirch%20Protocol%20Packets)
-> for *Niomon* error codes.
+See the
+[swagger documentation](https://developer.ubirch.com/api.html?url=https://niomon.demo.ubirch.com/swagger/swagger.json#/Ubirch%20Protocol%20Packet/Receives%20Ubirch%20Protocol%20Packets)
+for *Niomon* error codes.
 
 #### CURL Request Examples:
 
