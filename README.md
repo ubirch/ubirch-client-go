@@ -11,22 +11,11 @@ UPP data is sent to the UBIRCH client via HTTP requests. The client can receive 
 package which will be formatted and hashed (SHA256) by the client, or the binary representation of a SHA256 hash that is
 directly added as payload to the UPP.
 
-The UBIRCH client stores its signing keys and the signature of the last UPP persistently to ensure an intact chain after
-a restart.
+The UBIRCH client is able to handle multiple cryptographic identities (i.e. for multiple LAN based devices).
+For each identity, the signing key and the signature of the last UPP are stored persistently to ensure an intact chain
+after a restart.
 
 ![UBIRCH client](images/ubirch_client.png)
-
----
-**WARNING**
-
-By default, the client stores the encrypted signing keys in a local file `keys.json`, which will be created in the
-working directory upon start-up. **Do not delete this file**, as our backend will not accept new key registrations once
-a device already has a registered key.
-
-Further, the client creates a subdirectory `/signatures` with multiple binary files, which contain the previous UPP
-signatures for chaining.
-
----
 
 ## Dockerized UBIRCH client
 
@@ -76,27 +65,22 @@ make publish IMAGE_TAG=stable # will tag a multi-arch image with the selected ta
 
 ## Configuration
 
-The client may be configured using a configuration file (`config.json`) or by using environment variables that can be
-passed to the docker executable.
+The configuration can be set via a configuration file (`config.json`) or environment variables.
 
-The client is able to handle multiple cryptographic identities (i.e. for multiple LAN based devices). The UUIDs for
-these devices must be declared in the configuration file together with their respective authentication token. Only
-requests from *known* UUIDs will be accepted by the client.
+There are three mandatory configurations:
 
-The client will first look if the `UBIRCH_SECRET` env variable exists and load the configuration from the environment
-variables in that case. If the `UBIRCH_SECRET` env variable is not set or empty, and the `config.json`-file exists in
-the working directory, the configuration will be loaded from the file. If neither exist, the client will abort and exit.
+1. a DSN to connect to a postgreSQL database, where the protocol context (i.e. keys, previous signatures, auth
+   tokens) can be stored
+2. a 32 byte base64 encoded secret, which will be used to encrypt the signing keys
+3. a static authentication token to protect the registration endpoint
 
-The only mandatory configurations are
+> You can generate a random 32 byte base64 encoded secret in a Linux/macOS terminal
+> with `head -c 32 /dev/urandom | base64`
 
-1. the `devices`-map, which maps device UUIDs to their authentication token
-
-> - A UUID can be generated in a Linux/macOS terminal with the `uuidgen` command
-> - See [here](#how-to-acquire-the-ubirch-backend-token) how to acquire the authentication token
-
-2. the 16 byte base64 encoded `secret`, which is used to encrypt the key store
-
-> Quickly generate a random 16 byte base64 encoded secret in a Linux/macOS terminal with `head -c 16 /dev/urandom | base64`
+At start-up, the client will first check if the `UBIRCH_SECRET32` environment variable exists and, if it does exist,
+load the configuration from the environment variables. If the `UBIRCH_SECRET32` environment variable is not set or
+empty, the client will try to load the `config.json`-file from the working directory. If neither exist, the client will
+abort and exit.
 
 ### File Based Configuration
 
@@ -104,23 +88,20 @@ The only mandatory configurations are
 
 ```json
 {
-  "devices": {
-    "<UUID>": "<ubirch backend auth token>"
-  },
-  "secret": "<16 byte secret used to encrypt the key store (base64 encoded)>"
+  "postgresDSN": "postgres://<username>:<password>@<hostname>:5432/<database>",
+  "secret32": "<32 byte secret (base64 encoded)>",
+  "registerAuth": "<static auth token for register endpoint>"
 }
 ```
 
 > See [example_config.json](main/config/example_config.json) as an example for file-based configuration.
 
-Beside the `devices`-map, the device UUIDs and their corresponding authentication tokens can also be set through a file
-"`identities.json`". See example: [example_identities.json](main/config/example_identities.json)
-
 ### Environment Based Configuration
 
 ```shell
-UBIRCH_DEVICES=<UUID>:<ubirch backend auth token>
-UBIRCH_SECRET=<16 byte secret used to encrypt the key store (base64 encoded)>
+UBIRCH_POSTGRES_DSN=postgres://<username>:<password>@<hostname>:5432/<database>
+UBIRCH_SECRET32=<32 byte secret (base64 encoded)>
+UBIRCH_REGISTERAUTH=<static auth token for register endpoint>
 ```
 
 > See [example.env](main/config/example.env) as an example for environment-based configuration.
@@ -128,15 +109,53 @@ UBIRCH_SECRET=<16 byte secret used to encrypt the key store (base64 encoded)>
 All further configuration parameters have default values, that can be changed as described
 under [Optional Configurations](#optional-configurations).
 
-### How to acquire the ubirch backend token
+## Identity Initialization
 
-- Create an account at the [**UBIRCH web UI**](https://console.prod.ubirch.com/) and log in
-- Go to **Things** (in the menu on the left) and click on `+ ADD NEW DEVICE`
-- Enter your UUID to the **ID** field. You can also add a description if you want. Then click on `register`.
-- Your UUID should now show up under the **Your Things**-overview. Click on it and copy the "password" (which looks like
-  a UUID) from the `apiConfig`. This is the UBIRCH backend token needed for the configuration of the client.
+The UBIRCH client is able to handle multiple cryptographic identities.
+An identity has a universally unique identifier (UUID), private and public key, and an auth token.
+Before signing requests can be processed, an identity has to be initialized.
 
-[Jump back to Configuration](#configuration)
+The initialization consists of three parts:
+
+- key generation (ECDSA)
+- public key registration at the UBIRCH backend
+- storing of the context in the database
+
+The initialization can be triggered via [HTTP request](#identity-registration)
+or [configuration](#identity-initialization-via-configuration).
+
+Either way, the first step is to register the identity's UUID with the UBIRCH backend
+and acquire an authentication token.
+
+> A UUID can easily be generated in a Linux/macOS terminal with the `uuidgen` command.
+
+### How to acquire the UBIRCH backend authentication token
+
+- Create an account at the [**UBIRCH web UI**](https://console.prod.ubirch.com/) and log in.
+- Go to **Things** (in the menu on the left) and click the green `+ ADD NEW DEVICE`-button.
+- Enter your UUID to the **ID** field and, optionally, a description. Then click on `register`.
+- After successful registration, you can click on your UUID to open the settings and copy the **"password"** (which
+  looks like a UUID) from the `apiConfig`. This is the UBIRCH backend authentication token for your device.
+
+### Identity initialization via configuration
+
+It is possible to declare identities (devices) in the configuration with a `devices`-map, which maps device UUIDs to
+their authentication token.
+
+- add the `devices`-map to your `config.json`-file:
+  ```json
+    "devices": {
+      "<UUID>": "<ubirch backend auth token>",
+      "<another UUID>": "<another ubirch backend auth token>"
+    }
+  ```
+- or as environment variable:
+    ```shell
+    UBIRCH_DEVICES=<UUID>:<ubirch backend auth token>,<another UUID>:<another ubirch backend auth token>
+    ```
+
+Alternatively, the device UUIDs and their corresponding authentication tokens can also be set through a file
+`identities.json`. See example: [example_identities.json](main/config/example_identities.json)
 
 ## Run Client in Docker container
 
@@ -145,26 +164,22 @@ the [releases](https://github.com/ubirch/ubirch-client-go/releases/latest)
 and pull the latest release from Docker Hub using the release tag, e.g.:
 
 ```console
-docker pull ubirch/ubirch-client:v1.2.2
+docker pull ubirch/ubirch-client:v2.2.3
 ```
 
 To start the multi-arch Docker image on any system, run:
 
 ```console
-docker run -v $(pwd):/data -p <host_port>:8080 ubirch/ubirch-client:v1.2.2
+docker run -v $(pwd):/data --network host ubirch/ubirch-client:v2.2.3
 ```
 
-> replace `<host_port>` with the desired TCP network port on the host (e.g. `-p 8080:8080`)
-
-The default configuration directory inside the docker container is `/data`. The docker image mounts the current
+The configuration directory inside the docker container is `/data`. The docker image mounts the current
 directory (`$(pwd)`) into the */data* path to load the configuration file (if configuration is not set via environment
-variables), and the TLS certificate and key files (if TLS is enabled). If no DSN (database) is set in the configuration,
-the image stores the protocol context
-(i.e. keystore and last signatures) in this directory as well, in which case the directory must be writable.
+variables), and the TLS certificate and key files (if TLS is enabled).
 
 It is also possible to pass an absolute path instead of `$(pwd)`.
 
-If the */data* path is not used for either configuration file, TLS cert files, or to store the protocol context,
+If the */data* path is not used for either configuration file, nor TLS cert files,
 the `-v $(pwd):/data` parameter can be omitted.
 
 ## Interface Description
@@ -172,9 +187,8 @@ the `-v $(pwd):/data` parameter can be omitted.
 The UBIRCH client provides HTTP endpoints for both original data and direct hash injection, i.e. the SHA256 digest of
 the original data. If the client receives original data, it will create a SHA256 hash before any further processing.
 
-*We don't care about your data!*
-
-This means that the original data will have to be stored independently in order to be able to verify it later.
+This means, UBIRCH will never see your original data. It also means that the original data will have to be stored
+independently in order to be able to verify it later.
 
 > When receiving a JSON data package, the UBIRCH client will sort the keys alphabetically and remove insignificant
 > space characters before hashing.
@@ -192,6 +206,8 @@ contains an X.509 Certificate Signing Request in PEM format.
     -d '{"uuid":${device_uuid}, "password":${password}}' \
     -i
 
+The "password" is the [UBIRCH backend authentication token](#how-to-acquire-the-ubirch-backend-authentication-token).
+
 ### CSR Generation
 
 A CSR for an already registered identity can be retrieved from the CSR endpoint.
@@ -200,25 +216,7 @@ A CSR for an already registered identity can be retrieved from the CSR endpoint.
     -H "X-Auth-Token: ${registerAuth}" \
     -i
 
-### Key De-/Re-Activation
-
-A key can be de-activated ...
-
-    curl ${host}/device/updateActive -X PUT \
-    -H "X-Auth-Token: ${registerAuth}" \
-    -H "Content-Type: application/json" \
-    -d '{"id":${device_uuid},"active":false}' \
-    -i
-
-... and re-activated .
-
-    curl ${host}/device/updateActive -X PUT \
-    -H "X-Auth-Token: ${registerAuth}" \
-    -H "Content-Type: application/json" \
-    -d '{"id":${device_uuid},"active":true}' \
-    -i
-
-### UPP Signing Service
+### UPP Signing
 
 Signing service endpoints require an authentication token, which corresponds to the `UUID` used in the request. The
 token must be sent with the request header. Without it, the client will not accept the request.
@@ -227,7 +225,7 @@ token must be sent with the request header. Without it, the client will not acce
 |----------------|------------------------------------------|
 | `X-Auth-Token` | UBIRCH backend token related to `<UUID>` |
 
-> See [how to acquire the ubirch backend token](#how-to-acquire-the-ubirch-backend-token).
+> See [how to acquire the UBIRCH backend token](#how-to-acquire-the-ubirch-backend-authentication-token).
 
 #### Anchoring Hashes (chained)
 
@@ -292,8 +290,9 @@ The response body consists of either an error message, or a JSON map with
 }
 ```
 
-> UPPs (such as the backend response content) are [MessagePack](https://github.com/msgpack/msgpack/blob/master/spec.md) formatted
-> and can be decoded using an online tool like [this MessagePack to JSON Converter](https://toolslick.com/conversion/data/messagepack-to-json).
+> UPPs (such as the backend response content) are [MessagePack](https://github.com/msgpack/msgpack/blob/master/spec.md)
+> formatted and can be decoded using an online tool
+> like [this MessagePack to JSON Converter](https://toolslick.com/conversion/data/messagepack-to-json).
 
 #### Error Codes
 
@@ -316,11 +315,12 @@ The response body consists of either an error message, or a JSON map with
 | 504 - Gateway Timeout | x | x | service was unable to produce a timely response |
 
 Internally, the client sends a request to the UBIRCH authentication service (*Niomon*) and forwards its response back to
-the sender (i.e. the `"response"`-filed in the JSON response body of the client). If no other errors occurred, the
-client will adopt the HTTP response status code of the backend response.
+the sender (i.e. the `"response"`-filed in the JSON response body of the client). If no errors occurred before sending
+the request to Niomon, the client will simply forward the HTTP response status code that Niomon returned.
 
-> See the [swagger documentation](https://developer.ubirch.com/api.html?url=https://niomon.demo.ubirch.com/swagger/swagger.json#/Ubirch%20Protocol%20Packet/Receives%20Ubirch%20Protocol%20Packets)
-> for *Niomon* error codes.
+See the
+[swagger documentation](https://developer.ubirch.com/api.html?url=https://niomon.demo.ubirch.com/swagger/swagger.json#/Ubirch%20Protocol%20Packet/Receives%20Ubirch%20Protocol%20Packets)
+for *Niomon* error codes.
 
 #### CURL Request Examples:
 
@@ -410,9 +410,9 @@ client will adopt the HTTP response status code of the backend response.
           -i
       ```
 
-### UPP Verification Service
+### UPP Verification
 
-Verification service endpoints do not require an authentication token.
+Verification endpoints do not require an authentication token.
 
 | Method | Path | Content-Type | Description |
 |--------|------|--------------|-------------|
@@ -444,116 +444,27 @@ The response body consists of either an error message, or a JSON map with
 }
 ```
 
-### COSE Service
+### Key De-/Re-Activation
 
-*see specification: [CBOR Object Signing and Encryption (COSE)](https://tools.ietf.org/html/rfc8152)*
+A key can be de-activated ...
 
-The COSE service expects either original data as JSON or CBOR object, or the SHA256 hash of a
-[CBOR encoded signature structure](https://tools.ietf.org/html/rfc8152#section-4.4) (`Sig_structure`)
-for a [COSE Single Signer Data Object](https://tools.ietf.org/html/rfc8152#section-4.2) (`COSE_Sign1`).
+    curl ${host}/device/updateActive -X PUT \
+    -H "X-Auth-Token: ${registerAuth}" \
+    -H "Content-Type: application/json" \
+    -d '{"id":${device_uuid},"active":false}' \
+    -i
 
-When receiving a JSON data package, the service will encode it
-with [Canonical CBOR](https://tools.ietf.org/html/rfc7049#section-3.9) rules.
+... and re-activated .
 
-| Method | Path | Content-Type | Description |
-|--------|------|--------------|-------------|
-| POST | `/<UUID>/anchor` | `"application/json"` | original data (JSON data package) |
-| POST | `/<UUID>/anchor` | `"application/cbor"` | original data (CBOR encoded) |
-| POST | `/<UUID>/cbor/hash` | `application/octet-stream` | [SHA256 hash (binary)](#how-to-create-valid-cose-objects-without-sending-original-data-to-the-service) |
-| POST | `/<UUID>/cbor/hash` | `text/plain` | [SHA256 hash (base64 string repr.)](#how-to-create-valid-cose-objects-without-sending-original-data-to-the-service) |
-
-To send the **hex** string representation of the hash (instead of base64), the `Content-Transfer-Encoding`-header can be
-used.
-
-```json
-{"Content-Type": "text/plain", "Content-Transfer-Encoding": "hex"}
-```
-
-#### COSE Response
-
-The service returns a ECDSA P-256 signed `COSE_Sign1` object.
-
-```fundamental
-    COSE_Sign1 = [
-        protected : serialized_map,  # serialized CBOR encoded protected header map (b'\xA1\x01\x26') => {1: -7} => {"alg": <ES256>}
-        unprotected : header_map,    # CBOR encoded unprotected header map \xA1\x04\x50\xA7\xEA\x87\xF4\xCF\xC4\x45\x67\x8B\xD1\x0B\x4C\x15\xEA\xF5\x5E => {4: b'\xA7\xEA\x87\xF4\xCF\xC4\x45\x67\x8B\xD1\x0B\x4C\x15\xEA\xF5\x5E'} => {"kid": <UUID>}
-        payload : bstr,              # original data or SHA256 hash (depending on request content)
-        signature : bstr             # ECDSA P-256 signature of the SHA256 hash of the CBOR encoded COSE_Sign1 signature structure
-    ]
-```
-
-The returned `COSE_Sign1` object contains the request data (original data or SHA256 hash) as payload and the
-following [header parameters](https://tools.ietf.org/html/rfc8152#section-3):
-
-| Bucket | Name | Label | Value | Description |
-|--------|------|-------|-------|-------------|
-| protected header | "alg" | 1 | -7 ([ES256](https://cose-wg.github.io/cose-spec/#rfc.section.8.1)) | Identifier for the cryptographic algorithm used for signing |
-| unprotected header | "kid" | 4 |  <UUID (bytes) corresponding to the key used for signing> | Key identifier |
-
-**Note, that the `COSE_Sign1` object will not be verifiable, if it does not have the original data as payload.**
-
-If only a hash (and not the original data) is sent to the COSE service, the original data must be inserted into the
-payload field of the returned `COSE_Sign1` object afterwards, in order to get a valid (verifiable) COSE object.
-
-#### How to create valid COSE objects without sending original data to the service
-
-Here are the steps to create a valid `COSE_Sign1` object with the appropriate hash, which needs to be sent to the COSE
-service.
-
-*These steps are only necessary when using the `/hash`-endpoint of the COSE service. When sending original data, this is
-done internally by the service.*
-
-1. Create a [Sig_structure](https://tools.ietf.org/html/rfc8152#section-4.4) with the following fields.
-
-    ```fundamental
-        Sig_structure = [
-            context : "Signature1",           # text string identifying the context of the signature
-            body_protected : serialized_map,  # the serialized CBOR encoded protected header map of the `COSE_Sign1` object (b'\xA1\x01\x26') => {1: -7} => {"alg": <ES256>}
-            external_aad : bstr,              # empty (b'') or protected application attributes
-            payload : bstr                    # serialized CBOR encoded original data (b'<payload>')
-        ]
-    ```
-
-    - context: `"Signature1"`           (identifier for `COSE_Sign1`)
-    - body_protected: `b'\xA1\x01\x26'` (identifier for `ECDSA P-256` signing algorithm)
-    - external_aad: `b''`               (*optional:*
-      [externally supplied data](https://tools.ietf.org/html/rfc8152#section-4.3) -> not part of the COSE object)
-    - payload: *here goes the CBOR encoded original data*
-
-2. Create the value *ToBeSigned* by encoding the `Sig_structure` to a byte string, using the CBOR-encoding described
-   in [Section 14](https://cose-wg.github.io/cose-spec/#rfc.section.14).
-
-3. Create the SHA256 hash of the CBOR encoded Sig_structure.
-
-4. Send hash to COSE service.
-
-5. CBOR-decode response into `COSE_Sign1` structure with the following fields.
-
-    ```fundamental
-        COSE_Sign1 = [
-            protected : bstr,
-            unprotected : map,
-            payload : bstr,
-            signature : bstr
-        ]
-    ```
-
-6. Insert original data into the `payload` field of the array.
-
-**Pseudo-Code:**
-
-```fundamental
-Sig_structure       = ['Signature1', b'\xA1\x01\x26', b'', b'payload bytes']
-ToBeSigned          = CBOR_encode(Sig_structure)
-SHA256              = SHA256_hash(ToBeSigned)
-COSE_Sign1_bytes    = send_to_COSE_service(SHA256)
-COSE_Sign1          = CBOR_decode(COSE_Sign1_bytes)
-COSE_Sign1->payload = b'payload bytes'
-```
+    curl ${host}/device/updateActive -X PUT \
+    -H "X-Auth-Token: ${registerAuth}" \
+    -H "Content-Type: application/json" \
+    -d '{"id":${device_uuid},"active":true}' \
+    -i
 
 ### TCP Address
 
-When running the client locally, the default base address is:
+The client exposes port `:8080` for HTTP requests. When running the client locally, the default base address is:
 
 ```fundamental
 http://localhost:8080
@@ -632,9 +543,11 @@ and insignificant space characters were elided.
     uVXpb1vR8UlQnow/FoIcNbvcJ5bY1r2B+DZwe8AYSkE=
     ```
 
-> **Floating-point numbers and integers greater than 2<sup>53</sup> are not allowed as values for the JSON data package!**
+> **Floating-point numbers and integers greater than 2<sup>53</sup> are not allowed as values for the JSON data
+package!**
 >
-> If you need to sign floating-point numbers or numbers greater than *9,007,199,254,740,992*, you can pass the string representation, e.g.
+> If you need to sign floating-point numbers or numbers greater than *9,007,199,254,740,992*, you can pass the string
+> representation, e.g.
 > ```json
 > {
 >   "float": "5.321",
@@ -663,25 +576,6 @@ To switch to the `demo` backend environment
 - or set the following environment variable:
     ```shell
     UBIRCH_ENV=demo
-    ```
-
-### Use a SQL database to store the protocol context
-
-The `DSN` (*Data Source Name*) can be used to connect the client to a SQL database for storing the protocol context
-(i.e. the encrypted keystore and last signatures) persistently. If DSN is not set or empty, the client will create a
-file `keys.json` (and `keys.json.bck`) as well as a subdirectory `/signatures` locally in the working directory.
-
-If you want to use a SQL database instead of a local file, make sure to apply the
-[database schema](main/schema.sql), as the application will not create it itself on first run, and set the DSN in the
-configuration.
-
-- add the following key-value pair to your `config.json`:
-    ```json
-      "DSN": "<data source name for database>"
-    ```
-- or set the following environment variable:
-    ```shell
-    UBIRCH_DSN=<data source name for database>
     ```
 
 ### Customize X.509 Certificate Signing Requests
@@ -815,19 +709,22 @@ By default, the log of the client is in JSON format. To change it to a (more hum
 
 ## Quick Start
 
-1. First, you will need a device UUID, an auth token, and a 16 byte secret:
-    1. Generate a UUID. On Linux simply enter `uuidgen` in your terminal. Alternatively, you can use an online tool.
-    2. Get your auth token from the [UBIRCH web UI](https://console.prod.ubirch.com/):
-        - Login or register if you don't have an account yet.
-        - Go to **Things** and click on `+ ADD NEW DEVICE`.
-        - Enter your UUID to the **ID** field, add a description for your device and click on `register`.
-        - Click on your device in the overview and copy the value of the **"password"** from the `apiConfig` as your
-          auth token.
-    3. To encrypt the locally stored keys, we need a 16 byte secret in base64 format. You can
-       enter `head -c 16 /dev/urandom | base64` in a Linux terminal or encode 16 ASCII characters in an online base64
-       converter.
+1. Configuration
 
-1. Create a file `config.json` in your desired working directory with the following content:
+   First, you will need a device UUID, that is registered with the UBIRCH backend, and a corresponding auth token for
+   that device. You will also need a secret to encrypt the locally stored private keys:
+    1. Generate a UUID for your device. On Linux/macOS, simply enter `uuidgen` in your terminal. Alternatively, you can
+       use an [online tool](https://www.uuidtools.com/v4).
+    2. Get your auth token:
+        - Create an account at the [**UBIRCH web UI**](https://console.prod.ubirch.com/) and log in.
+        - Go to **Things** (in the menu on the left) and click the green `+ ADD NEW DEVICE`-button.
+        - Enter your UUID to the **ID** field and, optionally, a description. Then click on `register`.
+        - After successful registration, you can click on your UUID to open the settings and copy the **"password"**
+          from the `apiConfig` as your auth token.
+    3. Generate a 16 byte secret in base64 format. You can enter `head -c 16 /dev/urandom | base64` in a Linux/macOS
+       terminal or encode 16 ASCII characters in an [online base64 encoder](https://www.base64encode.org/).
+
+   Create a file `config.json` in your working directory with the following content:
     ```json
     {
       "devices": {
@@ -837,17 +734,23 @@ By default, the log of the client is in JSON format. To change it to a (more hum
       "logTextFormat": true
     }
     ```
-    - Replace `<YOUR_UUID>` with your UUID from step 1.i.
-    - Replace `<YOUR_AUTH_TOKEN>` with your auth token from step 1.ii.
-    - Replace `<YOUR_16_BYTE_SECRET(base64 encoded)>` with your secret from step 1.iii.
-   > Make sure you leave the quotes! [Here](main/config/example_config.json) is an example of how it should look like.
+    - Replace `<YOUR_UUID>` with your UUID from step 1.1.
+    - Replace `<YOUR_AUTH_TOKEN>` with your auth token from step 1.2.
+    - Replace `<YOUR_16_BYTE_SECRET(base64 encoded)>` with your secret from step 1.3.
+   > [Here](main/config/example_config.json) is an example of how it should look like.
 
-1. To run the dockerized UBIRCH client, you will need to have [Docker](https://docs.docker.com/) installed on your
-   computer. Then just enter the following two lines in your working directory:
+2. Run the client
+
+   To run the dockerized UBIRCH client, you will need to have [Docker](https://docs.docker.com/) installed on your
+   computer. Then enter the following two lines in the terminal in your working directory:
     ```console
     docker pull ubirch/ubirch-client:v1.2.2
     docker run -v $(pwd):/data -p 8080:8080 ubirch/ubirch-client:v1.2.2
     ```
+
+   When the client is first started, it will create an ECDSA key pair for your device and register the public key at the
+   UBIRCH backend.
+
    You should see a console output like this:
     ```console
     {"level":"info","msg":"UBIRCH client (v2.0.0, build=local)","time":"2021-03-01T18:41:20+01:00"}
@@ -857,42 +760,69 @@ By default, the log of the client is in JSON format. To change it to a (more hum
     INFO[2021-03-01 18:41:20.291 +0100] protocol context will be stored in local file system
     INFO[2021-03-01 18:41:20.291 +0100] generating new key pair for UUID 50b1a5bb-83cd-4251-b674-b3c71a058fc3
     INFO[2021-03-01 18:41:20.664 +0100] 50b1a5bb-83cd-4251-b674-b3c71a058fc3: registering public key at key service: https://key.prod.ubirch.com/api/keyService/v1/pubkey
-    INFO[2021-03-01 18:41:21.755 +0100] 50b1a5bb-83cd-4251-b674-b3c71a058fc3: submitting CSR to identity service: https://identity.prod.ubirch.com/api/certs/v1/csr/register
     INFO[2021-03-01 18:41:22.130 +0100] starting HTTP service
     ```
    That means the client is running and ready!
 
-1. The client is now listening for HTTP POST requests on port `8080`. You can either...
+   If you want, you can now go back to the UBIRCH web UI and see the freshly registered public key under `PublicKeys`.
+
+   ---
+   **WARNING**
+
+   The client stores the encrypted signing keys in a local file `keys.json`, which will be created in the
+   working directory upon first start-up. **Do not delete this file**, as our backend will not accept new key
+   registrations once a device already has a registered key.
+
+   The client also creates a subdirectory `/signatures`, which contains the previous UPP signatures for chaining.
+    
+   ---
+
+3. Seal your data
+
+   The client is now listening for HTTP requests on port `8080`. You can either...
     - send JSON data to the `/<UUID>`-endpoint with `Content-Type: application/json`-header, or
     - send hashes to the `/<UUID>/hash`-endpoint with `Content-Type: application/octet-stream`-header.
 
-   Also, set the `X-Auth-Token`-header with your ubirch backend auth token.
-
    Since the data hash for every UPP must be unique, ensure that the body of each request has a unique content. You can
-   do that, for example, by adding an ID and a timestamp to the JSON data package.
+   do that, for example, by adding an ID and a timestamp to the JSON data package. For more information
+   see [Uniqueness of hashes](#Uniqueness-of-hashes).
 
    **Floating-point numbers and integers greater than 2<sup>53</sup> are not allowed as values for the JSON data
    package!**
 
+   You also need to set the `X-Auth-Token`-header with your UBIRCH backend auth token from step 1.
+
    Here is an example of how a request to the client would look like using `CURL`:
    ```console
-   curl -H "X-Auth-Token: <YOUR_AUTH_TOKEN>" -H "Content-Type: application/json" -d '{"id": "50b1a5bb-83cd-4251-b674-b3c71a058fc3", "ts": 1614621028, "data": "1234567890"}' localhost:8080/<YOUR_UUID> -i -s
+   curl localhost:8080/<YOUR_UUID> \
+    -H "X-Auth-Token: <YOUR_AUTH_TOKEN>" \
+    -H "Content-Type: application/json" \
+    -d '{"id": "50b1a5bb-83cd-4251-b674-b3c71a058fc3", "ts": 1614621028, "data": "1234567890"}' \
+    -i -s
    ```
-   > Insert `<YOUR_AUTH_TOKEN>` and `<YOUR_UUID>` and a request body with your own unique content to ensure a unique hash!
 
-   When the client receives the request, the output should look like this:
+   > Insert `<YOUR_AUTH_TOKEN>` and `<YOUR_UUID>` and a request body with your own unique content to ensure a unique
+   hash!
+
+   When the client receives a request, it hashes the data from the request body and creates a chained Ubirch Protocol
+   Package (UPP) with the data hash as payload. The UPP will be signed with the private key of the device and sent to
+   the UBIRCH backend. There, the signature will be verified with the previously registered public key.
+
+   The console output of the client should look like this:
     ```console
     INFO[2021-03-01 18:52:59.471 +0100] 50b1a5bb-83cd-4251-b674-b3c71a058fc3: anchoring hash: CDUvtOIBnnZ8im/UXQn5G/q5EK9l2Bqy+HyMgSzPZoA=
     INFO[2021-03-01 18:53:00.313 +0100] 50b1a5bb-83cd-4251-b674-b3c71a058fc3: request ID: 0f11686e-aee3-4e97-8d0d-793a0c31d969
     ```
-   > Take note of the hash!
 
-   If your request was submitted, you'll get a `200` response code.
+   Take note of the hash for [verification](#verification).
 
-   The HTTP response body from the client is a JSON map containing the data hash, the UPP, which was sent to the UBIRCH
-   backend, and the backend response, of which the content is also a UPP, UPPs are in *MessagePack* format
-   (base64 encoded) and can be decoded using, for example, this
-   [MessagePack to JSON Converter](https://toolslick.com/conversion/data/messagepack-to-json).
+   If your request was successful, you'll get the HTTP response code `200`.
+
+   The HTTP response body is a JSON map. It contains the data hash, the UPP, which was created by the client and sent
+   to the UBIRCH backend, and the UBIRCH backend response. The content of the UBIRCH backend response is a
+   UPP as well. UPPs are in *MessagePack* format (base64 encoded) and can be decoded using, for example,
+   this [MessagePack to JSON Converter](https://toolslick.com/conversion/data/messagepack-to-json). You can read more
+   about UPPs [here](https://developer.ubirch.com/utp).
 
    ```json
     {
@@ -922,7 +852,7 @@ By default, the log of the client is in JSON format. To change it to a (more hum
    If you get a response code other than `200`, it means that something went wrong. In this case the client will respond
    with an error message. You can also find error messages in the console output of the client.
 
-1. To stop the client, press `ctrl` + `c`.
+4. To stop the client, press `ctrl` + `c`.
 
 ## Verification
 
@@ -978,7 +908,8 @@ If the verification was successful, the service will send a *200* response with 
 }
 ```
 
-> Note that the first UPP to be anchored will not have a 'previous' package to be chained to. The `"prev"` value will therefore be `null`.
+> Note that the first UPP to be anchored will not have a 'previous' package to be chained to. The `"prev"` value will
+> therefore be `null`.
 
 It can take up to **10 minutes** before the anchoring in public blockchains can be verified, but there is also an
 endpoint for a quick check, that verifies that the hash was received by the UBIRCH backend:
@@ -987,7 +918,7 @@ endpoint for a quick check, that verifies that the hash was received by the UBIR
 https://verify.prod.ubirch.com/api/upp
 ```
 
-... and another endpoint, which additionally checks the chain:
+... and another endpoint, which additionally checks the chain, but not the blockchain anchor:
 
 ```fundamental
 https://verify.prod.ubirch.com/api/upp/verify
@@ -996,7 +927,8 @@ https://verify.prod.ubirch.com/api/upp/verify
 A *404* response with an empty body means the hash could not be verified (yet).
 
 
-> You can find more information on the services and functionalities of the UBIRCH backend in [the developer documentation](https://developer.ubirch.com/).
+> You can find more information on the services and functionalities of the UBIRCH backend
+> in [the developer documentation](https://developer.ubirch.com/).
 
 ## Copyright
 
