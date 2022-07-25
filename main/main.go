@@ -119,11 +119,9 @@ func main() {
 		SubjectOrganization:   conf.CSR_Organization,
 	}
 
-	if len(conf.Devices) > 0 {
-		err = idHandler.InitIdentities(conf.Devices)
-		if err != nil {
-			log.Fatalf("initialization of identities from configuration failed: %v", err)
-		}
+	err = idHandler.InitIdentities(conf.Devices)
+	if err != nil {
+		log.Fatalf("initialization of identities from configuration failed: %v", err)
 	}
 
 	signer := handlers.Signer{
