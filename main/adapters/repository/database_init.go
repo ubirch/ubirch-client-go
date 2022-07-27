@@ -58,7 +58,16 @@ func (dm *DatabaseManager) CreateTable(tableType int) error {
 }
 
 func (m *Migration) getVersion(ctx context.Context, dm *DatabaseManager) error {
-	err := dm.CreateTable(PostgresVersion)
+	var versionTable int
+	switch dm.driverName {
+	case PostgreSQL:
+		versionTable = PostgresVersion
+	case SQLite:
+		versionTable = SQLiteVersion
+	default:
+		return fmt.Errorf("unsupported SQL driver: %s", dm.driverName)
+	}
+	err := dm.CreateTable(versionTable)
 	if err != nil {
 		return err
 	}
