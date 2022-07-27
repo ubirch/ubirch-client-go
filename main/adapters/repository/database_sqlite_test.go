@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"math/rand"
+	"os"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -15,6 +16,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/ubirch/ubirch-client-go/main/ent"
 	"modernc.org/sqlite"
+)
+
+var (
+	// "github.com/mattn/go-sqlite3"
+	//sqliteDSN = "test.db?_journal_mode=WAL&_txlock=exclusive"
+
+	// "modernc.org/sqlite"
+	sqliteDSN = "test.db?_pragma=journal_mode(WAL)&_txlock=exclusive&_pragma=busy_timeout(1000)"
 )
 
 func TestDatabaseManager_sqlite(t *testing.T) {
@@ -92,7 +101,7 @@ func TestDatabaseManager_sqlite(t *testing.T) {
 	assert.Equal(t, testIdentity.AuthToken, i.AuthToken)
 }
 
-func TestDatabaseManager_sqlite_StoreActiveFlag(t *testing.T) {
+func TestDatabaseManager_StoreActiveFlag_sqlite(t *testing.T) {
 	dm, err := initSQLiteDB(t)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
@@ -132,7 +141,7 @@ func TestDatabaseManager_sqlite_StoreActiveFlag(t *testing.T) {
 	assert.False(t, active)
 }
 
-func TestDatabaseManager_sqlite_SetSignature(t *testing.T) {
+func TestDatabaseManager_SetSignature_sqlite(t *testing.T) {
 	dm, err := initSQLiteDB(t)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
@@ -179,7 +188,7 @@ func TestDatabaseManager_sqlite_SetSignature(t *testing.T) {
 	assert.Equal(t, newSignature, sig)
 }
 
-func TestDatabaseManager_sqlite_LoadSignatureForUpdate(t *testing.T) {
+func TestDatabaseManager_LoadSignatureForUpdate_sqlite(t *testing.T) {
 	dm, err := initSQLiteDB(t)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
@@ -205,7 +214,7 @@ func TestDatabaseManager_sqlite_LoadSignatureForUpdate(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tx)
 
-	// try to get lock on signature again and wait a second for the lock before context gets canceled
+	// try to get lock on database again and wait a second for the lock before context gets canceled
 	ctxWithTimeout, cancelWithTimeout := context.WithTimeout(context.Background(), time.Second)
 	defer cancelWithTimeout()
 
@@ -213,7 +222,7 @@ func TestDatabaseManager_sqlite_LoadSignatureForUpdate(t *testing.T) {
 	assert.EqualError(t, err, "context deadline exceeded")
 }
 
-func TestDatabaseManager_sqlite_StoreAuth(t *testing.T) {
+func TestDatabaseManager_StoreAuth_sqlite(t *testing.T) {
 	dm, err := initSQLiteDB(t)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
@@ -269,6 +278,27 @@ func TestNewSqlDatabaseInfo_Ready_sqlite(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestNewSqlDatabaseInfo_NotReady_sqlite(t *testing.T) {
+	// create a pseudo db file
+	unreachableDSN := filepath.Join(t.TempDir(), sqliteDSN)
+	fileHandle, err := os.Create(unreachableDSN)
+	require.NoError(t, err)
+	defer fileHandle.Close()
+
+	// we expect no error here
+	dm, err := NewSqlDatabaseInfo(PostgreSQL, unreachableDSN, 0)
+	require.NoError(t, err)
+	defer func(dm *DatabaseManager) {
+		err := dm.Close()
+		if err != nil {
+			t.Error(err)
+		}
+	}(dm)
+
+	err = dm.IsReady()
+	require.Error(t, err)
+}
+
 func TestStoreExisting_sqlite(t *testing.T) {
 	dm, err := initSQLiteDB(t)
 	require.NoError(t, err)
@@ -299,7 +329,7 @@ func TestStoreExisting_sqlite(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestDatabaseManager_sqlite_CancelTransaction(t *testing.T) {
+func TestDatabaseManager_CancelTransaction_sqlite(t *testing.T) {
 	dm, err := initSQLiteDB(t)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
@@ -319,10 +349,11 @@ func TestDatabaseManager_sqlite_CancelTransaction(t *testing.T) {
 
 	cancel()
 
-	// check not exists
+	// check transaction was rolled back
 	_, err = dm.LoadIdentity(testIdentity.Uid)
 	assert.Equal(t, ErrNotExist, err)
 
+	// make sure identity can be stored now
 	ctx, cancel = context.WithCancel(context.Background())
 	defer cancel()
 
@@ -334,8 +365,8 @@ func TestDatabaseManager_sqlite_CancelTransaction(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestDatabaseManager_sqlite_StartTransaction(t *testing.T) {
-	dsn := filepath.Join(t.TempDir(), "test.db")
+func TestDatabaseManager_StartTransaction_sqlite(t *testing.T) {
+	dsn := filepath.Join(t.TempDir(), sqliteDSN)
 
 	dm, err := NewSqlDatabaseInfo(SQLite, dsn, 1)
 	require.NoError(t, err)
@@ -353,7 +384,7 @@ func TestDatabaseManager_sqlite_StartTransaction(t *testing.T) {
 	assert.Nil(t, tx2)
 }
 
-func TestDatabaseManager_sqlite_StartTransaction2(t *testing.T) {
+func TestDatabaseManager_StartTransaction2_sqlite(t *testing.T) {
 	dm, err := initSQLiteDB(t)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
@@ -400,7 +431,7 @@ func TestDatabaseManager_sqlite_StartTransaction2(t *testing.T) {
 	assert.Equal(t, sig1, sig2)
 }
 
-func TestDatabaseManager_sqlite_InvalidTransactionCtx(t *testing.T) {
+func TestDatabaseManager_InvalidTransactionCtx_sqlite(t *testing.T) {
 	dm, err := initSQLiteDB(t)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
@@ -439,7 +470,7 @@ func TestDatabaseLoad_sqlite(t *testing.T) {
 
 	// generate identities
 	var testIdentities []ent.Identity
-	for i := 0; i < 10; i++ {
+	for i := 0; i < testLoad/10; i++ {
 		testIdentities = append(testIdentities, generateRandomIdentity())
 	}
 
@@ -474,7 +505,7 @@ func TestDatabaseLoad_sqlite(t *testing.T) {
 }
 
 func TestDatabaseManager_sqlite_RecoverUndefinedTable(t *testing.T) {
-	db, err := sql.Open(SQLite, filepath.Join(t.TempDir(), "test.db"))
+	db, err := sql.Open(SQLite, filepath.Join(t.TempDir(), sqliteDSN))
 	require.NoError(t, err)
 
 	dm := &DatabaseManager{
@@ -509,11 +540,5 @@ func TestDatabaseManager_sqlite_Retry(t *testing.T) {
 }
 
 func initSQLiteDB(t *testing.T) (*DatabaseManager, error) {
-	// "github.com/mattn/go-sqlite3"
-	//dsn := filepath.Join(t.TempDir(), "test.db?_journal_mode=WAL&_txlock=exclusive")
-
-	// "modernc.org/sqlite"
-	dsn := filepath.Join(t.TempDir(), "test.db?_pragma=journal_mode(WAL)&_txlock=exclusive&_pragma=busy_timeout(1000)")
-
-	return NewSqlDatabaseInfo(SQLite, dsn, 0)
+	return NewSqlDatabaseInfo(SQLite, filepath.Join(t.TempDir(), sqliteDSN), 0)
 }

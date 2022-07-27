@@ -36,7 +36,7 @@ func setupMigrationTest(t *testing.T) *config.Config {
 		Devices:            devices,
 		Secret16Base64:     testSecret16Base64,
 		SecretBytes32:      secretBytes32,
-		SqliteDSN:          filepath.Join(t.TempDir(), "test.db?_pragma=journal_mode(WAL)&_txlock=exclusive&_pragma=busy_timeout(1000)"),
+		SqliteDSN:          filepath.Join(t.TempDir(), sqliteDSN),
 		DbMaxConns:         0,
 		KdMaxTotalMemMiB:   4,
 		KdParamMemMiB:      2,

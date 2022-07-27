@@ -46,6 +46,7 @@ func TestDatabaseManager(t *testing.T) {
 
 	tx, err := dm.StartTransaction(ctx)
 	require.NoError(t, err)
+	require.NotNil(t, tx)
 
 	_, err = dm.LoadActiveFlagForUpdate(tx, testIdentity.Uid)
 	assert.Equal(t, ErrNotExist, err)
@@ -62,6 +63,7 @@ func TestDatabaseManager(t *testing.T) {
 	// store identity
 	tx, err = dm.StartTransaction(ctx)
 	require.NoError(t, err)
+	require.NotNil(t, tx)
 
 	err = dm.StoreIdentity(tx, testIdentity)
 	require.NoError(t, err)
@@ -200,6 +202,7 @@ func TestDatabaseManager_LoadSignatureForUpdate(t *testing.T) {
 	// store identity
 	tx, err := dm.StartTransaction(ctx)
 	require.NoError(t, err)
+	require.NotNil(t, tx)
 
 	err = dm.StoreIdentity(tx, testIdentity)
 	require.NoError(t, err)
@@ -210,6 +213,7 @@ func TestDatabaseManager_LoadSignatureForUpdate(t *testing.T) {
 	// get lock on signature
 	tx, err = dm.StartTransaction(ctx)
 	require.NoError(t, err)
+	require.NotNil(t, tx)
 
 	_, err = dm.LoadSignatureForUpdate(tx, testIdentity.Uid)
 	require.NoError(t, err)
@@ -349,21 +353,32 @@ func TestDatabaseManager_CancelTransaction(t *testing.T) {
 
 	cancel()
 
-	// check not exists
+	// check transaction was rolled back
 	_, err = dm.LoadIdentity(testIdentity.Uid)
 	assert.Equal(t, ErrNotExist, err)
+
+	// make sure identity can be stored now
+	ctx, cancel = context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err = dm.StartTransaction(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, tx)
+
+	err = dm.StoreIdentity(tx, testIdentity)
+	require.NoError(t, err)
 }
 
 func TestDatabaseManager_StartTransaction(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-
 	c, err := getConfig()
 	require.NoError(t, err)
 
 	dm, err := NewSqlDatabaseInfo(PostgreSQL, c.PostgresDSN, 1)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
 
 	tx, err := dm.StartTransaction(ctx)
 	require.NoError(t, err)
