@@ -18,6 +18,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -32,7 +33,8 @@ const (
 	PostgreSQL = "postgres"
 	SQLite     = "sqlite"
 
-	maxRetries = 2
+	sqliteConfig = "?_pragma=journal_mode(WAL)&_txlock=exclusive&_pragma=busy_timeout(1000)"
+	maxRetries   = 2
 )
 
 // DatabaseManager contains the postgres database connection, and offers methods
@@ -46,20 +48,10 @@ type DatabaseManager struct {
 // Ensure Database implements the ContextManager interface
 var _ ContextManager = (*DatabaseManager)(nil)
 
-// NewSqlDatabaseInfo takes a database connection string, returns a new initialized
-// database.
-func NewSqlDatabaseInfo(driverName, dataSourceName string, maxConns int) (*DatabaseManager, error) {
+// NewDatabaseManager takes a database connection string, returns a new initialized
+// SQL database manager.
+func NewDatabaseManager(driverName, dataSourceName string, maxConns int) (*DatabaseManager, error) {
 	log.Infof("preparing %s database", driverName)
-
-	db, err := sql.Open(driverName, dataSourceName)
-	if err != nil {
-		return nil, err
-	}
-
-	db.SetMaxOpenConns(maxConns)
-	db.SetMaxIdleConns(maxConns)
-	db.SetConnMaxLifetime(10 * time.Minute)
-	db.SetConnMaxIdleTime(1 * time.Minute)
 
 	var isolationLvl sql.IsolationLevel
 	var identityTable int
@@ -71,9 +63,22 @@ func NewSqlDatabaseInfo(driverName, dataSourceName string, maxConns int) (*Datab
 	case SQLite:
 		isolationLvl = sql.LevelSerializable
 		identityTable = SQLiteIdentity
+		if !strings.Contains(dataSourceName, "?") {
+			dataSourceName += sqliteConfig
+		}
 	default:
 		return nil, fmt.Errorf("unsupported SQL driver: %s", driverName)
 	}
+
+	db, err := sql.Open(driverName, dataSourceName)
+	if err != nil {
+		return nil, err
+	}
+
+	db.SetMaxOpenConns(maxConns)
+	db.SetMaxIdleConns(maxConns)
+	db.SetConnMaxLifetime(10 * time.Minute)
+	db.SetConnMaxIdleTime(1 * time.Minute)
 
 	dm := &DatabaseManager{
 		options: &sql.TxOptions{

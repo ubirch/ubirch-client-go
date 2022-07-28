@@ -18,16 +18,10 @@ import (
 	"modernc.org/sqlite"
 )
 
-var (
-	// "github.com/mattn/go-sqlite3"
-	//sqliteDSN = "test.db?_journal_mode=WAL&_txlock=exclusive"
-
-	// "modernc.org/sqlite"
-	sqliteDSN = "test.db?_pragma=journal_mode(WAL)&_txlock=exclusive&_pragma=busy_timeout(1000)"
-)
+const testSQLiteDSN = "test.db"
 
 func TestDatabaseManager_sqlite(t *testing.T) {
-	dm, err := initSQLiteDB(t)
+	dm, err := initSQLiteDB(t, 0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -102,7 +96,7 @@ func TestDatabaseManager_sqlite(t *testing.T) {
 }
 
 func TestDatabaseManager_StoreActiveFlag_sqlite(t *testing.T) {
-	dm, err := initSQLiteDB(t)
+	dm, err := initSQLiteDB(t, 0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -142,7 +136,7 @@ func TestDatabaseManager_StoreActiveFlag_sqlite(t *testing.T) {
 }
 
 func TestDatabaseManager_SetSignature_sqlite(t *testing.T) {
-	dm, err := initSQLiteDB(t)
+	dm, err := initSQLiteDB(t, 0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -189,7 +183,7 @@ func TestDatabaseManager_SetSignature_sqlite(t *testing.T) {
 }
 
 func TestDatabaseManager_LoadSignatureForUpdate_sqlite(t *testing.T) {
-	dm, err := initSQLiteDB(t)
+	dm, err := initSQLiteDB(t, 0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -223,7 +217,7 @@ func TestDatabaseManager_LoadSignatureForUpdate_sqlite(t *testing.T) {
 }
 
 func TestDatabaseManager_StoreAuth_sqlite(t *testing.T) {
-	dm, err := initSQLiteDB(t)
+	dm, err := initSQLiteDB(t, 0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -270,7 +264,7 @@ func TestDatabaseManager_StoreAuth_sqlite(t *testing.T) {
 }
 
 func TestNewSqlDatabaseInfo_Ready_sqlite(t *testing.T) {
-	dm, err := initSQLiteDB(t)
+	dm, err := initSQLiteDB(t, 0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -280,13 +274,13 @@ func TestNewSqlDatabaseInfo_Ready_sqlite(t *testing.T) {
 
 func TestNewSqlDatabaseInfo_NotReady_sqlite(t *testing.T) {
 	// create a pseudo db file
-	unreachableDSN := filepath.Join(t.TempDir(), sqliteDSN)
+	unreachableDSN := filepath.Join(t.TempDir(), testSQLiteDSN)
 	fileHandle, err := os.Create(unreachableDSN)
 	require.NoError(t, err)
 	defer fileHandle.Close()
 
 	// we expect no error here
-	dm, err := NewSqlDatabaseInfo(PostgreSQL, unreachableDSN, 0)
+	dm, err := NewDatabaseManager(PostgreSQL, unreachableDSN, 0)
 	require.NoError(t, err)
 	defer func(dm *DatabaseManager) {
 		err := dm.Close()
@@ -300,7 +294,7 @@ func TestNewSqlDatabaseInfo_NotReady_sqlite(t *testing.T) {
 }
 
 func TestStoreExisting_sqlite(t *testing.T) {
-	dm, err := initSQLiteDB(t)
+	dm, err := initSQLiteDB(t, 0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -330,7 +324,7 @@ func TestStoreExisting_sqlite(t *testing.T) {
 }
 
 func TestDatabaseManager_CancelTransaction_sqlite(t *testing.T) {
-	dm, err := initSQLiteDB(t)
+	dm, err := initSQLiteDB(t, 0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -366,9 +360,7 @@ func TestDatabaseManager_CancelTransaction_sqlite(t *testing.T) {
 }
 
 func TestDatabaseManager_StartTransaction_sqlite(t *testing.T) {
-	dsn := filepath.Join(t.TempDir(), sqliteDSN)
-
-	dm, err := NewSqlDatabaseInfo(SQLite, dsn, 1)
+	dm, err := initSQLiteDB(t, 1)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -385,7 +377,7 @@ func TestDatabaseManager_StartTransaction_sqlite(t *testing.T) {
 }
 
 func TestDatabaseManager_StartTransaction2_sqlite(t *testing.T) {
-	dm, err := initSQLiteDB(t)
+	dm, err := initSQLiteDB(t, 0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -432,7 +424,7 @@ func TestDatabaseManager_StartTransaction2_sqlite(t *testing.T) {
 }
 
 func TestDatabaseManager_InvalidTransactionCtx_sqlite(t *testing.T) {
-	dm, err := initSQLiteDB(t)
+	dm, err := initSQLiteDB(t, 0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -464,7 +456,7 @@ func TestDatabaseManager_InvalidTransactionCtx_sqlite(t *testing.T) {
 func TestDatabaseLoad_sqlite(t *testing.T) {
 	wg := &sync.WaitGroup{}
 
-	dm, err := initSQLiteDB(t)
+	dm, err := initSQLiteDB(t, 0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -504,8 +496,8 @@ func TestDatabaseLoad_sqlite(t *testing.T) {
 	//}
 }
 
-func TestDatabaseManager_sqlite_RecoverUndefinedTable(t *testing.T) {
-	db, err := sql.Open(SQLite, filepath.Join(t.TempDir(), sqliteDSN))
+func TestDatabaseManager_RecoverUndefinedTable_sqlite(t *testing.T) {
+	db, err := sql.Open(SQLite, filepath.Join(t.TempDir(), testSQLiteDSN+sqliteConfig))
 	require.NoError(t, err)
 
 	dm := &DatabaseManager{
@@ -518,8 +510,8 @@ func TestDatabaseManager_sqlite_RecoverUndefinedTable(t *testing.T) {
 	assert.Equal(t, ErrNotExist, err)
 }
 
-func TestDatabaseManager_sqlite_Retry(t *testing.T) {
-	dm, err := initSQLiteDB(t)
+func TestDatabaseManager_Retry_sqlite(t *testing.T) {
+	dm, err := initSQLiteDB(t, 0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -539,6 +531,6 @@ func TestDatabaseManager_sqlite_Retry(t *testing.T) {
 	require.Equal(t, 5, liteErr.Code())
 }
 
-func initSQLiteDB(t *testing.T) (*DatabaseManager, error) {
-	return NewSqlDatabaseInfo(SQLite, filepath.Join(t.TempDir(), sqliteDSN), 0)
+func initSQLiteDB(t *testing.T, maxConns int) (*DatabaseManager, error) {
+	return NewDatabaseManager(SQLite, filepath.Join(t.TempDir(), testSQLiteDSN), maxConns)
 }

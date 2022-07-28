@@ -36,7 +36,7 @@ func setupMigrationTest(t *testing.T) *config.Config {
 		Devices:            devices,
 		Secret16Base64:     testSecret16Base64,
 		SecretBytes32:      secretBytes32,
-		SqliteDSN:          filepath.Join(t.TempDir(), sqliteDSN),
+		SqliteDSN:          filepath.Join(t.TempDir(), testSQLiteDSN),
 		DbMaxConns:         0,
 		KdMaxTotalMemMiB:   4,
 		KdParamMemMiB:      2,
