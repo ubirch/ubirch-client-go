@@ -27,13 +27,15 @@ var (
 )
 
 func TestIdentityHandler_InitIdentity(t *testing.T) {
+	m := newMock()
+
 	p, err := r.NewExtendedProtocol(&r.MockCtxMngr{}, conf)
 	require.NoError(t, err)
 
 	idHandler := &IdentityHandler{
 		Protocol:              p,
 		SubmitKeyRegistration: MockSubmitKeyRegistration,
-		SubmitCSR:             MockSubmitCSR,
+		SubmitCSR:             m.MockSubmitCSR,
 		SubjectCountry:        "AA",
 		SubjectOrganization:   "test GmbH",
 	}
@@ -49,19 +51,22 @@ func TestIdentityHandler_InitIdentity(t *testing.T) {
 		t.Errorf("rest: %q", rest)
 	}
 
+	submittedCSR := <-m.result
+	assert.Equal(t, block.Bytes, submittedCSR)
+
 	csr, err := x509.ParseCertificateRequest(block.Bytes)
-	assert.NoError(t, err)
+	require.NoError(t, err)
+
+	csrPublicKey, err := p.EncodePublicKey(csr.PublicKey)
+	require.NoError(t, err)
 
 	initializedIdentity, err := p.LoadIdentity(testUuid)
 	require.NoError(t, err)
+	assert.Equal(t, csrPublicKey, initializedIdentity.PublicKey)
 
 	pub, err := p.GetPublicKeyPEM(testUuid)
 	require.NoError(t, err)
 	assert.Equal(t, pub, initializedIdentity.PublicKey)
-
-	csrPublicKey, err := p.EncodePublicKey(csr.PublicKey)
-	require.NoError(t, err)
-	assert.Equal(t, csrPublicKey, initializedIdentity.PublicKey)
 
 	found, ok, err := p.CheckAuth(context.Background(), testUuid, testAuth)
 	require.NoError(t, err)
@@ -145,19 +150,22 @@ func TestIdentityHandler_InitIdentity_BadSubmitCSR(t *testing.T) {
 }
 
 func TestIdentityHandler_CreateCSR(t *testing.T) {
+	m := newMock()
+
 	p, err := r.NewExtendedProtocol(&r.MockCtxMngr{}, conf)
 	require.NoError(t, err)
 
 	idHandler := &IdentityHandler{
 		Protocol:              p,
 		SubmitKeyRegistration: MockSubmitKeyRegistration,
-		SubmitCSR:             MockSubmitCSR,
+		SubmitCSR:             m.MockSubmitCSR,
 		SubjectCountry:        "AA",
 		SubjectOrganization:   "test GmbH",
 	}
 
 	_, err = idHandler.InitIdentity(testUuid, testAuth)
 	require.NoError(t, err)
+	<-m.result
 
 	csrPEM, err := idHandler.CreateCSR(testUuid)
 	require.NoError(t, err)
@@ -169,6 +177,9 @@ func TestIdentityHandler_CreateCSR(t *testing.T) {
 	if len(rest) != 0 {
 		t.Errorf("rest: %q", rest)
 	}
+
+	submittedCSR := <-m.result
+	assert.Equal(t, block.Bytes, submittedCSR)
 
 	csr, err := x509.ParseCertificateRequest(block.Bytes)
 	assert.NoError(t, err)
@@ -426,6 +437,21 @@ var MockSubmitKeyDeletionErr = errors.New("MockSubmitKeyDeletionBad")
 
 func MockSubmitKeyDeletionBad(uuid.UUID, []byte) error {
 	return MockSubmitKeyDeletionErr
+}
+
+type mock struct {
+	result chan []byte
+}
+
+func newMock() *mock {
+	return &mock{
+		result: make(chan []byte),
+	}
+}
+
+func (m *mock) MockSubmitCSR(uid uuid.UUID, csr []byte) error {
+	m.result <- csr
+	return nil
 }
 
 func MockSubmitCSR(uuid.UUID, []byte) error {

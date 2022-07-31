@@ -109,7 +109,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) (csrPEM []byt
 	}
 
 	// register public key at the ubirch backend
-	csrPEM, err = i.registerPublicKey(uid)
+	err = i.registerPublicKey(uid)
 	if err != nil {
 		return nil, err
 	}
@@ -119,39 +119,41 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) (csrPEM []byt
 		return nil, fmt.Errorf("commiting transaction to store new identity failed after successful registration at ubirch identity service: %v", err)
 	}
 
-	return csrPEM, nil
+	return i.createCSR(uid)
 }
 
-func (i *IdentityHandler) registerPublicKey(uid uuid.UUID) (csrPEM []byte, err error) {
+func (i *IdentityHandler) registerPublicKey(uid uuid.UUID) error {
 	keyRegistration, err := i.Protocol.GetSignedKeyRegistration(uid)
 	if err != nil {
-		return nil, fmt.Errorf("creating public key certificate failed: %v", err)
+		return fmt.Errorf("creating public key certificate failed: %v", err)
 	}
-	log.Debugf("%s: key certificate: %s", uid, keyRegistration)
+	log.Infof("%s: key certificate: %s", uid, keyRegistration)
+
+	return i.SubmitKeyRegistration(uid, keyRegistration)
+}
+
+func (i *IdentityHandler) createCSR(uid uuid.UUID) (csrPEM []byte, err error) {
+	log.Infof("%s: creating CSR", uid)
 
 	csr, err := i.Protocol.GetCSR(uid, i.SubjectCountry, i.SubjectOrganization)
 	if err != nil {
 		return nil, fmt.Errorf("creating CSR failed: %v", err)
 	}
-	log.Debugf("%s: CSR [der]: %x", uid, csr)
 
-	err = i.SubmitKeyRegistration(uid, keyRegistration)
-	if err != nil {
-		return nil, err
-	}
-
-	go i.submitCSROrLogError(uid, csr)
+	i.asyncSendCSR(uid, csr)
 
 	csrPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
 
 	return csrPEM, nil
 }
 
-func (i *IdentityHandler) submitCSROrLogError(uid uuid.UUID, csr []byte) {
-	err := i.SubmitCSR(uid, csr)
-	if err != nil {
-		log.Errorf("submitting CSR for UUID %s failed: %v", uid, err)
-	}
+func (i *IdentityHandler) asyncSendCSR(uid uuid.UUID, csr []byte) {
+	go func() {
+		err := i.SubmitCSR(uid, csr)
+		if err != nil {
+			log.Errorf("submitting CSR for UUID %s failed: %v", uid, err)
+		}
+	}()
 }
 
 func (i *IdentityHandler) CreateCSR(uid uuid.UUID) (csrPEM []byte, err error) {
@@ -164,16 +166,7 @@ func (i *IdentityHandler) CreateCSR(uid uuid.UUID) (csrPEM []byte, err error) {
 		return nil, h.ErrUnknown
 	}
 
-	log.Infof("%s: creating CSR", uid)
-
-	csr, err := i.Protocol.GetCSR(uid, i.SubjectCountry, i.SubjectOrganization)
-	if err != nil {
-		return nil, fmt.Errorf("creating CSR failed: %v", err)
-	}
-
-	csrPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
-
-	return csrPEM, nil
+	return i.createCSR(uid)
 }
 
 func (i *IdentityHandler) DeactivateKey(uid uuid.UUID) error {
@@ -270,7 +263,7 @@ func (i *IdentityHandler) ReactivateKey(uid uuid.UUID) error {
 	}
 
 	// register public key at the ubirch backend
-	_, err = i.registerPublicKey(uid)
+	err = i.registerPublicKey(uid)
 	if err != nil {
 		return err
 	}
