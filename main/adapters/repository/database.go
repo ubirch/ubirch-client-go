@@ -92,9 +92,13 @@ func NewDatabaseManager(driverName, dataSourceName string, maxConns int) (*Datab
 		driverName: driverName,
 	}
 
-	if err = dm.IsReady(); err != nil {
-		// if there is no connection to the database yet, continue anyway.
-		log.Warn(err)
+	if err = db.Ping(); err != nil {
+		if driverName == PostgreSQL && strings.Contains(err.Error(), "connection refused") {
+			// if there is no connection to the database yet, continue anyway.
+			log.Warnf("connection to the database could not yet be established: %v", err)
+		} else {
+			return nil, err
+		}
 	} else {
 		err = dm.CreateTable(identityTable)
 		if err != nil {

@@ -273,21 +273,13 @@ func TestNewSqlDatabaseInfo_Ready_sqlite(t *testing.T) {
 }
 
 func TestNewSqlDatabaseInfo_NotReady_sqlite(t *testing.T) {
-	// create a pseudo db file
-	unreachableDSN := filepath.Join(t.TempDir(), testSQLiteDSN)
-	fileHandle, err := os.Create(unreachableDSN)
+	dsn := filepath.Join(t.TempDir(), testSQLiteDSN)
+	dm, err := NewDatabaseManager(SQLite, dsn, 0)
 	require.NoError(t, err)
-	defer fileHandle.Close()
 
-	// we expect no error here
-	dm, err := NewDatabaseManager(PostgreSQL, unreachableDSN, 0)
+	// block access db file to provoke ping fail
+	err = os.Chmod(dsn, 0)
 	require.NoError(t, err)
-	defer func(dm *DatabaseManager) {
-		err := dm.Close()
-		if err != nil {
-			t.Error(err)
-		}
-	}(dm)
 
 	err = dm.IsReady()
 	require.Error(t, err)
