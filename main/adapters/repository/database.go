@@ -33,8 +33,11 @@ const (
 	PostgreSQL = "postgres"
 	SQLite     = "sqlite"
 
-	sqliteConfig = "?_pragma=journal_mode(WAL)&_txlock=exclusive&_pragma=busy_timeout(1000)"
-	maxRetries   = 2
+	sqliteConfig = "?_txlock=exclusive" +
+		"&_pragma=journal_mode(WAL)" +
+		"&_pragma=synchronous(FULL)" +
+		"&_pragma=busy_timeout(1000)"
+	maxRetries = 2
 )
 
 // DatabaseManager contains the postgres database connection, and offers methods
