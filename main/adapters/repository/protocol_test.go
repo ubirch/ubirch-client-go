@@ -19,11 +19,11 @@ import (
 
 var (
 	testSecret, _ = base64.StdEncoding.DecodeString("ZQJt1OC9+4OZtgZLLT9mX25BbrZdxtOQBjK4GyRF2fQ=")
-	conf          = &config.Config{SecretBytes32: testSecret}
+	testConf      = &config.Config{SecretBytes32: testSecret}
 )
 
 func TestProtocol(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, testConf)
 	require.NoError(t, err)
 
 	testIdentity := generateRandomIdentity()
@@ -72,7 +72,7 @@ func TestProtocol(t *testing.T) {
 }
 
 func TestExtendedProtocol_LoadPrivateKey(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, testConf)
 	require.NoError(t, err)
 
 	i := generateRandomIdentity()
@@ -95,7 +95,7 @@ func TestExtendedProtocol_LoadPrivateKey(t *testing.T) {
 }
 
 func TestExtendedProtocol_LoadPublicKey(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, testConf)
 	require.NoError(t, err)
 
 	i := generateRandomIdentity()
@@ -130,7 +130,7 @@ func TestNewExtendedProtocol_BadSecret(t *testing.T) {
 }
 
 func TestExtendedProtocol_StoreSignature(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, testConf)
 	require.NoError(t, err)
 
 	testIdentity := generateRandomIdentity()
@@ -171,7 +171,7 @@ func TestExtendedProtocol_StoreSignature(t *testing.T) {
 }
 
 func TestExtendedProtocol_BadStoreSignature(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, testConf)
 	require.NoError(t, err)
 
 	testIdentity := generateRandomIdentity()
@@ -200,7 +200,7 @@ func TestExtendedProtocol_BadStoreSignature(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_BadUUID(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, testConf)
 	require.NoError(t, err)
 
 	i := generateRandomIdentity()
@@ -217,7 +217,7 @@ func Test_StoreNewIdentity_BadUUID(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_NilPrivateKey(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, testConf)
 	require.NoError(t, err)
 
 	i := generateRandomIdentity()
@@ -234,7 +234,7 @@ func Test_StoreNewIdentity_NilPrivateKey(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_BadPrivateKey(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, testConf)
 	require.NoError(t, err)
 
 	i := generateRandomIdentity()
@@ -251,7 +251,7 @@ func Test_StoreNewIdentity_BadPrivateKey(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_NilPublicKey(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, testConf)
 	require.NoError(t, err)
 
 	i := generateRandomIdentity()
@@ -268,7 +268,7 @@ func Test_StoreNewIdentity_NilPublicKey(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_BadPublicKey(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, testConf)
 	require.NoError(t, err)
 
 	i := generateRandomIdentity()
@@ -285,7 +285,7 @@ func Test_StoreNewIdentity_BadPublicKey(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_BadSignature(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, testConf)
 	require.NoError(t, err)
 
 	i := generateRandomIdentity()
@@ -302,7 +302,7 @@ func Test_StoreNewIdentity_BadSignature(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_BadAuth(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, testConf)
 	require.NoError(t, err)
 
 	i := generateRandomIdentity()
@@ -319,7 +319,7 @@ func Test_StoreNewIdentity_BadAuth(t *testing.T) {
 }
 
 func TestExtendedProtocol_CheckAuth(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, testConf)
 	require.NoError(t, err)
 
 	i := generateRandomIdentity()
@@ -344,7 +344,7 @@ func TestExtendedProtocol_CheckAuth(t *testing.T) {
 }
 
 func TestExtendedProtocol_CheckAuth_Invalid(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, testConf)
 	require.NoError(t, err)
 
 	i := generateRandomIdentity()
@@ -370,7 +370,7 @@ func TestExtendedProtocol_CheckAuth_Invalid(t *testing.T) {
 
 func TestExtendedProtocol_CheckAuth_Invalid_Cached(t *testing.T) {
 	ctxMngr := &MockCtxMngr{}
-	p, err := NewExtendedProtocol(ctxMngr, conf)
+	p, err := NewExtendedProtocol(ctxMngr, testConf)
 	require.NoError(t, err)
 
 	i := generateRandomIdentity()
@@ -397,7 +397,7 @@ func TestExtendedProtocol_CheckAuth_Invalid_Cached(t *testing.T) {
 }
 
 func TestExtendedProtocol_CheckAuth_NotFound(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, testConf)
 	require.NoError(t, err)
 
 	ok, found, err := p.CheckAuth(context.Background(), uuid.New(), "auth")
@@ -408,8 +408,8 @@ func TestExtendedProtocol_CheckAuth_NotFound(t *testing.T) {
 
 func TestExtendedProtocol_CheckAuth_Update(t *testing.T) {
 	ctxMngr := &MockCtxMngr{}
-	conf.KdUpdateParams = true
-	p, err := NewExtendedProtocol(ctxMngr, conf)
+	testConf.KdUpdateParams = true
+	p, err := NewExtendedProtocol(ctxMngr, testConf)
 	require.NoError(t, err)
 
 	i := generateRandomIdentity()
@@ -445,7 +445,7 @@ func TestExtendedProtocol_CheckAuth_Update(t *testing.T) {
 }
 
 func TestExtendedProtocol_CheckAuth_AuthCache(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, testConf)
 	require.NoError(t, err)
 
 	i := generateRandomIdentity()
@@ -476,7 +476,7 @@ func TestExtendedProtocol_CheckAuth_AuthCache(t *testing.T) {
 func TestProtocol_Cache(t *testing.T) {
 	wg := &sync.WaitGroup{}
 
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, testConf)
 	require.NoError(t, err)
 
 	testIdentity := generateRandomIdentity()
@@ -511,7 +511,7 @@ func TestProtocolLoad(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	p, err := NewExtendedProtocol(dm, conf)
+	p, err := NewExtendedProtocol(dm, testConf)
 	require.NoError(t, err)
 
 	// generate identities
