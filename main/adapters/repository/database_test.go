@@ -542,7 +542,7 @@ func initDB(maxConns int) (*DatabaseManager, error) {
 	return NewDatabaseManager(PostgreSQL, c.PostgresDSN, maxConns)
 }
 
-func cleanUpDB(t *testing.T, dm *DatabaseManager) {
+func cleanUpDB(t assert.TestingT, dm *DatabaseManager) {
 	dropTableQuery := fmt.Sprintf("DROP TABLE %s;", IdentityTableName)
 	err := dm.retry(func() error {
 		_, err := dm.db.Exec(dropTableQuery)
