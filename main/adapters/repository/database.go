@@ -315,7 +315,7 @@ func (dm *DatabaseManager) isRecoverable(err error) bool {
 			if liteErr.Code() == 5 || // SQLITE_BUSY
 				liteErr.Code() == 6 || // SQLITE_LOCKED
 				liteErr.Code() == 261 { // SQLITE_BUSY_RECOVERY
-				time.Sleep(100 * time.Millisecond)
+				time.Sleep(10 * time.Millisecond)
 				return true
 			}
 			if liteErr.Code() == 1 { // SQLITE_ERROR
