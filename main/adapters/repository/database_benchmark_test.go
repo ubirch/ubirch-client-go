@@ -8,6 +8,7 @@ import (
 	"github.com/ubirch/ubirch-client-go/main/ent"
 	"math/rand"
 	"path/filepath"
+	"sync"
 	"testing"
 )
 
@@ -53,6 +54,77 @@ func BenchmarkSQLite(b *testing.B) {
 	}
 }
 
+func BenchmarkPostgres_async(b *testing.B) {
+	dm, err := initDB(0)
+	require.NoError(b, err)
+	defer cleanUpDB(b, dm)
+
+	storeTestIdentity(b, dm)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		wg := &sync.WaitGroup{}
+		for j := 0; j < 10; j++ {
+			wg.Add(1)
+			go func() {
+				updateSignature(b, dm)
+				wg.Done()
+			}()
+		}
+		wg.Wait()
+	}
+}
+
+func BenchmarkSQLite_async(b *testing.B) {
+	dm, err := NewDatabaseManager(SQLite, filepath.Join(b.TempDir(), testSQLiteDSN), 0)
+	require.NoError(b, err)
+	defer cleanUpDB(b, dm)
+
+	storeTestIdentity(b, dm)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		wg := &sync.WaitGroup{}
+		for j := 0; j < 10; j++ {
+			wg.Add(1)
+			go func() {
+				updateSignature(b, dm)
+				wg.Done()
+			}()
+		}
+		wg.Wait()
+	}
+}
+
+func BenchmarkSQLite_config(b *testing.B) {
+	sqliteWithNonDefaultConfig := testSQLiteDSN + "?_txlock=EXCLUSIVE" + // https://www.sqlite.org/lang_transaction.html
+		"&_pragma=journal_mode(WAL)" + // https://www.sqlite.org/wal.html
+		"&_pragma=synchronous(FULL)" + // https://www.sqlite.org/pragma.html#pragma_synchronous
+		"&_pragma=wal_autocheckpoint(1)" + // checkpoint when WAL reaches x pages https://www.sqlite.org/pragma.html#pragma_wal_autocheckpoint
+		"&_pragma=wal_checkpoint(PASSIVE)" + // https://www.sqlite.org/pragma.html#pragma_wal_checkpoint
+		"&_pragma=journal_size_limit(1000)" + // max WAL file size in bytes https://www.sqlite.org/pragma.html#pragma_journal_size_limit
+		"&_pragma=busy_timeout(100)" // https://www.sqlite.org/pragma.html#pragma_busy_timeout
+
+	dm, err := NewDatabaseManager(SQLite, filepath.Join(b.TempDir(), sqliteWithNonDefaultConfig), 0)
+	require.NoError(b, err)
+	defer cleanUpDB(b, dm)
+
+	storeTestIdentity(b, dm)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		wg := &sync.WaitGroup{}
+		for j := 0; j < 10; j++ {
+			wg.Add(1)
+			go func() {
+				updateSignature(b, dm)
+				wg.Done()
+			}()
+		}
+		wg.Wait()
+	}
+}
+
 func storeTestIdentity(t require.TestingT, ctxManager ContextManager) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -68,6 +140,8 @@ func storeTestIdentity(t require.TestingT, ctxManager ContextManager) {
 }
 
 func updateSignature(t require.TestingT, ctxManager ContextManager) {
+	_, err := ctxManager.LoadActiveFlag(testId.Uid)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
