@@ -112,6 +112,7 @@ func (c *Config) Load(configDir, filename string) error {
 	if c.Debug {
 		log.SetLevel(log.DebugLevel)
 	}
+
 	if c.LogTextFormat {
 		log.SetFormatter(&log.TextFormatter{FullTimestamp: true, TimestampFormat: "2006-01-02 15:04:05.000 -0700"})
 	}
@@ -166,11 +167,11 @@ func (c *Config) loadFile(filename string) error {
 
 func (c *Config) checkMandatory() error {
 	if len(c.SecretBytes32) != secretLength32 {
-		return fmt.Errorf("secret for aes-256 key encryption ('secret32') length must be %d bytes (is %d)", secretLength32, len(c.SecretBytes32))
+		return fmt.Errorf("secret for aes-256 key encryption ('secret32' / 'UBIRCH_SECRET32') length must be %d bytes (is %d)", secretLength32, len(c.SecretBytes32))
 	}
 
 	if len(c.RegisterAuth) == 0 {
-		return fmt.Errorf("auth token for identity registration ('registerAuth') wasn't set")
+		return fmt.Errorf("missing 'registerAuth' / 'UBIRCH_REGISTERAUTH' in configuration")
 	}
 
 	return nil
