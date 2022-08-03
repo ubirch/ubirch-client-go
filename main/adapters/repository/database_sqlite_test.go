@@ -209,7 +209,7 @@ func TestDatabaseManager_LoadSignatureForUpdate_sqlite(t *testing.T) {
 	require.NotNil(t, tx)
 
 	// try to get lock on database again and wait a second for the lock before context gets canceled
-	ctxWithTimeout, cancelWithTimeout := context.WithTimeout(context.Background(), time.Second)
+	ctxWithTimeout, cancelWithTimeout := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancelWithTimeout()
 
 	_, err = dm.StartTransaction(ctxWithTimeout)

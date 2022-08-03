@@ -39,7 +39,7 @@ const (
 		"&_pragma=wal_autocheckpoint(1)" + // checkpoint when WAL reaches x pages https://www.sqlite.org/pragma.html#pragma_wal_autocheckpoint
 		"&_pragma=wal_checkpoint(PASSIVE)" + // https://www.sqlite.org/pragma.html#pragma_wal_checkpoint
 		"&_pragma=journal_size_limit(1000)" + // max WAL file size in bytes https://www.sqlite.org/pragma.html#pragma_journal_size_limit
-		"&_pragma=busy_timeout(1000)" // https://www.sqlite.org/pragma.html#pragma_busy_timeout
+		"&_pragma=busy_timeout(100)" // https://www.sqlite.org/pragma.html#pragma_busy_timeout
 	maxRetries = 2
 )
 
