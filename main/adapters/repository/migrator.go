@@ -164,6 +164,12 @@ func cleanUP(configDir string) {
 		log.Warnf("could not remove key file %s from file system: %v", keyFile, err)
 	}
 
+	keyFileBck := filepath.Join(configDir, keyFileName+".bck")
+	err = os.Remove(keyFileBck)
+	if err != nil && !os.IsNotExist(err) {
+		log.Warnf("could not remove key backup file %s from file system: %v", keyFileBck, err)
+	}
+
 	signatureDir := filepath.Join(configDir, signatureDirName)
 	err = os.RemoveAll(signatureDir)
 	if err != nil {

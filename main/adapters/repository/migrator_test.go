@@ -52,8 +52,14 @@ func cleanUpMigrationTest(t *testing.T, c *config.Config) {
 	_, err := os.Stat(filepath.Join(c.ConfigDir, contextFileName_Legacy))
 	assert.Truef(t, os.IsNotExist(err), "%s has not been cleaned up after migration", contextFileName_Legacy)
 
+	_, err = os.Stat(filepath.Join(c.ConfigDir, contextFileName_Legacy+".bck"))
+	assert.Truef(t, os.IsNotExist(err), "%s has not been cleaned up after migration", contextFileName_Legacy+".bck")
+
 	_, err = os.Stat(filepath.Join(c.ConfigDir, keyFileName))
 	assert.Truef(t, os.IsNotExist(err), "%s has not been cleaned up after migration", keyFileName)
+
+	_, err = os.Stat(filepath.Join(c.ConfigDir, keyFileName+".bck"))
+	assert.Truef(t, os.IsNotExist(err), "%s has not been cleaned up after migration", keyFileName+".bck")
 
 	_, err = os.Stat(filepath.Join(c.ConfigDir, signatureDirName))
 	assert.Truef(t, os.IsNotExist(err), "%s has not been cleaned up after migration", signatureDirName)
