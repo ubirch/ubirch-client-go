@@ -89,6 +89,7 @@ type Config struct {
 	Niomon             string            // authentication service URL (set automatically)
 	VerifyService      string            // verification service URL (set automatically)
 	SecretBytes32      []byte            // the decoded 32 byte key store secret for database (set automatically)
+	ConfigDir          string            // path to config file (set automatically)
 }
 
 func (c *Config) Load(configDir, filename string) error {
@@ -117,7 +118,9 @@ func (c *Config) Load(configDir, filename string) error {
 		log.SetFormatter(&log.TextFormatter{FullTimestamp: true, TimestampFormat: "2006-01-02 15:04:05.000 -0700"})
 	}
 
-	err = c.loadIdentitiesFile(configDir)
+	c.ConfigDir = configDir
+
+	err = c.loadIdentitiesFile()
 	if err != nil {
 		return err
 	}
@@ -127,13 +130,9 @@ func (c *Config) Load(configDir, filename string) error {
 		return err
 	}
 
-	if c.SqliteDSN != "" {
-		c.SqliteDSN = filepath.Join(configDir, c.SqliteDSN)
-	}
-
 	// set defaults
 	c.setDefaultCSR()
-	c.setDefaultTLS(configDir)
+	c.setDefaultTLS()
 	c.setDefaultCORS()
 	c.setKeyDerivationParams()
 	return c.setDefaultURLs()
@@ -189,7 +188,7 @@ func (c *Config) setDefaultCSR() {
 	log.Debugf("CSR Subject Organization: %s", c.CSR_Organization)
 }
 
-func (c *Config) setDefaultTLS(configDir string) {
+func (c *Config) setDefaultTLS() {
 	if c.TCP_addr == "" {
 		c.TCP_addr = defaultTCPAddr
 	}
@@ -201,13 +200,13 @@ func (c *Config) setDefaultTLS(configDir string) {
 		if c.TLS_CertFile == "" {
 			c.TLS_CertFile = defaultTLSCertFile
 		}
-		c.TLS_CertFile = filepath.Join(configDir, c.TLS_CertFile)
+		c.TLS_CertFile = filepath.Join(c.ConfigDir, c.TLS_CertFile)
 		log.Debugf(" - Cert: %s", c.TLS_CertFile)
 
 		if c.TLS_KeyFile == "" {
 			c.TLS_KeyFile = defaultTLSKeyFile
 		}
-		c.TLS_KeyFile = filepath.Join(configDir, c.TLS_KeyFile)
+		c.TLS_KeyFile = filepath.Join(c.ConfigDir, c.TLS_KeyFile)
 		log.Debugf(" -  Key: %s", c.TLS_KeyFile)
 	}
 }
@@ -284,8 +283,8 @@ func (c *Config) setDefaultURLs() error {
 
 // loadIdentitiesFile loads device identities from the identities JSON file.
 // Returns without error if file does not exist.
-func (c *Config) loadIdentitiesFile(configDir string) error {
-	identitiesFile := filepath.Join(configDir, identitiesFileName)
+func (c *Config) loadIdentitiesFile() error {
+	identitiesFile := filepath.Join(c.ConfigDir, identitiesFileName)
 
 	// if file does not exist, return right away
 	if _, err := os.Stat(identitiesFile); os.IsNotExist(err) {

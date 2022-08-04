@@ -33,13 +33,15 @@ const (
 	PostgreSQL = "postgres"
 	SQLite     = "sqlite"
 
-	sqliteConfig = "?_txlock=EXCLUSIVE" + // https://www.sqlite.org/lang_transaction.html
+	defaultSQLiteName = "sqlite.db"
+	sqliteConfig      = "?_txlock=EXCLUSIVE" + // https://www.sqlite.org/lang_transaction.html
 		"&_pragma=journal_mode(WAL)" + // https://www.sqlite.org/wal.html
 		"&_pragma=synchronous(FULL)" + // https://www.sqlite.org/pragma.html#pragma_synchronous
 		"&_pragma=wal_autocheckpoint(1)" + // checkpoint when WAL reaches x pages https://www.sqlite.org/pragma.html#pragma_wal_autocheckpoint
 		"&_pragma=wal_checkpoint(PASSIVE)" + // https://www.sqlite.org/pragma.html#pragma_wal_checkpoint
 		"&_pragma=journal_size_limit(1000)" + // max WAL file size in bytes https://www.sqlite.org/pragma.html#pragma_journal_size_limit
 		"&_pragma=busy_timeout(100)" // https://www.sqlite.org/pragma.html#pragma_busy_timeout
+
 	maxRetries = 2
 )
 

@@ -79,7 +79,7 @@ func main() {
 	}
 
 	if migrate {
-		err := repository.Migrate(conf, configDir)
+		err := repository.Migrate(conf)
 		if err != nil {
 			log.Fatalf("migration failed: %v", err)
 		}
