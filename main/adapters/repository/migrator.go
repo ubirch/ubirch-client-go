@@ -39,7 +39,17 @@ func Migrate(c *config.Config, configDir string) error {
 		return err
 	}
 
-	// todo make sure context is not already migrated
+	// fixme: this is here for legacy reasons and hacky
+	// we used to support db schema migration by tracking migration versions in a table "version"
+	// if this table exists, we can assume that the database has been migrated
+	//  and return without error
+	if dm.driverName == PostgreSQL {
+		_, err = dm.db.Exec("SELECT * FROM version")
+		if err == nil {
+			log.Warnf("database schema migration is no longer supported in this version")
+			return nil
+		}
+	}
 
 	p, err := NewExtendedProtocol(dm, c)
 	if err != nil {
