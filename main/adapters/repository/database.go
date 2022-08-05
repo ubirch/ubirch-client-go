@@ -18,19 +18,28 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	"github.com/mattn/go-sqlite3"
 	"github.com/ubirch/ubirch-client-go/main/ent"
+	"modernc.org/sqlite"
 
 	log "github.com/sirupsen/logrus"
 )
 
 const (
 	PostgreSQL = "postgres"
-	SQLite     = "sqlite3"
+	SQLite     = "sqlite"
+
+	sqliteConfig = "?_txlock=EXCLUSIVE" + // https://www.sqlite.org/lang_transaction.html
+		"&_pragma=journal_mode(WAL)" + // https://www.sqlite.org/wal.html
+		"&_pragma=synchronous(FULL)" + // https://www.sqlite.org/pragma.html#pragma_synchronous
+		"&_pragma=wal_autocheckpoint(1)" + // checkpoint when WAL reaches x pages https://www.sqlite.org/pragma.html#pragma_wal_autocheckpoint
+		"&_pragma=wal_checkpoint(PASSIVE)" + // https://www.sqlite.org/pragma.html#pragma_wal_checkpoint
+		"&_pragma=journal_size_limit(1000)" + // max WAL file size in bytes https://www.sqlite.org/pragma.html#pragma_journal_size_limit
+		"&_pragma=busy_timeout(100)" // https://www.sqlite.org/pragma.html#pragma_busy_timeout
 
 	maxRetries = 2
 )
@@ -46,20 +55,10 @@ type DatabaseManager struct {
 // Ensure Database implements the ContextManager interface
 var _ ContextManager = (*DatabaseManager)(nil)
 
-// NewSqlDatabaseInfo takes a database connection string, returns a new initialized
-// database.
-func NewSqlDatabaseInfo(driverName, dataSourceName string, maxConns int) (*DatabaseManager, error) {
+// NewDatabaseManager takes a database connection string, returns a new initialized
+// SQL database manager.
+func NewDatabaseManager(driverName, dataSourceName string, maxConns int) (*DatabaseManager, error) {
 	log.Infof("preparing %s database", driverName)
-
-	db, err := sql.Open(driverName, dataSourceName)
-	if err != nil {
-		return nil, err
-	}
-
-	db.SetMaxOpenConns(maxConns)
-	db.SetMaxIdleConns(maxConns)
-	db.SetConnMaxLifetime(10 * time.Minute)
-	db.SetConnMaxIdleTime(1 * time.Minute)
 
 	var isolationLvl sql.IsolationLevel
 	var identityTable int
@@ -71,9 +70,22 @@ func NewSqlDatabaseInfo(driverName, dataSourceName string, maxConns int) (*Datab
 	case SQLite:
 		isolationLvl = sql.LevelSerializable
 		identityTable = SQLiteIdentity
+		if !strings.Contains(dataSourceName, "?") {
+			dataSourceName += sqliteConfig
+		}
 	default:
 		return nil, fmt.Errorf("unsupported SQL driver: %s", driverName)
 	}
+
+	db, err := sql.Open(driverName, dataSourceName)
+	if err != nil {
+		return nil, err
+	}
+
+	db.SetMaxOpenConns(maxConns)
+	db.SetMaxIdleConns(maxConns)
+	db.SetConnMaxLifetime(10 * time.Minute)
+	db.SetConnMaxIdleTime(1 * time.Minute)
 
 	dm := &DatabaseManager{
 		options: &sql.TxOptions{
@@ -84,9 +96,13 @@ func NewSqlDatabaseInfo(driverName, dataSourceName string, maxConns int) (*Datab
 		driverName: driverName,
 	}
 
-	if err = dm.IsReady(); err != nil {
-		// if there is no connection to the database yet, continue anyway.
-		log.Warn(err)
+	if err = db.Ping(); err != nil {
+		if driverName == PostgreSQL && strings.Contains(err.Error(), "connection refused") {
+			// if there is no connection to the database yet, continue anyway.
+			log.Warnf("connection to the database could not yet be established: %v", err)
+		} else {
+			return nil, err
+		}
 	} else {
 		err = dm.CreateTable(identityTable)
 		if err != nil {
@@ -296,13 +312,14 @@ func (dm *DatabaseManager) isRecoverable(err error) bool {
 			log.Errorf("unexpected postgres database error: %s", pqErr)
 		}
 	case SQLite:
-		if liteErr, ok := err.(sqlite3.Error); ok {
-			if liteErr.Code == sqlite3.ErrBusy ||
-				liteErr.Code == sqlite3.ErrLocked {
+		if liteErr, ok := err.(*sqlite.Error); ok {
+			if liteErr.Code() == 5 || // SQLITE_BUSY
+				liteErr.Code() == 6 || // SQLITE_LOCKED
+				liteErr.Code() == 261 { // SQLITE_BUSY_RECOVERY
 				time.Sleep(10 * time.Millisecond)
 				return true
 			}
-			if liteErr.Code == sqlite3.ErrError {
+			if liteErr.Code() == 1 { // SQLITE_ERROR
 				err = dm.CreateTable(SQLiteIdentity)
 				if err != nil {
 					log.Errorf("creating DB table failed: %v", err)
