@@ -19,6 +19,12 @@ func Migrate(c *config.Config, configDir string) error {
 	if err != nil {
 		return err
 	}
+	defer func() {
+		err := ctxManager.Close()
+		if err != nil {
+			log.Error(err)
+		}
+	}()
 
 	dm, ok := ctxManager.(*DatabaseManager)
 	if !ok {
