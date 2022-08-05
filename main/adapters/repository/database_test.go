@@ -23,12 +23,10 @@ import (
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
-const (
-	testLoad = 100
-)
+const testLoad = 100
 
 func TestDatabaseManager(t *testing.T) {
-	dm, err := initDB()
+	dm, err := initDB(0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -46,6 +44,7 @@ func TestDatabaseManager(t *testing.T) {
 
 	tx, err := dm.StartTransaction(ctx)
 	require.NoError(t, err)
+	require.NotNil(t, tx)
 
 	_, err = dm.LoadActiveFlagForUpdate(tx, testIdentity.Uid)
 	assert.Equal(t, ErrNotExist, err)
@@ -62,6 +61,7 @@ func TestDatabaseManager(t *testing.T) {
 	// store identity
 	tx, err = dm.StartTransaction(ctx)
 	require.NoError(t, err)
+	require.NotNil(t, tx)
 
 	err = dm.StoreIdentity(tx, testIdentity)
 	require.NoError(t, err)
@@ -101,7 +101,7 @@ func TestDatabaseManager(t *testing.T) {
 }
 
 func TestDatabaseManager_StoreActiveFlag(t *testing.T) {
-	dm, err := initDB()
+	dm, err := initDB(0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -141,7 +141,7 @@ func TestDatabaseManager_StoreActiveFlag(t *testing.T) {
 }
 
 func TestDatabaseManager_SetSignature(t *testing.T) {
-	dm, err := initDB()
+	dm, err := initDB(0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -188,7 +188,7 @@ func TestDatabaseManager_SetSignature(t *testing.T) {
 }
 
 func TestDatabaseManager_LoadSignatureForUpdate(t *testing.T) {
-	dm, err := initDB()
+	dm, err := initDB(0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -200,6 +200,7 @@ func TestDatabaseManager_LoadSignatureForUpdate(t *testing.T) {
 	// store identity
 	tx, err := dm.StartTransaction(ctx)
 	require.NoError(t, err)
+	require.NotNil(t, tx)
 
 	err = dm.StoreIdentity(tx, testIdentity)
 	require.NoError(t, err)
@@ -210,6 +211,7 @@ func TestDatabaseManager_LoadSignatureForUpdate(t *testing.T) {
 	// get lock on signature
 	tx, err = dm.StartTransaction(ctx)
 	require.NoError(t, err)
+	require.NotNil(t, tx)
 
 	_, err = dm.LoadSignatureForUpdate(tx, testIdentity.Uid)
 	require.NoError(t, err)
@@ -226,7 +228,7 @@ func TestDatabaseManager_LoadSignatureForUpdate(t *testing.T) {
 }
 
 func TestDatabaseManager_StoreAuth(t *testing.T) {
-	dm, err := initDB()
+	dm, err := initDB(0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -273,7 +275,7 @@ func TestDatabaseManager_StoreAuth(t *testing.T) {
 }
 
 func TestNewSqlDatabaseInfo_Ready(t *testing.T) {
-	dm, err := initDB()
+	dm, err := initDB(0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -286,7 +288,7 @@ func TestNewSqlDatabaseInfo_NotReady(t *testing.T) {
 	unreachableDSN := "postgres://nousr:nopwd@localhost:0000/nodatabase"
 
 	// we expect no error here
-	dm, err := NewSqlDatabaseInfo(PostgreSQL, unreachableDSN, 0)
+	dm, err := NewDatabaseManager(PostgreSQL, unreachableDSN, 0)
 	require.NoError(t, err)
 	defer func(dm *DatabaseManager) {
 		err := dm.Close()
@@ -300,7 +302,7 @@ func TestNewSqlDatabaseInfo_NotReady(t *testing.T) {
 }
 
 func TestStoreExisting(t *testing.T) {
-	dm, err := initDB()
+	dm, err := initDB(0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -330,7 +332,7 @@ func TestStoreExisting(t *testing.T) {
 }
 
 func TestDatabaseManager_CancelTransaction(t *testing.T) {
-	dm, err := initDB()
+	dm, err := initDB(0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -349,21 +351,29 @@ func TestDatabaseManager_CancelTransaction(t *testing.T) {
 
 	cancel()
 
-	// check not exists
+	// check transaction was rolled back
 	_, err = dm.LoadIdentity(testIdentity.Uid)
 	assert.Equal(t, ErrNotExist, err)
+
+	// make sure identity can be stored now
+	ctx, cancel = context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err = dm.StartTransaction(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, tx)
+
+	err = dm.StoreIdentity(tx, testIdentity)
+	require.NoError(t, err)
 }
 
 func TestDatabaseManager_StartTransaction(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-
-	c, err := getConfig()
-	require.NoError(t, err)
-
-	dm, err := NewSqlDatabaseInfo(PostgreSQL, c.PostgresDSN, 1)
+	dm, err := initDB(1)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
 
 	tx, err := dm.StartTransaction(ctx)
 	require.NoError(t, err)
@@ -375,7 +385,7 @@ func TestDatabaseManager_StartTransaction(t *testing.T) {
 }
 
 func TestDatabaseManager_InvalidTransactionCtx(t *testing.T) {
-	dm, err := initDB()
+	dm, err := initDB(0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -407,7 +417,7 @@ func TestDatabaseManager_InvalidTransactionCtx(t *testing.T) {
 func TestDatabaseLoad(t *testing.T) {
 	wg := &sync.WaitGroup{}
 
-	dm, err := initDB()
+	dm, err := initDB(0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -468,7 +478,7 @@ func TestDatabaseManager_Retry(t *testing.T) {
 	c, err := getConfig()
 	require.NoError(t, err)
 
-	dm, err := NewSqlDatabaseInfo(PostgreSQL, c.PostgresDSN, 101)
+	dm, err := NewDatabaseManager(PostgreSQL, c.PostgresDSN, 101)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -523,23 +533,21 @@ func getConfig() (*config.Config, error) {
 	return c, nil
 }
 
-func initDB() (*DatabaseManager, error) {
+func initDB(maxConns int) (*DatabaseManager, error) {
 	c, err := getConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	dm, err := NewSqlDatabaseInfo(PostgreSQL, c.PostgresDSN, c.DbMaxConns)
-	if err != nil {
-		return nil, err
-	}
-
-	return dm, nil
+	return NewDatabaseManager(PostgreSQL, c.PostgresDSN, maxConns)
 }
 
-func cleanUpDB(t *testing.T, dm *DatabaseManager) {
+func cleanUpDB(t assert.TestingT, dm *DatabaseManager) {
 	dropTableQuery := fmt.Sprintf("DROP TABLE %s;", IdentityTableName)
-	_, err := dm.db.Exec(dropTableQuery)
+	err := dm.retry(func() error {
+		_, err := dm.db.Exec(dropTableQuery)
+		return err
+	})
 	assert.NoError(t, err)
 
 	err = dm.Close()

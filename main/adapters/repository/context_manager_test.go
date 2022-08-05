@@ -26,10 +26,3 @@ func TestGetContextManagerDB(t *testing.T) {
 	err = ContextMngr.Close()
 	assert.NoError(t, err)
 }
-
-func TestGetContextManagerFile(t *testing.T) {
-	conf := &config.Config{}
-
-	_, err := GetContextManager(conf)
-	assert.Error(t, err)
-}
