@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"path"
 	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	urlpkg "net/url"
 )
 
 type SigningResponse struct {
@@ -39,8 +41,16 @@ type Sender struct {
 }
 
 func NewSender() *Sender {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.MaxIdleConns = httpConnectionPoolSize
+	transport.MaxConnsPerHost = httpConnectionPoolSize
+	transport.MaxIdleConnsPerHost = httpConnectionPoolSize
+
 	return &Sender{
-		httpClient:       &http.Client{Timeout: 30 * time.Second},
+		httpClient: &http.Client{
+			Timeout:   httpClientTimeoutSec * time.Second,
+			Transport: transport,
+		},
 		chainChecker:     NewChainChecker(),
 		statusCounter:    map[string]int{},
 		statusCounterMtx: &sync.Mutex{},
@@ -48,8 +58,8 @@ func NewSender() *Sender {
 	}
 }
 
-func (s *Sender) register(id, auth, registerAuth string) error {
-	url := clientBaseURL + "/register"
+func (s *Sender) register(url urlpkg.URL, id, auth, registerAuth string) error {
+	url.Path = path.Join(url.Path, "register")
 
 	header := http.Header{}
 	header.Set("Content-Type", "application/json")
@@ -65,7 +75,7 @@ func (s *Sender) register(id, auth, registerAuth string) error {
 		return err
 	}
 
-	req, err := http.NewRequest(http.MethodPut, url, bytes.NewBuffer(body))
+	req, err := http.NewRequest(http.MethodPut, url.String(), bytes.NewBuffer(body))
 	if err != nil {
 		return err
 	}
@@ -92,10 +102,11 @@ func (s *Sender) register(id, auth, registerAuth string) error {
 	return nil
 }
 
-func (s *Sender) sendRequests(id, auth string, offset time.Duration, wg *sync.WaitGroup) {
+func (s *Sender) sendRequests(url urlpkg.URL, uid, auth string, offset time.Duration, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	clientURL := clientBaseURL + fmt.Sprintf("/%s/hash", id)
+	url.Path = path.Join(url.Path, uid, "hash")
+
 	header := http.Header{}
 	header.Set("Content-Type", "application/octet-stream")
 	header.Set("X-Auth-Token", auth)
@@ -104,7 +115,7 @@ func (s *Sender) sendRequests(id, auth string, offset time.Duration, wg *sync.Wa
 
 	for i := 0; i < numberOfRequestsPerID; i++ {
 		wg.Add(1)
-		go s.sendAndCheckResponse(clientURL, header, wg)
+		go s.sendAndCheckResponse(url.String(), header, wg)
 
 		time.Sleep(time.Second / requestsPerSecondPerID)
 	}
@@ -149,7 +160,7 @@ func (s *Sender) sendRequest(clientURL string, header http.Header, hash []byte) 
 		return SigningResponse{}, err
 	}
 
-	duration := time.Now().Sub(start)
+	duration := time.Since(start)
 
 	//noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()
