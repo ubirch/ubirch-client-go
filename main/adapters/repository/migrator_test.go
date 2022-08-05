@@ -1,7 +1,9 @@
 package repository
 
 import (
+	"context"
 	"encoding/base64"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/ubirch/ubirch-client-go/main/config"
@@ -14,6 +16,8 @@ import (
 const (
 	testSecret16Base64 = "Z+08XlrEAkTf3Ss7eyMrCg=="
 	testSecret32Base64 = "CXbgnOK9QdAB44UaeMCKQIE33iCX4xCPDzbh+sQplRY="
+
+	testUUID = "21c033cf-38af-466e-b5da-32f0a3ab6020"
 )
 
 func TestMigrate(t *testing.T) {
@@ -52,7 +56,9 @@ func TestMigrate(t *testing.T) {
 			require.NoError(t, err)
 
 			err = Migrate(conf, tmp)
-			assert.NoError(t, err)
+			require.NoError(t, err)
+
+			verifyMigration(t, conf)
 		})
 	}
 }
@@ -100,6 +106,33 @@ func cleanUpMigrationTest(t *testing.T, c *config.Config, configDir string) {
 	require.True(t, ok)
 
 	cleanUpDB(t, dm)
+}
+
+func verifyMigration(t *testing.T, c *config.Config) {
+	ctxManager, err := GetContextManager(c)
+	require.NoError(t, err)
+
+	p, err := NewExtendedProtocol(ctxManager, c)
+	require.NoError(t, err)
+
+	i, err := p.LoadIdentity(uuid.MustParse(testUUID))
+	require.NoError(t, err)
+
+	assert.Equal(t,
+		"4m52sCx5uW3XY7oNnZul3DZRRcmhPFmo0HoQeIrw8AVca6CWQKtn3+NkbrdOeWd/LVor7WQXREubUsbo9BgpqQ==",
+		base64.StdEncoding.EncodeToString(i.Signature))
+
+	ok, found, err := p.CheckAuth(context.Background(), uuid.MustParse(testUUID), "Pv3cAWvHnde/sxcM7fA02g==")
+	assert.NoError(t, err)
+	assert.True(t, found)
+	assert.True(t, ok)
+
+	signature, err := p.Crypto.Sign(uuid.MustParse(testUUID), []byte("message"))
+	require.NoError(t, err)
+
+	ok, err = p.Crypto.Verify(uuid.MustParse(testUUID), []byte("message"), signature)
+	assert.NoError(t, err)
+	assert.True(t, ok)
 }
 
 const legacyProtocolCtxJson = `{
