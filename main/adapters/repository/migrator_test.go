@@ -17,13 +17,44 @@ const (
 )
 
 func TestMigrate(t *testing.T) {
-	tmp := t.TempDir()
+	testCases := []struct {
+		name   string
+		setDSN func(*config.Config, string) error
+	}{
+		{
+			name: "postgres migration",
+			setDSN: func(c *config.Config, _ string) error {
+				dbConf, err := getConfig()
+				if err != nil {
+					return err
+				}
+				c.PostgresDSN = dbConf.PostgresDSN
+				c.DbMaxConns = dbConf.DbMaxConns
+				return nil
+			},
+		},
+		{
+			name: "sqlite migration",
+			setDSN: func(c *config.Config, configDir string) error {
+				c.SqliteDSN = filepath.Join(configDir, testSQLiteDSN)
+				return nil
+			},
+		},
+	}
+	for _, c := range testCases {
+		t.Run(c.name, func(t *testing.T) {
+			tmp := t.TempDir()
 
-	conf := setupMigrationTest(t, tmp)
-	defer cleanUpMigrationTest(t, conf, tmp)
+			conf := setupMigrationTest(t, tmp)
+			defer cleanUpMigrationTest(t, conf, tmp)
 
-	err := Migrate(conf, tmp)
-	assert.NoError(t, err)
+			err := c.setDSN(conf, tmp)
+			require.NoError(t, err)
+
+			err = Migrate(conf, tmp)
+			assert.NoError(t, err)
+		})
+	}
 }
 
 func setupMigrationTest(t *testing.T, configDir string) *config.Config {
@@ -38,8 +69,6 @@ func setupMigrationTest(t *testing.T, configDir string) *config.Config {
 		Devices:            devices,
 		Secret16Base64:     testSecret16Base64,
 		SecretBytes32:      secretBytes32,
-		SqliteDSN:          filepath.Join(configDir, testSQLiteDSN),
-		DbMaxConns:         0,
 		KdMaxTotalMemMiB:   4,
 		KdParamMemMiB:      2,
 		KdParamTime:        1,
