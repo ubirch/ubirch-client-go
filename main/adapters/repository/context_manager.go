@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"errors"
-	"path/filepath"
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/config"
@@ -43,13 +42,6 @@ func GetContextManager(c *config.Config) (ContextManager, error) {
 	if c.PostgresDSN != "" {
 		return NewDatabaseManager(PostgreSQL, c.PostgresDSN, c.DbMaxConns)
 	} else {
-		var sqliteDSN string
-		if c.SqliteDSN != "" {
-			sqliteDSN = filepath.Join(c.ConfigDir, c.SqliteDSN)
-		} else {
-			sqliteDSN = filepath.Join(c.ConfigDir, defaultSQLiteName)
-		}
-
-		return NewDatabaseManager(SQLite, sqliteDSN, c.DbMaxConns)
+		return NewDatabaseManager(SQLite, c.SqliteDSN, c.DbMaxConns)
 	}
 }

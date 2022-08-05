@@ -33,8 +33,7 @@ const (
 	PostgreSQL = "postgres"
 	SQLite     = "sqlite"
 
-	defaultSQLiteName = "sqlite.db"
-	sqliteConfig      = "?_txlock=EXCLUSIVE" + // https://www.sqlite.org/lang_transaction.html
+	sqliteConfig = "?_txlock=EXCLUSIVE" + // https://www.sqlite.org/lang_transaction.html
 		"&_pragma=journal_mode(WAL)" + // https://www.sqlite.org/wal.html
 		"&_pragma=synchronous(FULL)" + // https://www.sqlite.org/pragma.html#pragma_synchronous
 		"&_pragma=wal_autocheckpoint(1)" + // checkpoint when WAL reaches x pages https://www.sqlite.org/pragma.html#pragma_wal_autocheckpoint

@@ -14,7 +14,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func Migrate(c *config.Config) error {
+func Migrate(c *config.Config, configDir string) error {
 	ctxManager, err := GetContextManager(c)
 	if err != nil {
 		return err
@@ -46,18 +46,18 @@ func Migrate(c *config.Config) error {
 		return err
 	}
 
-	err = migrateIdentities(c, p)
+	err = migrateIdentities(c, configDir, p)
 	if err != nil {
 		return fmt.Errorf("could not migrate file-based context to database: %v", err)
 	}
 
 	log.Infof("successfully migrated file-based context to database")
 
-	cleanUP(c.ConfigDir)
+	cleanUpLegacyFiles(configDir)
 	return nil
 }
 
-func getIdentitiesFromLegacyCtx(c *config.Config, p *ExtendedProtocol) (identities []*ent.Identity, err error) {
+func getIdentitiesFromLegacyCtx(c *config.Config, configDir string, p *ExtendedProtocol) (identities []*ent.Identity, err error) {
 	log.Infof("loading existing identities from file system")
 
 	secret16Bytes, err := base64.StdEncoding.DecodeString(c.Secret16Base64)
@@ -68,7 +68,7 @@ func getIdentitiesFromLegacyCtx(c *config.Config, p *ExtendedProtocol) (identiti
 		return nil, fmt.Errorf("invalid secret for legacy key store: secret length must be 16 bytes (is %d)", len(secret16Bytes))
 	}
 
-	fileManager, err := NewFileManager(c.ConfigDir, secret16Bytes)
+	fileManager, err := NewFileManager(configDir, secret16Bytes)
 	if err != nil {
 		return nil, err
 	}
@@ -116,9 +116,9 @@ func getIdentitiesFromLegacyCtx(c *config.Config, p *ExtendedProtocol) (identiti
 	return identities, nil
 }
 
-func migrateIdentities(c *config.Config, p *ExtendedProtocol) error {
+func migrateIdentities(c *config.Config, configDir string, p *ExtendedProtocol) error {
 	// migrate from file based context
-	identities, err := getIdentitiesFromLegacyCtx(c, p)
+	identities, err := getIdentitiesFromLegacyCtx(c, configDir, p)
 	if err != nil {
 		return err
 	}
@@ -155,7 +155,7 @@ func migrateIdentities(c *config.Config, p *ExtendedProtocol) error {
 	return tx.Commit()
 }
 
-func cleanUP(configDir string) {
+func cleanUpLegacyFiles(configDir string) {
 	log.Infof("removing legacy context from file system")
 
 	keyFile := filepath.Join(configDir, keyFileName)

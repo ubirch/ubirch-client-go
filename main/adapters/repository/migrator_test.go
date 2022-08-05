@@ -17,16 +17,17 @@ const (
 )
 
 func TestMigrate(t *testing.T) {
-	conf := setupMigrationTest(t)
-	defer cleanUpMigrationTest(t, conf)
+	tmp := t.TempDir()
 
-	err := Migrate(conf)
+	conf := setupMigrationTest(t, tmp)
+	defer cleanUpMigrationTest(t, conf, tmp)
+
+	err := Migrate(conf, tmp)
 	assert.NoError(t, err)
 }
 
-func setupMigrationTest(t *testing.T) *config.Config {
-	tmp := t.TempDir()
-	legacyCtxFile := filepath.Join(tmp, contextFileName_Legacy)
+func setupMigrationTest(t *testing.T, configDir string) *config.Config {
+	legacyCtxFile := filepath.Join(configDir, contextFileName_Legacy)
 
 	err := ioutil.WriteFile(legacyCtxFile, []byte(legacyProtocolCtxJson), filePerm)
 	require.NoError(t, err)
@@ -37,31 +38,30 @@ func setupMigrationTest(t *testing.T) *config.Config {
 		Devices:            devices,
 		Secret16Base64:     testSecret16Base64,
 		SecretBytes32:      secretBytes32,
-		SqliteDSN:          testSQLiteDSN,
-		DbMaxConns:         2,
+		SqliteDSN:          filepath.Join(configDir, testSQLiteDSN),
+		DbMaxConns:         0,
 		KdMaxTotalMemMiB:   4,
 		KdParamMemMiB:      2,
 		KdParamTime:        1,
 		KdParamParallelism: 2,
-		ConfigDir:          tmp,
 	}
 }
 
-func cleanUpMigrationTest(t *testing.T, c *config.Config) {
+func cleanUpMigrationTest(t *testing.T, c *config.Config, configDir string) {
 	// assert legacy files were cleaned up after migration
-	_, err := os.Stat(filepath.Join(c.ConfigDir, contextFileName_Legacy))
+	_, err := os.Stat(filepath.Join(configDir, contextFileName_Legacy))
 	assert.Truef(t, os.IsNotExist(err), "%s has not been cleaned up after migration", contextFileName_Legacy)
 
-	_, err = os.Stat(filepath.Join(c.ConfigDir, contextFileName_Legacy+".bck"))
+	_, err = os.Stat(filepath.Join(configDir, contextFileName_Legacy+".bck"))
 	assert.Truef(t, os.IsNotExist(err), "%s has not been cleaned up after migration", contextFileName_Legacy+".bck")
 
-	_, err = os.Stat(filepath.Join(c.ConfigDir, keyFileName))
+	_, err = os.Stat(filepath.Join(configDir, keyFileName))
 	assert.Truef(t, os.IsNotExist(err), "%s has not been cleaned up after migration", keyFileName)
 
-	_, err = os.Stat(filepath.Join(c.ConfigDir, keyFileName+".bck"))
+	_, err = os.Stat(filepath.Join(configDir, keyFileName+".bck"))
 	assert.Truef(t, os.IsNotExist(err), "%s has not been cleaned up after migration", keyFileName+".bck")
 
-	_, err = os.Stat(filepath.Join(c.ConfigDir, signatureDirName))
+	_, err = os.Stat(filepath.Join(configDir, signatureDirName))
 	assert.Truef(t, os.IsNotExist(err), "%s has not been cleaned up after migration", signatureDirName)
 
 	ctxManager, err := GetContextManager(c)
