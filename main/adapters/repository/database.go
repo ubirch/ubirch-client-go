@@ -206,10 +206,13 @@ func (dm *DatabaseManager) LoadActiveFlagForUpdate(transactionCtx TransactionCtx
 func (dm *DatabaseManager) LoadActiveFlag(uid uuid.UUID) (active bool, err error) {
 	query := fmt.Sprintf("SELECT active FROM %s WHERE uid = $1;", IdentityTableName)
 
-	err = dm.db.QueryRow(query, uid).Scan(&active)
-	if err == sql.ErrNoRows {
-		return false, ErrNotExist
-	}
+	err = dm.retry(func() error {
+		err := dm.db.QueryRow(query, uid).Scan(&active)
+		if err == sql.ErrNoRows {
+			return ErrNotExist
+		}
+		return err
+	})
 
 	return active, err
 }
