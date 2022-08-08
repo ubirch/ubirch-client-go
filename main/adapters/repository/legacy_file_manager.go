@@ -88,10 +88,6 @@ func (f *FileManager) loadKeys() error {
 	return loadFile(f.KeyFile, f.EncryptedKeystore.Keystore)
 }
 
-func (f *FileManager) persistKeys() error {
-	return persistFile(f.KeyFile, f.EncryptedKeystore.Keystore)
-}
-
 func loadFile(file string, dest interface{}) error {
 	if _, err := os.Stat(file); os.IsNotExist(err) { // if file does not exist yet, return right away
 		return nil
