@@ -141,6 +141,7 @@ func storeTestIdentity(t require.TestingT, ctxManager ContextManager) {
 
 func updateSignature(t require.TestingT, ctxManager ContextManager) {
 	_, err := ctxManager.LoadActiveFlag(testId.Uid)
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
