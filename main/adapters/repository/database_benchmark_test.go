@@ -67,8 +67,8 @@ func BenchmarkPostgres_async(b *testing.B) {
 		for j := 0; j < 10; j++ {
 			wg.Add(1)
 			go func() {
+				defer wg.Done()
 				updateSignature(b, dm)
-				wg.Done()
 			}()
 		}
 		wg.Wait()
@@ -88,8 +88,8 @@ func BenchmarkSQLite_async(b *testing.B) {
 		for j := 0; j < 10; j++ {
 			wg.Add(1)
 			go func() {
+				defer wg.Done()
 				updateSignature(b, dm)
-				wg.Done()
 			}()
 		}
 		wg.Wait()
@@ -117,8 +117,8 @@ func BenchmarkSQLite_config(b *testing.B) {
 		for j := 0; j < 10; j++ {
 			wg.Add(1)
 			go func() {
+				defer wg.Done()
 				updateSignature(b, dm)
-				wg.Done()
 			}()
 		}
 		wg.Wait()
