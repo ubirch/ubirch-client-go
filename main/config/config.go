@@ -165,12 +165,20 @@ func (c *Config) loadFile(filename string) error {
 }
 
 func (c *Config) checkMandatory() error {
+	var missingConfig bool
+
 	if len(c.SecretBytes32) != secretLength32 {
-		return fmt.Errorf("secret for aes-256 key encryption ('secret32' / 'UBIRCH_SECRET32') length must be %d bytes (is %d)", secretLength32, len(c.SecretBytes32))
+		missingConfig = true
+		log.Errorf("secret for aes-256 key encryption ('secret32' / 'UBIRCH_SECRET32') length must be %d bytes (is %d)", secretLength32, len(c.SecretBytes32))
 	}
 
 	if len(c.RegisterAuth) == 0 {
-		return fmt.Errorf("missing 'registerAuth' / 'UBIRCH_REGISTERAUTH' in configuration")
+		missingConfig = true
+		log.Errorf("missing 'registerAuth' / 'UBIRCH_REGISTERAUTH' in configuration")
+	}
+
+	if missingConfig {
+		return fmt.Errorf("missing mandatory configuration")
 	}
 
 	return nil
