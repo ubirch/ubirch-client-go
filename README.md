@@ -67,12 +67,10 @@ make publish IMAGE_TAG=stable # will tag a multi-arch image with the selected ta
 
 The configuration can be set via a configuration file (`config.json`) or environment variables.
 
-There are three mandatory configurations:
+There are two mandatory configurations:
 
-1. a DSN to connect to a postgreSQL database, where the protocol context (i.e. keys, previous signatures, auth
-   tokens) can be stored
-2. a 32 byte base64 encoded secret, which will be used to encrypt the signing keys
-3. a static authentication token to protect the registration endpoint
+1. a 32 byte base64 encoded secret, which will be used to encrypt the signing keys
+2. a static authentication token to protect the identity registration endpoint
 
 > You can generate a random 32 byte base64 encoded secret in a Linux/macOS terminal
 > with `head -c 32 /dev/urandom | base64`
@@ -80,7 +78,7 @@ There are three mandatory configurations:
 At start-up, the client will first check if the `UBIRCH_SECRET32` environment variable exists and, if it does exist,
 load the configuration from the environment variables. If the `UBIRCH_SECRET32` environment variable is not set or
 empty, the client will try to load the `config.json`-file from the working directory. If neither exist, the client will
-abort and exit.
+abort and exit with status `1`.
 
 ### File Based Configuration
 
@@ -88,7 +86,6 @@ abort and exit.
 
 ```json
 {
-  "postgresDSN": "postgres://<username>:<password>@<hostname>:5432/<database>",
   "secret32": "<32 byte secret (base64 encoded)>",
   "registerAuth": "<static auth token for register endpoint>"
 }
@@ -99,7 +96,6 @@ abort and exit.
 ### Environment Based Configuration
 
 ```shell
-UBIRCH_POSTGRES_DSN=postgres://<username>:<password>@<hostname>:5432/<database>
 UBIRCH_SECRET32=<32 byte secret (base64 encoded)>
 UBIRCH_REGISTERAUTH=<static auth token for register endpoint>
 ```
@@ -108,6 +104,61 @@ UBIRCH_REGISTERAUTH=<static auth token for register endpoint>
 
 All further configuration parameters have default values, that can be changed as described
 under [Optional Configurations](#optional-configurations).
+
+## Context Management
+
+The identity context, i.e. keys, auth token and previous signature, has to be stored persistently. For that purpose, the
+user can choose between postgreSQL or the local file system, specifically SQLite.
+
+By default, the client will create a SQLite database file `sqlite.db` in the mounted volume upon startup.
+This option is appropriate for when the application is running on a system with limited space, like embedded devices,
+and only one or very few identities need to be managed.
+
+When compared to postgreSQL, the main drawback of SQLite is the performance while handling a high load of chaining
+requests for multiple identities at the same time.
+
+### PostgreSQL
+
+In order to connect the client to a postgreSQL database, the DSN can be set in the configuration.
+
+- add the following key-value pair to your `config.json`:
+    ```json
+      "postgresDSN": "postgres://<username>:<password>@<hostname>:5432/<database>",
+    ```
+- or set the following environment variable:
+    ```shell
+    UBIRCH_POSTGRES_DSN=postgres://<username>:<password>@<hostname>:5432/<database>
+    ```
+
+### SQLite
+
+If no postgres DSN is set, the client defaults to the usage of a SQLite database with the default file name `sqlite.db`
+and the following parameters:
+
+```text
+"?_txlock=EXCLUSIVE" + // https://www.sqlite.org/lang_transaction.html
+	"&_pragma=journal_mode(WAL)" + // https://www.sqlite.org/wal.html
+	"&_pragma=synchronous(FULL)" + // https://www.sqlite.org/pragma.html#pragma_synchronous
+	"&_pragma=wal_autocheckpoint(4)" + // checkpoint when WAL reaches x pages https://www.sqlite.org/pragma.html#pragma_wal_autocheckpoint
+	"&_pragma=wal_checkpoint(PASSIVE)" + // https://www.sqlite.org/pragma.html#pragma_wal_checkpoint
+	"&_pragma=journal_size_limit(32000)" + // max WAL file size in bytes https://www.sqlite.org/pragma.html#pragma_journal_size_limit
+	"&_pragma=busy_timeout(100)" // https://www.sqlite.org/pragma.html#pragma_busy_timeout
+```
+
+The default values can be overwritten by adding a custom SQLite DSN to the configuration.
+
+- add the following key-value pair to your `config.json`:
+    ```json
+      "sqliteDSN": "<database file name>[?<query string>]",
+    ```
+- or set the following environment variable:
+    ```shell
+    UBIRCH_SQLITE_DSN=<database file name>[?<query string>]
+    ```
+
+A query string can optionally be appended to the database file name. If no query string is appended, the defaults from
+above will be used. More information about the query string can be found in the documentation of the sqlite
+library: https://pkg.go.dev/modernc.org/sqlite#Driver.Open
 
 ## Identity Initialization
 
@@ -698,11 +749,11 @@ To set the logging level to `debug` and so enable extended debug output,
 
 By default, the log of the client is in JSON format. To change it to a (more human-eye-friendly) text format,
 
-- add the following key-value pairs to your `config.json`:
+- add the following key-value pair to your `config.json`:
     ```json
       "logTextFormat": true
     ```
-- or set the following environment variables:
+- or set the following environment variable:
     ```shell
     UBIRCH_LOGTEXTFORMAT=true
     ```
