@@ -114,7 +114,7 @@ By default, the client will create a SQLite database file `sqlite.db` in the mou
 This option is appropriate for when the application is running on a system with limited space, like embedded devices,
 and only one or very few identities need to be managed.
 
-When compared to postgreSQL, the main drawback of SQLite is the performance while handling a high load of chaining
+When compared to postgreSQL, a drawback of SQLite is the performance while handling a high load of chaining
 requests for multiple identities at the same time.
 
 ### PostgreSQL
@@ -129,6 +129,9 @@ In order to connect the client to a postgreSQL database, the DSN can be set in t
     ```shell
     UBIRCH_POSTGRES_DSN=postgres://<username>:<password>@<hostname>:5432/<database>
     ```
+
+The maximum number of open connections to the database can be limited with `dbMaxConns` (json)
+or `UBIRCH_DB_MAX_CONNS` (env). The default is `0` (unlimited).
 
 ### SQLite
 
