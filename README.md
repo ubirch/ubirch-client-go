@@ -217,13 +217,13 @@ To get the latest multi-architecture image, check
 the [releases](https://github.com/ubirch/ubirch-client-go/releases/latest)
 and pull the latest release from Docker Hub using the release tag, e.g.:
 
-```console
+```shell
 docker pull ubirch/ubirch-client:v2.2.3
 ```
 
 To start the multi-arch Docker image on any system, run:
 
-```console
+```shell
 docker run -v $(pwd):/data --network host ubirch/ubirch-client:v2.2.3
 ```
 
@@ -233,7 +233,7 @@ variables), and the TLS certificate and key files (if TLS is enabled).
 
 It is also possible to pass an absolute path instead of `$(pwd)`.
 
-If the */data* path is not used for either configuration file, nor TLS cert files,
+If the */data* path is not used for either configuration file, SQLite DB, nor TLS cert files,
 the `-v $(pwd):/data` parameter can be omitted.
 
 ## Interface Description
@@ -381,7 +381,7 @@ for *Niomon* error codes.
 1. original data (JSON):
 
     - anchor hash (**chained**)
-        ```console
+        ```shell
         curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f \
           -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
           -H "Content-Type: application/json" \
@@ -389,7 +389,7 @@ for *Niomon* error codes.
           -i
       ```
     - anchor hash (**unchained**)
-        ```console
+        ```shell
         curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/anchor \
           -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
           -H "Content-Type: application/json" \
@@ -397,7 +397,7 @@ for *Niomon* error codes.
           -i
       ```
     - disable hash
-        ```console
+        ```shell
         curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/disable \
           -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
           -H "Content-Type: application/json" \
@@ -405,7 +405,7 @@ for *Niomon* error codes.
           -i
       ```
     - enable hash
-        ```console
+        ```shell
         curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/enable \
           -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
           -H "Content-Type: application/json" \
@@ -413,7 +413,7 @@ for *Niomon* error codes.
           -i
       ```
     - delete hash
-        ```console
+        ```shell
         curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/delete \
           -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
           -H "Content-Type: application/json" \
@@ -424,7 +424,7 @@ for *Niomon* error codes.
 1. direct data hash injection
 
     - anchor hash (**chained**)
-        ```console
+        ```shell
         curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/hash \
           -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
           -H "Content-Type: text/plain" \
@@ -432,7 +432,7 @@ for *Niomon* error codes.
           -i
       ```
     - anchor hash (**unchained**)
-        ```console
+        ```shell
         curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/anchor/hash \
           -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
           -H "Content-Type: text/plain" \
@@ -440,7 +440,7 @@ for *Niomon* error codes.
           -i
       ```
     - disable hash
-        ```console
+        ```shell
         curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/disable/hash \
           -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
           -H "Content-Type: text/plain" \
@@ -448,7 +448,7 @@ for *Niomon* error codes.
           -i
       ```
     - enable hash
-        ```console
+        ```shell
         curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/enable/hash \
           -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
           -H "Content-Type: text/plain" \
@@ -456,7 +456,7 @@ for *Niomon* error codes.
           -i
       ```
     - delete hash
-        ```console
+        ```shell
         curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/delete/hash \
           -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
           -H "Content-Type: text/plain" \
@@ -533,7 +533,7 @@ http://localhost:8080
 Here is an example of a request to the client using `CURL`.
 
 - original data (JSON):
-  ```console
+  ```shell
   curl localhost:8080/<UUID> \
     -H "X-Auth-Token: <AUTH_TOKEN>" \
     -H "Content-Type: application/json" \
@@ -542,7 +542,7 @@ Here is an example of a request to the client using `CURL`.
   ```
 
 - direct data hash injection:
-  ```console
+  ```shell
   curl localhost:8080/<UUID>/hash \
     -H "X-Auth-Token: <AUTH_TOKEN>" \
     -H "Content-Type: text/plain" \
@@ -677,7 +677,7 @@ You can specify the TCP address for the server to listen on, in the form `host:p
 
    In order to serve HTTPS endpoints, you can run the following command to create a self-signed certificate with
    openssl. With this command it will be valid for ten years.
-    ```console
+    ```shell
     openssl req -x509 -newkey rsa:4096 -keyout key.pem -nodes -out cert.pem -days 3650
     ```
 
@@ -761,6 +761,26 @@ By default, the log of the client is in JSON format. To change it to a (more hum
     UBIRCH_LOGTEXTFORMAT=true
     ```
 
+## Legacy file-based context migration
+
+In version 1 of the client, the context has been stored in files. In order to use a newer version, the context can be
+migrated into a database.
+
+First, add the new mandatory [configurations](#Configuration) to your existing one.
+
+If you want to use a postgreSQL database, the DSN has to be set in the configuration (json:`postgresDSN` /
+env: `UBIRCH_POSTGRES_DSN`).
+If no postgres DSN is set, the file-based context will be migrated to a SQLite DB in the mounted volume.
+
+To start the migration process, run the client with the command-line flag `--migrate`.
+
+```shell
+docker run -v $(pwd):/data --network host ubirch/ubirch-client:v2.x.x /data --migrate
+```
+
+After successful migration, the legacy context files will automatically be **deleted** and the process will exit with
+status `0`. In case of failed migration, the exit status is set to `1`.
+
 ## Quick Start
 
 1. Configuration
@@ -797,7 +817,7 @@ By default, the log of the client is in JSON format. To change it to a (more hum
 
    To run the dockerized UBIRCH client, you will need to have [Docker](https://docs.docker.com/) installed on your
    computer. Then enter the following two lines in the terminal in your working directory:
-    ```console
+    ```shell
     docker pull ubirch/ubirch-client:v1.2.2
     docker run -v $(pwd):/data -p 8080:8080 ubirch/ubirch-client:v1.2.2
     ```
@@ -847,7 +867,7 @@ By default, the log of the client is in JSON format. To change it to a (more hum
    You also need to set the `X-Auth-Token`-header with your UBIRCH backend auth token from step 1.
 
    Here is an example of how a request to the client would look like using `CURL`:
-   ```console
+   ```shell
    curl localhost:8080/<YOUR_UUID> \
     -H "X-Auth-Token: <YOUR_AUTH_TOKEN>" \
     -H "Content-Type: application/json" \
