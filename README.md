@@ -211,6 +211,9 @@ their authentication token.
 Alternatively, the device UUIDs and their corresponding authentication tokens can also be set through a file
 `identities.json`. See example: [example_identities.json](main/config/example_identities.json)
 
+Once the identities have been initialized successfully, their UUIDs and auth tokens are persistently stored in the
+connected database and can be removed from the configuration.
+
 ## Run Client in Docker container
 
 To get the latest multi-architecture image, check
