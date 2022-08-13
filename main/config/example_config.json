@@ -1,15 +1,14 @@
 {
+  "secret32": "sdSjtMh6C2oNgsiVcPx89RgcNYl8L6R9PhWU3iGIL+k=",
+  "postgresDSN": "postgres://<username>:<password>@<hostname>:5432/<database>",
+  "dbMaxConns": 20,
+  "registerAuth": "S3GyUaoZ8CuElP8NM/NzSTPdO3ABREIsJT1Hie8esb8=",
   "devices": {
     "b07c32c6-4525-43f8-ab94-9383bf585ef0": "ad3e073b-9ead-437c-9e09-853e9a508dca",
     "e1aead08-1fcb-47b3-bf2c-d3343cb979da": "cefa0c34-8448-44f2-9330-27c66519a2d3",
     "8a70ad8b-a564-4e58-9a3b-224ac0f0153f": "f728ddb3-d504-4925-b216-b7842a2f1a6b"
   },
-  "secret": "MTIzNDU2Nzg5MDEyMzQ1Ng==",
-  "secret32": "sdSjtMh6C2oNgsiVcPx89RgcNYl8L6R9PhWU3iGIL+k=",
-  "registerAuth": "S3GyUaoZ8CuElP8NM/NzSTPdO3ABREIsJT1Hie8esb8=",
   "env": "prod",
-  "postgresDSN": "postgres://<username>:<password>@<hostname>:5432/<database>",
-  "dbMaxConns": 20,
   "TCP_addr": ":8080",
   "TLS": true,
   "TLSCertFile": "certs/cert.pem",
