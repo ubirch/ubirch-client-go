@@ -764,15 +764,19 @@ By default, the log of the client is in JSON format. To change it to a (more hum
 ## Legacy file-based context migration
 
 In version 1 of the client, the context has been stored in files. In order to use a newer version, the context can be
-migrated into a database by running the client with the command-line flag `--migrate`.
+migrated into a database.
+
+First, add the new mandatory [configurations](#Configuration) to your existing one.
+
+If you want to use a postgreSQL database, the DSN has to be set in the configuration (json:`postgresDSN` /
+env: `UBIRCH_POSTGRES_DSN`).
+If no postgres DSN is set, the file-based context will be migrated to a SQLite DB in the mounted volume.
+
+To start the migration process, run the client with the command-line flag `--migrate`.
 
 ```shell
 docker run -v $(pwd):/data --network host ubirch/ubirch-client:v2.x.x /data --migrate
 ```
-
-If `postgresDSN` (json) / `UBIRCH_POSTGRES_DSN` (env) is set in the configuration, the file-based context will be
-migrated to the connected postgres DB. If no postgres DSN is set, the file-based context will be migrated to a SQLite DB
-in the mounted volume.
 
 After successful migration, the legacy context files will automatically be **deleted** and the process will exit with
 status `0`. In case of failed migration, the exit status is set to `1`.
@@ -822,7 +826,7 @@ status `0`. In case of failed migration, the exit status is set to `1`.
    UBIRCH backend.
 
    You should see a console output like this:
-    ```shell
+    ```console
     {"level":"info","msg":"UBIRCH client (v2.0.0, build=local)","time":"2021-03-01T18:41:20+01:00"}
     {"level":"info","msg":"loading configuration from file: config.json","time":"2021-03-01T18:41:20+01:00"}
     INFO[2021-03-01 18:41:20.291 +0100] 1 known UUID(s)
@@ -879,7 +883,7 @@ status `0`. In case of failed migration, the exit status is set to `1`.
    the UBIRCH backend. There, the signature will be verified with the previously registered public key.
 
    The console output of the client should look like this:
-    ```shell
+    ```console
     INFO[2021-03-01 18:52:59.471 +0100] 50b1a5bb-83cd-4251-b674-b3c71a058fc3: anchoring hash: CDUvtOIBnnZ8im/UXQn5G/q5EK9l2Bqy+HyMgSzPZoA=
     INFO[2021-03-01 18:53:00.313 +0100] 50b1a5bb-83cd-4251-b674-b3c71a058fc3: request ID: 0f11686e-aee3-4e97-8d0d-793a0c31d969
     ```
