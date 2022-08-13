@@ -108,7 +108,7 @@ under [Optional Configurations](#optional-configurations).
 ## Context Management
 
 The identity context, i.e. keys, auth token and previous signature, has to be stored persistently. For that purpose, the
-user can choose between postgreSQL or the local file system, specifically SQLite.
+user can choose between postgreSQL or the local file system, i.e. SQLite.
 
 By default, the client will create a SQLite database file `sqlite.db` in the mounted volume upon startup.
 This option is appropriate for when the application is running on a system with limited space, like embedded devices,
@@ -133,50 +133,24 @@ In order to connect the client to a postgreSQL database, the DSN can be set in t
 The maximum number of open connections to the database can be limited with `dbMaxConns` (json)
 or `UBIRCH_DB_MAX_CONNS` (env). The default is `0` (unlimited).
 
-### SQLite
+If no postgres DSN is set, the client defaults to the usage of a SQLite database in the local file system.
 
-If no postgres DSN is set, the client defaults to the usage of a SQLite database with the default file name `sqlite.db`
-and the following parameters:
-
-```text
-"?_txlock=EXCLUSIVE" + // https://www.sqlite.org/lang_transaction.html
-	"&_pragma=journal_mode(WAL)" + // https://www.sqlite.org/wal.html
-	"&_pragma=synchronous(FULL)" + // https://www.sqlite.org/pragma.html#pragma_synchronous
-	"&_pragma=wal_autocheckpoint(4)" + // checkpoint when WAL reaches x pages https://www.sqlite.org/pragma.html#pragma_wal_autocheckpoint
-	"&_pragma=wal_checkpoint(PASSIVE)" + // https://www.sqlite.org/pragma.html#pragma_wal_checkpoint
-	"&_pragma=journal_size_limit(32000)" + // max WAL file size in bytes https://www.sqlite.org/pragma.html#pragma_journal_size_limit
-	"&_pragma=busy_timeout(100)" // https://www.sqlite.org/pragma.html#pragma_busy_timeout
-```
-
-The default values can be overwritten by adding a custom SQLite DSN to the configuration.
-
-- add the following key-value pair to your `config.json`:
-    ```json
-      "sqliteDSN": "<database file name>[?<query string>]",
-    ```
-- or set the following environment variable:
-    ```shell
-    UBIRCH_SQLITE_DSN=<database file name>[?<query string>]
-    ```
-
-A query string can optionally be appended to the database file name. If no query string is appended, the defaults from
-above will be used. More information about the query string can be found in the documentation of the sqlite
-library: https://pkg.go.dev/modernc.org/sqlite#Driver.Open
-
-## Identity Initialization
+## Identity Registration / Initialization
 
 The UBIRCH client is able to handle multiple cryptographic identities.
 An identity has a universally unique identifier (UUID), private and public key, and an auth token.
-Before signing requests can be processed, an identity has to be initialized.
+Before signing requests can be processed, a UUID with its auth token has to be registered at the UBIRCH client.
 
-The initialization consists of three parts:
+Registering a new UUID triggers an identity initialization, which consists of three parts:
 
-- key generation (ECDSA)
+- key pair generation (ECDSA)
 - public key registration at the UBIRCH backend
-- storing of the context in the database
+- storing of the identity context in the database
 
-The initialization can be triggered via [HTTP request](#identity-registration)
-or [configuration](#identity-initialization-via-configuration).
+Identities can be registered at the UBIRCH client in two ways:
+
+1. via [configuration](#identity-initialization-via-configuration)
+2. via [HTTP request](#identity-registration)
 
 Either way, the first step is to register the identity's UUID with the UBIRCH backend
 and acquire an authentication token.
@@ -614,6 +588,29 @@ package!**
 
 ## Optional Configurations
 
+### SQLite DSN
+
+If no postgres DSN is set, the client defaults to the usage of a SQLite database with the following DSN
+
+```
+sqlite.db?_txlock=EXCLUSIVE&_pragma=journal_mode(WAL)&_pragma=synchronous(FULL)&_pragma=wal_autocheckpoint(4)&_pragma=wal_checkpoint(PASSIVE)&_pragma=journal_size_limit(32000)&_pragma=busy_timeout(100)
+```
+
+The default values can be overwritten by adding a custom SQLite DSN to the configuration.
+
+- json:
+    ```json
+      "sqliteDSN": "<database file name>[?<query string>]",
+    ```
+- env:
+    ```shell
+    UBIRCH_SQLITE_DSN=<database file name>[?<query string>]
+    ```
+
+A query string can optionally be appended to the database file name. If no query string is appended, the defaults from
+above will be used. More information about the query string can be found in the documentation of the sqlite
+library: https://pkg.go.dev/modernc.org/sqlite#Driver.Open
+
 ### Set the UBIRCH backend environment
 
 The `env` configuration refers to the UBIRCH backend environment. The default value is `prod`, which is the production
@@ -633,23 +630,6 @@ To switch to the `demo` backend environment
 - or set the following environment variable:
     ```shell
     UBIRCH_ENV=demo
-    ```
-
-### Customize X.509 Certificate Signing Requests
-
-The client creates X.509 Certificate Signing Requests (*CSRs*) for the public keys of the devices it is managing. The *
-Common Name* of the CSR subject is the UUID associated with the public key. The values for the *Organization* and *
-Country* of the CSR subject can be set through the configuration.
-
-- add the following key-value pairs to your `config.json`:
-    ```json
-      "CSR_country": "<CSR Subject Country Name (2 letter code)>",
-      "CSR_organization": "<CSR Subject Organization Name (e.g. company)>"
-    ```
-- or set the following environment variables:
-    ```shell
-    UBIRCH_CSR_COUNTRY=<CSR Subject Country Name (2 letter code)>
-    UBIRCH_CSR_ORGANIZATION=<CSR Subject Organization Name (e.g. company)>
     ```
 
 ### Set TCP address
@@ -737,6 +717,23 @@ can be used per origin.
 Setting *allowed origins* is optional. If CORS is enabled, but no *allowed origins* are specified, the default value
 is `["*"]`
 which means, **all** origins will be allowed.
+
+### Customize X.509 Certificate Signing Requests
+
+The client creates X.509 Certificate Signing Requests (*CSRs*) for the public keys of the devices it is managing. The *
+Common Name* of the CSR subject is the UUID associated with the public key. The values for the *Organization* and *
+Country* of the CSR subject can be set through the configuration.
+
+- add the following key-value pairs to your `config.json`:
+    ```json
+      "CSR_country": "<CSR Subject Country Name (2 letter code)>",
+      "CSR_organization": "<CSR Subject Organization Name (e.g. company)>"
+    ```
+- or set the following environment variables:
+    ```shell
+    UBIRCH_CSR_COUNTRY=<CSR Subject Country Name (2 letter code)>
+    UBIRCH_CSR_ORGANIZATION=<CSR Subject Organization Name (e.g. company)>
+    ```
 
 ### Extended Debug Output
 
