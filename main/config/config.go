@@ -173,8 +173,7 @@ func (c *Config) checkMandatory() error {
 	}
 
 	if len(c.RegisterAuth) == 0 {
-		missingConfig = true
-		log.Errorf("missing 'registerAuth' / 'UBIRCH_REGISTERAUTH' in configuration")
+		log.Warnf("missing 'registerAuth' / 'UBIRCH_REGISTERAUTH' in configuration => identity registration endpoint will not be exposed")
 	}
 
 	if missingConfig {

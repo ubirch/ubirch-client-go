@@ -67,10 +67,9 @@ make publish IMAGE_TAG=stable # will tag a multi-arch image with the selected ta
 
 The configuration can be set via a configuration file (`config.json`) or environment variables.
 
-There are two mandatory configurations:
+There is one mandatory configuration:
 
-1. a 32 byte base64 encoded secret, which will be used to encrypt the signing keys
-2. a static token which will be used for authentication against some endpoints
+- a 32 byte base64 encoded secret, which will be used to encrypt the signing keys
 
 > You can generate a random 32 byte base64 encoded secret in a Linux/macOS terminal
 > with `head -c 32 /dev/urandom | base64`
@@ -86,8 +85,7 @@ abort and exit with status `1`.
 
 ```json
 {
-  "secret32": "<32 byte secret (base64 encoded)>",
-  "registerAuth": "<static auth token>"
+  "secret32": "<32 byte secret (base64 encoded)>"
 }
 ```
 
@@ -97,7 +95,6 @@ abort and exit with status `1`.
 
 ```console
 UBIRCH_SECRET32=<32 byte secret (base64 encoded)>
-UBIRCH_REGISTERAUTH=<static auth token>
 ```
 
 > See [example.env](main/config/example.env) as an example for environment-based configuration.
@@ -152,7 +149,24 @@ Identities can be registered at the UBIRCH client in two ways:
 1. via [configuration](#identity-initialization-via-configuration)
 2. via [HTTP request](#identity-registration)
 
-Either way, the first step is to register the identity's UUID with the UBIRCH backend
+If identity registration via HTTP requests is desired, a static authentication token must be set in the configuration.
+This token is necessary to authenticate requests against the identity registration endpoint.
+
+- json:
+
+```json
+  "registerAuth": "<static auth token>"
+```
+
+- env:
+
+```console
+UBIRCH_REGISTERAUTH=<static auth token>
+```
+
+If the token is not present in the configuration, the identity registration endpoint will not be exposed.
+
+Before registering a new identity, the first step is to register the identity's UUID with the UBIRCH backend
 and acquire an authentication token.
 
 > A UUID can easily be generated in a Linux/macOS terminal with the `uuidgen` command.

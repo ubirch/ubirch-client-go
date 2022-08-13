@@ -152,8 +152,10 @@ func main() {
 	// set up metrics
 	httpServer.Router.Method(http.MethodGet, h.MetricsEndpoint, prom.Handler())
 
-	// set up endpoint for identity registration
-	httpServer.Router.Put(h.RegisterEndpoint, h.Register(conf.RegisterAuth, idHandler.InitIdentity))
+	// set up endpoint for identity registration only if auth token is set
+	if len(conf.RegisterAuth) != 0 {
+		httpServer.Router.Put(h.RegisterEndpoint, h.Register(conf.RegisterAuth, idHandler.InitIdentity))
+	}
 
 	// set up endpoint for key status updates (de-/re-activation)
 	httpServer.Router.Put(h.ActiveUpdateEndpoint, h.UpdateActive(conf.RegisterAuth, idHandler.DeactivateKey, idHandler.ReactivateKey))
