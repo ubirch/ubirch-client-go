@@ -70,7 +70,7 @@ The configuration can be set via a configuration file (`config.json`) or environ
 There are two mandatory configurations:
 
 1. a 32 byte base64 encoded secret, which will be used to encrypt the signing keys
-2. a static authentication token to protect the identity registration endpoint
+2. a static token which will be used for authentication against some endpoints
 
 > You can generate a random 32 byte base64 encoded secret in a Linux/macOS terminal
 > with `head -c 32 /dev/urandom | base64`
@@ -87,7 +87,7 @@ abort and exit with status `1`.
 ```json
 {
   "secret32": "<32 byte secret (base64 encoded)>",
-  "registerAuth": "<static auth token for register endpoint>"
+  "registerAuth": "<static auth token>"
 }
 ```
 
@@ -95,9 +95,9 @@ abort and exit with status `1`.
 
 ### Environment Based Configuration
 
-```shell
+```console
 UBIRCH_SECRET32=<32 byte secret (base64 encoded)>
-UBIRCH_REGISTERAUTH=<static auth token for register endpoint>
+UBIRCH_REGISTERAUTH=<static auth token>
 ```
 
 > See [example.env](main/config/example.env) as an example for environment-based configuration.
@@ -126,7 +126,7 @@ In order to connect the client to a postgreSQL database, the DSN can be set in t
       "postgresDSN": "postgres://<username>:<password>@<hostname>:5432/<database>",
     ```
 - or set the following environment variable:
-    ```shell
+    ```console
     UBIRCH_POSTGRES_DSN=postgres://<username>:<password>@<hostname>:5432/<database>
     ```
 
@@ -178,7 +178,7 @@ their authentication token.
     }
   ```
 - or as environment variable:
-    ```shell
+    ```console
     UBIRCH_DEVICES=<UUID>:<ubirch backend auth token>,<another UUID>:<another ubirch backend auth token>
     ```
 
@@ -475,9 +475,9 @@ The response body consists of either an error message, or a JSON map with
 }
 ```
 
-### Key De-/Re-Activation
+### Key Deactivation
 
-A key can be de-activated ...
+A key can be deactivated. Signing requests for identities with deactivated key will fail with status code `400`.
 
     curl ${host}/device/updateActive -X PUT \
     -H "X-Auth-Token: ${registerAuth}" \
@@ -485,7 +485,9 @@ A key can be de-activated ...
     -d '{"id":${device_uuid},"active":false}' \
     -i
 
-... and re-activated .
+### Key Reactivation
+
+A deactivated key can be reactivated.
 
     curl ${host}/device/updateActive -X PUT \
     -H "X-Auth-Token: ${registerAuth}" \
@@ -603,7 +605,7 @@ The default values can be overwritten by adding a custom SQLite DSN to the confi
       "sqliteDSN": "<database file name>[?<query string>]",
     ```
 - env:
-    ```shell
+    ```console
     UBIRCH_SQLITE_DSN=<database file name>[?<query string>]
     ```
 
@@ -628,7 +630,7 @@ To switch to the `demo` backend environment
       "env": "demo"
     ```
 - or set the following environment variable:
-    ```shell
+    ```console
     UBIRCH_ENV=demo
     ```
 
@@ -641,7 +643,7 @@ You can specify the TCP address for the server to listen on, in the form `host:p
       "TCP_addr": ":8080",
     ```
 - or set the following environment variable:
-    ```shell
+    ```console
     UBIRCH_TCP_ADDR=:8080
     ```
 
@@ -671,7 +673,7 @@ You can specify the TCP address for the server to listen on, in the form `host:p
           "TLS": true
         ```
     - or set the following environment variable:
-        ```shell
+        ```console
         UBIRCH_TLS=true
          ```
 
@@ -687,7 +689,7 @@ You can specify the TCP address for the server to listen on, in the form `host:p
           "TLSKeyFile": "<path/to/TLS-key-filename>"
         ```
     - or set the following environment variables:
-        ```shell
+        ```console
         UBIRCH_TLS_CERTFILE=certs/cert.pem
         UBIRCH_TLS_KEYFILE=certs/key.pem
         ```
@@ -706,7 +708,7 @@ To enable CORS and configure a list of *allowed origins*, i.e. origins a cross-d
       "CORS_origins": ["<allowed origin>"]
     ```
 - or set the following environment variables:
-    ```shell
+    ```console
     UBIRCH_CORS=true
     UBIRCH_CORS_ORIGINS=<allowed origin>
     ```
@@ -730,7 +732,7 @@ Country* of the CSR subject can be set through the configuration.
       "CSR_organization": "<CSR Subject Organization Name (e.g. company)>"
     ```
 - or set the following environment variables:
-    ```shell
+    ```console
     UBIRCH_CSR_COUNTRY=<CSR Subject Country Name (2 letter code)>
     UBIRCH_CSR_ORGANIZATION=<CSR Subject Organization Name (e.g. company)>
     ```
@@ -744,7 +746,7 @@ To set the logging level to `debug` and so enable extended debug output,
       "debug": true
     ```
 - or set the following environment variable:
-    ```shell
+    ```console
     UBIRCH_DEBUG=true
     ```
 
@@ -757,7 +759,7 @@ By default, the log of the client is in JSON format. To change it to a (more hum
       "logTextFormat": true
     ```
 - or set the following environment variable:
-    ```shell
+    ```console
     UBIRCH_LOGTEXTFORMAT=true
     ```
 
