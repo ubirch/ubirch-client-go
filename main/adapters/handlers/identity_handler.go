@@ -144,6 +144,8 @@ func (i *IdentityHandler) createCSR(uid uuid.UUID) (csrPEM []byte, err error) {
 
 	csrPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
 
+	log.Infof("%s: CSR [PEM]: %s", uid, csrPEM)
+
 	return csrPEM, nil
 }
 
