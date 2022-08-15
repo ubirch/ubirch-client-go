@@ -813,9 +813,6 @@ status `0`. In case of failed migration, the exit status is set to `1`.
           from the `apiConfig` as your device auth token.
     3. Generate a 32 byte secret in base64 format. You can enter `head -c 32 /dev/urandom | base64` in a Linux/macOS
        terminal or encode 32 ASCII characters in an [online base64 encoder](https://www.base64encode.org/).
-    4. Generate another secret, which is needed as a static authentication token for some endpoints. (We won't use it in
-       this Quick Start, but it's a mandatory configuration. This can be any string, for example another base64 encoded
-       secret like the one above.)
 
    Create a file `config.json` in your working directory with the following content:
     ```json
@@ -824,14 +821,12 @@ status `0`. In case of failed migration, the exit status is set to `1`.
         "<YOUR_DEVICE_UUID>": "<YOUR_DEVICE_AUTH_TOKEN>"
       },
       "secret32": "<YOUR_32_BYTE_SECRET(base64 encoded)>",
-      "registerAuth": "<YOUR_STATIC_AUTH_TOKEN>",
       "logTextFormat": true
     }
     ```
     - Replace `<YOUR_DEVICE_UUID>` with your device UUID from step 1.1.
     - Replace `<YOUR_DEVICE_AUTH_TOKEN>` with your device auth token from step 1.2.
     - Replace `<YOUR_32_BYTE_SECRET(base64 encoded)>` with your secret from step 1.3.
-    - Replace `<YOUR_STATIC_AUTH_TOKEN>` with your secret from step 1.4.
 
    Your `config.json` should now look like this:
     ```json
@@ -840,7 +835,6 @@ status `0`. In case of failed migration, the exit status is set to `1`.
         "7e41c421-acad-46e5-95f3-2070cf78292b": "f83a888f-cbf8-4d78-82a2-3e3f253f181d"
       },
       "secret32": "kwNWDv1K8z/T4Muk8La4uzoUl2Q1G923rmm7kA5NrIE=",
-      "registerAuth": "sDOtRtsTaezSbc2uo3yXZVAEPp2Kn/4HBB0ja1+Fg4g=",
       "logTextFormat": true
     }
     ```
