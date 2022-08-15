@@ -150,7 +150,9 @@ Identities can be registered at the UBIRCH client in two ways:
 2. via [HTTP request](#identity-registration)
 
 If identity registration via HTTP requests is desired, a static authentication token must be set in the configuration.
-This token is necessary to authenticate requests against the identity registration endpoint.
+This token is necessary to authenticate requests against the identity registration endpoint, as well as the endpoints
+for CSR creation and key status updates (de-/re-activation). If the token is not present in the configuration, these
+endpoints will not be exposed.
 
 - json:
 
@@ -163,8 +165,6 @@ This token is necessary to authenticate requests against the identity registrati
 ```console
 UBIRCH_REGISTERAUTH=<static auth token>
 ```
-
-If the token is not present in the configuration, the identity registration endpoint will not be exposed.
 
 Before registering a new identity, the first step is to register the identity's UUID with the UBIRCH backend
 and acquire an authentication token.
