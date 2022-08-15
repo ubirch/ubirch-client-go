@@ -1,8 +1,8 @@
 {
   "secret32": "sdSjtMh6C2oNgsiVcPx89RgcNYl8L6R9PhWU3iGIL+k=",
+  "registerAuth": "qlJIjT2asJD23Y7toZczJriPTXd0GAmFUYAjHl0PcnA=",
   "postgresDSN": "postgres://<username>:<password>@<hostname>:5432/<database>",
   "dbMaxConns": 20,
-  "registerAuth": "S3GyUaoZ8CuElP8NM/NzSTPdO3ABREIsJT1Hie8esb8=",
   "devices": {
     "b07c32c6-4525-43f8-ab94-9383bf585ef0": "ad3e073b-9ead-437c-9e09-853e9a508dca",
     "e1aead08-1fcb-47b3-bf2c-d3343cb979da": "cefa0c34-8448-44f2-9330-27c66519a2d3",
