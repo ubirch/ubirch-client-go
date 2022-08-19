@@ -40,11 +40,13 @@ func main() {
 		serviceName = "ubirch-client"
 		configFile  = "config.json"
 		MigrateArg  = "--migrate"
+		InitArg     = "--init-identities-conf"
 	)
 
 	var (
 		configDir       string
 		migrate         bool
+		initIdentities  bool
 		serverID        = fmt.Sprintf("%s/%s", serviceName, Version)
 		readinessChecks []func() error
 	)
@@ -62,6 +64,8 @@ func main() {
 			log.Infof("arg #%d: %s", i+1, arg)
 			if arg == MigrateArg {
 				migrate = true
+			} else if arg == InitArg {
+				initIdentities = true
 			} else {
 				configDir = arg
 			}
@@ -116,9 +120,13 @@ func main() {
 		SubjectOrganization:   conf.CSR_Organization,
 	}
 
-	err = idHandler.InitIdentities(conf.Devices)
-	if err != nil {
-		log.Fatalf("initialization of identities from configuration failed: %v", err)
+	if initIdentities {
+		err = idHandler.InitIdentities(conf.Devices)
+		if err != nil {
+			log.Fatalf("initialization of identities from configuration failed: %v", err)
+		}
+		log.Infof("successfully initialized identities from configuration")
+		os.Exit(0)
 	}
 
 	signer := handlers.Signer{
