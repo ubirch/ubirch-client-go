@@ -25,13 +25,13 @@ func AuthToken(header http.Header) string {
 
 // helper function to get "X-Ubirch-UPP" from request header
 func getUPP(header http.Header) ([]byte, error) {
-	upp, err := base64.StdEncoding.DecodeString(header.Get(UPPHeader))
+	upp, err := base64.StdEncoding.DecodeString(header.Get(XUPPHeader))
 	if err != nil {
 		return nil, fmt.Errorf("invalid UPP: %v", err)
 	}
 
 	if len(upp) == 0 {
-		return nil, fmt.Errorf("missing UPP in header %s", UPPHeader)
+		return nil, fmt.Errorf("missing UPP in header %s", XUPPHeader)
 	}
 
 	return upp, nil

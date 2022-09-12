@@ -43,7 +43,7 @@ const (
 	TextType = "text/plain"
 	JSONType = "application/json"
 
-	UPPHeader   = "X-Ubirch-UPP"
+	XUPPHeader  = "X-Ubirch-UPP"
 	XAuthHeader = "x-auth-token"
 
 	HexEncoding = "hex"
