@@ -1,6 +1,7 @@
 package http_server
 
 import (
+	"encoding/base64"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -20,6 +21,20 @@ func ContentEncoding(header http.Header) string {
 // helper function to get "X-Auth-Token" from request header
 func AuthToken(header http.Header) string {
 	return header.Get(XAuthHeader)
+}
+
+// helper function to get "X-Ubirch-UPP" from request header
+func getUPP(header http.Header) ([]byte, error) {
+	upp, err := base64.StdEncoding.DecodeString(header.Get(UPPHeader))
+	if err != nil {
+		return nil, fmt.Errorf("invalid UPP: %v", err)
+	}
+
+	if len(upp) == 0 {
+		return nil, fmt.Errorf("missing UPP in header %s", UPPHeader)
+	}
+
+	return upp, nil
 }
 
 func ReadBody(r *http.Request) ([]byte, error) {
