@@ -29,6 +29,7 @@ const (
 	UUIDKey                = "uuid"
 	OperationKey           = "operation"
 	VerifyPath             = "/verify"
+	OfflinePath            = "/offline"
 	HashEndpoint           = "/hash"
 	RegisterEndpoint       = "/register"
 	CSREndpoint            = "/csr"
@@ -41,6 +42,7 @@ const (
 	TextType = "text/plain"
 	JSONType = "application/json"
 
+	XUPPHeader  = "X-Ubirch-UPP"
 	XAuthHeader = "x-auth-token"
 
 	HexEncoding = "hex"

@@ -158,7 +158,7 @@ func main() {
 	// set up endpoint for key status updates (de-/re-activation)
 	httpServer.Router.Put(h.ActiveUpdateEndpoint, h.UpdateActive(conf.RegisterAuth, idHandler.DeactivateKey, idHandler.ReactivateKey))
 
-	// set up endpoint for CSRs
+	// set up endpoint for CSR creation
 	fetchCSREndpoint := path.Join(h.UUIDPath, h.CSREndpoint) // /<uuid>/csr
 	httpServer.Router.Get(fetchCSREndpoint, h.FetchCSR(conf.RegisterAuth, idHandler.CreateCSR))
 
@@ -180,12 +180,20 @@ func main() {
 		},
 	})
 
-	// set up endpoint for verification
+	// set up endpoints for verification
+	verificationService := &h.VerificationService{
+		Verify:        verifier.Verify,
+		VerifyOffline: verifier.VerifyOffline,
+	}
+
 	httpServer.AddServiceEndpoint(h.ServerEndpoint{
-		Path: h.VerifyPath,
-		Service: &h.VerificationService{
-			Verify: verifier.Verify,
-		},
+		Path:    h.VerifyPath,
+		Service: verificationService,
+	})
+
+	httpServer.AddServiceEndpoint(h.ServerEndpoint{
+		Path:    path.Join(h.VerifyPath, h.OfflinePath),
+		Service: verificationService,
 	})
 
 	// set up endpoints for liveness and readiness checks

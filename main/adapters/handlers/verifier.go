@@ -65,11 +65,32 @@ func (v *Verifier) Verify(hash []byte) h.HTTPResponse {
 	log.Debugf("retrieved UPP %x", upp)
 
 	// verify validity of the retrieved UPP locally
-	id, pkey, err := v.verifyUPP(upp)
+	id, pkey, err := v.verifyUppSignature(upp, v.VerifyFromKnownIdentitiesOnly)
 	if err != nil {
 		return getVerificationResponse(http.StatusUnprocessableEntity, hash, upp, id, pkey, err.Error())
 	}
 	log.Debugf("verified UPP from identity %s using public key %s", id, base64.StdEncoding.EncodeToString(pkey))
+
+	return getVerificationResponse(http.StatusOK, hash, upp, id, pkey, "")
+}
+
+func (v *Verifier) VerifyOffline(upp, hash []byte) h.HTTPResponse {
+	log.Infof("performing offline verification for UPP %s and hash %s", base64.StdEncoding.EncodeToString(upp), base64.StdEncoding.EncodeToString(hash))
+
+	// verify validity of the UPP locally
+	id, pkey, err := v.verifyUppSignature(upp, true)
+	if err != nil {
+		return getVerificationResponse(http.StatusForbidden, nil, upp, id, pkey, err.Error())
+	}
+	log.Debugf("verified UPP from identity %s using public key %s", id, base64.StdEncoding.EncodeToString(pkey))
+
+	// verify data hash matches UPP payload
+	err = v.verifyDataMatch(upp, hash)
+	if err != nil {
+		log.Error(err)
+		return errorResponse(http.StatusBadRequest, err.Error())
+	}
+	log.Debugf("verified data hash %s", base64.StdEncoding.EncodeToString(hash))
 
 	return getVerificationResponse(http.StatusOK, hash, upp, id, pkey, "")
 }
@@ -108,11 +129,15 @@ func (v *Verifier) loadUPP(hash []byte) (int, []byte, error) {
 	if err != nil {
 		return http.StatusBadGateway, nil, fmt.Errorf("unable to decode verification response: %v", err)
 	}
-	return resp.StatusCode, vf.UPP, nil
+	return http.StatusOK, vf.UPP, nil
 }
 
-// verifyUPP verifies the signature of UPPs from known identities using their public keys from the local keystore
-func (v *Verifier) verifyUPP(upp []byte) (uuid.UUID, []byte, error) {
+// verifyUppSignature verifies the signature of UPPs from known identities using
+// their public key from the local keystore.
+// If the public key can not be found in the local keystore, i.e. the identity
+// is unknown, the public key will be requested from the UBIRCH identity service
+// only if verifyFromKnownIdentitiesOnly is `false`.
+func (v *Verifier) verifyUppSignature(upp []byte, verifyFromKnownIdentitiesOnly bool) (uuid.UUID, []byte, error) {
 	uppStruct, err := ubirch.Decode(upp)
 	if err != nil {
 		return uuid.Nil, nil, fmt.Errorf("retrieved invalid UPP: %v", err)
@@ -121,11 +146,13 @@ func (v *Verifier) verifyUPP(upp []byte) (uuid.UUID, []byte, error) {
 	id := uppStruct.GetUuid()
 
 	pubKeyPEM, err := v.Protocol.LoadPublicKey(id)
-	if err == repository.ErrNotExist {
-		if v.VerifyFromKnownIdentitiesOnly {
-			return id, nil, fmt.Errorf("retrieved certificate for requested hash is from unknown identity")
-		} else {
-			log.Warnf("couldn't get public key for identity %s from local context", id)
+	if err != nil {
+		if err == repository.ErrNotExist {
+			if verifyFromKnownIdentitiesOnly {
+				return id, nil, fmt.Errorf("UPP from unknown identity")
+			}
+
+			log.Warnf("UPP from unknown identity %s", id)
 			err := v.loadPublicKey(id)
 			if err != nil {
 				return id, nil, err
@@ -134,9 +161,10 @@ func (v *Verifier) verifyUPP(upp []byte) (uuid.UUID, []byte, error) {
 			if err != nil {
 				return id, nil, err
 			}
+
+		} else {
+			return id, nil, err
 		}
-	} else if err != nil {
-		return id, nil, err
 	}
 
 	verified, err := v.Protocol.Verify(id, upp)
@@ -152,7 +180,7 @@ func (v *Verifier) verifyUPP(upp []byte) (uuid.UUID, []byte, error) {
 
 // loadPublicKey retrieves the first valid public key associated with an identity from the key service
 func (v *Verifier) loadPublicKey(id uuid.UUID) error {
-	log.Debugf("requesting public key for identity %s from key service", id.String())
+	log.Infof("requesting public key for identity %s from identity service", id)
 
 	keys, err := v.RequestPublicKeys(id)
 	if err != nil {
@@ -165,7 +193,7 @@ func (v *Verifier) loadPublicKey(id uuid.UUID) error {
 		log.Warnf("several public keys registered for identity %s", id.String())
 	}
 
-	log.Printf("retrieved public key for identity %s: %s", keys[0].PubKeyInfo.HwDeviceId, keys[0].PubKeyInfo.PubKey)
+	log.Infof("retrieved public key for identity %s: %s", keys[0].PubKeyInfo.HwDeviceId, keys[0].PubKeyInfo.PubKey)
 
 	pubKeyBytes, err := base64.StdEncoding.DecodeString(keys[0].PubKeyInfo.PubKey)
 	if err != nil {
@@ -173,6 +201,22 @@ func (v *Verifier) loadPublicKey(id uuid.UUID) error {
 	}
 
 	return v.Protocol.SetPublicKeyBytes(id, pubKeyBytes)
+}
+
+func (v *Verifier) verifyDataMatch(upp, hash []byte) error {
+	uppStruct, err := ubirch.Decode(upp)
+	if err != nil {
+		return fmt.Errorf("invalid UPP: %v", err)
+	}
+
+	if !bytes.Equal(uppStruct.GetPayload(), hash) {
+		return fmt.Errorf("data does not match UPP payload, data hash: %s, UPP payload: %s",
+			base64.StdEncoding.EncodeToString(hash),
+			base64.StdEncoding.EncodeToString(uppStruct.GetPayload()),
+		)
+	}
+
+	return nil
 }
 
 func getVerificationResponse(respCode int, hash []byte, upp []byte, id uuid.UUID, pkey []byte, errMsg string) h.HTTPResponse {
