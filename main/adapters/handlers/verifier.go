@@ -67,7 +67,7 @@ func (v *Verifier) Verify(hash []byte) h.HTTPResponse {
 	// verify validity of the retrieved UPP locally
 	id, pkey, err := v.verifyUppSignature(upp, v.VerifyFromKnownIdentitiesOnly)
 	if err != nil {
-		return getVerificationResponse(http.StatusUnprocessableEntity, hash, upp, id, pkey, err.Error())
+		return getVerificationResponse(http.StatusForbidden, hash, upp, id, pkey, err.Error())
 	}
 	log.Debugf("verified UPP from identity %s using public key %s", id, base64.StdEncoding.EncodeToString(pkey))
 
@@ -110,7 +110,7 @@ func (v *Verifier) loadUPP(hash []byte) (int, []byte, error) {
 		default:
 			resp, err = v.RequestHash(hashBase64)
 			if err != nil {
-				return http.StatusInternalServerError, nil, fmt.Errorf("error sending verification request: %v", err)
+				return http.StatusBadGateway, nil, fmt.Errorf("error sending verification request: %v", err)
 			}
 			stay = h.HttpFailed(resp.StatusCode)
 			if stay {
