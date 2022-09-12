@@ -84,9 +84,7 @@ func (s *Signer) Chain(msg h.HTTPRequest, ctx context.Context) h.HTTPResponse {
 		return errorResponse(http.StatusInternalServerError, "")
 	}
 
-	timer := prometheus.NewTimer(prom.SignatureCreationDuration)
 	uppBytes, err := s.getChainedUPP(msg.ID, msg.Hash, prevSignature)
-	timer.ObserveDuration()
 	if err != nil {
 		log.Errorf("%s: could not create chained UPP: %v", msg.ID, err)
 		return errorResponse(http.StatusInternalServerError, "")
@@ -139,6 +137,9 @@ func (s *Signer) Sign(msg h.HTTPRequest, op h.Operation) h.HTTPResponse {
 }
 
 func (s *Signer) getChainedUPP(id uuid.UUID, hash [32]byte, prevSignature []byte) ([]byte, error) {
+	timer := prometheus.NewTimer(prom.SignatureCreationDuration)
+	defer timer.ObserveDuration()
+
 	return s.Protocol.Sign(
 		&ubirch.ChainedUPP{
 			Version:       ubirch.Chained,
@@ -155,6 +156,9 @@ func (s *Signer) getSignedUPP(id uuid.UUID, hash [32]byte, op h.Operation) ([]by
 		return nil, fmt.Errorf("%s: invalid operation: \"%s\"", id, op)
 	}
 
+	timer := prometheus.NewTimer(prom.SignatureCreationDuration)
+	defer timer.ObserveDuration()
+
 	return s.Protocol.Sign(
 		&ubirch.SignedUPP{
 			Version: ubirch.Signed,
@@ -166,9 +170,7 @@ func (s *Signer) getSignedUPP(id uuid.UUID, hash [32]byte, op h.Operation) ([]by
 
 func (s *Signer) sendUPP(msg h.HTTPRequest, upp []byte) h.HTTPResponse {
 	// send UPP to ubirch backend
-	timer := prometheus.NewTimer(prom.UpstreamResponseDuration)
 	backendResp, err := s.SendToAuthService(msg.ID, msg.Auth, upp)
-	timer.ObserveDuration()
 	if err != nil {
 		if os.IsTimeout(err) {
 			log.Errorf("%s: request to UBIRCH Authentication Service timed out after %s: %v", msg.ID, h.BackendRequestTimeout.String(), err)
