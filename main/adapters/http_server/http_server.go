@@ -17,17 +17,6 @@ import (
 	prom "github.com/ubirch/ubirch-client-go/main/prometheus"
 )
 
-type Service interface {
-	HandleRequest(w http.ResponseWriter, r *http.Request)
-}
-
-type ServerEndpoint struct {
-	Path string
-	Service
-}
-
-func (*ServerEndpoint) HandleOptions(http.ResponseWriter, *http.Request) {}
-
 type HTTPServer struct {
 	Router   *chi.Mux
 	Addr     string
@@ -55,14 +44,24 @@ func (srv *HTTPServer) SetUpCORS(allowedOrigins []string, debug bool) {
 	}))
 }
 
-func (srv *HTTPServer) AddServiceEndpoint(endpoint ServerEndpoint) {
-	hashEndpointPath := path.Join(endpoint.Path, HashEndpoint)
+func HandleOptions(http.ResponseWriter, *http.Request) {}
 
-	srv.Router.Post(endpoint.Path, endpoint.HandleRequest)
-	srv.Router.Post(hashEndpointPath, endpoint.HandleRequest)
+func (srv *HTTPServer) AddServiceEndpoint(endpointPath string, handle func(offline, isHash bool) http.HandlerFunc, supportOffline bool) {
+	hashEndpointPath := path.Join(endpointPath, HashEndpoint)
 
-	srv.Router.Options(endpoint.Path, endpoint.HandleOptions)
-	srv.Router.Options(hashEndpointPath, endpoint.HandleOptions)
+	srv.Router.Post(endpointPath, handle(false, false))
+	srv.Router.Post(hashEndpointPath, handle(false, true))
+
+	if supportOffline {
+		offlineEndpointPath := path.Join(endpointPath, OfflinePath)
+		offlineHashEndpointPath := path.Join(offlineEndpointPath, HashEndpoint)
+
+		srv.Router.Post(offlineEndpointPath, handle(true, false))
+		srv.Router.Post(offlineHashEndpointPath, handle(true, true))
+	}
+
+	srv.Router.Options(endpointPath, HandleOptions)
+	srv.Router.Options(hashEndpointPath, HandleOptions)
 }
 
 func (srv *HTTPServer) Serve() error {

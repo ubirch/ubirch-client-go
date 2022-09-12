@@ -2,7 +2,6 @@ package http_server
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/google/uuid"
 
@@ -17,46 +16,48 @@ type VerificationService struct {
 	VerifyOffline
 }
 
-func (s *VerificationService) HandleRequest(w http.ResponseWriter, r *http.Request) {
-	var resp HTTPResponse
+func (s *VerificationService) HandleRequest(offline, isHashRequest bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var resp HTTPResponse
 
-	if strings.Contains(r.URL.Path, OfflinePath) {
+		if offline {
 
-		upp, hash, err := unpackOfflineVerificationRequest(r)
-		if err != nil {
-			ClientError(uuid.Nil, r, w, err.Error(), http.StatusBadRequest)
-			return
+			upp, hash, err := unpackOfflineVerificationRequest(r, isHashRequest)
+			if err != nil {
+				ClientError(uuid.Nil, r, w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			resp = s.VerifyOffline(upp, hash[:])
+
+		} else {
+
+			hash, err := GetHash(r, isHashRequest)
+			if err != nil {
+				ClientError(uuid.Nil, r, w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			resp = s.Verify(hash[:])
 		}
 
-		resp = s.VerifyOffline(upp, hash[:])
-
-	} else {
-
-		hash, err := GetHash(r)
-		if err != nil {
-			ClientError(uuid.Nil, r, w, err.Error(), http.StatusBadRequest)
-			return
+		ctx := r.Context()
+		select {
+		case <-ctx.Done():
+			log.Warnf("verification response could not be sent: http request %s", ctx.Err())
+		default:
+			SendResponse(w, resp)
 		}
-
-		resp = s.Verify(hash[:])
-	}
-
-	ctx := r.Context()
-	select {
-	case <-ctx.Done():
-		log.Warnf("verification response could not be sent: http request %s", ctx.Err())
-	default:
-		SendResponse(w, resp)
 	}
 }
 
-func unpackOfflineVerificationRequest(r *http.Request) (upp []byte, hash Sha256Sum, err error) {
+func unpackOfflineVerificationRequest(r *http.Request, isHashRequest bool) (upp []byte, hash Sha256Sum, err error) {
 	upp, err = getUPP(r.Header)
 	if err != nil {
 		return nil, Sha256Sum{}, err
 	}
 
-	hash, err = GetHash(r)
+	hash, err = GetHash(r, isHashRequest)
 	if err != nil {
 		return nil, Sha256Sum{}, err
 	}

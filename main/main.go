@@ -162,23 +162,50 @@ func main() {
 	fetchCSREndpoint := path.Join(h.UUIDPath, h.CSREndpoint) // /<uuid>/csr
 	httpServer.Router.Get(fetchCSREndpoint, h.FetchCSR(conf.RegisterAuth, idHandler.CreateCSR))
 
-	// set up endpoint for chaining
-	httpServer.AddServiceEndpoint(h.ServerEndpoint{
-		Path: h.UUIDPath,
-		Service: &h.ChainingService{
-			CheckAuth: protocol.CheckAuth,
-			Chain:     signer.Chain,
-		},
-	})
+	// set up endpoints for signing
+	signingService := &h.SigningService{
+		CheckAuth: protocol.CheckAuth,
+		Sign:      signer.Sign,
+	}
 
-	// set up endpoint for signing
-	httpServer.AddServiceEndpoint(h.ServerEndpoint{
-		Path: path.Join(h.UUIDPath, h.OperationPath),
-		Service: &h.SigningService{
-			CheckAuth: protocol.CheckAuth,
-			Sign:      signer.Sign,
-		},
-	})
+	// chain:              <uuid>
+	// chain hash:         <uuid>/hash
+	// chain offline:      <uuid>/offline
+	// chain offline hash: <uuid>/offline/hash
+	httpServer.AddServiceEndpoint(h.UUIDPath,
+		signingService.HandleRequest(h.ChainHash),
+		true,
+	)
+
+	// sign:              <uuid>/anchor
+	// sign hash:         <uuid>/anchor/hash
+	// sign offline:      <uuid>/anchor/offline
+	// sign offline hash: <uuid>/anchor/offline/hash
+	httpServer.AddServiceEndpoint(path.Join(h.UUIDPath, string(h.AnchorHash)),
+		signingService.HandleRequest(h.AnchorHash),
+		true,
+	)
+
+	// disable:      /<uuid>/disable
+	// disable hash: /<uuid>/disable/hash
+	httpServer.AddServiceEndpoint(path.Join(h.UUIDPath, string(h.DisableHash)),
+		signingService.HandleRequest(h.DisableHash),
+		false,
+	)
+
+	// enable:      /<uuid>/enable
+	// enable hash: /<uuid>/enable/hash
+	httpServer.AddServiceEndpoint(path.Join(h.UUIDPath, string(h.EnableHash)),
+		signingService.HandleRequest(h.EnableHash),
+		false,
+	)
+
+	// delete:      /<uuid>/delete
+	// delete hash: /<uuid>/delete/hash
+	httpServer.AddServiceEndpoint(path.Join(h.UUIDPath, string(h.DeleteHash)),
+		signingService.HandleRequest(h.DeleteHash),
+		false,
+	)
 
 	// set up endpoints for verification
 	verificationService := &h.VerificationService{
@@ -186,15 +213,14 @@ func main() {
 		VerifyOffline: verifier.VerifyOffline,
 	}
 
-	httpServer.AddServiceEndpoint(h.ServerEndpoint{
-		Path:    h.VerifyPath,
-		Service: verificationService,
-	})
-
-	httpServer.AddServiceEndpoint(h.ServerEndpoint{
-		Path:    path.Join(h.VerifyPath, h.OfflinePath),
-		Service: verificationService,
-	})
+	// verify:              /verify
+	// verify hash:         /verify/hash
+	// verify offline:      /verify/offline
+	// verify offline hash: /verify/offline/hash
+	httpServer.AddServiceEndpoint(h.VerifyPath,
+		verificationService.HandleRequest,
+		true,
+	)
 
 	// set up endpoints for liveness and readiness checks
 	httpServer.Router.Get(h.LivenessCheckEndpoint, h.Health(serverID))
