@@ -2,6 +2,7 @@ package http_server
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -9,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -28,7 +28,6 @@ const (
 	IdleTimeout           = 60 * time.Second        // time to wait for the next request when keep-alives are enabled
 
 	UUIDKey                = "uuid"
-	OperationKey           = "operation"
 	VerifyPath             = "/verify"
 	OfflinePath            = "/offline"
 	HashEndpoint           = "/hash"
@@ -52,8 +51,7 @@ const (
 )
 
 var (
-	UUIDPath      = fmt.Sprintf("/{%s}", UUIDKey)
-	OperationPath = fmt.Sprintf("/{%s}", OperationKey)
+	UUIDPath = fmt.Sprintf("/{%s}", UUIDKey)
 
 	ErrUnknown            = errors.New("identity unknown")
 	ErrAlreadyInitialized = errors.New("identity already registered")
@@ -62,9 +60,12 @@ var (
 )
 
 type HTTPRequest struct {
-	ID   uuid.UUID
-	Auth string
-	Hash Sha256Sum
+	Ctx       context.Context
+	ID        uuid.UUID
+	Auth      string
+	Hash      Sha256Sum
+	Operation Operation
+	Offline   bool
 }
 
 type Sha256Sum [HashLen]byte
@@ -79,18 +80,14 @@ func GetUUID(r *http.Request) (uuid.UUID, error) {
 	return id, nil
 }
 
-func IsHashRequest(r *http.Request) bool {
-	return strings.HasSuffix(r.URL.Path, HashEndpoint)
-}
-
 // GetHash returns the hash from the request body
-func GetHash(r *http.Request) (Sha256Sum, error) {
+func GetHash(r *http.Request, isHashRequest bool) (Sha256Sum, error) {
 	rBody, err := ReadBody(r)
 	if err != nil {
 		return Sha256Sum{}, err
 	}
 
-	if IsHashRequest(r) { // request contains hash
+	if isHashRequest { // request contains hash
 		return getHashFromHashRequest(r.Header, rBody)
 	} else { // request contains original data
 		return getHashFromDataRequest(r.Header, rBody)
