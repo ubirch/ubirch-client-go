@@ -363,10 +363,11 @@ The response body consists of either an error message, or a JSON map with
 |                   |   | x | invalid SHA256 hash size (≠ 32 bytes) |
 | 401 - Unauthorized | x | x | unknown UUID |
 |                    | x | x | invalid auth token |
+| 403 - Forbidden | x | x | UPP signature verification failed (*only for verification*) |
 | 404 - Not Found | x | x | invalid UUID  |
 |                 | x | x | invalid operation (≠ `anchor` / `disable` / `enable` / `delete`) |
 | 500 - Internal Server Error | x | x | signing failed |
-|                             | x | x | sending request to server failed |
+| 502 - Bad Gateway | x | x | sending request to UBIRCH backend failed |
 | 503 - Service Temporarily Unavailable | x | x | service busy |
 | 504 - Gateway Timeout | x | x | service was unable to produce a timely response |
 

@@ -175,7 +175,7 @@ func (s *Signer) sendUPP(msg h.HTTPRequest, upp []byte) h.HTTPResponse {
 			return errorResponse(http.StatusGatewayTimeout, "")
 		} else {
 			log.Errorf("%s: sending request to UBIRCH Authentication Service failed: %v", msg.ID, err)
-			return errorResponse(http.StatusInternalServerError, "")
+			return errorResponse(http.StatusBadGateway, "")
 		}
 	}
 	log.Debugf("%s: backend response: (%d) %x", msg.ID, backendResp.StatusCode, backendResp.Content)
