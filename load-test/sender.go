@@ -16,18 +16,8 @@ import (
 )
 
 type SigningResponse struct {
-	Error     string       `json:"error,omitempty"`
-	Operation string       `json:"operation,omitempty"`
-	Hash      []byte       `json:"hash,omitempty"`
-	UPP       []byte       `json:"upp,omitempty"`
-	Response  HTTPResponse `json:"response,omitempty"`
-	RequestID string       `json:"requestID,omitempty"`
-}
-
-type HTTPResponse struct {
-	StatusCode int         `json:"statusCode"`
-	Header     http.Header `json:"header"`
-	Content    []byte      `json:"content"`
+	Hash []byte
+	UPP  []byte
 }
 
 type Sender struct {
