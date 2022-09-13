@@ -221,7 +221,7 @@ func errorResponse(code int, message string) h.HTTPResponse {
 	return h.HTTPResponse{
 		StatusCode: code,
 		Header:     http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
-		Content:    []byte(message),
+		Content:    []byte(message + "\n"),
 	}
 }
 
