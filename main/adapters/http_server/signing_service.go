@@ -19,9 +19,12 @@ const (
 	DeleteHash  Operation = "delete"
 )
 
+type CheckAuth func(context.Context, uuid.UUID, string) (bool, bool, error)
+type Sign func(HTTPRequest) HTTPResponse
+
 type SigningService struct {
-	CheckAuth func(context.Context, uuid.UUID, string) (bool, bool, error)
-	Sign      func(HTTPRequest) HTTPResponse
+	CheckAuth
+	Sign
 }
 
 func (s *SigningService) HandleRequest(op Operation) func(bool, bool) http.HandlerFunc {
