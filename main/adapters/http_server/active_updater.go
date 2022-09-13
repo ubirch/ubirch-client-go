@@ -17,9 +17,11 @@ type ActiveUpdatePayload struct {
 	Active bool      `json:"active"`
 }
 
+type UpdateActivateStatus func(uid uuid.UUID) error
+
 func UpdateActive(auth string,
-	deactivate func(uid uuid.UUID) error,
-	reactivate func(uid uuid.UUID) error) http.HandlerFunc {
+	deactivate UpdateActivateStatus,
+	reactivate UpdateActivateStatus) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if AuthToken(r.Header) != auth {
 			log.Warnf("unauthorized key de-/re-activation attempt")
