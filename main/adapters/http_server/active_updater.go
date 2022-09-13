@@ -60,7 +60,7 @@ func UpdateActive(auth string,
 		SendResponse(w, HTTPResponse{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
-			Content:    []byte(action + " successful"),
+			Content:    []byte(action + " successful\n"),
 		})
 	}
 }
