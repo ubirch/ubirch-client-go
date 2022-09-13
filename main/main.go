@@ -16,9 +16,7 @@ package main
 
 import (
 	"fmt"
-	"net/http"
 	"os"
-	"path"
 
 	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
 	"github.com/ubirch/ubirch-client-go/main/adapters/handlers"
@@ -28,7 +26,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/http_server"
-	prom "github.com/ubirch/ubirch-client-go/main/prometheus"
 )
 
 var (
@@ -137,94 +134,12 @@ func main() {
 	}
 
 	// set up HTTP server
-	httpServer := h.HTTPServer{
-		Router:   h.NewRouter(),
-		Addr:     conf.TCP_addr,
-		TLS:      conf.TLS,
-		CertFile: conf.TLS_CertFile,
-		KeyFile:  conf.TLS_KeyFile,
-	}
-
-	if conf.CORS && config.IsDevelopment { // never enable CORS on production stage
-		httpServer.SetUpCORS(conf.CORS_Origins, conf.Debug)
-	}
-
-	// set up metrics
-	httpServer.Router.Method(http.MethodGet, h.MetricsEndpoint, prom.Handler())
-
-	// set up endpoint for identity registration
-	httpServer.Router.Put(h.RegisterEndpoint, h.Register(conf.RegisterAuth, idHandler.InitIdentity))
-
-	// set up endpoint for key status updates (de-/re-activation)
-	httpServer.Router.Put(h.ActiveUpdateEndpoint, h.UpdateActive(conf.RegisterAuth, idHandler.DeactivateKey, idHandler.ReactivateKey))
-
-	// set up endpoint for CSR creation
-	fetchCSREndpoint := path.Join(h.UUIDPath, h.CSREndpoint) // /<uuid>/csr
-	httpServer.Router.Get(fetchCSREndpoint, h.FetchCSR(conf.RegisterAuth, idHandler.CreateCSR))
-
-	// set up endpoints for signing
-	signingService := &h.SigningService{
-		CheckAuth: protocol.CheckAuth,
-		Sign:      signer.Sign,
-	}
-
-	// chain:              <uuid>
-	// chain hash:         <uuid>/hash
-	// chain offline:      <uuid>/offline
-	// chain offline hash: <uuid>/offline/hash
-	httpServer.AddServiceEndpoint(h.UUIDPath,
-		signingService.HandleRequest(h.ChainHash),
-		true,
-	)
-
-	// sign:              <uuid>/anchor
-	// sign hash:         <uuid>/anchor/hash
-	// sign offline:      <uuid>/anchor/offline
-	// sign offline hash: <uuid>/anchor/offline/hash
-	httpServer.AddServiceEndpoint(path.Join(h.UUIDPath, string(h.AnchorHash)),
-		signingService.HandleRequest(h.AnchorHash),
-		true,
-	)
-
-	// disable:      /<uuid>/disable
-	// disable hash: /<uuid>/disable/hash
-	httpServer.AddServiceEndpoint(path.Join(h.UUIDPath, string(h.DisableHash)),
-		signingService.HandleRequest(h.DisableHash),
-		false,
-	)
-
-	// enable:      /<uuid>/enable
-	// enable hash: /<uuid>/enable/hash
-	httpServer.AddServiceEndpoint(path.Join(h.UUIDPath, string(h.EnableHash)),
-		signingService.HandleRequest(h.EnableHash),
-		false,
-	)
-
-	// delete:      /<uuid>/delete
-	// delete hash: /<uuid>/delete/hash
-	httpServer.AddServiceEndpoint(path.Join(h.UUIDPath, string(h.DeleteHash)),
-		signingService.HandleRequest(h.DeleteHash),
-		false,
-	)
-
-	// set up endpoints for verification
-	verificationService := &h.VerificationService{
-		Verify:        verifier.Verify,
-		VerifyOffline: verifier.VerifyOffline,
-	}
-
-	// verify:              /verify
-	// verify hash:         /verify/hash
-	// verify offline:      /verify/offline
-	// verify offline hash: /verify/offline/hash
-	httpServer.AddServiceEndpoint(h.VerifyPath,
-		verificationService.HandleRequest,
-		true,
-	)
-
-	// set up endpoints for liveness and readiness checks
-	httpServer.Router.Get(h.LivenessCheckEndpoint, h.Health(serverID))
-	httpServer.Router.Get(h.ReadinessCheckEndpoint, h.Ready(serverID, readinessChecks))
+	httpServer := h.InitHTTPServer(conf,
+		idHandler.InitIdentity, idHandler.CreateCSR,
+		protocol.CheckAuth, signer.Sign,
+		verifier.Verify, verifier.VerifyOffline,
+		idHandler.DeactivateKey, idHandler.ReactivateKey,
+		serverID, readinessChecks)
 
 	// start HTTP server (blocks until SIGINT or SIGTERM is received)
 	if err = httpServer.Serve(); err != nil {
