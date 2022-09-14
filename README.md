@@ -215,16 +215,32 @@ the `-v $(pwd):/data` parameter can be omitted.
 
 ## Interface Description
 
-The UBIRCH client provides HTTP endpoints for both original data and direct hash injection, i.e. the SHA256 digest of
-the original data. If the client receives original data, it will create a SHA256 hash before any further processing.
-
-This means, UBIRCH will never see your original data. It also means that the original data will have to be stored
-independently in order to be able to verify it later.
-
-> When receiving a JSON data package, the UBIRCH client will sort the keys alphabetically and remove insignificant
-> space characters before hashing.
->
-> See [reproducibility of hashes](#reproducibility-of-hashes).
+| Endpoint                       | Description                                                               |
+|--------------------------------|---------------------------------------------------------------------------|
+| `/healthz`                     | Liveness check                                                            |
+| `/readyz`                      | Readiness check                                                           |
+| `/metrics`                     | Prometheus Metrics                                                        |
+| `/register`                    | [Identity Registration](#Identity-Registration)                           |
+| `/${uuid}/csr`                 | [CSR Generation](#CSR-Generation)                                         |
+| `/${uuid}`                     | [Anchoring Hashes (chained) - original data](#Anchoring-Hashes)           |
+| `/${uuid}/hash`                | [Anchoring Hashes (chained) - hash](#Anchoring-Hashes)                    |
+| `/${uuid}/anchor`              | [Anchoring Hashes (no chain) - original data](#Anchoring-Hashes)          |
+| `/${uuid}/anchor/hash`         | [Anchoring Hashes (no chain) - hash](#Anchoring-Hashes)                   |
+| `/${uuid}/disable`             | [Disabling Hashes - original data](#Update-Operations)                    |
+| `/${uuid}/disable/hash`        | [Disabling Hashes - hash](#Update-Operations)                             |
+| `/${uuid}/enable`              | [Enabling Hashes - original data](#Update-Operations)                     |
+| `/${uuid}/enable/hash`         | [Enabling Hashes - hash](#Update-Operations)                              |
+| `/${uuid}/delete`              | [Deleting Hashes - original data](#Update-Operations)                     |
+| `/${uuid}/delete/hash`         | [Deleting Hashes - hash](#Update-Operations)                              |
+| `/${uuid}/offline`             | [Offline Sealing Hashes (chained) - original data](#UPP-Offline-Sealing)  |
+| `/${uuid}/offline/hash`        | [Offline Sealing Hashes (chained) - hash](#UPP-Offline-Sealing)           |
+| `/${uuid}/anchor/offline`      | [Offline Sealing Hashes (no chain) - original data](#UPP-Offline-Sealing) |
+| `/${uuid}/anchor/offline/hash` | [Offline Sealing Hashes (no chain) - hash](#UPP-Offline-Sealing)          |
+| `/verify`                      | [Verifying Hashes - original data](#UPP-Verification)                     |
+| `/verify/hash`                 | [Verifying Hashes - hash](#UPP-Verification)                              |
+| `/verify/offline`              | [Offline Verification - original data](#UPP-Offline-Verification)         |
+| `/verify/offline/hash`         | [Offline Verification - hash](#UPP-Offline-Verification)                  |
+| `/device/updateActive`         | [Key De- and Re-activation](#Key-Deactivation)                            |
 
 ### Identity Registration
 
@@ -249,46 +265,82 @@ A CSR for an already registered identity can be retrieved from the CSR endpoint.
 
 ### UPP Signing
 
-Signing service endpoints require an authentication token, which corresponds to the `UUID` used in the request. The
-token must be sent with the request header. Without it, the client will not accept the request.
+The UBIRCH client provides HTTP endpoints for both original data and direct hash injection, i.e. the SHA256 digest of
+the original data. If the client receives original data, it will create a SHA256 hash before any further processing.
 
-| Request Header | Description |
+This means, UBIRCH will never see your original data. It also means that the original data will have to be stored
+independently in order to be able to verify it later.
+
+> When receiving a JSON data package, the UBIRCH client will sort the keys alphabetically and remove insignificant
+> space characters before hashing.
+>
+> See [reproducibility of hashes](#reproducibility-of-hashes).
+
+Signing service endpoints require an authentication token, which corresponds to the `UUID` used in the request. The
+token must be sent with the request header.
+
+| Request Header | Description                              |
 |----------------|------------------------------------------|
 | `X-Auth-Token` | UBIRCH backend token related to `<UUID>` |
 
 > See [how to acquire the UBIRCH backend token](#how-to-acquire-the-ubirch-backend-authentication-token).
 
-#### Anchoring Hashes (chained)
+#### Anchoring Hashes
 
-| Method | Path | Content-Type | Description |
-|--------|------|--------------|-------------|
-| POST | `/<UUID>` | `application/octet-stream` | original data (binary) will be hashed, chained, signed, and anchored |
-| POST | `/<UUID>` | `application/json` | original data (JSON data package) will be hashed, chained, signed, and anchored |
-| POST | `/<UUID>/hash` | `application/octet-stream` | SHA256 hash (binary) will be chained, signed, and anchored |
-| POST | `/<UUID>/hash` | `text/plain` | SHA256 hash (base64 string repr.) will be chained, signed, and anchored  |
+- chained
 
-#### Anchoring Hashes (no chain)
+| Method | Path           | Content-Type               | Description                                                                     |
+|--------|----------------|----------------------------|---------------------------------------------------------------------------------|
+| POST   | `/<UUID>`      | `application/octet-stream` | original data (binary) will be hashed, chained, signed, and anchored            |
+| POST   | `/<UUID>`      | `application/json`         | original data (JSON data package) will be hashed, chained, signed, and anchored |
+| POST   | `/<UUID>/hash` | `application/octet-stream` | SHA256 hash (binary) will be chained, signed, and anchored                      |
+| POST   | `/<UUID>/hash` | `text/plain`               | SHA256 hash (base64 string repr.) will be chained, signed, and anchored         |
 
-| Method | Path | Content-Type | Description |
-|--------|------|--------------|-------------|
-| POST | `/<UUID>/anchor` | `application/octet-stream` | original data (binary) will be hashed signed, and anchored |
-| POST | `/<UUID>/anchor` | `application/json` | original data (JSON data package) will be hashed signed, and anchored |
-| POST | `/<UUID>/anchor/hash` | `application/octet-stream` | SHA256 hash (binary) will be signed, and anchored |
-| POST | `/<UUID>/anchor/hash` | `text/plain` | SHA256 hash (base64 string repr.) will be signed, and anchored |
+- no chain
+
+| Method | Path                  | Content-Type               | Description                                                            |
+|--------|-----------------------|----------------------------|------------------------------------------------------------------------|
+| POST   | `/<UUID>/anchor`      | `application/octet-stream` | original data (binary) will be hashed, signed, and anchored            |
+| POST   | `/<UUID>/anchor`      | `application/json`         | original data (JSON data package) will be hashed, signed, and anchored |
+| POST   | `/<UUID>/anchor/hash` | `application/octet-stream` | SHA256 hash (binary) will be signed, and anchored                      |
+| POST   | `/<UUID>/anchor/hash` | `text/plain`               | SHA256 hash (base64 string repr.) will be signed, and anchored         |
 
 #### Update Operations
 
 Beside anchoring, the client can request hash update operations from the UBIRCH backend, i.e. `disable`, `enable`
 and `delete`.
 
-| Update Operation | Path (original data)| Path (hash) |
-|------------------|---------------------|-------------|
-| disable | `/<UUID>/disable` | `/<UUID>/disable/hash` |
-| enable  | `/<UUID>/enable`  | `/<UUID>/enable/hash`  |
-| delete  | `/<UUID>/delete`  | `/<UUID>/delete/hash`  |
+| Update Operation | Path (original data) | Path (hash)            |
+|------------------|----------------------|------------------------|
+| disable          | `/<UUID>/disable`    | `/<UUID>/disable/hash` |
+| enable           | `/<UUID>/enable`     | `/<UUID>/enable/hash`  |
+| delete           | `/<UUID>/delete`     | `/<UUID>/delete/hash`  |
 
 Hash update requests to the UBIRCH backend must come from the same UUID that anchored said hash and be signed by the
 same private key that signed the anchoring request.
+
+#### UPP Offline Sealing
+
+The client supports offline hash sealing, where the created UPP is not sent to the UBIRCH backend, but only retrieved in
+the HTTP response content.
+
+- chained
+
+| Method | Path                   | Content-Type               | Description                                                           |
+|--------|------------------------|----------------------------|-----------------------------------------------------------------------|
+| POST   | `/<UUID>/offline`      | `application/octet-stream` | original data (binary) will be hashed, chained, and signed            |
+| POST   | `/<UUID>/offline`      | `application/json`         | original data (JSON data package) will be hashed, chained, and signed |
+| POST   | `/<UUID>/offline/hash` | `application/octet-stream` | SHA256 hash (binary) will be chained and signed                       |
+| POST   | `/<UUID>/offline/hash` | `text/plain`               | SHA256 hash (base64 string repr.) will be chained and signed          |
+
+- no chain
+
+| Method | Path                          | Content-Type               | Description                                                 |
+|--------|-------------------------------|----------------------------|-------------------------------------------------------------|
+| POST   | `/<UUID>/anchor/offline`      | `application/octet-stream` | original data (binary) will be hashed and signed            |
+| POST   | `/<UUID>/anchor/offline`      | `application/json`         | original data (JSON data package) will be hashed and signed |
+| POST   | `/<UUID>/anchor/offline/hash` | `application/octet-stream` | SHA256 hash (binary) will be signed                         |
+| POST   | `/<UUID>/anchor/offline/hash` | `text/plain`               | SHA256 hash (base64 string repr.) will be signed            |
 
 #### UPP Signing Response
 
@@ -304,7 +356,6 @@ The response body consists of either an error message, or a JSON map with
 - the public key, that corresponds to the private key with which the UPP was signed,
 - the response from the UBIRCH backend,
 - the unique request ID
-- *optional:* a description of an occurred error (**the `error`-key is only present in case an error occurred**)
 
 ```fundamental
 {
@@ -317,7 +368,6 @@ The response body consists of either an error message, or a JSON map with
     "content": "<base64 encoded backend response content>"
   },
   "requestID": "<request ID (standard hex string representation)>",
-  "error": "error message"
 }
 ```
 
@@ -366,7 +416,7 @@ for *Niomon* error codes.
           -d '{"id": "ba70ad8b-a564-4e58-9a3b-224ac0f0153f", "ts": 1585838578, "data": "1234567890"}' \
           -i
       ```
-    - anchor hash (**unchained**)
+    - anchor hash (**no chain**)
         ```shell
         curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/anchor \
           -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
@@ -409,7 +459,7 @@ for *Niomon* error codes.
           -d "wp1WK/3z5yHiGBYUZReiMN4UVM2lUJzAtGg9kFtdy3A=" \
           -i
       ```
-    - anchor hash (**unchained**)
+    - anchor hash (**no chain**)
         ```shell
         curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/anchor/hash \
           -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
@@ -446,12 +496,34 @@ for *Niomon* error codes.
 
 Verification endpoints do not require an authentication token.
 
-| Method | Path | Content-Type | Description |
-|--------|------|--------------|-------------|
-| POST | `/verify` | `application/octet-stream` | verify hash of original data (binary) |
-| POST | `/verify` | `application/json` | verify hash of original data (JSON data package) |
-| POST | `/verify/hash` | `application/octet-stream` | verify hash (binary) |
-| POST | `/verify/hash` | `text/plain` | verify hash (base64 string repr.) |
+| Method | Path           | Content-Type               | Description                                      |
+|--------|----------------|----------------------------|--------------------------------------------------|
+| POST   | `/verify`      | `application/octet-stream` | verify hash of original data (binary)            |
+| POST   | `/verify`      | `application/json`         | verify hash of original data (JSON data package) |
+| POST   | `/verify/hash` | `application/octet-stream` | verify hash (binary)                             |
+| POST   | `/verify/hash` | `text/plain`               | verify hash (base64 string repr.)                |
+
+#### UPP Offline Verification
+
+It is possible to verify that a UPP contains a given data hash and has a valid signature of a known identity without an
+internet connection.
+
+Just like the standard verification, the offline verification endpoint expects the data or data hash in the request
+body, but additionally expects the base64 representation of the UPP in the header `X-Ubirch-UPP`.
+
+```shell
+curl ${host}/verify/offline -X POST \
+ -H "X-Ubirch-UPP: liPEEO6QegJtYkRNpXhDJV/hplXEQGLoJh2SbSjQ7datOhGsWokSqO7Sckts1LGOxiBQ8SZoeql8ypLHpDLiYXQZ4MJ9vx1y/5rXwKl7VV+PG8eNEFAAxCCSV78s1WG2QGMS5vBVZOF51/JDHjjBqk/8x3VgpfL+dMRA7xvnoOSTNAYMJxItAkbzAMcD+YP2AX1bkfkV8EJUCNk7oI8DSPKmnNZ8gsb7fEv6DXGMTdFkGTtOvgpmkCNU7g==" \
+ -H "Content-Type: application/json" \
+ -d '{"id": "ee907a02-6d62-444d-a578-43255fe1a655", "ts": 1651746633, "data": "1234567890"}'
+```
+
+```shell
+curl ${host}/verify/offline/hash -X POST   \
+ -H "X-Ubirch-UPP: liPEEO6QegJtYkRNpXhDJV/hplXEQGLoJh2SbSjQ7datOhGsWokSqO7Sckts1LGOxiBQ8SZoeql8ypLHpDLiYXQZ4MJ9vx1y/5rXwKl7VV+PG8eNEFAAxCCSV78s1WG2QGMS5vBVZOF51/JDHjjBqk/8x3VgpfL+dMRA7xvnoOSTNAYMJxItAkbzAMcD+YP2AX1bkfkV8EJUCNk7oI8DSPKmnNZ8gsb7fEv6DXGMTdFkGTtOvgpmkCNU7g=="  \
+ -H "Content-Type: text/plain" \
+ -d "kle/LNVhtkBjEubwVWThedfyQx44wapP/Md1YKXy/nQ="
+```
 
 #### UPP Verification Response
 
