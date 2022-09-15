@@ -15,110 +15,194 @@ import (
 
 const testAuth = "password123"
 
-func TestUpdateActive_Deactivate(t *testing.T) {
-	payload := ActiveUpdatePayload{
-		Uid:    uuid.New(),
-		Active: false,
-	}
+var testUUID = uuid.MustParse("392110c4-5c4e-482c-80ef-e288ede02462")
 
-	payloadBytes, err := json.Marshal(payload)
-	require.NoError(t, err)
+func TestUpdateActive(t *testing.T) {
 
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodPut, "/", bytes.NewReader(payloadBytes))
-	r.Header.Set("Content-Type", JSONType)
-	r.Header.Set(XAuthHeader, testAuth)
-
-	UpdateActive(testAuth,
-		func(uid uuid.UUID) error {
-			assert.Equal(t, payload.Uid, uid)
-			return nil
+	testCases := []struct {
+		name        string
+		payload     ActiveUpdatePayload
+		deactivate  UpdateActivateStatus
+		reactivate  UpdateActivateStatus
+		auth        string
+		contentType string
+		tcChecks    func(t *testing.T, recorder *httptest.ResponseRecorder)
+	}{
+		{
+			name: "Deactivate",
+			payload: ActiveUpdatePayload{
+				Uid:    testUUID,
+				Active: false,
+			},
+			deactivate: func(uid uuid.UUID) error {
+				assert.Equal(t, testUUID, uid)
+				return nil
+			},
+			reactivate: func(uid uuid.UUID) error {
+				t.Error("reactivate function was called for deactivation")
+				return nil
+			},
+			auth:        testAuth,
+			contentType: JSONType,
+			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				assert.Equal(t, http.StatusOK, recorder.Code)
+				assert.Contains(t, recorder.Body.String(), deactivation)
+			},
 		},
-		func(uid uuid.UUID) error {
-			t.Error("reactivate function was called for deactivation")
-			return nil
-		})(w, r)
-
-	require.Equal(t, http.StatusOK, w.Code)
-}
-
-func TestUpdateActive_Reactivate(t *testing.T) {
-	payload := ActiveUpdatePayload{
-		Uid:    uuid.New(),
-		Active: true,
-	}
-
-	payloadBytes, err := json.Marshal(payload)
-	require.NoError(t, err)
-
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodPut, "/", bytes.NewReader(payloadBytes))
-	r.Header.Set("Content-Type", JSONType)
-	r.Header.Set(XAuthHeader, testAuth)
-
-	UpdateActive(testAuth,
-		func(uid uuid.UUID) error {
-			t.Error("deactivate function was called for reactivation")
-			return nil
+		{
+			name: "Reactivate",
+			payload: ActiveUpdatePayload{
+				Uid:    testUUID,
+				Active: true,
+			},
+			deactivate: func(uid uuid.UUID) error {
+				t.Error("deactivate function was called for reactivation")
+				return nil
+			},
+			reactivate: func(uid uuid.UUID) error {
+				assert.Equal(t, testUUID, uid)
+				return nil
+			},
+			auth:        testAuth,
+			contentType: JSONType,
+			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				assert.Equal(t, http.StatusOK, recorder.Code)
+				assert.Contains(t, recorder.Body.String(), reactivation)
+			},
 		},
-		func(uid uuid.UUID) error {
-			assert.Equal(t, payload.Uid, uid)
-			return nil
-		})(w, r)
-
-	require.Equal(t, http.StatusOK, w.Code)
-}
-
-func TestUpdateActive_Unauthorized(t *testing.T) {
-	payload := ActiveUpdatePayload{
-		Uid: uuid.New(),
-	}
-
-	payloadBytes, err := json.Marshal(payload)
-	require.NoError(t, err)
-
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodPut, "/", bytes.NewReader(payloadBytes))
-	r.Header.Set("Content-Type", JSONType)
-	r.Header.Set(XAuthHeader, "invalid")
-
-	UpdateActive(testAuth,
-		func(uid uuid.UUID) error {
-			t.Error("deactivate function was called with invalid auth")
-			return nil
+		{
+			name: "Unauthorized",
+			payload: ActiveUpdatePayload{
+				Uid: testUUID,
+			},
+			deactivate: func(uid uuid.UUID) error {
+				t.Error("deactivate function was called with invalid auth")
+				return nil
+			},
+			reactivate: func(uid uuid.UUID) error {
+				t.Error("reactivate function was called with invalid auth")
+				return nil
+			},
+			auth:        "invalid",
+			contentType: JSONType,
+			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				assert.Equal(t, http.StatusUnauthorized, recorder.Code)
+				assert.Contains(t, recorder.Body.String(), http.StatusText(http.StatusUnauthorized))
+			},
 		},
-		func(uid uuid.UUID) error {
-			t.Error("reactivate function was called with invalid auth")
-			return nil
-		})(w, r)
-
-	require.Equal(t, http.StatusUnauthorized, w.Code)
-}
-
-func TestUpdateActive_InvalidContentType(t *testing.T) {
-	payload := ActiveUpdatePayload{
-		Uid: uuid.New(),
-	}
-
-	payloadBytes, err := json.Marshal(payload)
-	require.NoError(t, err)
-
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodPut, "/", bytes.NewReader(payloadBytes))
-	r.Header.Set("Content-Type", BinType)
-	r.Header.Set(XAuthHeader, testAuth)
-
-	UpdateActive(testAuth,
-		func(uid uuid.UUID) error {
-			t.Error("deactivate function was called with invalid content type")
-			return nil
+		{
+			name: "InvalidContentType",
+			payload: ActiveUpdatePayload{
+				Uid: testUUID,
+			},
+			deactivate: func(uid uuid.UUID) error {
+				t.Error("deactivate function was called with invalid content type")
+				return nil
+			},
+			reactivate: func(uid uuid.UUID) error {
+				t.Error("reactivate function was called with invalid content type")
+				return nil
+			},
+			auth:        testAuth,
+			contentType: BinType,
+			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				assert.Equal(t, http.StatusBadRequest, recorder.Code)
+				assert.Contains(t, recorder.Body.String(), "invalid content-type")
+			},
 		},
-		func(uid uuid.UUID) error {
-			t.Error("reactivate function was called with invalid content type")
-			return nil
-		})(w, r)
+		{
+			name:    "InvalidUUID",
+			payload: ActiveUpdatePayload{},
+			deactivate: func(uid uuid.UUID) error {
+				t.Error("deactivate function was called with invalid UUID")
+				return nil
+			},
+			reactivate: func(uid uuid.UUID) error {
+				t.Error("reactivate function was called with invalid UUID")
+				return nil
+			},
+			auth:        testAuth,
+			contentType: JSONType,
+			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				assert.Equal(t, http.StatusBadRequest, recorder.Code)
+				assert.Contains(t, recorder.Body.String(), "empty uuid")
+			},
+		},
+		{
+			name: "Unknown",
+			payload: ActiveUpdatePayload{
+				Uid: testUUID,
+			},
+			deactivate: func(uid uuid.UUID) error {
+				return ErrUnknown
+			},
+			reactivate: func(uid uuid.UUID) error {
+				t.Error("reactivate function was called for deactivation")
+				return nil
+			},
+			auth:        testAuth,
+			contentType: JSONType,
+			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				assert.Equal(t, http.StatusNotFound, recorder.Code)
+				assert.Contains(t, recorder.Body.String(), ErrUnknown.Error())
+			},
+		},
+		{
+			name: "Conflict",
+			payload: ActiveUpdatePayload{
+				Uid: testUUID,
+			},
+			deactivate: func(uid uuid.UUID) error {
+				return ErrAlreadyDeactivated
+			},
+			reactivate: func(uid uuid.UUID) error {
+				t.Error("reactivate function was called for deactivation")
+				return nil
+			},
+			auth:        testAuth,
+			contentType: JSONType,
+			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				assert.Equal(t, http.StatusConflict, recorder.Code)
+				assert.Contains(t, recorder.Body.String(), ErrAlreadyDeactivated.Error())
+			},
+		},
+		{
+			name: "ServerError",
+			payload: ActiveUpdatePayload{
+				Uid: testUUID,
+			},
+			deactivate: func(uid uuid.UUID) error {
+				return fmt.Errorf("some error")
+			},
+			reactivate: func(uid uuid.UUID) error {
+				t.Error("reactivate function was called for deactivation")
+				return nil
+			},
+			auth:        testAuth,
+			contentType: JSONType,
+			tcChecks: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				assert.Equal(t, http.StatusInternalServerError, recorder.Code)
+				assert.Contains(t, recorder.Body.String(), http.StatusText(http.StatusInternalServerError))
+			},
+		},
+	}
+	for _, c := range testCases {
+		t.Run(c.name, func(t *testing.T) {
+			payloadBytes, err := json.Marshal(c.payload)
+			require.NoError(t, err)
 
-	require.Equal(t, http.StatusBadRequest, w.Code)
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodPut, "/", bytes.NewReader(payloadBytes))
+			r.Header.Set("Content-Type", c.contentType)
+			r.Header.Set(XAuthHeader, c.auth)
+
+			UpdateActive(testAuth,
+				c.deactivate,
+				c.reactivate,
+			)(w, r)
+			c.tcChecks(t, w)
+		})
+	}
 }
 
 func TestUpdateActive_InvalidJSON(t *testing.T) {
@@ -145,108 +229,4 @@ func TestUpdateActive_InvalidJSON(t *testing.T) {
 		})(w, r)
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
-}
-
-func TestUpdateActive_InvalidUUID(t *testing.T) {
-	payload := ActiveUpdatePayload{}
-
-	payloadBytes, err := json.Marshal(payload)
-	require.NoError(t, err)
-
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodPut, "/", bytes.NewReader(payloadBytes))
-	r.Header.Set("Content-Type", JSONType)
-	r.Header.Set(XAuthHeader, testAuth)
-
-	UpdateActive(testAuth,
-		func(uid uuid.UUID) error {
-			t.Error("deactivate function was called with invalid request content")
-			return nil
-		},
-		func(uid uuid.UUID) error {
-			t.Error("reactivate function was called with invalid request content")
-			return nil
-		})(w, r)
-
-	require.Equal(t, http.StatusBadRequest, w.Code)
-}
-
-func TestUpdateActive_Unknown(t *testing.T) {
-	payload := ActiveUpdatePayload{
-		Uid:    uuid.New(),
-		Active: false,
-	}
-
-	payloadBytes, err := json.Marshal(payload)
-	require.NoError(t, err)
-
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodPut, "/", bytes.NewReader(payloadBytes))
-	r.Header.Set("Content-Type", JSONType)
-	r.Header.Set(XAuthHeader, testAuth)
-
-	UpdateActive(testAuth,
-		func(uid uuid.UUID) error {
-			return ErrUnknown
-		},
-		func(uid uuid.UUID) error {
-			t.Error("reactivate function was called for deactivation")
-			return nil
-		})(w, r)
-
-	require.Equal(t, http.StatusNotFound, w.Code)
-	require.Equal(t, ErrUnknown.Error()+"\n", w.Body.String())
-}
-
-func TestUpdateActive_Conflict(t *testing.T) {
-	payload := ActiveUpdatePayload{
-		Uid:    uuid.New(),
-		Active: false,
-	}
-
-	payloadBytes, err := json.Marshal(payload)
-	require.NoError(t, err)
-
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodPut, "/", bytes.NewReader(payloadBytes))
-	r.Header.Set("Content-Type", JSONType)
-	r.Header.Set(XAuthHeader, testAuth)
-
-	UpdateActive(testAuth,
-		func(uid uuid.UUID) error {
-			return ErrAlreadyDeactivated
-		},
-		func(uid uuid.UUID) error {
-			t.Error("reactivate function was called for deactivation")
-			return nil
-		})(w, r)
-
-	require.Equal(t, http.StatusConflict, w.Code)
-	require.Equal(t, ErrAlreadyDeactivated.Error()+"\n", w.Body.String())
-}
-
-func TestUpdateActive_ServerError(t *testing.T) {
-	payload := ActiveUpdatePayload{
-		Uid:    uuid.New(),
-		Active: false,
-	}
-
-	payloadBytes, err := json.Marshal(payload)
-	require.NoError(t, err)
-
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodPut, "/", bytes.NewReader(payloadBytes))
-	r.Header.Set("Content-Type", JSONType)
-	r.Header.Set(XAuthHeader, testAuth)
-
-	UpdateActive(testAuth,
-		func(uid uuid.UUID) error {
-			return fmt.Errorf("some error")
-		},
-		func(uid uuid.UUID) error {
-			t.Error("reactivate function was called for deactivation")
-			return nil
-		})(w, r)
-
-	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
