@@ -12,6 +12,11 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const (
+	reactivation = "key reactivation"
+	deactivation = "key deactivation"
+)
+
 type ActiveUpdatePayload struct {
 	Uid    uuid.UUID `json:"id"`
 	Active bool      `json:"active"`
@@ -41,10 +46,10 @@ func UpdateActive(auth string,
 		uid := activeUpdatePayload.Uid
 
 		if activeUpdatePayload.Active {
-			action = "key reactivation"
+			action = reactivation
 			err = reactivate(uid)
 		} else {
-			action = "key deactivation"
+			action = deactivation
 			err = deactivate(uid)
 		}
 		if err != nil {
