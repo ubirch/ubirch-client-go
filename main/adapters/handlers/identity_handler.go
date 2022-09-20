@@ -50,6 +50,7 @@ func (i *IdentityHandler) InitIdentities(identities map[string]string) error {
 
 		_, err = i.InitIdentity(uid, auth)
 		if err == h.ErrAlreadyInitialized {
+			log.Infof("%s: identity already initialized", uid)
 			continue
 		}
 		if err != nil {
