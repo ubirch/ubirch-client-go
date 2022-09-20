@@ -106,6 +106,10 @@ func (p *ExtendedProtocol) StoreIdentity(tx TransactionCtx, i ent.Identity) erro
 	return p.ContextManager.StoreIdentity(tx, i)
 }
 
+func (p *ExtendedProtocol) ClearKeysFromCache(uid uuid.UUID) {
+	p.keyCache.ClearKeypair(uid)
+}
+
 func (p *ExtendedProtocol) LoadIdentity(uid uuid.UUID) (*ent.Identity, error) {
 	i, err := p.ContextManager.LoadIdentity(uid)
 	if err != nil {

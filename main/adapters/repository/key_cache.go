@@ -70,3 +70,8 @@ func (k *KeyCache) PublicKeyExists(id uuid.UUID) (bool, error) {
 	_, found := k.publicKeyCache.Load(id)
 	return found, nil
 }
+
+func (k *KeyCache) ClearKeypair(id uuid.UUID) {
+	k.publicKeyCache.Delete(id)
+	k.privateKeyCache.Delete(id)
+}
