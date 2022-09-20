@@ -126,8 +126,9 @@ func TestIdentityHandler_InitIdentity_BadRegistration(t *testing.T) {
 	_, err = idHandler.InitIdentity(testUuid, testAuth)
 	assert.Equal(t, MockSubmitKeyRegistrationErr, err)
 
-	_, err = p.LoadIdentity(testUuid)
-	assert.Equal(t, r.ErrNotExist, err)
+	initialized, err := p.IsInitialized(testUuid)
+	require.NoError(t, err)
+	assert.False(t, initialized)
 }
 
 func TestIdentityHandler_InitIdentity_BadSubmitCSR(t *testing.T) {
