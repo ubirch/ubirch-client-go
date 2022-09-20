@@ -111,6 +111,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) (csrPEM []byt
 	// register public key at the ubirch backend
 	err = i.registerPublicKey(uid)
 	if err != nil {
+		i.Protocol.ClearKeysFromCache(uid)
 		return nil, err
 	}
 
