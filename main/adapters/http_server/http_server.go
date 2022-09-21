@@ -75,19 +75,19 @@ func InitHTTPServer(conf *config.Config,
 		Sign:      sign,
 	}
 
-	// chain:              <uuid>
-	// chain hash:         <uuid>/hash
-	// chain offline:      <uuid>/offline
-	// chain offline hash: <uuid>/offline/hash
+	// chain:              /<uuid>
+	// chain hash:         /<uuid>/hash
+	// chain offline:      /<uuid>/offline
+	// chain offline hash: /<uuid>/offline/hash
 	httpServer.AddServiceEndpoint(UUIDPath,
 		signingService.HandleRequest(ChainHash),
 		true,
 	)
 
-	// sign:              <uuid>/anchor
-	// sign hash:         <uuid>/anchor/hash
-	// sign offline:      <uuid>/anchor/offline
-	// sign offline hash: <uuid>/anchor/offline/hash
+	// sign:              /<uuid>/anchor
+	// sign hash:         /<uuid>/anchor/hash
+	// sign offline:      /<uuid>/anchor/offline
+	// sign offline hash: /<uuid>/anchor/offline/hash
 	httpServer.AddServiceEndpoint(path.Join(UUIDPath, string(AnchorHash)),
 		signingService.HandleRequest(AnchorHash),
 		true,
