@@ -51,6 +51,7 @@ type Verifier struct {
 	RequestHash                   func(hashBase64 string) (h.HTTPResponse, error)
 	RequestPublicKeys             func(id uuid.UUID) ([]ubirch.SignedKeyRegistration, error)
 	VerifyFromKnownIdentitiesOnly bool
+	VerificationTimeout           time.Duration
 }
 
 func (v *Verifier) Verify(hash []byte) h.HTTPResponse {
@@ -102,7 +103,7 @@ func (v *Verifier) loadUPP(hash []byte) (int, []byte, error) {
 	hashBase64 := base64.StdEncoding.EncodeToString(hash)
 
 	n := 0
-	for stay, timeout := true, time.After(h.VerificationTimeout); stay; {
+	for stay, timeout := true, time.After(v.VerificationTimeout); stay; {
 		n++
 		select {
 		case <-timeout:

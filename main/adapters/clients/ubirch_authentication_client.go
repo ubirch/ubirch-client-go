@@ -16,6 +16,8 @@ package clients
 
 import (
 	"encoding/base64"
+	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -25,14 +27,15 @@ import (
 )
 
 type AuthenticationServiceClient struct {
-	AuthServiceURL string
+	AuthServiceURL     string
+	AuthServiceTimeout time.Duration
 }
 
 func (c *AuthenticationServiceClient) SendToAuthService(uid uuid.UUID, auth string, upp []byte) (h.HTTPResponse, error) {
 	timer := prometheus.NewTimer(prom.UpstreamResponseDuration)
 	defer timer.ObserveDuration()
 
-	return Post(c.AuthServiceURL, upp, ubirchHeader(uid, auth))
+	return sendRequest(http.MethodPost, c.AuthServiceURL, upp, ubirchHeader(uid, auth), c.AuthServiceTimeout)
 }
 
 func ubirchHeader(uid uuid.UUID, auth string) map[string]string {
