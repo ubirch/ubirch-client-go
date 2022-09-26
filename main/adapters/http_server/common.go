@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
@@ -19,14 +18,6 @@ import (
 )
 
 const (
-	BackendRequestTimeout = 15 * time.Second        // time after which requests to the ubirch backend will be canceled
-	VerificationTimeout   = 1500 * time.Millisecond // max time to attempt to verify hashes at the verification service
-	GatewayTimeout        = 45 * time.Second        // time after which a 504 response will be sent if no timely response could be produced
-	ShutdownTimeout       = 25 * time.Second        // time after which the server will be shut down forcefully if graceful shutdown did not happen before
-	ReadTimeout           = 1 * time.Second         // maximum duration for reading the entire request -> low since we only expect requests with small content
-	WriteTimeout          = 60 * time.Second        // time after which the connection will be closed if response was not written -> this should never happen
-	IdleTimeout           = 60 * time.Second        // time to wait for the next request when keep-alives are enabled
-
 	UUIDKey                = "uuid"
 	VerifyPath             = "/verify"
 	OfflinePath            = "/offline"

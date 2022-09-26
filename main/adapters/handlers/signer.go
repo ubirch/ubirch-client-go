@@ -169,7 +169,7 @@ func (s *Signer) sendUPP(msg h.HTTPRequest, upp []byte, pub []byte) h.HTTPRespon
 	backendResp, err := s.SendToAuthService(msg.ID, msg.Auth, upp)
 	if err != nil {
 		if os.IsTimeout(err) {
-			log.Errorf("%s: request to UBIRCH Authentication Service timed out after %s: %v", msg.ID, h.BackendRequestTimeout.String(), err)
+			log.Errorf("%s: request to UBIRCH Authentication Service timed out: %v", msg.ID, err)
 			return errorResponse(http.StatusGatewayTimeout, "")
 		} else {
 			log.Errorf("%s: sending request to UBIRCH Authentication Service failed: %v", msg.ID, err)

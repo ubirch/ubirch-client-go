@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"path"
 	"syscall"
+	"time"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
@@ -18,6 +19,13 @@ import (
 	prom "github.com/ubirch/ubirch-client-go/main/prometheus"
 )
 
+const (
+	ShutdownTimeout = 10 * time.Second // time after which the server will be shut down forcefully if graceful shutdown did not happen before
+	ReadTimeout     = 1 * time.Second  // maximum duration for reading the entire request -> low since we only expect requests with small content
+	WriteTimeout    = 60 * time.Second // time after which the connection will be closed if response was not written -> this should never happen
+	IdleTimeout     = 60 * time.Second // time to wait for the next request when keep-alives are enabled
+)
+
 type HTTPServer struct {
 	Router   *chi.Mux
 	Addr     string
@@ -26,10 +34,10 @@ type HTTPServer struct {
 	KeyFile  string
 }
 
-func NewRouter() *chi.Mux {
+func NewRouter(gatewayTimeout time.Duration) *chi.Mux {
 	router := chi.NewMux()
 	router.Use(prom.PromMiddleware)
-	router.Use(middleware.Timeout(GatewayTimeout))
+	router.Use(middleware.Timeout(gatewayTimeout))
 	return router
 }
 
@@ -41,7 +49,7 @@ func InitHTTPServer(conf *config.Config,
 	serverID string, readinessChecks []func() error) *HTTPServer {
 
 	httpServer := &HTTPServer{
-		Router:   NewRouter(),
+		Router:   NewRouter(time.Duration(conf.GatewayTimeoutMs) * time.Millisecond),
 		Addr:     conf.TCP_addr,
 		TLS:      conf.TLS,
 		CertFile: conf.TLS_CertFile,
