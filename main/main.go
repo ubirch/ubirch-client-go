@@ -17,6 +17,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
 	"github.com/ubirch/ubirch-client-go/main/adapters/handlers"
@@ -104,8 +105,11 @@ func main() {
 	client := &clients.UbirchServiceClient{}
 	client.KeyServiceURL = conf.KeyService
 	client.IdentityServiceURL = conf.IdentityService
+	client.IdentityServiceTimeout = time.Duration(conf.IdentityServiceTimeoutMs) * time.Millisecond
 	client.AuthServiceURL = conf.Niomon
+	client.AuthServiceTimeout = time.Duration(conf.AuthServiceTimeoutMs) * time.Millisecond
 	client.VerifyServiceURL = conf.VerifyService
+	client.VerifyServiceTimeout = time.Duration(conf.VerifyServiceTimeoutMs) * time.Millisecond
 
 	idHandler := &handlers.IdentityHandler{
 		Protocol:              protocol,
@@ -131,6 +135,7 @@ func main() {
 		RequestHash:                   client.RequestHash,
 		RequestPublicKeys:             client.RequestPublicKeys,
 		VerifyFromKnownIdentitiesOnly: false, // TODO: make configurable
+		VerificationTimeout:           time.Duration(conf.VerificationTimeoutMs) * time.Millisecond,
 	}
 
 	// set up HTTP server
