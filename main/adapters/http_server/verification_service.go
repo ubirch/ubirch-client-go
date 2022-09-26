@@ -1,6 +1,7 @@
 package http_server
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -8,7 +9,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type Verify func([]byte) HTTPResponse
+type Verify func(context.Context, []byte) HTTPResponse
 type VerifyOffline func([]byte, []byte) HTTPResponse
 
 type VerificationService struct {
@@ -18,6 +19,8 @@ type VerificationService struct {
 
 func (s *VerificationService) HandleRequest(offline, isHashRequest bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+
 		var resp HTTPResponse
 
 		if offline {
@@ -38,10 +41,9 @@ func (s *VerificationService) HandleRequest(offline, isHashRequest bool) http.Ha
 				return
 			}
 
-			resp = s.Verify(hash[:])
+			resp = s.Verify(ctx, hash[:])
 		}
 
-		ctx := r.Context()
 		select {
 		case <-ctx.Done():
 			log.Warnf("verification response could not be sent: http request %s", ctx.Err())

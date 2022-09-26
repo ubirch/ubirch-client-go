@@ -18,6 +18,7 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -54,11 +55,11 @@ type Verifier struct {
 	VerificationTimeout           time.Duration
 }
 
-func (v *Verifier) Verify(hash []byte) h.HTTPResponse {
+func (v *Verifier) Verify(ctx context.Context, hash []byte) h.HTTPResponse {
 	log.Infof("verifying hash %s", base64.StdEncoding.EncodeToString(hash))
 
 	// retrieve certificate for hash from the ubirch backend
-	code, upp, err := v.loadUPP(hash)
+	code, upp, err := v.loadUPP(ctx, hash)
 	if err != nil {
 		log.Error(err)
 		return errorResponse(code, err.Error())
@@ -97,7 +98,7 @@ func (v *Verifier) VerifyOffline(upp, hash []byte) h.HTTPResponse {
 }
 
 // loadUPP retrieves the UPP which contains a given hash from the ubirch backend
-func (v *Verifier) loadUPP(hash []byte) (int, []byte, error) {
+func (v *Verifier) loadUPP(ctx context.Context, hash []byte) (int, []byte, error) {
 	var resp h.HTTPResponse
 	var err error
 	hashBase64 := base64.StdEncoding.EncodeToString(hash)
@@ -106,6 +107,8 @@ func (v *Verifier) loadUPP(hash []byte) (int, []byte, error) {
 	for stay, timeout := true, time.After(v.VerificationTimeout); stay; {
 		n++
 		select {
+		case <-ctx.Done():
+			stay = false
 		case <-timeout:
 			stay = false
 		default:
