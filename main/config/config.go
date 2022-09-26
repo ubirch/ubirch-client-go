@@ -60,7 +60,7 @@ const (
 	defaultGatewayTimeoutMs         = 10_000
 	defaultIdentityServiceTimeoutMs = 10_000 // should be high since we want to avoid canceling an otherwise successful key registration
 	defaultAuthServiceTimeoutMs     = 2_000
-	defaultVerifyServiceTimeoutMs   = 500
+	defaultVerifyServiceTimeoutMs   = 600
 	defaultVerificationTimeoutMs    = 2_000
 )
 
