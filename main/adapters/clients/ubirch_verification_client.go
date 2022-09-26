@@ -15,13 +15,18 @@
 package clients
 
 import (
+	"net/http"
+	"time"
+
 	h "github.com/ubirch/ubirch-client-go/main/adapters/http_server"
 )
 
 type VerificationServiceClient struct {
-	VerifyServiceURL string
+	VerifyServiceURL     string
+	VerifyServiceTimeout time.Duration
 }
 
 func (c *VerificationServiceClient) RequestHash(hashBase64 string) (h.HTTPResponse, error) {
-	return Post(c.VerifyServiceURL, []byte(hashBase64), map[string]string{"content-type": "text/plain"})
+	return sendRequest(http.MethodPost, c.VerifyServiceURL, []byte(hashBase64),
+		map[string]string{"content-type": "text/plain"}, c.VerifyServiceTimeout)
 }
