@@ -121,7 +121,7 @@ func (v *Verifier) loadUPP(ctx context.Context, hash []byte) (int, []byte, error
 					return http.StatusBadGateway, nil, fmt.Errorf("sending request to UBIRCH Verification Service failed: %v", err)
 				}
 			}
-			stay = h.HttpFailed(resp.StatusCode)
+			stay = resp.StatusCode == http.StatusNotFound
 			if stay {
 				log.Debugf("Couldn't verify hash yet (%d). Retry... %d", resp.StatusCode, n)
 				time.Sleep(200 * time.Millisecond)
