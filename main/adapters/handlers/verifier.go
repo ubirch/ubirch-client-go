@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/google/uuid"
@@ -114,7 +115,11 @@ func (v *Verifier) loadUPP(ctx context.Context, hash []byte) (int, []byte, error
 		default:
 			resp, err = v.RequestHash(hashBase64)
 			if err != nil {
-				return http.StatusBadGateway, nil, fmt.Errorf("error sending verification request: %v", err)
+				if os.IsTimeout(err) {
+					return http.StatusGatewayTimeout, nil, fmt.Errorf("request to UBIRCH Verification Service timed out: %v", err)
+				} else {
+					return http.StatusBadGateway, nil, fmt.Errorf("sending request to UBIRCH Verification Service failed: %v", err)
+				}
 			}
 			stay = h.HttpFailed(resp.StatusCode)
 			if stay {
