@@ -836,6 +836,24 @@ By default, the log of the client is in JSON format. To change it to a (more hum
     UBIRCH_LOGTEXTFORMAT=true
     ```
 
+### Request Timeouts
+
+The following request-related timeouts can be configured.
+
+| json                       | env                           | description                                                                                          | default value |
+|----------------------------|-------------------------------|------------------------------------------------------------------------------------------------------|---------------|
+| `identityServiceTimeoutMs` | `IDENTITY_SERVICE_TIMEOUT_MS` | time limit for requests to the UBIRCH identity service in milliseconds                               | 10000         |
+| `authServiceTimeoutMs`     | `AUTH_SERVICE_TIMEOUT_MS`     | time limit for requests to the UBIRCH authentication service (niomon) in milliseconds                | 2000          |
+| `verifyServiceTimeoutMs`   | `VERIFY_SERVICE_TIMEOUT_MS`   | time limit for requests to the UBIRCH verification service in milliseconds                           | 600           |
+| `verificationTimeoutMs`    | `VERIFICATION_TIMEOUT_MS`     | time limit for repeated attempts to verify a hash at the UBIRCH verification service in milliseconds | 2000          |
+
+_If a hash can not be verified by the UBIRCH verification service, a possible reason is that the verification was
+attempted too early after anchoring and that a subsequent request will be successful. Because of this, the client
+retries the verification if it fails with an HTTP response code `404`._
+
+- _`verifyServiceTimeoutMs` is the HTTP client timeout for each individual request to the verification service_
+- _`verificationTimeoutMs` is the max. duration that verification will be attempted repeatedly_
+
 ## Legacy file-based context migration
 
 In version 1 of the client, the context has been stored in files. In order to use a newer version, the context can be
