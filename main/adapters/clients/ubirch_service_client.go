@@ -2,6 +2,7 @@ package clients
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,9 +18,10 @@ type UbirchServiceClient struct {
 }
 
 func sendRequest(method string, serviceURL string, data []byte, header map[string]string, timeout time.Duration) (h.HTTPResponse, error) {
-	client := &http.Client{Timeout: timeout}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
-	req, err := http.NewRequest(method, serviceURL, bytes.NewBuffer(data))
+	req, err := http.NewRequestWithContext(ctx, method, serviceURL, bytes.NewBuffer(data))
 	if err != nil {
 		return h.HTTPResponse{}, fmt.Errorf("can't make new post request: %v", err)
 	}
@@ -28,7 +30,7 @@ func sendRequest(method string, serviceURL string, data []byte, header map[strin
 		req.Header.Set(k, v)
 	}
 
-	resp, err := client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return h.HTTPResponse{}, err
 	}
