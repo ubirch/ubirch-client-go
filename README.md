@@ -156,14 +156,14 @@ This token is then used to authenticate requests against the identity registrati
 - json:
 
 ```json
-  "registerAuth": "<static auth token>",
+  "staticAuth": "<static auth token>",
   "enableRegistrationEndpoint": true,
 ```
 
 - env:
 
 ```console
-UBIRCH_REGISTERAUTH=<static auth token>
+UBIRCH_STATIC_AUTH=<static auth token>
 UBIRCH_ENABLE_REGISTRATION_ENDPOINT=true
 ```
 
@@ -263,7 +263,7 @@ Sending a registration request invokes the generation of a ECDSA key pair for si
 contains an X.509 Certificate Signing Request in PEM format.
 
     curl ${host}/register -X PUT \
-    -H "X-Auth-Token: ${registerAuth}" \
+    -H "X-Auth-Token: ${staticAuth}" \
     -H "Content-Type: application/json" \
     -d '{"uuid":${device_uuid}, "password":${password}}' \
     -i
@@ -279,21 +279,21 @@ This token is then used to authenticate requests against the CSR creation endpoi
 - json:
 
 ```json
-  "registerAuth": "<static auth token>",
+  "staticAuth": "<static auth token>",
   "enableCSRCreationEndpoint": true,
 ```
 
 - env:
 
 ```console
-UBIRCH_REGISTERAUTH=<static auth token>
+UBIRCH_STATIC_AUTH=<static auth token>
 UBIRCH_ENABLE_CSR_CREATION_ENDPOINT=true
 ```
 
 A CSR for an already registered identity can be retrieved from the CSR endpoint.
 
     curl ${host}/${uuid}/csr -X GET \
-    -H "X-Auth-Token: ${registerAuth}" \
+    -H "X-Auth-Token: ${staticAuth}" \
     -i
 
 ### UPP Signing
@@ -590,14 +590,14 @@ This token is then used to authenticate requests against the deactivation endpoi
 - json:
 
 ```json
-  "registerAuth": "<static auth token>",
+  "staticAuth": "<static auth token>",
   "enableDeactivationEndpoint": true,
 ```
 
 - env:
 
 ```console
-UBIRCH_REGISTERAUTH=<static auth token>
+UBIRCH_STATIC_AUTH=<static auth token>
 UBIRCH_ENABLE_DEACTIVATION_ENDPOINT=true
 ```
 
@@ -605,7 +605,7 @@ A key can be deactivated with the following request. Signing requests for identi
 status code `400`.
 
     curl ${host}/device/updateActive -X PUT \
-    -H "X-Auth-Token: ${registerAuth}" \
+    -H "X-Auth-Token: ${staticAuth}" \
     -H "Content-Type: application/json" \
     -d '{"id":${device_uuid},"active":false}' \
     -i
@@ -615,7 +615,7 @@ status code `400`.
 A deactivated key can be reactivated with the following request.
 
     curl ${host}/device/updateActive -X PUT \
-    -H "X-Auth-Token: ${registerAuth}" \
+    -H "X-Auth-Token: ${staticAuth}" \
     -H "Content-Type: application/json" \
     -d '{"id":${device_uuid},"active":true}' \
     -i

@@ -70,7 +70,7 @@ type Config struct {
 	Devices                    map[string]string `json:"devices"`                                                             // maps UUIDs to backend auth tokens
 	Secret16Base64             string            `json:"secret" envconfig:"secret"`                                           // LEGACY: 16 bytes secret used to encrypt the key store (mandatory only for migration)
 	Secret32Base64             string            `json:"secret32" envconfig:"secret32"`                                       // 32 byte secret used to encrypt the key store (mandatory)
-	RegisterAuth               string            `json:"registerAuth"`                                                        // auth token needed for new identity registration
+	StaticAuth                 string            `json:"staticAuth" envconfig:"STATIC_AUTH"`                                  // static auth token needed for identity registration, csr creation or key deactivation
 	EnableRegistrationEndpoint bool              `json:"enableRegistrationEndpoint" envconfig:"ENABLE_REGISTRATION_ENDPOINT"` // expose endpoint for identity registration
 	EnableCSRCreationEndpoint  bool              `json:"enableCSRCreationEndpoint" envconfig:"ENABLE_CSR_CREATION_ENDPOINT"`  // expose endpoint for CSR creation
 	EnableDeactivationEndpoint bool              `json:"enableDeactivationEndpoint" envconfig:"ENABLE_DEACTIVATION_ENDPOINT"` // expose endpoint for key status updates (de-/re-activation)
@@ -188,9 +188,9 @@ func (c *Config) checkMandatory() error {
 	}
 
 	if (c.EnableRegistrationEndpoint || c.EnableCSRCreationEndpoint || c.EnableDeactivationEndpoint) &&
-		len(c.RegisterAuth) == 0 {
+		len(c.StaticAuth) == 0 {
 		missingConfig = true
-		log.Errorf("missing 'registerAuth' / 'UBIRCH_REGISTERAUTH' in configuration")
+		log.Errorf("missing 'staticAuth' / 'UBIRCH_STATIC_AUTH' in configuration")
 	}
 
 	if missingConfig {
