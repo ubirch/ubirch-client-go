@@ -27,6 +27,9 @@ type UpdateActivateStatus func(uid uuid.UUID) error
 func UpdateActive(auth string,
 	deactivate UpdateActivateStatus,
 	reactivate UpdateActivateStatus) http.HandlerFunc {
+	if len(auth) == 0 {
+		panic("missing auth token for key deactivation endpoint")
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		if AuthToken(r.Header) != auth {
 			log.Warnf("unauthorized key de-/re-activation attempt")

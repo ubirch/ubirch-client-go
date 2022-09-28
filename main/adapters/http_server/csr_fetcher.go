@@ -11,6 +11,9 @@ import (
 type GetCSR func(uid uuid.UUID) (csr []byte, err error)
 
 func FetchCSR(auth string, get GetCSR) http.HandlerFunc {
+	if len(auth) == 0 {
+		panic("missing auth token for CSR creation endpoint")
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		if AuthToken(r.Header) != auth {
 			log.Warnf("unauthorized CSR request")

@@ -19,9 +19,12 @@ type RegistrationPayload struct {
 
 type InitializeIdentity func(uid uuid.UUID, auth string) (csr []byte, err error)
 
-func Register(registerAuth string, initialize InitializeIdentity) http.HandlerFunc {
+func Register(auth string, initialize InitializeIdentity) http.HandlerFunc {
+	if len(auth) == 0 {
+		panic("missing auth token for identity registration endpoint")
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
-		if AuthToken(r.Header) != registerAuth {
+		if AuthToken(r.Header) != auth {
 			log.Warnf("unauthorized registration attempt")
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 			return
