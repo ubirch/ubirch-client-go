@@ -1,6 +1,9 @@
 {
   "secret32": "sdSjtMh6C2oNgsiVcPx89RgcNYl8L6R9PhWU3iGIL+k=",
   "registerAuth": "qlJIjT2asJD23Y7toZczJriPTXd0GAmFUYAjHl0PcnA=",
+  "enableRegistrationEndpoint": true,
+  "enableCSRCreationEndpoint": true,
+  "enableDeactivationEndpoint": true,
   "dbDriver": "postgres",
   "dbDSN": "postgres://<username>:<password>@<hostname>:5432/<database>",
   "dbMaxConns": 20,
