@@ -206,6 +206,18 @@ func (c *Config) checkMandatory() error {
 		log.Errorf("missing 'staticAuth' / 'UBIRCH_STATIC_AUTH' in configuration")
 	}
 
+	if !c.EnableRegistrationEndpoint {
+		log.Warnf("identity registration endpoint disabled. To enable, set json:\"enableRegistrationEndpoint\" env:\"UBIRCH_ENABLE_REGISTRATION_ENDPOINT\" =true")
+	}
+
+	if !c.EnableCSRCreationEndpoint {
+		log.Warnf("CSR creation endpoint disabled. To enable, set json:\"enableCSRCreationEndpoint\" env:\"UBIRCH_ENABLE_CSR_CREATION_ENDPOINT\" =true")
+	}
+
+	if !c.EnableDeactivationEndpoint {
+		log.Warnf("key deactivation endpoint disabled. To enable, set json:\"enableDeactivationEndpoint\" env:\"ENABLE_DEACTIVATION_ENDPOINT\" =true")
+	}
+
 	if missingConfig {
 		return fmt.Errorf("missing mandatory configuration")
 	}
