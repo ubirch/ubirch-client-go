@@ -39,9 +39,5 @@ type TransactionCtx interface {
 }
 
 func GetContextManager(c *config.Config) (ContextManager, error) {
-	if c.PostgresDSN != "" {
-		return NewDatabaseManager(PostgreSQL, c.PostgresDSN, c.DbMaxConns)
-	} else {
-		return NewDatabaseManager(SQLite, c.SqliteDSN, c.DbMaxConns)
-	}
+	return NewDatabaseManager(c.DbDriver, c.DbDSN, c.DbMaxConns)
 }

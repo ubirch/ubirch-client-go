@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,12 +10,9 @@ import (
 )
 
 func TestGetContextManagerDB(t *testing.T) {
-	dbConf, err := getConfig()
-	require.NoError(t, err)
-
 	conf := &config.Config{
-		PostgresDSN: dbConf.PostgresDSN,
-		DbMaxConns:  dbConf.DbMaxConns,
+		DbDriver: SQLite,
+		DbDSN:    filepath.Join(t.TempDir(), testSQLiteDSN),
 	}
 
 	ContextMngr, err := GetContextManager(conf)
