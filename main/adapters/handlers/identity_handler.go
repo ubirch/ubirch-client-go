@@ -23,6 +23,7 @@ import (
 	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
 	"github.com/ubirch/ubirch-client-go/main/auditlogger"
 	"github.com/ubirch/ubirch-client-go/main/ent"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/http_server"
@@ -124,7 +125,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) (csrPEM []byt
 }
 
 func (i *IdentityHandler) registerPublicKey(uid uuid.UUID) error {
-	keyRegistration, err := i.Protocol.GetSignedKeyRegistration(uid)
+	keyRegistration, err := ubirch.GetSignedKeyRegistration(i.Protocol.Crypto, uid)
 	if err != nil {
 		return fmt.Errorf("creating public key certificate failed: %v", err)
 	}
@@ -206,7 +207,7 @@ func (i *IdentityHandler) DeactivateKey(uid uuid.UUID) error {
 	}
 
 	// create self-signed key deletion request for identity service
-	keyDeletion, err := i.Protocol.GetSignedKeyDeletion(uid)
+	keyDeletion, err := ubirch.GetSignedKeyDeletion(i.Protocol.Crypto, uid)
 	if err != nil {
 		return fmt.Errorf("could not create self-signed key deletion request: %v", err)
 	}
