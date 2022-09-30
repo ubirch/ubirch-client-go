@@ -58,7 +58,9 @@ var _ ContextManager = (*DatabaseManager)(nil)
 // NewDatabaseManager takes a database connection string, returns a new initialized
 // SQL database manager.
 func NewDatabaseManager(driverName, dataSourceName string, maxConns int) (*DatabaseManager, error) {
-	log.Infof("preparing %s database", driverName)
+	if driverName == "" || dataSourceName == "" {
+		return nil, fmt.Errorf("empty database driverName or dataSourceName")
+	}
 
 	var isolationLvl sql.IsolationLevel
 	var identityTable int
@@ -74,8 +76,11 @@ func NewDatabaseManager(driverName, dataSourceName string, maxConns int) (*Datab
 			dataSourceName += sqliteConfig
 		}
 	default:
-		return nil, fmt.Errorf("unsupported SQL driver: %s", driverName)
+		return nil, fmt.Errorf("unsupported SQL database driver: %s, supported drivers: %s, %s",
+			driverName, PostgreSQL, SQLite)
 	}
+
+	log.Infof("initializing %s database connection", driverName)
 
 	db, err := sql.Open(driverName, dataSourceName)
 	if err != nil {
