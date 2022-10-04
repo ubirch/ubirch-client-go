@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -78,7 +78,7 @@ func GetActiveUpdatePayload(r *http.Request) (*ActiveUpdatePayload, error) {
 		return nil, fmt.Errorf("invalid content-type: expected %s, got %s", JSONType, contentType)
 	}
 
-	reqBodyBytes, err := ioutil.ReadAll(r.Body)
+	reqBodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
 		return nil, err
 	}

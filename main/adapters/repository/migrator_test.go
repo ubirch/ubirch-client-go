@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/ubirch/ubirch-client-go/main/config"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -66,7 +65,7 @@ func TestMigrate(t *testing.T) {
 func setupMigrationTest(t *testing.T, configDir string) *config.Config {
 	legacyCtxFile := filepath.Join(configDir, contextFileName_Legacy)
 
-	err := ioutil.WriteFile(legacyCtxFile, []byte(legacyProtocolCtxJson), filePerm)
+	err := os.WriteFile(legacyCtxFile, []byte(legacyProtocolCtxJson), filePerm)
 	require.NoError(t, err)
 
 	secretBytes32, _ := base64.StdEncoding.DecodeString(testSecret32Base64)

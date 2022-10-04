@@ -5,7 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"path"
 	"sync"
@@ -160,7 +160,7 @@ func (s *Sender) sendRequest(clientURL string, header http.Header, hash []byte) 
 	if resp.StatusCode == http.StatusOK {
 		s.addTime(duration)
 	} else {
-		respBody, _ := ioutil.ReadAll(resp.Body)
+		respBody, _ := io.ReadAll(resp.Body)
 		return SigningResponse{}, fmt.Errorf("%d: %s", resp.StatusCode, respBody)
 	}
 

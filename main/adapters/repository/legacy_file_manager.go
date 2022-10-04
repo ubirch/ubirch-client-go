@@ -3,7 +3,6 @@ package repository
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -72,11 +71,11 @@ func (f *FileManager) GetPublicKey(uid uuid.UUID) ([]byte, error) {
 }
 
 func (f *FileManager) GetSignature(uid uuid.UUID) ([]byte, error) {
-	return ioutil.ReadFile(f.signatureFile(uid))
+	return os.ReadFile(f.signatureFile(uid))
 }
 
 func (f *FileManager) SetSignature(uid uuid.UUID, signature []byte) error {
-	return ioutil.WriteFile(f.signatureFile(uid), signature, filePerm)
+	return os.WriteFile(f.signatureFile(uid), signature, filePerm)
 }
 
 func (f *FileManager) signatureFile(uid uuid.UUID) string {
@@ -92,10 +91,10 @@ func loadFile(file string, dest interface{}) error {
 	if _, err := os.Stat(file); os.IsNotExist(err) { // if file does not exist yet, return right away
 		return nil
 	}
-	contextBytes, err := ioutil.ReadFile(filepath.Clean(file))
+	contextBytes, err := os.ReadFile(filepath.Clean(file))
 	if err != nil {
 		file = file + ".bck"
-		contextBytes, err = ioutil.ReadFile(filepath.Clean(file))
+		contextBytes, err = os.ReadFile(filepath.Clean(file))
 		if err != nil {
 			return err
 		}
@@ -119,7 +118,7 @@ func persistFile(file string, source interface{}) error {
 		}
 	}
 	contextBytes, _ := json.MarshalIndent(source, "", "  ")
-	return ioutil.WriteFile(file, contextBytes, filePerm)
+	return os.WriteFile(file, contextBytes, filePerm)
 }
 
 // this is here only for the purpose of backwards compatibility TODO: DEPRECATE
