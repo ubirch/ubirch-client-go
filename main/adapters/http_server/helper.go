@@ -3,7 +3,7 @@ package http_server
 import (
 	"encoding/base64"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 )
@@ -38,7 +38,7 @@ func getUPP(header http.Header) ([]byte, error) {
 }
 
 func ReadBody(r *http.Request) ([]byte, error) {
-	rBody, err := ioutil.ReadAll(r.Body)
+	rBody, err := io.ReadAll(r.Body)
 	if err != nil {
 		return nil, fmt.Errorf("unable to read request body: %v", err)
 	}
