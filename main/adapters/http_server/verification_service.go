@@ -9,8 +9,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type Verify func(context.Context, []byte) HTTPResponse
-type VerifyOffline func([]byte, []byte) HTTPResponse
+type Verify func(ctx context.Context, hash []byte) HTTPResponse
+type VerifyOffline func(upp []byte, hash []byte) HTTPResponse
 
 type VerificationService struct {
 	Verify
