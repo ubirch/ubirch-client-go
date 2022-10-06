@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -30,16 +31,16 @@ func getCSR(m *mock.Mock) GetCSR {
 }
 
 func checkAuth(m *mock.Mock) CheckAuth {
-	return func(ctx context.Context, uid uuid.UUID, auth string) (bool, bool, error) {
+	return func(ctx context.Context, uid uuid.UUID, auth string) (ok, found bool, err error) {
 		args := m.MethodCalled("checkAuth", ctx, uid, auth)
-		return args.Bool(0), args.Bool(2), args.Error(3)
+		return args.Bool(0), args.Bool(1), args.Error(2)
 	}
 }
 
 func sign(m *mock.Mock) Sign {
-
-	return func(HTTPRequest) HTTPResponse {
-		return HTTPResponse{}
+	return func(msg HTTPRequest) (resp HTTPResponse) {
+		args := m.MethodCalled("sign", msg.ID, msg.Auth, msg.Hash, msg.Operation, msg.Offline)
+		return args.Get(0).(HTTPResponse)
 	}
 }
 
@@ -187,6 +188,129 @@ func TestInitHTTPServer(t *testing.T) {
 				assert.Contains(t, w.Body.String(), "key reactivation successful")
 			},
 		},
+		{
+			name: "chain",
+			request: func() *http.Request {
+				payload := []byte("{\"c\": \"d\", \"a\": \"b\", \"e\": \"f\"}")
+				request := httptest.NewRequest(http.MethodPost, "/5133fbdd-978d-4f95-9af9-41abdef2f2b4", bytes.NewReader(payload))
+				request.Header.Add(XAuthHeader, testAuth)
+				request.Header.Add("Content-Type", JSONType)
+				return request
+			}(),
+			setExpectations: func(m *mock.Mock) {
+				// checkAuth(ctx context.Context, uid uuid.UUID, auth string) (ok, found bool, err error)
+				m.On("checkAuth", mock.AnythingOfType("*context.timerCtx"), uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4"), testAuth).Return(true, true, nil)
+				m.On("sign",
+					uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4"),
+					testAuth,
+					Sha256Sum{0x80, 0xc9, 0x83, 0xc2, 0xfa, 0x61, 0x75, 0x1b, 0x2f, 0x78, 0x42, 0xa3, 0xa3, 0x39, 0x34, 0xfc, 0xbe, 0xd1, 0xc4, 0x3a, 0xa2, 0x5c, 0xa3, 0xb6, 0x39, 0x5c, 0x12, 0xf5, 0x53, 0xe2, 0xf0, 0x5e},
+					ChainHash,
+					false,
+				).Return(HTTPResponse{
+					StatusCode: http.StatusOK,
+					//Header:     http.Header{"test": []string{"1", "2", "3"}},
+					Header:  http.Header{"test": []string{"header"}},
+					Content: []byte("chained"),
+				})
+			},
+			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
+				m.AssertExpectations(t)
+				assert.Equal(t, http.StatusOK, w.Code)
+				//assert.Equal(t, []string{"1", "2", "3"}, w.Header().Get("test"))
+				assert.Equal(t, "header", w.Header().Get("test"))
+				assert.Contains(t, w.Body.String(), "chained")
+			},
+		},
+		{
+			name: "chain hash",
+			request: func() *http.Request {
+				payload := []byte("gMmDwvphdRsveEKjozk0/L7RxDqiXKO2OVwS9VPi8F4=")
+				request := httptest.NewRequest(http.MethodPost, "/5133fbdd-978d-4f95-9af9-41abdef2f2b4/hash", bytes.NewReader(payload))
+				request.Header.Add(XAuthHeader, testAuth)
+				request.Header.Add("Content-Type", "text/plain")
+				return request
+			}(),
+			setExpectations: func(m *mock.Mock) {
+				m.On("checkAuth", mock.AnythingOfType("*context.timerCtx"), uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4"), testAuth).Return(true, true, nil)
+				m.On("sign",
+					uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4"),
+					testAuth,
+					Sha256Sum{0x80, 0xc9, 0x83, 0xc2, 0xfa, 0x61, 0x75, 0x1b, 0x2f, 0x78, 0x42, 0xa3, 0xa3, 0x39, 0x34, 0xfc, 0xbe, 0xd1, 0xc4, 0x3a, 0xa2, 0x5c, 0xa3, 0xb6, 0x39, 0x5c, 0x12, 0xf5, 0x53, 0xe2, 0xf0, 0x5e},
+					ChainHash,
+					false,
+				).Return(HTTPResponse{
+					StatusCode: http.StatusOK,
+					Header:     http.Header{"test": []string{"header"}},
+					Content:    []byte("chained hash"),
+				})
+			},
+			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
+				m.AssertExpectations(t)
+				assert.Equal(t, http.StatusOK, w.Code)
+				assert.Equal(t, "header", w.Header().Get("test"))
+				assert.Contains(t, w.Body.String(), "chained hash")
+			},
+		},
+		{
+			name: "chain offline",
+			request: func() *http.Request {
+				payload := []byte("{\"c\": \"d\", \"a\": \"b\", \"e\": \"f\"}")
+				request := httptest.NewRequest(http.MethodPost, "/5133fbdd-978d-4f95-9af9-41abdef2f2b4/offline", bytes.NewReader(payload))
+				request.Header.Add(XAuthHeader, testAuth)
+				request.Header.Add("Content-Type", JSONType)
+				return request
+			}(),
+			setExpectations: func(m *mock.Mock) {
+				m.On("checkAuth", mock.AnythingOfType("*context.timerCtx"), uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4"), testAuth).Return(true, true, nil)
+				m.On("sign",
+					uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4"),
+					testAuth,
+					Sha256Sum{0x80, 0xc9, 0x83, 0xc2, 0xfa, 0x61, 0x75, 0x1b, 0x2f, 0x78, 0x42, 0xa3, 0xa3, 0x39, 0x34, 0xfc, 0xbe, 0xd1, 0xc4, 0x3a, 0xa2, 0x5c, 0xa3, 0xb6, 0x39, 0x5c, 0x12, 0xf5, 0x53, 0xe2, 0xf0, 0x5e},
+					ChainHash,
+					true,
+				).Return(HTTPResponse{
+					StatusCode: http.StatusOK,
+					Header:     http.Header{"test": []string{"header"}},
+					Content:    []byte("chained offline"),
+				})
+			},
+			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
+				m.AssertExpectations(t)
+				assert.Equal(t, http.StatusOK, w.Code)
+				assert.Equal(t, "header", w.Header().Get("test"))
+				assert.Contains(t, w.Body.String(), "chained offline")
+			},
+		},
+		{
+			name: "chain offline hash",
+			request: func() *http.Request {
+				payload := []byte("gMmDwvphdRsveEKjozk0/L7RxDqiXKO2OVwS9VPi8F4=")
+				request := httptest.NewRequest(http.MethodPost, "/5133fbdd-978d-4f95-9af9-41abdef2f2b4/offline/hash", bytes.NewReader(payload))
+				request.Header.Add(XAuthHeader, testAuth)
+				request.Header.Add("Content-Type", "text/plain")
+				return request
+			}(),
+			setExpectations: func(m *mock.Mock) {
+				m.On("checkAuth", mock.AnythingOfType("*context.timerCtx"), uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4"), testAuth).Return(true, true, nil)
+				m.On("sign",
+					uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4"),
+					testAuth,
+					Sha256Sum{0x80, 0xc9, 0x83, 0xc2, 0xfa, 0x61, 0x75, 0x1b, 0x2f, 0x78, 0x42, 0xa3, 0xa3, 0x39, 0x34, 0xfc, 0xbe, 0xd1, 0xc4, 0x3a, 0xa2, 0x5c, 0xa3, 0xb6, 0x39, 0x5c, 0x12, 0xf5, 0x53, 0xe2, 0xf0, 0x5e},
+					ChainHash,
+					true,
+				).Return(HTTPResponse{
+					StatusCode: http.StatusOK,
+					Header:     http.Header{"test": []string{"header"}},
+					Content:    []byte("chained offline hash"),
+				})
+			},
+			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
+				m.AssertExpectations(t)
+				assert.Equal(t, http.StatusOK, w.Code)
+				assert.Equal(t, "header", w.Header().Get("test"))
+				assert.Contains(t, w.Body.String(), "chained offline hash")
+			},
+		},
 	}
 	for _, c := range testCases {
 		t.Run(c.name, func(t *testing.T) {
@@ -194,7 +318,10 @@ func TestInitHTTPServer(t *testing.T) {
 			m.Test(t)
 			c.setExpectations(m)
 
-			conf := &config.Config{RegisterAuth: testAuth}
+			conf := &config.Config{
+				RegisterAuth:     testAuth,
+				GatewayTimeoutMs: int64(time.Second),
+			}
 
 			httpServer := InitHTTPServer(conf,
 				initialize(m), getCSR(m),
