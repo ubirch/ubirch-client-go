@@ -70,17 +70,23 @@ func InitHTTPServer(conf *config.Config,
 	// set up endpoint for identity registration
 	if conf.EnableRegistrationEndpoint {
 		httpServer.Router.Put(RegisterEndpoint, Register(conf.StaticAuth, initialize))
+	} else {
+		httpServer.Router.Put(RegisterEndpoint, http.NotFound)
 	}
 
 	// set up endpoint for CSR creation
+	fetchCSREndpoint := path.Join(UUIDPath, CSREndpoint) // /<uuid>/csr
 	if conf.EnableCSRCreationEndpoint {
-		fetchCSREndpoint := path.Join(UUIDPath, CSREndpoint) // /<uuid>/csr
 		httpServer.Router.Get(fetchCSREndpoint, FetchCSR(conf.StaticAuth, getCSR))
+	} else {
+		httpServer.Router.Get(fetchCSREndpoint, http.NotFound)
 	}
 
 	// set up endpoint for key status updates (de-/re-activation)
 	if conf.EnableDeactivationEndpoint {
 		httpServer.Router.Put(ActiveUpdateEndpoint, UpdateActive(conf.StaticAuth, deactivate, reactivate))
+	} else {
+		httpServer.Router.Put(ActiveUpdateEndpoint, http.NotFound)
 	}
 
 	// set up endpoints for signing

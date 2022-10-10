@@ -80,10 +80,13 @@ var (
 func TestInitHTTPServer(t *testing.T) {
 
 	testCases := []struct {
-		name            string
-		request         *http.Request
-		setExpectations func(m *mock.Mock)
-		tcChecks        func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock)
+		name               string
+		enableRegistration bool
+		enableCSRCreation  bool
+		enableDeactivation bool
+		request            *http.Request
+		setExpectations    func(m *mock.Mock)
+		tcChecks           func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock)
 	}{
 		{
 			name:            "health check",
@@ -119,7 +122,26 @@ func TestInitHTTPServer(t *testing.T) {
 			},
 		},
 		{
-			name: "identity registration",
+			name: "identity registration disabled",
+			request: func() *http.Request {
+				payload := []byte("{\"uuid\": \"5133fbdd-978d-4f95-9af9-41abdef2f2b4\", \"password\": \"1234\"}")
+				request := httptest.NewRequest(http.MethodPut, "/register", bytes.NewReader(payload))
+				request.Header.Add(XAuthHeader, testAuth)
+				request.Header.Add("Content-Type", JSONType)
+				return request
+			}(),
+			setExpectations: func(m *mock.Mock) {
+				m.On("initialize", uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4"), "1234").Return([]byte("csr"), nil)
+			},
+			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
+				m.AssertNotCalled(t, "initialize", uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4"), "1234")
+				assert.Equal(t, http.StatusNotFound, w.Code)
+				assert.Contains(t, w.Body.String(), "not found")
+			},
+		},
+		{
+			name:               "identity registration",
+			enableRegistration: true,
 			request: func() *http.Request {
 				payload := []byte("{\"uuid\": \"5133fbdd-978d-4f95-9af9-41abdef2f2b4\", \"password\": \"1234\"}")
 				request := httptest.NewRequest(http.MethodPut, "/register", bytes.NewReader(payload))
@@ -137,7 +159,24 @@ func TestInitHTTPServer(t *testing.T) {
 			},
 		},
 		{
-			name: "CSR creation",
+			name: "CSR creation disabled",
+			request: func() *http.Request {
+				request := httptest.NewRequest(http.MethodGet, "/5133fbdd-978d-4f95-9af9-41abdef2f2b4/csr", nil)
+				request.Header.Add(XAuthHeader, testAuth)
+				return request
+			}(),
+			setExpectations: func(m *mock.Mock) {
+				m.On("getCSR", uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4")).Return([]byte("csr"), nil)
+			},
+			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
+				m.AssertNotCalled(t, "getCSR", uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4"))
+				assert.Equal(t, http.StatusNotFound, w.Code)
+				assert.Contains(t, w.Body.String(), "not found")
+			},
+		},
+		{
+			name:              "CSR creation",
+			enableCSRCreation: true,
 			request: func() *http.Request {
 				request := httptest.NewRequest(http.MethodGet, "/5133fbdd-978d-4f95-9af9-41abdef2f2b4/csr", nil)
 				request.Header.Add(XAuthHeader, testAuth)
@@ -153,7 +192,26 @@ func TestInitHTTPServer(t *testing.T) {
 			},
 		},
 		{
-			name: "deactivation",
+			name: "deactivation disabled",
+			request: func() *http.Request {
+				payload := []byte("{\"id\": \"5133fbdd-978d-4f95-9af9-41abdef2f2b4\", \"active\": false}")
+				request := httptest.NewRequest(http.MethodPut, "/device/updateActive", bytes.NewReader(payload))
+				request.Header.Add(XAuthHeader, testAuth)
+				request.Header.Add("Content-Type", JSONType)
+				return request
+			}(),
+			setExpectations: func(m *mock.Mock) {
+				m.On("deactivate", uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4")).Return(nil)
+			},
+			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
+				m.AssertNotCalled(t, "deactivate", uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4"))
+				assert.Equal(t, http.StatusNotFound, w.Code)
+				assert.Contains(t, w.Body.String(), "not found")
+			},
+		},
+		{
+			name:               "deactivation",
+			enableDeactivation: true,
 			request: func() *http.Request {
 				payload := []byte("{\"id\": \"5133fbdd-978d-4f95-9af9-41abdef2f2b4\", \"active\": false}")
 				request := httptest.NewRequest(http.MethodPut, "/device/updateActive", bytes.NewReader(payload))
@@ -171,7 +229,8 @@ func TestInitHTTPServer(t *testing.T) {
 			},
 		},
 		{
-			name: "reactivation",
+			name:               "reactivation",
+			enableDeactivation: true,
 			request: func() *http.Request {
 				payload := []byte("{\"id\": \"5133fbdd-978d-4f95-9af9-41abdef2f2b4\", \"active\": true}")
 				request := httptest.NewRequest(http.MethodPut, "/device/updateActive", bytes.NewReader(payload))
@@ -619,8 +678,11 @@ func TestInitHTTPServer(t *testing.T) {
 			c.setExpectations(m)
 
 			conf := &config.Config{
-				RegisterAuth:     testAuth,
-				GatewayTimeoutMs: int64(time.Second),
+				StaticAuth:                 testAuth,
+				EnableRegistrationEndpoint: c.enableRegistration,
+				EnableCSRCreationEndpoint:  c.enableCSRCreation,
+				EnableDeactivationEndpoint: c.enableDeactivation,
+				GatewayTimeoutMs:           int64(time.Second),
 			}
 
 			httpServer := InitHTTPServer(conf,
