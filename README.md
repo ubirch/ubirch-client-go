@@ -67,10 +67,9 @@ make publish IMAGE_TAG=stable # will tag a multi-arch image with the selected ta
 
 The configuration can be set via a configuration file (`config.json`) or environment variables.
 
-There are two mandatory configurations:
+There is one mandatory configuration:
 
-1. a 32 byte base64 encoded secret, which will be used to encrypt the signing keys
-2. a static token which will be used for authentication against some endpoints
+- a 32 byte base64 encoded secret, which will be used to encrypt the signing keys in the database
 
 > You can generate a random 32 byte base64 encoded secret in a Linux/macOS terminal
 > with `head -c 32 /dev/urandom | base64`
@@ -86,8 +85,7 @@ abort and exit with status `1`.
 
 ```json
 {
-  "secret32": "<32 byte secret (base64 encoded)>",
-  "registerAuth": "<static auth token>"
+  "secret32": "<32 byte secret (base64 encoded)>"
 }
 ```
 
@@ -97,7 +95,6 @@ abort and exit with status `1`.
 
 ```console
 UBIRCH_SECRET32=<32 byte secret (base64 encoded)>
-UBIRCH_REGISTERAUTH=<static auth token>
 ```
 
 > See [example.env](main/config/example.env) as an example for environment-based configuration.
@@ -152,8 +149,26 @@ Identities can be registered at the UBIRCH client in two ways:
 1. via [configuration](#identity-initialization-via-configuration)
 2. via [HTTP request](#identity-registration)
 
-Either way, the first step is to register the identity's UUID with the UBIRCH backend
-and acquire an authentication token.
+If identity registration via HTTP requests is desired, the respective endpoint must be enabled and a static
+authentication token must be set in the configuration.
+This token is then used to authenticate requests against the identity registration endpoint.
+
+- json:
+
+```json
+  "staticAuth": "<static auth token>",
+  "enableRegistrationEndpoint": true,
+```
+
+- env:
+
+```console
+UBIRCH_STATIC_AUTH=<static auth token>
+UBIRCH_ENABLE_REGISTRATION_ENDPOINT=true
+```
+
+Before registering a new identity at the UBIRCH client, the first step is to register the identity's UUID with the
+UBIRCH backend and acquire an authentication token for that identity.
 
 > A UUID can easily be generated in a Linux/macOS terminal with the `uuidgen` command.
 
@@ -248,7 +263,7 @@ Sending a registration request invokes the generation of a ECDSA key pair for si
 contains an X.509 Certificate Signing Request in PEM format.
 
     curl ${host}/register -X PUT \
-    -H "X-Auth-Token: ${registerAuth}" \
+    -H "X-Auth-Token: ${staticAuth}" \
     -H "Content-Type: application/json" \
     -d '{"uuid":${device_uuid}, "password":${password}}' \
     -i
@@ -257,10 +272,28 @@ The "password" is the [UBIRCH backend authentication token](#how-to-acquire-the-
 
 ### CSR Generation
 
+If CSR creation via HTTP requests is desired, the respective endpoint must be enabled and a static
+authentication token must be set in the configuration.
+This token is then used to authenticate requests against the CSR creation endpoint.
+
+- json:
+
+```json
+  "staticAuth": "<static auth token>",
+  "enableCSRCreationEndpoint": true,
+```
+
+- env:
+
+```console
+UBIRCH_STATIC_AUTH=<static auth token>
+UBIRCH_ENABLE_CSR_CREATION_ENDPOINT=true
+```
+
 A CSR for an already registered identity can be retrieved from the CSR endpoint.
 
     curl ${host}/${uuid}/csr -X GET \
-    -H "X-Auth-Token: ${registerAuth}" \
+    -H "X-Auth-Token: ${staticAuth}" \
     -i
 
 ### UPP Signing
@@ -550,20 +583,39 @@ The response body consists of either an error message, or a JSON map with
 
 ### Key Deactivation
 
-A key can be deactivated. Signing requests for identities with deactivated key will fail with status code `400`.
+If key de- and re-activation via HTTP requests is desired, the respective endpoint must be enabled and a static
+authentication token must be set in the configuration.
+This token is then used to authenticate requests against the deactivation endpoint.
+
+- json:
+
+```json
+  "staticAuth": "<static auth token>",
+  "enableDeactivationEndpoint": true,
+```
+
+- env:
+
+```console
+UBIRCH_STATIC_AUTH=<static auth token>
+UBIRCH_ENABLE_DEACTIVATION_ENDPOINT=true
+```
+
+A key can be deactivated with the following request. Signing requests for identities with deactivated key will fail with
+status code `400`.
 
     curl ${host}/device/updateActive -X PUT \
-    -H "X-Auth-Token: ${registerAuth}" \
+    -H "X-Auth-Token: ${staticAuth}" \
     -H "Content-Type: application/json" \
     -d '{"id":${device_uuid},"active":false}' \
     -i
 
 ### Key Reactivation
 
-A deactivated key can be reactivated.
+A deactivated key can be reactivated with the following request.
 
     curl ${host}/device/updateActive -X PUT \
-    -H "X-Auth-Token: ${registerAuth}" \
+    -H "X-Auth-Token: ${staticAuth}" \
     -H "Content-Type: application/json" \
     -d '{"id":${device_uuid},"active":true}' \
     -i
