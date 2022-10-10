@@ -69,7 +69,7 @@ The configuration can be set via a configuration file (`config.json`) or environ
 
 There is one mandatory configuration:
 
-- a 32 byte base64 encoded secret, which will be used to encrypt the signing keys
+- a 32 byte base64 encoded secret, which will be used to encrypt the signing keys in the database
 
 > You can generate a random 32 byte base64 encoded secret in a Linux/macOS terminal
 > with `head -c 32 /dev/urandom | base64`
