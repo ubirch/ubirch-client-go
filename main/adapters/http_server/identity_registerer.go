@@ -69,7 +69,7 @@ func identityFromBody(r *http.Request) (RegistrationPayload, error) {
 	var payload RegistrationPayload
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&payload); err != nil {
-		return RegistrationPayload{}, err
+		return RegistrationPayload{}, fmt.Errorf("could not decode registration payload JSON: %v", err)
 	}
 	if payload.Uid == uuid.Nil {
 		return RegistrationPayload{}, fmt.Errorf("empty uuid")
