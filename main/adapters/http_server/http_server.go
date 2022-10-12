@@ -35,6 +35,10 @@ type HTTPServer struct {
 }
 
 func NewRouter(gatewayTimeout time.Duration) *chi.Mux {
+	if gatewayTimeout <= 0 {
+		panic("gatewayTimeout must be greater than 0")
+	}
+
 	router := chi.NewMux()
 	router.Use(prom.PromMiddleware)
 	router.Use(middleware.Timeout(gatewayTimeout))
