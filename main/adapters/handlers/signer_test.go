@@ -3,11 +3,11 @@ package handlers
 import (
 	"context"
 	"encoding/base64"
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
@@ -113,6 +113,107 @@ func TestSigner_Sign(t *testing.T) {
 				m.On("sendToAuthService", testUuid, testAuth, testUPP).Return(testBckndResp, nil)
 				m.On("SignatureLength").Return(64)
 				m.On("StoreSignature", &mockTx{}, testUuid, testUPP[len(testUPP)-64:]).Return(nil)
+			},
+			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
+				m.AssertExpectations(t)
+				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testUPP, testPublicKey, testBckndResp, testRequestID), resp)
+			},
+		},
+		{
+			name: "anchor online",
+			msg: h.HTTPRequest{
+				Ctx:       context.Background(),
+				ID:        testUuid,
+				Auth:      testAuth,
+				Hash:      testHash,
+				Operation: h.AnchorHash,
+				Offline:   false,
+			},
+			setExpectations: func(m *mock.Mock) {
+				m.On("LoadActiveFlag", testUuid).Return(true, nil)
+				m.On("Sign", &ubirch.SignedUPP{
+					Version: ubirch.Signed,
+					Uuid:    testUuid,
+					Hint:    ubirch.Binary,
+					Payload: testHash[:],
+				}).Return(testUPP, nil)
+				m.On("GetPublicKeyBytes", testUuid).Return(testPublicKey, nil)
+				m.On("sendToAuthService", testUuid, testAuth, testUPP).Return(testBckndResp, nil)
+			},
+			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
+				m.AssertExpectations(t)
+				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testUPP, testPublicKey, testBckndResp, testRequestID), resp)
+			},
+		},
+		{
+			name: "disable",
+			msg: h.HTTPRequest{
+				Ctx:       context.Background(),
+				ID:        testUuid,
+				Auth:      testAuth,
+				Hash:      testHash,
+				Operation: h.DisableHash,
+			},
+			setExpectations: func(m *mock.Mock) {
+				m.On("LoadActiveFlag", testUuid).Return(true, nil)
+				m.On("Sign", &ubirch.SignedUPP{
+					Version: ubirch.Signed,
+					Uuid:    testUuid,
+					Hint:    ubirch.Disable,
+					Payload: testHash[:],
+				}).Return(testUPP, nil)
+				m.On("GetPublicKeyBytes", testUuid).Return(testPublicKey, nil)
+				m.On("sendToAuthService", testUuid, testAuth, testUPP).Return(testBckndResp, nil)
+			},
+			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
+				m.AssertExpectations(t)
+				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testUPP, testPublicKey, testBckndResp, testRequestID), resp)
+			},
+		},
+		{
+			name: "enable",
+			msg: h.HTTPRequest{
+				Ctx:       context.Background(),
+				ID:        testUuid,
+				Auth:      testAuth,
+				Hash:      testHash,
+				Operation: h.EnableHash,
+			},
+			setExpectations: func(m *mock.Mock) {
+				m.On("LoadActiveFlag", testUuid).Return(true, nil)
+				m.On("Sign", &ubirch.SignedUPP{
+					Version: ubirch.Signed,
+					Uuid:    testUuid,
+					Hint:    ubirch.Enable,
+					Payload: testHash[:],
+				}).Return(testUPP, nil)
+				m.On("GetPublicKeyBytes", testUuid).Return(testPublicKey, nil)
+				m.On("sendToAuthService", testUuid, testAuth, testUPP).Return(testBckndResp, nil)
+			},
+			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
+				m.AssertExpectations(t)
+				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testUPP, testPublicKey, testBckndResp, testRequestID), resp)
+			},
+		},
+		{
+			name: "delete",
+			msg: h.HTTPRequest{
+				Ctx:       context.Background(),
+				ID:        testUuid,
+				Auth:      testAuth,
+				Hash:      testHash,
+				Operation: h.DeleteHash,
+			},
+			setExpectations: func(m *mock.Mock) {
+				m.On("LoadActiveFlag", testUuid).Return(true, nil)
+				m.On("Sign", &ubirch.SignedUPP{
+					Version: ubirch.Signed,
+					Uuid:    testUuid,
+					Hint:    ubirch.Delete,
+					Payload: testHash[:],
+				}).Return(testUPP, nil)
+				m.On("GetPublicKeyBytes", testUuid).Return(testPublicKey, nil)
+				m.On("sendToAuthService", testUuid, testAuth, testUPP).Return(testBckndResp, nil)
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
 				m.AssertExpectations(t)
