@@ -120,6 +120,36 @@ func TestSigner_Sign(t *testing.T) {
 			},
 		},
 		{
+			name: "chain offline",
+			msg: h.HTTPRequest{
+				Ctx:       context.Background(),
+				ID:        testUuid,
+				Auth:      testAuth,
+				Hash:      testHash,
+				Operation: h.ChainHash,
+				Offline:   true,
+			},
+			setExpectations: func(m *mock.Mock) {
+				m.On("LoadActiveFlag", testUuid).Return(true, nil)
+				m.On("StartTransaction", mock.AnythingOfType("*context.emptyCtx")).Return(&mockTx{}, nil)
+				m.On("LoadSignatureForUpdate", &mockTx{}, testUuid).Return(testSignature, nil)
+				m.On("Sign", &ubirch.ChainedUPP{
+					Version:       ubirch.Chained,
+					Uuid:          testUuid,
+					PrevSignature: testSignature,
+					Hint:          ubirch.Binary,
+					Payload:       testHash[:],
+				}).Return(testUPP, nil)
+				m.On("GetPublicKeyBytes", testUuid).Return(testPublicKey, nil)
+				m.On("SignatureLength").Return(64)
+				m.On("StoreSignature", &mockTx{}, testUuid, testUPP[len(testUPP)-64:]).Return(nil)
+			},
+			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
+				m.AssertExpectations(t)
+				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testUPP, testPublicKey, h.HTTPResponse{}, ""), resp)
+			},
+		},
+		{
 			name: "anchor online",
 			msg: h.HTTPRequest{
 				Ctx:       context.Background(),
@@ -143,6 +173,31 @@ func TestSigner_Sign(t *testing.T) {
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
 				m.AssertExpectations(t)
 				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testUPP, testPublicKey, testBckndResp, testRequestID), resp)
+			},
+		},
+		{
+			name: "anchor offline",
+			msg: h.HTTPRequest{
+				Ctx:       context.Background(),
+				ID:        testUuid,
+				Auth:      testAuth,
+				Hash:      testHash,
+				Operation: h.AnchorHash,
+				Offline:   true,
+			},
+			setExpectations: func(m *mock.Mock) {
+				m.On("LoadActiveFlag", testUuid).Return(true, nil)
+				m.On("Sign", &ubirch.SignedUPP{
+					Version: ubirch.Signed,
+					Uuid:    testUuid,
+					Hint:    ubirch.Binary,
+					Payload: testHash[:],
+				}).Return(testUPP, nil)
+				m.On("GetPublicKeyBytes", testUuid).Return(testPublicKey, nil)
+			},
+			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
+				m.AssertExpectations(t)
+				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testUPP, testPublicKey, h.HTTPResponse{}, ""), resp)
 			},
 		},
 		{
