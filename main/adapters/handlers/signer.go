@@ -15,6 +15,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -50,13 +51,23 @@ type signingResponse struct {
 	RequestID string         `json:"requestID,omitempty"`
 }
 
+type Protocol interface {
+	LoadActiveFlag(uuid.UUID) (bool, error)
+	StartTransaction(context.Context) (repository.TransactionCtx, error)
+	LoadSignatureForUpdate(repository.TransactionCtx, uuid.UUID) ([]byte, error)
+	StoreSignature(repository.TransactionCtx, uuid.UUID, []byte) error
+	GetPublicKeyBytes(uuid.UUID) ([]byte, error)
+	SignatureLength() int
+	Sign(ubirch.UPP) ([]byte, error)
+}
+
 type Signer struct {
-	Protocol          *repository.ExtendedProtocol
+	Protocol
 	SendToAuthService func(uid uuid.UUID, auth string, upp []byte) (h.HTTPResponse, error)
 }
 
 func (s *Signer) Sign(msg h.HTTPRequest) h.HTTPResponse {
-	log.Infof("create UPP Infos(uuid: %s, hash: %s, operation: %s, offline: %v)",
+	log.Infof("create UPP: uuid: %s, hash: %s, operation: %s, offline: %v",
 		msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]), msg.Operation, msg.Offline)
 
 	active, err := s.Protocol.LoadActiveFlag(msg.ID)
@@ -108,7 +119,7 @@ func (s *Signer) Sign(msg h.HTTPRequest) h.HTTPResponse {
 
 	var resp h.HTTPResponse
 	if msg.Offline {
-		resp = getSigningResponse(http.StatusOK, msg, uppBytes, pub, h.HTTPResponse{}, "")
+		resp = getSigningResponse(http.StatusOK, msg.Hash[:], uppBytes, pub, h.HTTPResponse{}, "")
 	} else {
 		resp = s.sendUPP(msg, uppBytes, pub)
 	}
@@ -193,7 +204,7 @@ func (s *Signer) sendUPP(msg h.HTTPRequest, upp []byte, pub []byte) h.HTTPRespon
 		}
 	}
 
-	resp := getSigningResponse(backendResp.StatusCode, msg, upp, pub, backendResp, requestID)
+	resp := getSigningResponse(backendResp.StatusCode, msg.Hash[:], upp, pub, backendResp, requestID)
 
 	if h.HttpFailed(backendResp.StatusCode) {
 		log.Errorf("%s: request to ubirch authentication service (niomon) failed: (%d) %s", msg.ID, backendResp.StatusCode, string(resp.Content))
@@ -225,9 +236,9 @@ func errorResponse(code int, message string) h.HTTPResponse {
 	}
 }
 
-func getSigningResponse(statusCode int, msg h.HTTPRequest, upp []byte, pub []byte, backendResp h.HTTPResponse, requestID string) h.HTTPResponse {
+func getSigningResponse(statusCode int, hash, upp, pub []byte, backendResp h.HTTPResponse, requestID string) h.HTTPResponse {
 	signingResp, err := json.Marshal(signingResponse{
-		Hash:      msg.Hash[:],
+		Hash:      hash,
 		UPP:       upp,
 		PublicKey: pub,
 		Response:  backendResp,
