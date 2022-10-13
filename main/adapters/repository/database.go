@@ -63,15 +63,15 @@ func NewDatabaseManager(driverName, dataSourceName string, maxConns int) (*Datab
 	}
 
 	var isolationLvl sql.IsolationLevel
-	var identityTable int
+	var createStatements []string
 
 	switch driverName {
 	case PostgreSQL:
 		isolationLvl = sql.LevelReadCommitted
-		identityTable = PostgresIdentity
+		createStatements = createPostgres
 	case SQLite:
 		isolationLvl = sql.LevelSerializable
-		identityTable = SQLiteIdentity
+		createStatements = createSQLite
 		if !strings.Contains(dataSourceName, "?") {
 			dataSourceName += sqliteConfig
 		}
@@ -109,7 +109,7 @@ func NewDatabaseManager(driverName, dataSourceName string, maxConns int) (*Datab
 			return nil, err
 		}
 	} else {
-		err = dm.CreateTable(identityTable)
+		err = dm.CreateTables(createStatements)
 		if err != nil {
 			return nil, fmt.Errorf("creating DB table failed: %v", err)
 		}
@@ -311,7 +311,7 @@ func (dm *DatabaseManager) isRecoverable(err error) bool {
 				time.Sleep(10 * time.Millisecond)
 				return true
 			case "42P01": // undefined_table
-				err = dm.CreateTable(PostgresIdentity)
+				err = dm.CreateTables(createPostgres)
 				if err != nil {
 					log.Errorf("creating DB table failed: %v", err)
 				}
@@ -328,7 +328,7 @@ func (dm *DatabaseManager) isRecoverable(err error) bool {
 				return true
 			}
 			if liteErr.Code() == 1 { // SQLITE_ERROR
-				err = dm.CreateTable(SQLiteIdentity)
+				err = dm.CreateTables(createSQLite)
 				if err != nil {
 					log.Errorf("creating DB table failed: %v", err)
 				}
