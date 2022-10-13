@@ -147,9 +147,8 @@ func (dm *DatabaseManager) StoreIdentity(transactionCtx TransactionCtx, i ent.Id
 		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
-	query := fmt.Sprintf(
-		"INSERT INTO %s (uid, private_key, public_key, signature, auth_token) VALUES ($1, $2, $3, $4, $5);",
-		IdentityTableName)
+	query :=
+		"INSERT INTO identity (uid, private_key, public_key, signature, auth_token) VALUES ($1, $2, $3, $4, $5);"
 
 	_, err := tx.Exec(query, &i.Uid, &i.PrivateKey, &i.PublicKey, &i.Signature, &i.AuthToken)
 
@@ -159,9 +158,7 @@ func (dm *DatabaseManager) StoreIdentity(transactionCtx TransactionCtx, i ent.Id
 func (dm *DatabaseManager) LoadIdentity(uid uuid.UUID) (*ent.Identity, error) {
 	i := ent.Identity{Uid: uid}
 
-	query := fmt.Sprintf(
-		"SELECT private_key, public_key, signature, auth_token FROM %s WHERE uid = $1;",
-		IdentityTableName)
+	query := "SELECT private_key, public_key, signature, auth_token FROM identity WHERE uid = $1;"
 
 	err := dm.retry(func() error {
 		err := dm.db.QueryRow(query, uid).Scan(&i.PrivateKey, &i.PublicKey, &i.Signature, &i.AuthToken)
@@ -180,7 +177,7 @@ func (dm *DatabaseManager) StoreActiveFlag(transactionCtx TransactionCtx, uid uu
 		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
-	query := fmt.Sprintf("UPDATE %s SET active = $1 WHERE uid = $2;", IdentityTableName)
+	query := "UPDATE identity SET active = $1 WHERE uid = $2;"
 
 	_, err := tx.Exec(query, &active, uid)
 
@@ -193,7 +190,7 @@ func (dm *DatabaseManager) LoadActiveFlagForUpdate(transactionCtx TransactionCtx
 		return false, fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
-	query := fmt.Sprintf("SELECT active FROM %s WHERE uid = $1", IdentityTableName)
+	query := "SELECT active FROM identity WHERE uid = $1"
 
 	if dm.driverName == PostgreSQL {
 		query += " FOR UPDATE"
@@ -209,7 +206,7 @@ func (dm *DatabaseManager) LoadActiveFlagForUpdate(transactionCtx TransactionCtx
 }
 
 func (dm *DatabaseManager) LoadActiveFlag(uid uuid.UUID) (active bool, err error) {
-	query := fmt.Sprintf("SELECT active FROM %s WHERE uid = $1;", IdentityTableName)
+	query := "SELECT active FROM identity WHERE uid = $1;"
 
 	err = dm.retry(func() error {
 		err := dm.db.QueryRow(query, uid).Scan(&active)
@@ -228,7 +225,7 @@ func (dm *DatabaseManager) StoreSignature(transactionCtx TransactionCtx, uid uui
 		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
-	query := fmt.Sprintf("UPDATE %s SET signature = $1 WHERE uid = $2;", IdentityTableName)
+	query := "UPDATE identity SET signature = $1 WHERE uid = $2;"
 
 	_, err := tx.Exec(query, &signature, uid)
 
@@ -241,7 +238,7 @@ func (dm *DatabaseManager) LoadSignatureForUpdate(transactionCtx TransactionCtx,
 		return nil, fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
-	query := fmt.Sprintf("SELECT signature FROM %s WHERE uid = $1", IdentityTableName)
+	query := "SELECT signature FROM identity WHERE uid = $1"
 
 	if dm.driverName == PostgreSQL {
 		query += " FOR UPDATE"
@@ -262,7 +259,7 @@ func (dm *DatabaseManager) StoreAuth(transactionCtx TransactionCtx, uid uuid.UUI
 		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
-	query := fmt.Sprintf("UPDATE %s SET auth_token = $1 WHERE uid = $2;", IdentityTableName)
+	query := "UPDATE identity SET auth_token = $1 WHERE uid = $2;"
 
 	_, err := tx.Exec(query, &auth, uid)
 
@@ -275,7 +272,7 @@ func (dm *DatabaseManager) LoadAuthForUpdate(transactionCtx TransactionCtx, uid 
 		return "", fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
-	query := fmt.Sprintf("SELECT auth_token FROM %s WHERE uid = $1", IdentityTableName)
+	query := "SELECT auth_token FROM identity WHERE uid = $1"
 
 	if dm.driverName == PostgreSQL {
 		query += " FOR UPDATE"
