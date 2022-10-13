@@ -1,13 +1,5 @@
 package repository
 
-import (
-	"fmt"
-)
-
-const (
-	ExternalIdentityTableName = "external_identity"
-)
-
 var createPostgres = []string{
 	`CREATE TABLE IF NOT EXISTS identity(
 		uid VARCHAR(255) NOT NULL PRIMARY KEY,
@@ -17,9 +9,9 @@ var createPostgres = []string{
 		auth_token VARCHAR(255) NOT NULL,
 		active boolean NOT NULL DEFAULT(TRUE));`,
 
-	fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s("+
-		"uid VARCHAR(255) NOT NULL PRIMARY KEY, "+
-		"public_key BYTEA NOT NULL);", ExternalIdentityTableName),
+	`CREATE TABLE IF NOT EXISTS external_identity(
+		uid VARCHAR(255) NOT NULL PRIMARY KEY,
+		public_key BYTEA NOT NULL);`,
 }
 
 var createSQLite = []string{
@@ -31,9 +23,9 @@ var createSQLite = []string{
 		auth_token TEXT NOT NULL,
 		active INTEGER NOT NULL DEFAULT(TRUE));`,
 
-	fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s("+
-		"uid TEXT NOT NULL PRIMARY KEY, "+
-		"public_key BLOB NOT NULL);", ExternalIdentityTableName),
+	`CREATE TABLE IF NOT EXISTS external_identity(
+		uid TEXT NOT NULL PRIMARY KEY,
+		public_key BLOB NOT NULL);`,
 }
 
 func (dm *DatabaseManager) CreateTables(createStatements []string) error {
