@@ -287,6 +287,33 @@ func (dm *DatabaseManager) LoadAuthForUpdate(transactionCtx TransactionCtx, uid 
 	return auth, err
 }
 
+func (dm *DatabaseManager) StoreExternalIdentity(ctx context.Context, extId ent.ExternalIdentity) error {
+	query := "INSERT INTO external_identity (uid, public_key) VALUES ($1, $2);"
+
+	err := dm.retry(func() error {
+		_, err := dm.db.ExecContext(ctx, query, &extId.Uid, &extId.PublicKey)
+		return err
+	})
+
+	return err
+}
+
+func (dm *DatabaseManager) LoadExternalIdentity(ctx context.Context, uid uuid.UUID) (*ent.ExternalIdentity, error) {
+	extId := ent.ExternalIdentity{Uid: uid}
+
+	query := "SELECT public_key FROM external_identity WHERE uid = $1;"
+
+	err := dm.retry(func() error {
+		err := dm.db.QueryRowContext(ctx, query, uid).Scan(&extId.PublicKey)
+		if err == sql.ErrNoRows {
+			return ErrNotExist
+		}
+		return err
+	})
+
+	return &extId, err
+}
+
 func (dm *DatabaseManager) retry(f func() error) (err error) {
 	for retries := 0; retries <= maxRetries; retries++ {
 		err = f()
