@@ -547,7 +547,7 @@ func initDB(maxConns int) (*DatabaseManager, error) {
 }
 
 func cleanUpDB(t assert.TestingT, dm *DatabaseManager) {
-	dropTableQuery := fmt.Sprintf("DROP TABLE %s;", IdentityTableName)
+	dropTableQuery := fmt.Sprintf("DROP TABLE identity;")
 	err := dm.retry(func() error {
 		_, err := dm.db.Exec(dropTableQuery)
 		return err
