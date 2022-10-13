@@ -136,6 +136,16 @@ func (m *MockCtxMngr) LoadAuthForUpdate(t TransactionCtx, u uuid.UUID) (string, 
 	return m.id.AuthToken, nil
 }
 
+func (m *MockCtxMngr) StoreExternalIdentity(ctx context.Context, externalId ent.ExternalIdentity) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *MockCtxMngr) LoadExternalIdentity(ctx context.Context, uid uuid.UUID) (*ent.ExternalIdentity, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (m *MockCtxMngr) IsReady() error {
 	return nil
 }

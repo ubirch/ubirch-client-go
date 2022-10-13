@@ -523,6 +523,43 @@ func TestDatabaseManager_Retry_sqlite(t *testing.T) {
 	require.Equal(t, 5, liteErr.Code())
 }
 
+func TestDatabaseManager_StoreExternalIdentity_sqlite(t *testing.T) {
+	dm, err := initSQLiteDB(t, 0)
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	testExtId := ent.ExternalIdentity{
+		Uid:       uuid.New(),
+		PublicKey: make([]byte, 64),
+	}
+	rand.Read(testExtId.PublicKey)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	_, err = dm.LoadExternalIdentity(ctx, testExtId.Uid)
+	assert.Equal(t, ErrNotExist, err)
+
+	err = dm.StoreExternalIdentity(ctx, testExtId)
+	require.NoError(t, err)
+
+	err = dm.StoreExternalIdentity(ctx, testExtId)
+	assert.Error(t, err)
+
+	storedExtId, err := dm.LoadExternalIdentity(ctx, testExtId.Uid)
+	require.NoError(t, err)
+	assert.Equal(t, storedExtId.Uid, testExtId.Uid)
+	assert.Equal(t, storedExtId.PublicKey, testExtId.PublicKey)
+
+	cancel()
+
+	err = dm.StoreExternalIdentity(ctx, testExtId)
+	assert.EqualError(t, err, "context canceled")
+
+	storedExtId, err = dm.LoadExternalIdentity(ctx, testExtId.Uid)
+	assert.EqualError(t, err, "context canceled")
+}
+
 func initSQLiteDB(t *testing.T, maxConns int) (*DatabaseManager, error) {
 	return NewDatabaseManager(SQLite, filepath.Join(t.TempDir(), testSQLiteDSN), maxConns)
 }

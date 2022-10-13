@@ -506,6 +506,43 @@ func TestDatabaseManager_Retry(t *testing.T) {
 	wg.Wait()
 }
 
+func TestDatabaseManager_StoreExternalIdentity(t *testing.T) {
+	dm, err := initDB(0)
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	testExtId := ent.ExternalIdentity{
+		Uid:       uuid.New(),
+		PublicKey: make([]byte, 64),
+	}
+	rand.Read(testExtId.PublicKey)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	_, err = dm.LoadExternalIdentity(ctx, testExtId.Uid)
+	assert.Equal(t, ErrNotExist, err)
+
+	err = dm.StoreExternalIdentity(ctx, testExtId)
+	require.NoError(t, err)
+
+	err = dm.StoreExternalIdentity(ctx, testExtId)
+	assert.Error(t, err)
+
+	storedExtId, err := dm.LoadExternalIdentity(ctx, testExtId.Uid)
+	require.NoError(t, err)
+	assert.Equal(t, storedExtId.Uid, testExtId.Uid)
+	assert.Equal(t, storedExtId.PublicKey, testExtId.PublicKey)
+
+	cancel()
+
+	err = dm.StoreExternalIdentity(ctx, testExtId)
+	assert.EqualError(t, err, "context canceled")
+
+	storedExtId, err = dm.LoadExternalIdentity(ctx, testExtId.Uid)
+	assert.EqualError(t, err, "context canceled")
+}
+
 func getConfig() (*config.Config, error) {
 	configFileName := "config_test.json"
 	fileHandle, err := os.Open(filepath.Join("../../", configFileName))
@@ -549,6 +586,13 @@ func initDB(maxConns int) (*DatabaseManager, error) {
 func cleanUpDB(t assert.TestingT, dm *DatabaseManager) {
 	dropTableQuery := fmt.Sprintf("DROP TABLE identity;")
 	err := dm.retry(func() error {
+		_, err := dm.db.Exec(dropTableQuery)
+		return err
+	})
+	assert.NoError(t, err)
+
+	dropTableQuery = fmt.Sprintf("DROP TABLE external_identity;")
+	err = dm.retry(func() error {
 		_, err := dm.db.Exec(dropTableQuery)
 		return err
 	})
