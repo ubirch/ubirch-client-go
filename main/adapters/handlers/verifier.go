@@ -29,6 +29,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
+	"github.com/ubirch/ubirch-client-go/main/ent"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	log "github.com/sirupsen/logrus"
@@ -59,6 +60,7 @@ type VerifierProtocol interface {
 	PublicKeyPEMToBytes(pubKeyPEM []byte) (pubKeyBytes []byte, err error)
 	SetPublicKeyBytes(id uuid.UUID, pubKeyBytes []byte) error
 	Verify(id uuid.UUID, upp []byte) (bool, error)
+	StoreExternalIdentity(context.Context, ent.ExternalIdentity) error
 }
 
 type Verifier struct {
@@ -220,6 +222,17 @@ func (v *Verifier) loadExternalIdentityPublicKey(verifyFromKnownIdentitiesOnly b
 	if err != nil {
 		return nil, err
 	}
+
+	go func() {
+		// store public key persistently
+		err = v.VerifierProtocol.StoreExternalIdentity(context.TODO(), ent.ExternalIdentity{
+			Uid:       id,
+			PublicKey: pubKeyPEM,
+		})
+		if err != nil {
+			log.Errorf("external identity %s could not be stored: %v", id, err)
+		}
+	}()
 
 	return v.VerifierProtocol.LoadPublicKey(id)
 }
