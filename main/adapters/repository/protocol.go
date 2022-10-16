@@ -160,6 +160,36 @@ func (p *ExtendedProtocol) StoreSignature(tx TransactionCtx, uid uuid.UUID, sign
 	return tx.Commit()
 }
 
+func (p *ExtendedProtocol) StoreExternalIdentity(ctx context.Context, extId ent.ExternalIdentity) (err error) {
+	// store public key raw bytes
+	extId.PublicKey, err = p.PublicKeyPEMToBytes(extId.PublicKey)
+	if err != nil {
+		return err
+	}
+
+	return p.ContextManager.StoreExternalIdentity(ctx, extId)
+}
+
+func (p *ExtendedProtocol) LoadExternalIdentity(ctx context.Context, uid uuid.UUID) (*ent.ExternalIdentity, error) {
+	extId, err := p.ContextManager.LoadExternalIdentity(ctx, uid)
+	if err != nil {
+		return nil, err
+	}
+
+	extId.PublicKey, err = p.PublicKeyBytesToPEM(extId.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+
+	// load public key to cache
+	err = p.keyCache.SetPublicKey(uid, extId.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return extId, nil
+}
+
 func (p *ExtendedProtocol) LoadPrivateKey(uid uuid.UUID) (privKeyPEM []byte, err error) {
 	privKeyPEM, err = p.keyCache.GetPrivateKey(uid)
 	if err != nil {

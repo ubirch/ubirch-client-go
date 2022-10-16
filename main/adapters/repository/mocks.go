@@ -15,7 +15,8 @@ type extendedId struct {
 }
 
 type MockCtxMngr struct {
-	id extendedId
+	id    extendedId
+	extId ent.ExternalIdentity
 }
 
 var _ ContextManager = (*MockCtxMngr)(nil)
@@ -137,13 +138,15 @@ func (m *MockCtxMngr) LoadAuthForUpdate(t TransactionCtx, u uuid.UUID) (string, 
 }
 
 func (m *MockCtxMngr) StoreExternalIdentity(ctx context.Context, externalId ent.ExternalIdentity) error {
-	//TODO implement me
-	panic("implement me")
+	m.extId = externalId
+	return nil
 }
 
-func (m *MockCtxMngr) LoadExternalIdentity(ctx context.Context, uid uuid.UUID) (*ent.ExternalIdentity, error) {
-	//TODO implement me
-	panic("implement me")
+func (m *MockCtxMngr) LoadExternalIdentity(ctx context.Context, u uuid.UUID) (*ent.ExternalIdentity, error) {
+	if m.extId.Uid == uuid.Nil || m.extId.Uid != u {
+		return nil, ErrNotExist
+	}
+	return &m.extId, nil
 }
 
 func (m *MockCtxMngr) IsReady() error {
