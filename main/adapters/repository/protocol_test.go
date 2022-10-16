@@ -324,6 +324,32 @@ func Test_StoreNewIdentity_BadAuth(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestExtendedProtocol_StoreExternalIdentity(t *testing.T) {
+	ctxMngr := &MockCtxMngr{}
+	p, err := NewExtendedProtocol(ctxMngr, &config.Config{SecretBytes32: testSecret})
+	require.NoError(t, err)
+
+	err = p.StoreExternalIdentity(context.Background(), ent.ExternalIdentity{Uid: testUid, PublicKey: testPubKey})
+	require.NoError(t, err)
+	assert.Equal(t, testUid, ctxMngr.extId.Uid)
+	assert.Equal(t, testPubKeyBytes, ctxMngr.extId.PublicKey)
+}
+
+func TestExtendedProtocol_LoadExternalIdentity(t *testing.T) {
+	ctxMngr := &MockCtxMngr{extId: ent.ExternalIdentity{Uid: testUid, PublicKey: testPubKeyBytes}}
+	p, err := NewExtendedProtocol(ctxMngr, &config.Config{SecretBytes32: testSecret})
+	require.NoError(t, err)
+
+	extId, err := p.LoadExternalIdentity(context.Background(), testUid)
+	require.NoError(t, err)
+	assert.Equal(t, testUid, extId.Uid)
+	assert.Equal(t, testPubKey, extId.PublicKey)
+
+	cachedKey, err := p.keyCache.GetPublicKey(testUid)
+	require.NoError(t, err)
+	assert.Equal(t, testPubKey, cachedKey)
+}
+
 func TestExtendedProtocol_CheckAuth(t *testing.T) {
 	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
