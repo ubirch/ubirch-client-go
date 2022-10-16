@@ -25,7 +25,7 @@ func TestDatabaseManager_sqlite(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	testIdentity := generateRandomIdentity()
+	testIdentity := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -100,7 +100,7 @@ func TestDatabaseManager_StoreActiveFlag_sqlite(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	testIdentity := generateRandomIdentity()
+	testIdentity := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -140,7 +140,7 @@ func TestDatabaseManager_SetSignature_sqlite(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	testIdentity := generateRandomIdentity()
+	testIdentity := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -187,7 +187,7 @@ func TestDatabaseManager_LoadSignatureForUpdate_sqlite(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	testIdentity := generateRandomIdentity()
+	testIdentity := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -221,7 +221,7 @@ func TestDatabaseManager_StoreAuth_sqlite(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	testIdentity := generateRandomIdentity()
+	testIdentity := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -290,7 +290,7 @@ func TestStoreExisting_sqlite(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	testIdentity := generateRandomIdentity()
+	testIdentity := getTestIdentity()
 
 	// store identity
 	ctx, cancel := context.WithCancel(context.Background())
@@ -320,7 +320,7 @@ func TestDatabaseManager_CancelTransaction_sqlite(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	testIdentity := generateRandomIdentity()
+	testIdentity := getTestIdentity()
 
 	// store identity, but cancel context, so transaction will be rolled back
 	ctx, cancel := context.WithCancel(context.Background())
@@ -373,7 +373,7 @@ func TestDatabaseManager_StartTransaction2_sqlite(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	testIdentity := generateRandomIdentity()
+	testIdentity := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -455,7 +455,9 @@ func TestDatabaseLoad_sqlite(t *testing.T) {
 	// generate identities
 	var testIdentities []ent.Identity
 	for i := 0; i < testLoad/10; i++ {
-		testIdentities = append(testIdentities, generateRandomIdentity())
+		id := getTestIdentity()
+		id.Uid = uuid.New()
+		testIdentities = append(testIdentities, id)
 	}
 
 	// store identities
