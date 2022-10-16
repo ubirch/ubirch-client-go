@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/pem"
 	"errors"
 	"math/rand"
@@ -12,18 +11,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/ubirch/ubirch-client-go/main/config"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	h "github.com/ubirch/ubirch-client-go/main/adapters/http_server"
 	r "github.com/ubirch/ubirch-client-go/main/adapters/repository"
-)
-
-var (
-	testUuid      = uuid.New()
-	testAuth      = "123456"
-	testSecret, _ = base64.StdEncoding.DecodeString("ZQJt1OC9+4OZtgZLLT9mX25BbrZdxtOQBjK4GyRF2fQ=")
-	conf          = &config.Config{SecretBytes32: testSecret}
 )
 
 func TestIdentityHandler_InitIdentity(t *testing.T) {
