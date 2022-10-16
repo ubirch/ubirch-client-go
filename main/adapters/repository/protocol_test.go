@@ -19,14 +19,20 @@ import (
 
 var (
 	testSecret, _ = base64.StdEncoding.DecodeString("ZQJt1OC9+4OZtgZLLT9mX25BbrZdxtOQBjK4GyRF2fQ=")
-	testConf      = &config.Config{SecretBytes32: testSecret}
+
+	testUid          = uuid.MustParse("b8869002-9d19-418a-94b0-83664843396f")
+	testPrivKey      = []byte("-----BEGIN PRIVATE KEY-----\nMHcCAQEEILagfFV70hVPpY1L5pIkWu3mTZisQ1yCmfhKL5vrGQfOoAoGCCqGSM49\nAwEHoUQDQgAEoEOfFKZ2U+r7L3CqCArZ63IyB83zqByp8chT07MeXLBx9WMYsaqn\nb38qXThsEnH7WwSwA/eRKjm9SbR6cve4Mg==\n-----END PRIVATE KEY-----\n")
+	testPubKey       = []byte("-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEoEOfFKZ2U+r7L3CqCArZ63IyB83z\nqByp8chT07MeXLBx9WMYsaqnb38qXThsEnH7WwSwA/eRKjm9SbR6cve4Mg==\n-----END PUBLIC KEY-----\n")
+	testPubKeyBytes  = []byte{0xa0, 0x43, 0x9f, 0x14, 0xa6, 0x76, 0x53, 0xea, 0xfb, 0x2f, 0x70, 0xaa, 0x08, 0x0a, 0xd9, 0xeb, 0x72, 0x32, 0x07, 0xcd, 0xf3, 0xa8, 0x1c, 0xa9, 0xf1, 0xc8, 0x53, 0xd3, 0xb3, 0x1e, 0x5c, 0xb0, 0x71, 0xf5, 0x63, 0x18, 0xb1, 0xaa, 0xa7, 0x6f, 0x7f, 0x2a, 0x5d, 0x38, 0x6c, 0x12, 0x71, 0xfb, 0x5b, 0x04, 0xb0, 0x03, 0xf7, 0x91, 0x2a, 0x39, 0xbd, 0x49, 0xb4, 0x7a, 0x72, 0xf7, 0xb8, 0x32}
+	testSignature, _ = base64.StdEncoding.DecodeString("Uv38ByGCZU8WP18PmmIdcpVmx00QA3xNe7sEB9HixkmBhVrYaB0NhtHpHgAWeTnLZpTSxCKs0gigByk5SH9pmQ==")
+	testAuth         = "650YpEeEBF2H88Z88idG6Q=="
 )
 
 func TestProtocol(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, testConf)
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
-	testIdentity := generateRandomIdentity()
+	testIdentity := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -72,10 +78,10 @@ func TestProtocol(t *testing.T) {
 }
 
 func TestExtendedProtocol_LoadPrivateKey(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, testConf)
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
-	i := generateRandomIdentity()
+	i := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -95,10 +101,10 @@ func TestExtendedProtocol_LoadPrivateKey(t *testing.T) {
 }
 
 func TestExtendedProtocol_LoadPublicKey(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, testConf)
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
-	i := generateRandomIdentity()
+	i := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -130,10 +136,10 @@ func TestNewExtendedProtocol_BadSecret(t *testing.T) {
 }
 
 func TestExtendedProtocol_StoreSignature(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, testConf)
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
-	testIdentity := generateRandomIdentity()
+	testIdentity := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -171,10 +177,10 @@ func TestExtendedProtocol_StoreSignature(t *testing.T) {
 }
 
 func TestExtendedProtocol_BadStoreSignature(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, testConf)
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
-	testIdentity := generateRandomIdentity()
+	testIdentity := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -200,10 +206,10 @@ func TestExtendedProtocol_BadStoreSignature(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_BadUUID(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, testConf)
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
-	i := generateRandomIdentity()
+	i := getTestIdentity()
 	i.Uid = uuid.Nil
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -217,10 +223,10 @@ func Test_StoreNewIdentity_BadUUID(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_NilPrivateKey(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, testConf)
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
-	i := generateRandomIdentity()
+	i := getTestIdentity()
 	i.PrivateKey = nil
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -234,11 +240,11 @@ func Test_StoreNewIdentity_NilPrivateKey(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_BadPrivateKey(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, testConf)
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
-	i := generateRandomIdentity()
-	rand.Read(i.PrivateKey)
+	i := getTestIdentity()
+	i.PrivateKey = []byte("bad private key")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -251,10 +257,10 @@ func Test_StoreNewIdentity_BadPrivateKey(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_NilPublicKey(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, testConf)
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
-	i := generateRandomIdentity()
+	i := getTestIdentity()
 	i.PublicKey = nil
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -268,11 +274,11 @@ func Test_StoreNewIdentity_NilPublicKey(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_BadPublicKey(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, testConf)
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
-	i := generateRandomIdentity()
-	rand.Read(i.PublicKey)
+	i := getTestIdentity()
+	i.PublicKey = []byte("bad public key")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -285,10 +291,10 @@ func Test_StoreNewIdentity_BadPublicKey(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_BadSignature(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, testConf)
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
-	i := generateRandomIdentity()
+	i := getTestIdentity()
 	i.Signature = make([]byte, p.SignatureLength()+1)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -302,10 +308,10 @@ func Test_StoreNewIdentity_BadSignature(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_BadAuth(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, testConf)
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
-	i := generateRandomIdentity()
+	i := getTestIdentity()
 	i.AuthToken = ""
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -319,10 +325,10 @@ func Test_StoreNewIdentity_BadAuth(t *testing.T) {
 }
 
 func TestExtendedProtocol_CheckAuth(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, testConf)
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
-	i := generateRandomIdentity()
+	i := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -344,10 +350,10 @@ func TestExtendedProtocol_CheckAuth(t *testing.T) {
 }
 
 func TestExtendedProtocol_CheckAuth_Invalid(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, testConf)
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
-	i := generateRandomIdentity()
+	i := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -370,10 +376,10 @@ func TestExtendedProtocol_CheckAuth_Invalid(t *testing.T) {
 
 func TestExtendedProtocol_CheckAuth_Invalid_Cached(t *testing.T) {
 	ctxMngr := &MockCtxMngr{}
-	p, err := NewExtendedProtocol(ctxMngr, testConf)
+	p, err := NewExtendedProtocol(ctxMngr, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
-	i := generateRandomIdentity()
+	i := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -397,7 +403,7 @@ func TestExtendedProtocol_CheckAuth_Invalid_Cached(t *testing.T) {
 }
 
 func TestExtendedProtocol_CheckAuth_NotFound(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, testConf)
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
 	ok, found, err := p.CheckAuth(context.Background(), uuid.New(), "auth")
@@ -408,11 +414,15 @@ func TestExtendedProtocol_CheckAuth_NotFound(t *testing.T) {
 
 func TestExtendedProtocol_CheckAuth_Update(t *testing.T) {
 	ctxMngr := &MockCtxMngr{}
-	testConf.KdUpdateParams = true
+	testConf := &config.Config{
+		SecretBytes32:  testSecret,
+		KdUpdateParams: true,
+	}
+
 	p, err := NewExtendedProtocol(ctxMngr, testConf)
 	require.NoError(t, err)
 
-	i := generateRandomIdentity()
+	i := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -445,10 +455,10 @@ func TestExtendedProtocol_CheckAuth_Update(t *testing.T) {
 }
 
 func TestExtendedProtocol_CheckAuth_AuthCache(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, testConf)
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
-	i := generateRandomIdentity()
+	i := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -476,10 +486,10 @@ func TestExtendedProtocol_CheckAuth_AuthCache(t *testing.T) {
 func TestProtocol_Cache(t *testing.T) {
 	wg := &sync.WaitGroup{}
 
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, testConf)
+	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
-	testIdentity := generateRandomIdentity()
+	testIdentity := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -511,13 +521,14 @@ func TestProtocolLoad(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	p, err := NewExtendedProtocol(dm, testConf)
+	p, err := NewExtendedProtocol(dm, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
 	// generate identities
 	var testIdentities []ent.Identity
 	for i := 0; i < testLoad/10; i++ {
-		testId := generateRandomIdentity()
+		testId := getTestIdentity()
+		testId.Uid = uuid.New()
 
 		testIdentities = append(testIdentities, testId)
 	}
@@ -545,6 +556,16 @@ func TestProtocolLoad(t *testing.T) {
 		}(testId)
 	}
 	wg.Wait()
+}
+
+func getTestIdentity() ent.Identity {
+	return ent.Identity{
+		Uid:        testUid,
+		PrivateKey: testPrivKey,
+		PublicKey:  testPubKey,
+		Signature:  testSignature,
+		AuthToken:  testAuth,
+	}
 }
 
 func protocolCheckAuth(auth, authToCheck string) error {

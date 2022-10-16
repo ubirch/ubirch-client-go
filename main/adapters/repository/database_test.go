@@ -20,7 +20,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/ubirch/ubirch-client-go/main/config"
 	"github.com/ubirch/ubirch-client-go/main/ent"
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
 const testLoad = 100
@@ -30,7 +29,7 @@ func TestDatabaseManager(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	testIdentity := generateRandomIdentity()
+	testIdentity := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -105,7 +104,7 @@ func TestDatabaseManager_StoreActiveFlag(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	testIdentity := generateRandomIdentity()
+	testIdentity := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -145,7 +144,7 @@ func TestDatabaseManager_SetSignature(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	testIdentity := generateRandomIdentity()
+	testIdentity := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -192,7 +191,7 @@ func TestDatabaseManager_LoadSignatureForUpdate(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	testIdentity := generateRandomIdentity()
+	testIdentity := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -232,7 +231,7 @@ func TestDatabaseManager_StoreAuth(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	testIdentity := generateRandomIdentity()
+	testIdentity := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -306,7 +305,7 @@ func TestStoreExisting(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	testIdentity := generateRandomIdentity()
+	testIdentity := getTestIdentity()
 
 	// store identity
 	ctx, cancel := context.WithCancel(context.Background())
@@ -336,7 +335,7 @@ func TestDatabaseManager_CancelTransaction(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	testIdentity := generateRandomIdentity()
+	testIdentity := getTestIdentity()
 
 	// store identity, but cancel context, so transaction will be rolled back
 	ctx, cancel := context.WithCancel(context.Background())
@@ -424,7 +423,9 @@ func TestDatabaseLoad(t *testing.T) {
 	// generate identities
 	var testIdentities []ent.Identity
 	for i := 0; i < testLoad; i++ {
-		testIdentities = append(testIdentities, generateRandomIdentity())
+		id := getTestIdentity()
+		id.Uid = uuid.New()
+		testIdentities = append(testIdentities, id)
 	}
 
 	// store identities
@@ -600,43 +601,6 @@ func cleanUpDB(t assert.TestingT, dm *DatabaseManager) {
 
 	err = dm.Close()
 	assert.NoError(t, err)
-}
-
-func generateRandomIdentity() ent.Identity {
-	uid := uuid.New()
-
-	keystore := &MockKeystorer{}
-
-	c := ubirch.ECDSACryptoContext{Keystore: keystore}
-
-	err := c.GenerateKey(uid)
-	if err != nil {
-		panic(err)
-	}
-
-	priv, err := keystore.GetPrivateKey(uid)
-	if err != nil {
-		panic(err)
-	}
-
-	pub, err := keystore.GetPublicKey(uid)
-	if err != nil {
-		panic(err)
-	}
-
-	sig := make([]byte, 64)
-	rand.Read(sig)
-
-	auth := make([]byte, 16)
-	rand.Read(auth)
-
-	return ent.Identity{
-		Uid:        uuid.New(),
-		PrivateKey: priv,
-		PublicKey:  pub,
-		Signature:  sig,
-		AuthToken:  base64.StdEncoding.EncodeToString(auth),
-	}
 }
 
 func storeIdentity(ctxManager ContextManager, id ent.Identity, wg *sync.WaitGroup) error {
