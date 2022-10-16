@@ -123,6 +123,19 @@ func TestExtendedProtocol_LoadPublicKey(t *testing.T) {
 	assert.Equal(t, i.PublicKey, pub)
 }
 
+func TestExtendedProtocol_LoadPublicKeyFromExternalIdentity(t *testing.T) {
+	extId := ent.ExternalIdentity{Uid: testUid, PublicKey: testPubKeyBytes}
+
+	p, err := NewExtendedProtocol(&MockCtxMngr{
+		extId: extId,
+	}, &config.Config{SecretBytes32: testSecret})
+	require.NoError(t, err)
+
+	pub, err := p.LoadPublicKey(extId.Uid)
+	require.NoError(t, err)
+	assert.Equal(t, testPubKey, pub)
+}
+
 func TestNewExtendedProtocol_BadSecret(t *testing.T) {
 	badSecret := make([]byte, 31)
 	rand.Read(badSecret)
