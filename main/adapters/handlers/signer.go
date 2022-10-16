@@ -51,7 +51,7 @@ type signingResponse struct {
 	RequestID string         `json:"requestID,omitempty"`
 }
 
-type Protocol interface {
+type SignerProtocol interface {
 	LoadActiveFlag(uuid.UUID) (bool, error)
 	StartTransaction(context.Context) (repository.TransactionCtx, error)
 	LoadSignatureForUpdate(repository.TransactionCtx, uuid.UUID) ([]byte, error)
@@ -62,7 +62,7 @@ type Protocol interface {
 }
 
 type Signer struct {
-	Protocol
+	SignerProtocol
 	SendToAuthService func(uid uuid.UUID, auth string, upp []byte) (h.HTTPResponse, error)
 }
 
@@ -70,7 +70,7 @@ func (s *Signer) Sign(msg h.HTTPRequest) h.HTTPResponse {
 	log.Infof("create UPP: uuid: %s, hash: %s, operation: %s, offline: %v",
 		msg.ID, base64.StdEncoding.EncodeToString(msg.Hash[:]), msg.Operation, msg.Offline)
 
-	active, err := s.Protocol.LoadActiveFlag(msg.ID)
+	active, err := s.SignerProtocol.LoadActiveFlag(msg.ID)
 	if err != nil {
 		log.Errorf("%s: could not load active flag: %v", msg.ID, err)
 		return errorResponse(http.StatusInternalServerError, "")
@@ -85,13 +85,13 @@ func (s *Signer) Sign(msg h.HTTPRequest) h.HTTPResponse {
 	var prevSignature, uppBytes []byte
 
 	if msg.Operation == h.ChainHash {
-		tx, err = s.Protocol.StartTransaction(msg.Ctx)
+		tx, err = s.SignerProtocol.StartTransaction(msg.Ctx)
 		if err != nil {
 			log.Errorf("%s: initializing transaction failed: %v", msg.ID, err)
 			return errorResponse(http.StatusServiceUnavailable, "")
 		}
 
-		prevSignature, err = s.Protocol.LoadSignatureForUpdate(tx, msg.ID)
+		prevSignature, err = s.SignerProtocol.LoadSignatureForUpdate(tx, msg.ID)
 		if err != nil {
 			log.Errorf("%s: could not load signature: %v", msg.ID, err)
 			return errorResponse(http.StatusInternalServerError, "")
@@ -112,7 +112,7 @@ func (s *Signer) Sign(msg h.HTTPRequest) h.HTTPResponse {
 		log.Debugf("%s: signed UPP: %x", msg.ID, uppBytes)
 	}
 
-	pub, err := s.Protocol.GetPublicKeyBytes(msg.ID)
+	pub, err := s.SignerProtocol.GetPublicKeyBytes(msg.ID)
 	if err != nil {
 		log.Warnf("%s: could not get public key: %v", msg.ID, err)
 	}
@@ -126,9 +126,9 @@ func (s *Signer) Sign(msg h.HTTPRequest) h.HTTPResponse {
 
 	// persist last signature only if UPP was successfully received by ubirch backend
 	if msg.Operation == h.ChainHash && h.HttpSuccess(resp.StatusCode) {
-		signature := uppBytes[len(uppBytes)-s.Protocol.SignatureLength():]
+		signature := uppBytes[len(uppBytes)-s.SignerProtocol.SignatureLength():]
 
-		err = s.Protocol.StoreSignature(tx, msg.ID, signature)
+		err = s.SignerProtocol.StoreSignature(tx, msg.ID, signature)
 		if err != nil {
 			// this usually happens, if the request context was cancelled because the client already left (timeout or cancel)
 			log.Errorf("%s: storing signature failed: %v", msg.ID, err)
@@ -147,7 +147,7 @@ func (s *Signer) getChainedUPP(id uuid.UUID, hash [32]byte, prevSignature []byte
 	timer := prometheus.NewTimer(prom.SignatureCreationDuration)
 	defer timer.ObserveDuration()
 
-	return s.Protocol.Sign(
+	return s.SignerProtocol.Sign(
 		&ubirch.ChainedUPP{
 			Version:       ubirch.Chained,
 			Uuid:          id,
@@ -166,7 +166,7 @@ func (s *Signer) getSignedUPP(id uuid.UUID, hash [32]byte, op h.Operation) ([]by
 	timer := prometheus.NewTimer(prom.SignatureCreationDuration)
 	defer timer.ObserveDuration()
 
-	return s.Protocol.Sign(
+	return s.SignerProtocol.Sign(
 		&ubirch.SignedUPP{
 			Version: ubirch.Signed,
 			Uuid:    id,

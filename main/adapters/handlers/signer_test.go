@@ -283,7 +283,7 @@ func TestSigner_Sign(t *testing.T) {
 			c.setExpectations(m)
 
 			s := Signer{
-				Protocol:          &mockProto{mock: m},
+				SignerProtocol:    &mockProto{mock: m},
 				SendToAuthService: sendToAuthService(m),
 			}
 

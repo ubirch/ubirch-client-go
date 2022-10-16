@@ -48,8 +48,15 @@ type verificationResponse struct {
 	PubKey []byte `json:"pubKey,omitempty"`
 }
 
+type VerifierProtocol interface {
+	LoadPublicKey(uid uuid.UUID) (pubKeyPEM []byte, err error)
+	PublicKeyPEMToBytes(pubKeyPEM []byte) (pubKeyBytes []byte, err error)
+	Verify(id uuid.UUID, upp []byte) (bool, error)
+	SetPublicKeyBytes(id uuid.UUID, pubKeyBytes []byte) error
+}
+
 type Verifier struct {
-	Protocol                      *repository.ExtendedProtocol
+	VerifierProtocol
 	RequestHash                   func(hashBase64 string) (h.HTTPResponse, error)
 	RequestPublicKeys             func(id uuid.UUID) ([]ubirch.SignedKeyRegistration, error)
 	VerifyFromKnownIdentitiesOnly bool
@@ -162,7 +169,7 @@ func (v *Verifier) verifyUppSignature(upp []byte, verifyFromKnownIdentitiesOnly 
 
 	id = uppStruct.GetUuid()
 
-	pubKeyPEM, err := v.Protocol.LoadPublicKey(id)
+	pubKeyPEM, err := v.VerifierProtocol.LoadPublicKey(id)
 	if err != nil {
 		if err == repository.ErrNotExist {
 			pubKeyPEM, err = v.loadExternalIdentityPublicKey(verifyFromKnownIdentitiesOnly, id)
@@ -175,12 +182,12 @@ func (v *Verifier) verifyUppSignature(upp []byte, verifyFromKnownIdentitiesOnly 
 		}
 	}
 
-	pubKeyBytes, err = v.Protocol.PublicKeyPEMToBytes(pubKeyPEM)
+	pubKeyBytes, err = v.VerifierProtocol.PublicKeyPEMToBytes(pubKeyPEM)
 	if err != nil {
 		log.Error(err)
 	}
 
-	verified, err = v.Protocol.Verify(id, upp)
+	verified, err = v.VerifierProtocol.Verify(id, upp)
 	if err != nil {
 		return id, pubKeyBytes, false, fmt.Errorf("unable to verify UPP: %v", err)
 	}
@@ -213,7 +220,7 @@ func (v *Verifier) loadPublicKey(id uuid.UUID) error {
 		return err
 	}
 
-	return v.Protocol.SetPublicKeyBytes(id, pubKeyBytes)
+	return v.VerifierProtocol.SetPublicKeyBytes(id, pubKeyBytes)
 }
 
 func (v *Verifier) loadExternalIdentityPublicKey(verifyFromKnownIdentitiesOnly bool, id uuid.UUID) (pubKeyPEM []byte, err error) {
@@ -227,7 +234,7 @@ func (v *Verifier) loadExternalIdentityPublicKey(verifyFromKnownIdentitiesOnly b
 		return nil, err
 	}
 
-	return v.Protocol.LoadPublicKey(id)
+	return v.VerifierProtocol.LoadPublicKey(id)
 }
 
 func (v *Verifier) verifyDataMatch(upp, hash []byte) error {
