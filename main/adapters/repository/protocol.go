@@ -209,13 +209,25 @@ func (p *ExtendedProtocol) LoadPublicKey(uid uuid.UUID) (pubKeyPEM []byte, err e
 	if err != nil {
 		i, err := p.LoadIdentity(uid)
 		if err != nil {
-			return nil, err
+			if err == ErrNotExist { // if the public key is not one of the internal identities, try external identities
+				return p.loadPublicKeyFromExternalIdentity(uid)
+			} else {
+				return nil, err
+			}
 		}
 
-		pubKeyPEM = i.PublicKey
+		return i.PublicKey, nil
 	}
 
 	return pubKeyPEM, nil
+}
+
+func (p *ExtendedProtocol) loadPublicKeyFromExternalIdentity(uid uuid.UUID) (pubKeyPEM []byte, err error) {
+	extId, err := p.LoadExternalIdentity(context.TODO(), uid)
+	if err != nil {
+		return nil, err
+	}
+	return extId.PublicKey, nil
 }
 
 func (p *ExtendedProtocol) IsInitialized(uid uuid.UUID) (initialized bool, err error) {
