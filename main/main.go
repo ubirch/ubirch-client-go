@@ -126,12 +126,12 @@ func main() {
 	}
 
 	signer := handlers.Signer{
-		Protocol:          protocol,
+		SignerProtocol:    protocol,
 		SendToAuthService: client.SendToAuthService,
 	}
 
 	verifier := handlers.Verifier{
-		Protocol:                      protocol,
+		VerifierProtocol:              protocol,
 		RequestHash:                   client.RequestHash,
 		RequestPublicKeys:             client.RequestPublicKeys,
 		VerifyFromKnownIdentitiesOnly: false, // TODO: make configurable
