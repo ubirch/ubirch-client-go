@@ -165,7 +165,7 @@ func (v *Verifier) verifyUppSignature(upp []byte, verifyFromKnownIdentitiesOnly 
 	pubKeyPEM, err := v.Protocol.LoadPublicKey(id)
 	if err != nil {
 		if err == repository.ErrNotExist {
-			pubKeyPEM, err = v.loadPublicKeyForExternalIdentity(verifyFromKnownIdentitiesOnly, id)
+			pubKeyPEM, err = v.loadExternalIdentityPublicKey(verifyFromKnownIdentitiesOnly, id)
 			if err != nil {
 				return id, nil, false, err
 			}
@@ -216,7 +216,7 @@ func (v *Verifier) loadPublicKey(id uuid.UUID) error {
 	return v.Protocol.SetPublicKeyBytes(id, pubKeyBytes)
 }
 
-func (v *Verifier) loadPublicKeyForExternalIdentity(verifyFromKnownIdentitiesOnly bool, id uuid.UUID) (pubKeyPEM []byte, err error) {
+func (v *Verifier) loadExternalIdentityPublicKey(verifyFromKnownIdentitiesOnly bool, id uuid.UUID) (pubKeyPEM []byte, err error) {
 	if verifyFromKnownIdentitiesOnly {
 		return nil, fmt.Errorf("UPP from unknown identity")
 	}
