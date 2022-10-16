@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -32,6 +33,10 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/http_server"
+)
+
+var (
+	ErrUnknownIdentity = errors.New("UPP from unknown identity")
 )
 
 type verification struct {
@@ -49,10 +54,10 @@ type verificationResponse struct {
 }
 
 type VerifierProtocol interface {
-	LoadPublicKey(uid uuid.UUID) (pubKeyPEM []byte, err error)
+	LoadPublicKey(id uuid.UUID) (pubKeyPEM []byte, err error)
 	PublicKeyPEMToBytes(pubKeyPEM []byte) (pubKeyBytes []byte, err error)
-	Verify(id uuid.UUID, upp []byte) (bool, error)
 	SetPublicKeyBytes(id uuid.UUID, pubKeyBytes []byte) error
+	Verify(id uuid.UUID, upp []byte) (bool, error)
 }
 
 type Verifier struct {
@@ -77,6 +82,9 @@ func (v *Verifier) Verify(ctx context.Context, hash []byte) h.HTTPResponse {
 	// verify validity of the retrieved UPP locally
 	id, pubKey, verified, err := v.verifyUppSignature(upp, v.VerifyFromKnownIdentitiesOnly)
 	if err != nil {
+		if err == ErrUnknownIdentity {
+			return getVerificationResponse(http.StatusForbidden, hash, upp, id, pubKey, err.Error())
+		}
 		return getVerificationResponse(http.StatusInternalServerError, hash, upp, id, pubKey, err.Error())
 	}
 
@@ -95,6 +103,9 @@ func (v *Verifier) VerifyOffline(upp, hash []byte) h.HTTPResponse {
 	// verify validity of the UPP locally
 	id, pubKey, verified, err := v.verifyUppSignature(upp, true)
 	if err != nil {
+		if err == ErrUnknownIdentity {
+			return getVerificationResponse(http.StatusNotFound, hash, upp, id, pubKey, err.Error())
+		}
 		return getVerificationResponse(http.StatusInternalServerError, hash, upp, id, pubKey, err.Error())
 	}
 
@@ -195,6 +206,20 @@ func (v *Verifier) verifyUppSignature(upp []byte, verifyFromKnownIdentitiesOnly 
 	return id, pubKeyBytes, verified, nil
 }
 
+func (v *Verifier) loadExternalIdentityPublicKey(verifyFromKnownIdentitiesOnly bool, id uuid.UUID) (pubKeyPEM []byte, err error) {
+	if verifyFromKnownIdentitiesOnly {
+		return nil, ErrUnknownIdentity
+	}
+
+	log.Warnf("UPP from unknown identity %s", id)
+	err = v.loadPublicKey(id)
+	if err != nil {
+		return nil, err
+	}
+
+	return v.VerifierProtocol.LoadPublicKey(id)
+}
+
 // loadPublicKey retrieves the first valid public key associated with an identity from the UBIRCH identity service
 // and loads it into the public key cache
 func (v *Verifier) loadPublicKey(id uuid.UUID) error {
@@ -223,20 +248,6 @@ func (v *Verifier) loadPublicKey(id uuid.UUID) error {
 	return v.VerifierProtocol.SetPublicKeyBytes(id, pubKeyBytes)
 }
 
-func (v *Verifier) loadExternalIdentityPublicKey(verifyFromKnownIdentitiesOnly bool, id uuid.UUID) (pubKeyPEM []byte, err error) {
-	if verifyFromKnownIdentitiesOnly {
-		return nil, fmt.Errorf("UPP from unknown identity")
-	}
-
-	log.Warnf("UPP from unknown identity %s", id)
-	err = v.loadPublicKey(id)
-	if err != nil {
-		return nil, err
-	}
-
-	return v.VerifierProtocol.LoadPublicKey(id)
-}
-
 func (v *Verifier) verifyDataMatch(upp, hash []byte) error {
 	uppStruct, err := ubirch.Decode(upp)
 	if err != nil {
@@ -246,8 +257,7 @@ func (v *Verifier) verifyDataMatch(upp, hash []byte) error {
 	if !bytes.Equal(uppStruct.GetPayload(), hash) {
 		return fmt.Errorf("data does not match UPP payload, data hash: %s, UPP payload: %s",
 			base64.StdEncoding.EncodeToString(hash),
-			base64.StdEncoding.EncodeToString(uppStruct.GetPayload()),
-		)
+			base64.StdEncoding.EncodeToString(uppStruct.GetPayload()))
 	}
 
 	return nil
