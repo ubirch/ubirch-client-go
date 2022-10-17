@@ -16,6 +16,7 @@ import (
 
 type mockProto struct {
 	mock *mock.Mock
+	done chan bool
 }
 
 func (m *mockProto) LoadActiveFlag(uid uuid.UUID) (bool, error) {
