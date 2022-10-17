@@ -127,8 +127,7 @@ func TestVerifier_Verify(t *testing.T) {
 			},
 		},
 		{
-			name:                          "internal server error",
-			VerifyFromKnownIdentitiesOnly: true,
+			name: "internal server error",
 			setExpectations: func(m *mock.Mock) {
 				m.On("RequestHash", base64.StdEncoding.EncodeToString(testHash[:])).
 					Return(h.HTTPResponse{
@@ -177,6 +176,104 @@ func TestVerifier_Verify(t *testing.T) {
 			}
 
 			resp := v.Verify(context.Background(), testHash[:])
+
+			c.tcChecks(t, resp, m)
+		})
+	}
+}
+
+func TestVerifier_VerifyOffline(t *testing.T) {
+
+	testCases := []struct {
+		name            string
+		upp             []byte
+		setExpectations func(m *mock.Mock)
+		tcChecks        func(t *testing.T, resp h.HTTPResponse, m *mock.Mock)
+	}{
+		{
+			name: "verification success",
+			upp:  testVerificationUPP,
+			setExpectations: func(m *mock.Mock) {
+				m.On("LoadPublicKey", testUuid).Return(testPublicKeyPEM, nil)
+				m.On("PublicKeyPEMToBytes", testPublicKeyPEM).Return(testPublicKey, nil)
+				m.On("Verify", testUuid, testVerificationUPP).Return(true, nil)
+			},
+			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
+				m.AssertExpectations(t)
+				assert.Equal(t, getVerificationResponse(http.StatusOK, testHash[:], testVerificationUPP, testUuid, testPublicKey, ""), resp)
+			},
+		},
+		{
+			name: "UPP from unknown identity",
+			upp:  testVerificationUPP,
+			setExpectations: func(m *mock.Mock) {
+				m.On("LoadPublicKey", testUuid).Return([]byte{}, r.ErrNotExist)
+			},
+			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
+				m.AssertExpectations(t)
+				assert.Equal(t, getVerificationResponse(http.StatusNotFound, testHash[:], testVerificationUPP, testUuid, nil, ErrUnknownIdentity.Error()), resp)
+			},
+		},
+		{
+			name:            "invalid UPP",
+			upp:             testVerificationUPP[1:],
+			setExpectations: func(m *mock.Mock) {},
+			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
+				m.AssertExpectations(t)
+				assert.Equal(t, getVerificationResponse(http.StatusBadRequest, testHash[:], testVerificationUPP[1:], uuid.Nil, nil, ErrInvalidUPP.Error()), resp)
+			},
+		},
+		{
+			name: "internal server error",
+			upp:  testVerificationUPP,
+			setExpectations: func(m *mock.Mock) {
+				m.On("LoadPublicKey", testUuid).Return(testPublicKeyPEM, nil)
+				m.On("PublicKeyPEMToBytes", testPublicKeyPEM).Return(testPublicKey, nil)
+				m.On("Verify", testUuid, testVerificationUPP).Return(false, fmt.Errorf("some error"))
+			},
+			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
+				m.AssertExpectations(t)
+				assert.Equal(t, getVerificationResponse(http.StatusInternalServerError, testHash[:], testVerificationUPP, testUuid, testPublicKey, "unable to verify UPP: some error"), resp)
+			},
+		},
+		{
+			name: "invalid signature",
+			upp:  testVerificationUPP,
+			setExpectations: func(m *mock.Mock) {
+				m.On("LoadPublicKey", testUuid).Return(testPublicKeyPEM, nil)
+				m.On("PublicKeyPEMToBytes", testPublicKeyPEM).Return(testPublicKey, nil)
+				m.On("Verify", testUuid, testVerificationUPP).Return(false, nil)
+			},
+			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
+				m.AssertExpectations(t)
+				assert.Equal(t, getVerificationResponse(http.StatusForbidden, testHash[:], testVerificationUPP, testUuid, testPublicKey, "invalid UPP signature"), resp)
+			},
+		},
+		{
+			name: "hash mismatch",
+			upp:  testSignedUPP,
+			setExpectations: func(m *mock.Mock) {
+				m.On("LoadPublicKey", testUuid).Return(testPublicKeyPEM, nil)
+				m.On("PublicKeyPEMToBytes", testPublicKeyPEM).Return(testPublicKey, nil)
+				m.On("Verify", testUuid, testSignedUPP).Return(true, nil)
+			},
+			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
+				m.AssertExpectations(t)
+				assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+			},
+		},
+	}
+	for _, c := range testCases {
+		t.Run(c.name, func(t *testing.T) {
+			m := &mock.Mock{}
+			m.Test(t)
+			c.setExpectations(m)
+
+			v := Verifier{
+				VerifierProtocol: &mockProto{mock: m},
+			}
+
+			resp := v.VerifyOffline(c.upp, testHash[:])
 
 			c.tcChecks(t, resp, m)
 		})
