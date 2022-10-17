@@ -37,6 +37,7 @@ import (
 
 var (
 	ErrUnknownIdentity = errors.New("UPP from unknown identity")
+	ErrInvalidUPP      = errors.New("invalid UPP")
 )
 
 type verification struct {
@@ -106,6 +107,9 @@ func (v *Verifier) VerifyOffline(upp, hash []byte) h.HTTPResponse {
 		if err == ErrUnknownIdentity {
 			return getVerificationResponse(http.StatusNotFound, hash, upp, id, pubKey, err.Error())
 		}
+		if err == ErrInvalidUPP {
+			return getVerificationResponse(http.StatusBadRequest, hash, upp, id, pubKey, err.Error())
+		}
 		return getVerificationResponse(http.StatusInternalServerError, hash, upp, id, pubKey, err.Error())
 	}
 
@@ -116,8 +120,7 @@ func (v *Verifier) VerifyOffline(upp, hash []byte) h.HTTPResponse {
 	// verify data hash matches UPP payload
 	err = v.verifyDataMatch(upp, hash)
 	if err != nil {
-		log.Error(err)
-		return errorResponse(http.StatusBadRequest, err.Error())
+		return getVerificationResponse(http.StatusBadRequest, hash, upp, id, pubKey, err.Error())
 	}
 	log.Infof("successfully verified UPP: uuid: %s, hash: %s, public key: %s, offline: %v",
 		id, base64.StdEncoding.EncodeToString(hash), base64.StdEncoding.EncodeToString(pubKey), true)
@@ -175,7 +178,8 @@ func (v *Verifier) loadUPP(ctx context.Context, hash []byte) (int, []byte, error
 func (v *Verifier) verifyUppSignature(upp []byte, verifyFromKnownIdentitiesOnly bool) (id uuid.UUID, pubKeyBytes []byte, verified bool, err error) {
 	uppStruct, err := ubirch.Decode(upp)
 	if err != nil {
-		return uuid.Nil, nil, false, fmt.Errorf("unable to decode UPP: %v", err)
+		log.Errorf("unable to decode UPP: %v", err)
+		return uuid.Nil, nil, false, ErrInvalidUPP
 	}
 
 	id = uppStruct.GetUuid()
