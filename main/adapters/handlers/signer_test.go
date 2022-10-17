@@ -93,15 +93,15 @@ func TestSigner_Sign(t *testing.T) {
 					PrevSignature: testSignature,
 					Hint:          ubirch.Binary,
 					Payload:       testHash[:],
-				}).Return(testUPP, nil)
+				}).Return(testChainedUPP, nil)
 				m.On("GetPublicKeyBytes", testUuid).Return(testPublicKey, nil)
-				m.On("sendToAuthService", testUuid, testAuth, testUPP).Return(testBckndResp, nil)
+				m.On("sendToAuthService", testUuid, testAuth, testChainedUPP).Return(testBckndResp, nil)
 				m.On("SignatureLength").Return(64)
-				m.On("StoreSignature", &mockTx{}, testUuid, testUPP[len(testUPP)-64:]).Return(nil)
+				m.On("StoreSignature", &mockTx{}, testUuid, testChainedUPP[len(testChainedUPP)-64:]).Return(nil)
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
 				m.AssertExpectations(t)
-				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testUPP, testPublicKey, testBckndResp, testRequestID), resp)
+				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testChainedUPP, testPublicKey, testBckndResp, testRequestID), resp)
 			},
 		},
 		{
@@ -124,14 +124,14 @@ func TestSigner_Sign(t *testing.T) {
 					PrevSignature: testSignature,
 					Hint:          ubirch.Binary,
 					Payload:       testHash[:],
-				}).Return(testUPP, nil)
+				}).Return(testChainedUPP, nil)
 				m.On("GetPublicKeyBytes", testUuid).Return(testPublicKey, nil)
 				m.On("SignatureLength").Return(64)
-				m.On("StoreSignature", &mockTx{}, testUuid, testUPP[len(testUPP)-64:]).Return(nil)
+				m.On("StoreSignature", &mockTx{}, testUuid, testChainedUPP[len(testChainedUPP)-64:]).Return(nil)
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
 				m.AssertExpectations(t)
-				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testUPP, testPublicKey, h.HTTPResponse{}, ""), resp)
+				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testChainedUPP, testPublicKey, h.HTTPResponse{}, ""), resp)
 			},
 		},
 		{
@@ -151,13 +151,13 @@ func TestSigner_Sign(t *testing.T) {
 					Uuid:    testUuid,
 					Hint:    ubirch.Binary,
 					Payload: testHash[:],
-				}).Return(testUPP, nil)
+				}).Return(testSignedUPP, nil)
 				m.On("GetPublicKeyBytes", testUuid).Return(testPublicKey, nil)
-				m.On("sendToAuthService", testUuid, testAuth, testUPP).Return(testBckndResp, nil)
+				m.On("sendToAuthService", testUuid, testAuth, testSignedUPP).Return(testBckndResp, nil)
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
 				m.AssertExpectations(t)
-				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testUPP, testPublicKey, testBckndResp, testRequestID), resp)
+				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testSignedUPP, testPublicKey, testBckndResp, testRequestID), resp)
 			},
 		},
 		{
@@ -177,12 +177,12 @@ func TestSigner_Sign(t *testing.T) {
 					Uuid:    testUuid,
 					Hint:    ubirch.Binary,
 					Payload: testHash[:],
-				}).Return(testUPP, nil)
+				}).Return(testSignedUPP, nil)
 				m.On("GetPublicKeyBytes", testUuid).Return(testPublicKey, nil)
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
 				m.AssertExpectations(t)
-				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testUPP, testPublicKey, h.HTTPResponse{}, ""), resp)
+				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testSignedUPP, testPublicKey, h.HTTPResponse{}, ""), resp)
 			},
 		},
 		{
@@ -201,13 +201,13 @@ func TestSigner_Sign(t *testing.T) {
 					Uuid:    testUuid,
 					Hint:    ubirch.Disable,
 					Payload: testHash[:],
-				}).Return(testUPP, nil)
+				}).Return(testSignedUPP, nil)
 				m.On("GetPublicKeyBytes", testUuid).Return(testPublicKey, nil)
-				m.On("sendToAuthService", testUuid, testAuth, testUPP).Return(testBckndResp, nil)
+				m.On("sendToAuthService", testUuid, testAuth, testSignedUPP).Return(testBckndResp, nil)
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
 				m.AssertExpectations(t)
-				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testUPP, testPublicKey, testBckndResp, testRequestID), resp)
+				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testSignedUPP, testPublicKey, testBckndResp, testRequestID), resp)
 			},
 		},
 		{
@@ -226,13 +226,13 @@ func TestSigner_Sign(t *testing.T) {
 					Uuid:    testUuid,
 					Hint:    ubirch.Enable,
 					Payload: testHash[:],
-				}).Return(testUPP, nil)
+				}).Return(testSignedUPP, nil)
 				m.On("GetPublicKeyBytes", testUuid).Return(testPublicKey, nil)
-				m.On("sendToAuthService", testUuid, testAuth, testUPP).Return(testBckndResp, nil)
+				m.On("sendToAuthService", testUuid, testAuth, testSignedUPP).Return(testBckndResp, nil)
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
 				m.AssertExpectations(t)
-				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testUPP, testPublicKey, testBckndResp, testRequestID), resp)
+				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testSignedUPP, testPublicKey, testBckndResp, testRequestID), resp)
 			},
 		},
 		{
@@ -251,13 +251,13 @@ func TestSigner_Sign(t *testing.T) {
 					Uuid:    testUuid,
 					Hint:    ubirch.Delete,
 					Payload: testHash[:],
-				}).Return(testUPP, nil)
+				}).Return(testSignedUPP, nil)
 				m.On("GetPublicKeyBytes", testUuid).Return(testPublicKey, nil)
-				m.On("sendToAuthService", testUuid, testAuth, testUPP).Return(testBckndResp, nil)
+				m.On("sendToAuthService", testUuid, testAuth, testSignedUPP).Return(testBckndResp, nil)
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
 				m.AssertExpectations(t)
-				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testUPP, testPublicKey, testBckndResp, testRequestID), resp)
+				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testSignedUPP, testPublicKey, testBckndResp, testRequestID), resp)
 			},
 		},
 	}
