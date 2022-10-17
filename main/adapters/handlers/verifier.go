@@ -223,6 +223,11 @@ func (v *Verifier) loadExternalIdentityPublicKey(verifyFromKnownIdentitiesOnly b
 		return nil, err
 	}
 
+	pubKeyPEM, err = v.VerifierProtocol.LoadPublicKey(id)
+	if err != nil {
+		return nil, err
+	}
+
 	go func() {
 		// store public key persistently
 		err = v.VerifierProtocol.StoreExternalIdentity(context.TODO(), ent.ExternalIdentity{
@@ -234,7 +239,7 @@ func (v *Verifier) loadExternalIdentityPublicKey(verifyFromKnownIdentitiesOnly b
 		}
 	}()
 
-	return v.VerifierProtocol.LoadPublicKey(id)
+	return pubKeyPEM, nil
 }
 
 // loadPublicKey retrieves the first valid public key associated with an identity from the UBIRCH identity service
