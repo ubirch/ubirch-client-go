@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -798,7 +797,6 @@ func TestInitHTTPServer(t *testing.T) {
 				EnableRegistrationEndpoint: c.enableRegistration,
 				EnableCSRCreationEndpoint:  c.enableCSRCreation,
 				EnableDeactivationEndpoint: c.enableDeactivation,
-				GatewayTimeoutMs:           int64(time.Second),
 			}
 
 			httpServer := InitHTTPServer(conf,

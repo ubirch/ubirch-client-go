@@ -59,7 +59,6 @@ const (
 	defaultKeyDerivationKeyLen           = 32
 	defaultKeyDerivationSaltLen          = 16
 
-	defaultGatewayTimeoutMs         = 10_000
 	defaultIdentityServiceTimeoutMs = 10_000 // should be high since we want to avoid canceling an otherwise successful key registration
 	defaultAuthServiceTimeoutMs     = 2_000
 	defaultVerifyServiceTimeoutMs   = 600
@@ -97,7 +96,6 @@ type Config struct {
 	KdParamKeyLen              uint32            `json:"kdParamKeyLen" envconfig:"KD_PARAM_KEY_LEN"`                          // key length parameter for key derivation, specifies the length of the resulting key in bytes
 	KdParamSaltLen             uint32            `json:"kdParamSaltLen" envconfig:"KD_PARAM_SALT_LEN"`                        // salt length parameter for key derivation, specifies the length of the random salt in bytes
 	KdUpdateParams             bool              `json:"kdUpdateParams" envconfig:"KD_UPDATE_PARAMS"`                         // update key derivation parameters of already existing password hashes
-	GatewayTimeoutMs           int64             `json:"gatewayTimeoutMs" envconfig:"GATEWAY_TIMEOUT_MS"`                     // time after which a request will be cancelled and a 504 Gateway Timeout error will be sent to the client if no timely response could be produced
 	IdentityServiceTimeoutMs   int64             `json:"identityServiceTimeoutMs" envconfig:"IDENTITY_SERVICE_TIMEOUT_MS"`    // time limit for requests to the ubirch identity service in milliseconds
 	AuthServiceTimeoutMs       int64             `json:"authServiceTimeoutMs" envconfig:"AUTH_SERVICE_TIMEOUT_MS"`            // time limit for requests to the ubirch authentication service (niomon) in milliseconds
 	VerifyServiceTimeoutMs     int64             `json:"verifyServiceTimeoutMs" envconfig:"VERIFY_SERVICE_TIMEOUT_MS"`        // time limit for requests to the ubirch verification service in milliseconds
@@ -303,10 +301,6 @@ func (c *Config) setKeyDerivationParams() {
 }
 
 func (c *Config) setDefaultTimeouts() {
-	if c.GatewayTimeoutMs == 0 {
-		c.GatewayTimeoutMs = defaultGatewayTimeoutMs
-	}
-
 	if c.IdentityServiceTimeoutMs == 0 {
 		c.IdentityServiceTimeoutMs = defaultIdentityServiceTimeoutMs
 	}

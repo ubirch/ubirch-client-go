@@ -20,6 +20,7 @@ import (
 )
 
 const (
+	GatewayTimeout  = 20 * time.Second // time after which a 504 response will be sent if no timely response could be produced
 	ShutdownTimeout = 10 * time.Second // time after which the server will be shut down forcefully if graceful shutdown did not happen before
 	ReadTimeout     = 1 * time.Second  // maximum duration for reading the entire request -> low since we only expect requests with small content
 	WriteTimeout    = 60 * time.Second // time after which the connection will be closed if response was not written -> this should never happen
@@ -34,14 +35,10 @@ type HTTPServer struct {
 	KeyFile  string
 }
 
-func NewRouter(gatewayTimeout time.Duration) *chi.Mux {
-	if gatewayTimeout <= 0 {
-		panic("gatewayTimeout must be greater than 0")
-	}
-
+func NewRouter() *chi.Mux {
 	router := chi.NewMux()
 	router.Use(prom.PromMiddleware)
-	router.Use(middleware.Timeout(gatewayTimeout))
+	router.Use(middleware.Timeout(GatewayTimeout))
 	return router
 }
 
@@ -53,7 +50,7 @@ func InitHTTPServer(conf *config.Config,
 	serverID string, readinessChecks []func() error) *HTTPServer {
 
 	httpServer := &HTTPServer{
-		Router:   NewRouter(time.Duration(conf.GatewayTimeoutMs) * time.Millisecond),
+		Router:   NewRouter(),
 		Addr:     conf.TCP_addr,
 		TLS:      conf.TLS,
 		CertFile: conf.TLS_CertFile,
