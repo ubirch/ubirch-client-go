@@ -36,5 +36,6 @@
   "identityServiceTimeoutMs": 10000,
   "authServiceTimeoutMs": 2000,
   "verifyServiceTimeoutMs": 600,
-  "verificationTimeoutMs": 2000
+  "verificationTimeoutMs": 2000,
+  "verifyFromKnownIdentitiesOnly": true
 }

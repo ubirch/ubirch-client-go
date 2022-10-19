@@ -931,6 +931,24 @@ retries the verification if it fails with an HTTP response code `404`._
 - _`verifyServiceTimeoutMs` is the HTTP client timeout for each individual request to the verification service_
 - _`verificationTimeoutMs` is the max. duration that verification will be attempted repeatedly_
 
+### Verification of UPPs from known identities only
+
+When the client receives a verification request for a UPP that was signed by an identity that is unknown to the client,
+i.e. an external identity, the default behaviour is to request the public key of that identity from the UBIRCH identity
+service in order to verify the signature locally.
+
+To disable that behaviour and only verify UPPs that were signed by a known identity, i.e. an identity for which the
+public key exists in the database,
+
+- add the following key-value pair to your `config.json`:
+    ```json
+      "verifyFromKnownIdentitiesOnly": true
+    ```
+- or set the following environment variable:
+    ```console
+    UBIRCH_VERIFY_FROM_KNOWN_IDENTITIES_ONLY=true
+    ```
+
 ## Legacy file-based context migration
 
 In version 1 of the client, the context has been stored in files. In order to use a newer version, the context can be
