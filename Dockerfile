@@ -1,4 +1,4 @@
-ARG GOVERSION=1.16
+ARG GOVERSION=1.19
 FROM golang:$GOVERSION-alpine AS builder
 COPY . /app
 ARG GOARCH=amd64
