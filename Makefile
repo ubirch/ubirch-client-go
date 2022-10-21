@@ -29,7 +29,7 @@
 
 NOW = $(shell date -u -Iminutes)
 VERSION = $(shell git describe --tags --match 'v[0-9]*' --dirty='-dirty' --always)
-REVISION = $(shell git rev-parse --short HEAD)$(shell if ! git diff --no-ext-diff --quiet --exit-code; then echo -dirty; fi)
+REVISION = $(shell git rev-parse HEAD)$(shell if ! git diff --no-ext-diff --quiet --exit-code; then echo -dirty; fi)
 CURRENT_BRANCH = $(shell git branch --show-current |tr -cd '[:alnum:]-.')
 
 NAME := ubirch-client
@@ -39,11 +39,11 @@ IMAGE_TAG := $(VERSION)
 IMAGE_ARCHS := amd64 arm arm64 386 # supported architectures
 
 GO = go
-GO_VERSION := 1.16
+GO_VERSION := 1.19
 LDFLAGS = -ldflags "-buildid= -s -w -X main.Version=$(VERSION) -X main.Revision=$(REVISION)"
 GO_BUILD = $(GO) build -tags="netgo" -trimpath $(LDFLAGS)
 UPX=upx --quiet --quiet
-DOCKER = DOCKER_CLI_EXPERIMENTAL=enabled DOCKER_BUILDKIT=1 docker
+DOCKER = DOCKER_CLI_EXPERIMENTAL=enabled DOCKER_BUILDKIT=1 sudo docker
 GO_LINTER_IMAGE = golangci/golangci-lint:v1.32.1
 THISDIR = $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 
@@ -68,9 +68,10 @@ test:
 
 .PHONY: image 
 image:
-	$(DOCKER) build -t $(IMAGE_REPO):$(IMAGE_TAG) \
+	$(DOCKER) build -t $(IMAGE_REPO):$(IMAGE_TAG)-arm \
+	    --build-arg="GOARCH=arm" \
 		--build-arg="VERSION=$(VERSION)" \
-		--build-arg="REVISION=$(REVISION)" \
+		--build-arg="REVISION=$(VERSION)" \
 		--build-arg="GOVERSION=$(GO_VERSION)" \
 		--label="org.opencontainers.image.title=$(NAME)" \
 		--label="org.opencontainers.image.created=$(NOW)" \
@@ -91,7 +92,7 @@ publish:
 		$(DOCKER) build -t "$(IMAGE_REPO):$(IMAGE_TAG)-$${arch}" \
 			--build-arg="GOARCH=$${arch}" \
 			--build-arg="VERSION=$(VERSION)" \
-			--build-arg="REVISION=$(REVISION)" \
+			--build-arg="REVISION=$(VERSION)" \
 			--build-arg="GOVERSION=$(GO_VERSION)" \
 			--label="org.opencontainers.image.title=$(NAME)" \
 			--label="org.opencontainers.image.created=$(NOW)" \
