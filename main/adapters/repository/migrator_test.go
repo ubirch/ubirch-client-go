@@ -32,15 +32,16 @@ func TestMigrate(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				c.PostgresDSN = dbConf.PostgresDSN
-				c.DbMaxConns = dbConf.DbMaxConns
+				c.DbDriver = PostgreSQL
+				c.DbDSN = dbConf.DbDSN
 				return nil
 			},
 		},
 		{
 			name: "sqlite migration",
 			setDSN: func(c *config.Config, configDir string) error {
-				c.SqliteDSN = filepath.Join(configDir, testSQLiteDSN)
+				c.DbDriver = SQLite
+				c.DbDSN = filepath.Join(configDir, testSQLiteDSN)
 				return nil
 			},
 		},

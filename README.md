@@ -67,10 +67,11 @@ make publish IMAGE_TAG=stable # will tag a multi-arch image with the selected ta
 
 The configuration can be set via a configuration file (`config.json`) or environment variables.
 
-There are two mandatory configurations:
+There are three mandatory configurations:
 
-1. a 32 byte base64 encoded secret, which will be used to encrypt the signing keys
-2. a static token which will be used for authentication against some endpoints
+1. the desired database driver and DSN (see [Context Management](#Context-Management))
+2. a 32 byte base64 encoded secret, which will be used to encrypt the signing keys in the database
+3. a static token which will be used for authentication against some endpoints
 
 > You can generate a random 32 byte base64 encoded secret in a Linux/macOS terminal
 > with `head -c 32 /dev/urandom | base64`
@@ -107,33 +108,57 @@ under [Optional Configurations](#optional-configurations).
 
 ## Context Management
 
-The identity context, i.e. keys, auth token and previous signature, has to be stored persistently. For that purpose, the
-user can choose between postgreSQL or the local file system, i.e. SQLite.
+The identity context is stored persistently in a database. The user can choose between connecting to a postgres database
+or using the local file system, i.e. SQLite.
 
-By default, the client will create a SQLite database file `sqlite.db` in the mounted volume upon startup.
-This option is appropriate for when the application is running on a system with limited space, like embedded devices,
-and only one or very few identities need to be managed.
-
-When compared to postgreSQL, a drawback of SQLite is the performance while handling a high load of chaining
-requests for multiple identities at the same time.
+- `config.json`:
+    ```json
+      "dbDriver": "<postgres | sqlite>",
+    ```
+- or environment variable:
+    ```console
+    UBIRCH_DB_DRIVER=<postgres | sqlite>
+    ```
 
 ### PostgreSQL
 
-In order to connect the client to a postgreSQL database, the DSN can be set in the configuration.
+In order to connect the client to a postgres database, the DSN must be set in the configuration.
 
 - add the following key-value pair to your `config.json`:
     ```json
-      "postgresDSN": "postgres://<username>:<password>@<hostname>:5432/<database>",
+      "dbDSN": "postgres://<username>:<password>@<hostname>:5432/<database>",
     ```
 - or set the following environment variable:
     ```console
-    UBIRCH_POSTGRES_DSN=postgres://<username>:<password>@<hostname>:5432/<database>
+    UBIRCH_DB_DSN=postgres://<username>:<password>@<hostname>:5432/<database>
     ```
 
 The maximum number of open connections to the database can be limited with `dbMaxConns` (json)
 or `UBIRCH_DB_MAX_CONNS` (env). The default is `0` (unlimited).
 
-If no postgres DSN is set, the client defaults to the usage of a SQLite database in the local file system.
+### SQLite
+
+If the driver is set to `sqlite`, the client will by default create a SQLite database file `sqlite.db` in the mounted
+volume upon first startup.
+
+Alternatively, a custom path (relative to the mounted volume) and filename can be set in the configuration.
+It is also possible to overwrite the default SQLite database configuration by appending a `?` followed by a query string
+to the filename. For more information about this, see https://pkg.go.dev/modernc.org/sqlite#Driver.Open
+
+- `config.json`:
+    ```json
+      "dbDSN": "path/to/sqlite.db",
+    ```
+- or environment variable:
+    ```console
+    UBIRCH_DB_DSN=path/to/sqlite.db
+    ```
+
+The use of a SQLite database is appropriate in case the application is running on a system with limited space, like
+embedded devices, and only one or very few identities need to be managed.
+
+When compared to postgreSQL, a drawback of SQLite is the performance while handling a high load of chaining
+requests for multiple identities at the same time.
 
 ## Identity Registration / Initialization
 

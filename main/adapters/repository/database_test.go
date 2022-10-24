@@ -461,7 +461,7 @@ func TestDatabaseManager_RecoverUndefinedTable(t *testing.T) {
 	c, err := getConfig()
 	require.NoError(t, err)
 
-	pg, err := sql.Open(PostgreSQL, c.PostgresDSN)
+	pg, err := sql.Open(PostgreSQL, c.DbDSN)
 	require.NoError(t, err)
 
 	dm := &DatabaseManager{
@@ -478,7 +478,7 @@ func TestDatabaseManager_Retry(t *testing.T) {
 	c, err := getConfig()
 	require.NoError(t, err)
 
-	dm, err := NewDatabaseManager(PostgreSQL, c.PostgresDSN, 101)
+	dm, err := NewDatabaseManager(PostgreSQL, c.DbDSN, 101)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -515,7 +515,7 @@ func getConfig() (*config.Config, error) {
 			"Please provide a configuration file \"%s\" in the main directory which contains\n"+
 			"a DSN for a postgres database in order to test the database context management.\n\n"+
 			"!!! THIS MUST BE DIFFERENT FROM THE DSN USED FOR THE ACTUAL CONTEXT !!!\n\n"+
-			"{\n\t\"postgresDSN\": \"postgres://<username>:<password>@<hostname>:5432/<TEST-database>\"\n}\n"+
+			"{\n\t\"dbDSN\": \"postgres://<username>:<password>@<hostname>:5432/<TEST-database>\"\n}\n"+
 			"--------------------------------------------------------------------------------",
 			err, configFileName)
 	}
@@ -530,6 +530,10 @@ func getConfig() (*config.Config, error) {
 		return nil, err
 	}
 
+	if len(c.DbDSN) == 0 {
+		return nil, fmt.Errorf("missing DSN for test postgres database ('dbDSN') in configuration %s", configFileName)
+	}
+
 	return c, nil
 }
 
@@ -539,7 +543,7 @@ func initDB(maxConns int) (*DatabaseManager, error) {
 		return nil, err
 	}
 
-	return NewDatabaseManager(PostgreSQL, c.PostgresDSN, maxConns)
+	return NewDatabaseManager(PostgreSQL, c.DbDSN, maxConns)
 }
 
 func cleanUpDB(t assert.TestingT, dm *DatabaseManager) {

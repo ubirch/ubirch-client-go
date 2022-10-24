@@ -224,7 +224,6 @@ github.com/ubirch/go.crypto v0.1.2 h1:IYMOx19UgWt4+k7PydcOVtEWFiU10O8dHoof00j8IK
 github.com/ubirch/go.crypto v0.1.2/go.mod h1:aiZQ37CxSBS7cBLsFbTnDxGeg5RkH7Z5LKBYeNasIrw=
 github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.2.6-0.20220930133231-a5f175fc85ef h1:MlLicaE95wOsS3ivwimQrpIhwG7xrn8toVChmlwwy08=
 github.com/ubirch/ubirch-protocol-go/ubirch/v2 v2.2.6-0.20220930133231-a5f175fc85ef/go.mod h1:85/1vY7PNajuIwkC9Qd2cs+AT3YBgs416FXocbdHE4k=
-github.com/ugorji/go v1.2.7 h1:qYhyWUUd6WbiM+C6JZAUkIJt/1WrjzNHY9+KCIjVqTo=
 github.com/ugorji/go v1.2.7/go.mod h1:nF9osbDWLy6bDVv/Rtoh6QgnvNDpmCalQV5urGCCS6M=
 github.com/ugorji/go/codec v1.2.7 h1:YPXUKf7fYbp/y8xloBqZOw2qaVggbfwMlI8WM3wZUJ0=
 github.com/ugorji/go/codec v1.2.7/go.mod h1:WGN1fab3R1fzQlVQTkfxVtIBhWDRqOviHU95kRgeqEY=
