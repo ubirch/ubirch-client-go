@@ -949,6 +949,14 @@ public key exists in the database,
     UBIRCH_VERIFY_FROM_KNOWN_IDENTITIES_ONLY=true
     ```
 
+A simple workflow for setting up a system which locks out new data sources/identities, even if they are registered
+with the UBIRCH backend, could be the following:
+
+> During setup and test operation, set `verifyFromKnownIdentitiesOnly` to false and make sure to test verification from
+> all intended sending devices. The client will pull all necessary public keys from the backend and save them locally.
+>
+> As soon as the setup phase is over, set `verifyFromKnownIdentitiesOnly` to true to lock out any new devices.
+
 ## Legacy file-based context migration
 
 In version 1 of the client, the context has been stored in files. In order to use a newer version, the context can be
