@@ -41,6 +41,11 @@ type ExtendedProtocol struct {
 }
 
 func NewExtendedProtocol(ctxManager ContextManager, conf *config.Config) (*ExtendedProtocol, error) {
+	err := logKnownIdentities(ctxManager)
+	if err != nil {
+		return nil, err
+	}
+
 	keyCache := NewKeyCache()
 
 	crypto := &ubirch.ECDSACryptoContext{
@@ -331,6 +336,30 @@ func (p *ExtendedProtocol) checkIdentityAttributes(i *ent.Identity) error {
 
 	if len(i.AuthToken) == 0 {
 		return fmt.Errorf("empty auth token")
+	}
+
+	return nil
+}
+
+func logKnownIdentities(ctxManager ContextManager) error {
+	ids, err := ctxManager.GetIdentityUUIDs()
+	if err != nil {
+		return err
+	}
+
+	log.Infof("%d known internal identities (signing and verification):", len(ids))
+	for i, id := range ids {
+		log.Infof("\t%d: %s", i, id)
+	}
+
+	extIds, err := ctxManager.GetExternalIdentityUUIDs()
+	if err != nil {
+		return err
+	}
+
+	log.Infof("%d known external identities (verification only):", len(extIds))
+	for i, id := range extIds {
+		log.Infof("\t%d: %s", i, id)
 	}
 
 	return nil

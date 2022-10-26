@@ -149,6 +149,14 @@ func (m *MockCtxMngr) LoadExternalIdentity(ctx context.Context, u uuid.UUID) (*e
 	return &m.extId, nil
 }
 
+func (m *MockCtxMngr) GetIdentityUUIDs() ([]uuid.UUID, error) {
+	return []uuid.UUID{m.id.Uid}, nil
+}
+
+func (m *MockCtxMngr) GetExternalIdentityUUIDs() ([]uuid.UUID, error) {
+	return []uuid.UUID{m.extId.Uid}, nil
+}
+
 func (m *MockCtxMngr) IsReady() error {
 	return nil
 }
