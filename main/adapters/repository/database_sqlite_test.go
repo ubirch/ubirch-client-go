@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"database/sql"
 	"encoding/base64"
 	"math/rand"
 	"os"
@@ -488,20 +487,6 @@ func TestDatabaseLoad_sqlite(t *testing.T) {
 	//if dm.db.Stats().OpenConnections > dm.db.Stats().Idle {
 	//	t.Errorf("%d open connections, %d idle", dm.db.Stats().OpenConnections, dm.db.Stats().Idle)
 	//}
-}
-
-func TestDatabaseManager_RecoverUndefinedTable_sqlite(t *testing.T) {
-	db, err := sql.Open(SQLite, filepath.Join(t.TempDir(), testSQLiteDSN+sqliteConfig))
-	require.NoError(t, err)
-
-	dm := &DatabaseManager{
-		options:    &sql.TxOptions{},
-		db:         db,
-		driverName: SQLite,
-	}
-
-	_, err = dm.LoadIdentity(uuid.New())
-	assert.Equal(t, ErrNotExist, err)
 }
 
 func TestDatabaseManager_Retry_sqlite(t *testing.T) {
