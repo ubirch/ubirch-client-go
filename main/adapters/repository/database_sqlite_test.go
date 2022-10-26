@@ -463,7 +463,9 @@ func TestDatabaseLoad_sqlite(t *testing.T) {
 	for i, testId := range testIdentities {
 		wg.Add(1)
 		go func(idx int, id ent.Identity) {
-			err := storeIdentity(dm, id, wg)
+			defer wg.Done()
+
+			err := storeIdentity(dm, id)
 			if err != nil {
 				t.Errorf("%s: identity could not be stored: %v", id.Uid, err)
 			}
@@ -545,6 +547,62 @@ func TestDatabaseManager_StoreExternalIdentity_sqlite(t *testing.T) {
 
 	_, err = dm.LoadExternalIdentity(ctx, testExtId.Uid)
 	assert.EqualError(t, err, "context canceled")
+}
+
+func TestDatabaseManager_GetIdentityUUIDs_sqlite(t *testing.T) {
+	dm, err := initSQLiteDB(t, 0)
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	// generate and store identities for testing
+	var testUUIDs []uuid.UUID
+	for i := 0; i < 10; i++ {
+		testId := getTestIdentity()
+		testId.Uid = uuid.New()
+
+		err = storeIdentity(dm, testId)
+		require.NoError(t, err)
+
+		testUUIDs = append(testUUIDs, testId.Uid)
+	}
+
+	ids, err := dm.GetIdentityUUIDs()
+	require.NoError(t, err)
+
+	assert.Equal(t, len(ids), len(testUUIDs))
+
+	for _, id := range testUUIDs {
+		assert.Contains(t, ids, id)
+	}
+}
+
+func TestDatabaseManager_GetExternalIdentityUUIDs_sqlite(t *testing.T) {
+	dm, err := initSQLiteDB(t, 0)
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	// generate and store external identities for testing
+	var testExtUUIDs []uuid.UUID
+	for i := 0; i < 10; i++ {
+		testExtId := ent.ExternalIdentity{
+			Uid:       uuid.New(),
+			PublicKey: make([]byte, 64),
+		}
+
+		err = dm.StoreExternalIdentity(context.TODO(), testExtId)
+		require.NoError(t, err)
+
+		testExtUUIDs = append(testExtUUIDs, testExtId.Uid)
+	}
+
+	ids, err := dm.GetExternalIdentityUUIDs()
+	require.NoError(t, err)
+
+	assert.Equal(t, len(ids), len(testExtUUIDs))
+
+	for _, id := range testExtUUIDs {
+		assert.Contains(t, ids, id)
+	}
 }
 
 func initSQLiteDB(t *testing.T, maxConns int) (*DatabaseManager, error) {

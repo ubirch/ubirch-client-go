@@ -314,6 +314,41 @@ func (dm *DatabaseManager) LoadExternalIdentity(ctx context.Context, uid uuid.UU
 	return &extId, err
 }
 
+func (dm *DatabaseManager) GetIdentityUUIDs() ([]uuid.UUID, error) {
+	return dm.getUUIDs("SELECT uid FROM identity")
+}
+
+func (dm *DatabaseManager) GetExternalIdentityUUIDs() ([]uuid.UUID, error) {
+	return dm.getUUIDs("SELECT uid FROM external_identity")
+}
+
+func (dm *DatabaseManager) getUUIDs(query string) ([]uuid.UUID, error) {
+	rows, err := dm.db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err = rows.Close(); err != nil {
+			log.Error(err)
+		}
+	}()
+
+	var (
+		id  uuid.UUID
+		ids []uuid.UUID
+	)
+
+	for rows.Next() {
+		err = rows.Scan(&id)
+		if err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+
+	return ids, rows.Err()
+}
+
 func (dm *DatabaseManager) retry(f func() error) (err error) {
 	for retries := 0; retries <= maxRetries; retries++ {
 		err = f()

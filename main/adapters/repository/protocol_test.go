@@ -576,7 +576,9 @@ func TestProtocolLoad(t *testing.T) {
 	for _, testId := range testIdentities {
 		wg.Add(1)
 		go func(id ent.Identity) {
-			err := storeIdentity(p, id, wg)
+			defer wg.Done()
+
+			err := storeIdentity(p, id)
 			if err != nil {
 				t.Errorf("%s: identity could not be stored: %v", id.Uid, err)
 			}
