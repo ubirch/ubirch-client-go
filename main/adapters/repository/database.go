@@ -351,13 +351,6 @@ func (dm *DatabaseManager) isRecoverable(err error) bool {
 				time.Sleep(10 * time.Millisecond)
 				return true
 			}
-			if liteErr.Code() == 1 { // SQLITE_ERROR
-				err = dm.CreateTables(createSQLite)
-				if err != nil {
-					log.Errorf("creating DB table failed: %v", err)
-				}
-				return true
-			}
 			log.Errorf("unexpected sqlite database error: %s", liteErr)
 		}
 	}
