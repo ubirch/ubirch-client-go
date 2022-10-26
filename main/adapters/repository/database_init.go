@@ -1,5 +1,7 @@
 package repository
 
+// the following SQL statements are called upon every startup and have to be safe to be executed multiple times
+
 var createPostgres = []string{
 	`CREATE TABLE IF NOT EXISTS identity(
 		uid VARCHAR(255) NOT NULL PRIMARY KEY,
