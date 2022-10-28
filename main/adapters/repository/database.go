@@ -44,7 +44,7 @@ const (
 	maxRetries = 2
 )
 
-// DatabaseManager contains the postgres database connection, and offers methods
+// DatabaseManager contains the database connection, and offers methods
 // for interacting with the database.
 type DatabaseManager struct {
 	options    *sql.TxOptions
