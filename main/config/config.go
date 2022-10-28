@@ -177,7 +177,10 @@ func (c *Config) checkMandatory() error {
 	if len(c.DbDriver) == 0 {
 		missingConfig = true
 		log.Errorf("missing 'dbDriver' / 'UBIRCH_DB_DRIVER' in configuration (\"%s\" | \"%s\")", postgresDriver, sqliteDriver)
-	} else if c.DbDriver != sqliteDriver && len(c.DbDSN) == 0 {
+	} else if c.DbDriver != postgresDriver && c.DbDriver != sqliteDriver {
+		missingConfig = true
+		log.Errorf("invalid value for 'dbDriver' / 'UBIRCH_DB_DRIVER' in configuration: \"%s\", expected \"%s\" or \"%s\"", c.DbDriver, postgresDriver, sqliteDriver)
+	} else if c.DbDriver == postgresDriver && len(c.DbDSN) == 0 {
 		missingConfig = true
 		log.Errorf("missing 'dbDSN' / 'UBIRCH_DB_DSN' for %s in configuration", c.DbDriver)
 	}
