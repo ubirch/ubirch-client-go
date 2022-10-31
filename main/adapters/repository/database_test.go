@@ -542,7 +542,7 @@ func TestDatabaseManager_StoreExternalIdentity(t *testing.T) {
 	err = dm.StoreExternalIdentity(ctx, testExtId)
 	assert.EqualError(t, err, "context canceled")
 
-	storedExtId, err = dm.LoadExternalIdentity(ctx, testExtId.Uid)
+	_, err = dm.LoadExternalIdentity(ctx, testExtId.Uid)
 	assert.EqualError(t, err, "context canceled")
 }
 
@@ -643,14 +643,14 @@ func initDB(maxConns int) (*DatabaseManager, error) {
 }
 
 func cleanUpDB(t assert.TestingT, dm *DatabaseManager) {
-	dropTableQuery := fmt.Sprintf("DROP TABLE identity;")
+	dropTableQuery := "DROP TABLE identity;"
 	err := dm.retry(func() error {
 		_, err := dm.db.Exec(dropTableQuery)
 		return err
 	})
 	assert.NoError(t, err)
 
-	dropTableQuery = fmt.Sprintf("DROP TABLE external_identity;")
+	dropTableQuery = "DROP TABLE external_identity;"
 	err = dm.retry(func() error {
 		_, err := dm.db.Exec(dropTableQuery)
 		return err

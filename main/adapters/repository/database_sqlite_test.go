@@ -545,7 +545,7 @@ func TestDatabaseManager_StoreExternalIdentity_sqlite(t *testing.T) {
 	err = dm.StoreExternalIdentity(ctx, testExtId)
 	assert.EqualError(t, err, "context canceled")
 
-	storedExtId, err = dm.LoadExternalIdentity(ctx, testExtId.Uid)
+	_, err = dm.LoadExternalIdentity(ctx, testExtId.Uid)
 	assert.EqualError(t, err, "context canceled")
 }
 
