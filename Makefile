@@ -29,7 +29,7 @@
 
 NOW = $(shell date -u -Iminutes)
 VERSION = $(shell git describe --tags --match 'v[0-9]*' --dirty='-dirty' --always)
-REVISION = $(shell git rev-parse HEAD)$(shell if ! git diff --no-ext-diff --quiet --exit-code; then echo -dirty; fi)
+REVISION = $(shell git rev-parse --short=9 HEAD)$(shell if ! git diff --no-ext-diff --quiet --exit-code; then echo -dirty; fi)
 CURRENT_BRANCH = $(shell git branch --show-current |tr -cd '[:alnum:]-.')
 
 NAME := ubirch-client
