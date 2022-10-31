@@ -315,16 +315,14 @@ func (dm *DatabaseManager) LoadExternalIdentity(ctx context.Context, uid uuid.UU
 }
 
 func (dm *DatabaseManager) GetIdentityUUIDs() ([]uuid.UUID, error) {
-	return dm.getUUIDs("identity")
+	return dm.getUUIDs("SELECT uid FROM identity")
 }
 
 func (dm *DatabaseManager) GetExternalIdentityUUIDs() ([]uuid.UUID, error) {
-	return dm.getUUIDs("external_identity")
+	return dm.getUUIDs("SELECT uid FROM external_identity")
 }
 
-func (dm *DatabaseManager) getUUIDs(table string) ([]uuid.UUID, error) {
-	query := fmt.Sprintf("SELECT uid FROM %s", table)
-
+func (dm *DatabaseManager) getUUIDs(query string) ([]uuid.UUID, error) {
 	rows, err := dm.db.Query(query)
 	if err != nil {
 		return nil, err
