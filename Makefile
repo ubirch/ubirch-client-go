@@ -71,7 +71,7 @@ image:
 	$(DOCKER) build -t $(IMAGE_REPO):$(IMAGE_TAG)-arm \
 	    --build-arg="GOARCH=arm" \
 		--build-arg="VERSION=$(VERSION)" \
-		--build-arg="REVISION=$(VERSION)" \
+		--build-arg="REVISION=$(REVISION)" \
 		--build-arg="GOVERSION=$(GO_VERSION)" \
 		--label="org.opencontainers.image.title=$(NAME)" \
 		--label="org.opencontainers.image.created=$(NOW)" \
