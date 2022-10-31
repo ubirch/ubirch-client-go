@@ -29,7 +29,7 @@
 
 NOW = $(shell date -u -Iminutes)
 VERSION = $(shell git describe --tags --match 'v[0-9]*' --dirty='-dirty' --always)
-REVISION = $(shell git rev-parse --short=9 HEAD)$(shell if ! git diff --no-ext-diff --quiet --exit-code; then echo -dirty; fi)
+REVISION = $(shell git rev-parse --short HEAD)$(shell if ! git diff --no-ext-diff --quiet --exit-code; then echo -dirty; fi)
 CURRENT_BRANCH = $(shell git branch --show-current |tr -cd '[:alnum:]-.')
 
 NAME := ubirch-client
@@ -50,7 +50,7 @@ THISDIR = $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 .PHONY: lint
 lint:
 	@# we supress echoing the command, so every output line
-	@# can be considered a linting error. 
+	@# can be considered a linting error.
 	@$(DOCKER) run --rm -v $(THISDIR):/app:ro -w /app $(GO_LINTER_IMAGE) golangci-lint run
 
 .PHONY: build
@@ -66,7 +66,7 @@ test:
 	$(DOCKER) run -t --rm -v $(THISDIR):/app -w /app golang:$(GO_VERSION) \
 	go test ./...
 
-.PHONY: image 
+.PHONY: image
 image:
 	$(DOCKER) build -t $(IMAGE_REPO):$(IMAGE_TAG)-arm \
 	    --build-arg="GOARCH=arm" \
@@ -92,7 +92,7 @@ publish:
 		$(DOCKER) build -t "$(IMAGE_REPO):$(IMAGE_TAG)-$${arch}" \
 			--build-arg="GOARCH=$${arch}" \
 			--build-arg="VERSION=$(VERSION)" \
-			--build-arg="REVISION=$(VERSION)" \
+			--build-arg="REVISION=$(REVISION)" \
 			--build-arg="GOVERSION=$(GO_VERSION)" \
 			--label="org.opencontainers.image.title=$(NAME)" \
 			--label="org.opencontainers.image.created=$(NOW)" \
