@@ -43,7 +43,7 @@ GO_VERSION := 1.19
 LDFLAGS = -ldflags "-buildid= -s -w -X main.Version=$(VERSION) -X main.Revision=$(REVISION)"
 GO_BUILD = $(GO) build -tags="netgo" -trimpath $(LDFLAGS)
 UPX=upx --quiet --quiet
-DOCKER = DOCKER_CLI_EXPERIMENTAL=enabled DOCKER_BUILDKIT=1 sudo docker
+DOCKER = DOCKER_CLI_EXPERIMENTAL=enabled DOCKER_BUILDKIT=1 docker
 GO_LINTER_IMAGE = golangci/golangci-lint:v1.32.1
 THISDIR = $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 
