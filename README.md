@@ -981,41 +981,53 @@ status `0`. In case of failed migration, the exit status is set to `1`.
 
 1. Configuration
 
-   First, you will need a device UUID, that is registered with the UBIRCH backend, and a corresponding auth token for
-   that device. You will also need a secret to encrypt the locally stored private keys:
-    1. Generate a UUID for your device. On Linux/macOS, simply enter `uuidgen` in your terminal. Alternatively, you can
-       use an [online tool](https://www.uuidtools.com/v4).
-    2. Get your auth token:
+   First, you will need a device UUID, that is registered with the UBIRCH backend, and a corresponding authentication
+   token for that device. You will also need a secret to encrypt the locally stored private keys:
+    1. Generate a UUID for your device. On Linux or macOS, simply enter `uuidgen` in your terminal. Alternatively, you
+       can use an [online tool](https://www.uuidtools.com/v4).
+    2. Get your device auth token:
         - Create an account at the [**UBIRCH web UI**](https://console.prod.ubirch.com/) and log in.
         - Go to **Things** (in the menu on the left) and click the green `+ ADD NEW DEVICE`-button.
         - Enter your UUID to the **ID** field and, optionally, a description. Then click on `register`.
         - After successful registration, you can click on your UUID to open the settings and copy the **"password"**
-          from the `apiConfig` as your auth token.
-    3. Generate a 16 byte secret in base64 format. You can enter `head -c 16 /dev/urandom | base64` in a Linux/macOS
-       terminal or encode 16 ASCII characters in an [online base64 encoder](https://www.base64encode.org/).
+          from the `apiConfig` as your device auth token.
+    3. Generate a 32 byte secret in base64 format. You can enter `head -c 32 /dev/urandom | base64` in a Linux/macOS
+       terminal or encode 32 ASCII characters in an [online base64 encoder](https://www.base64encode.org/).
 
    Create a file `config.json` in your working directory with the following content:
     ```json
     {
       "devices": {
-        "<YOUR_UUID>": "<YOUR_AUTH_TOKEN>"
+        "<YOUR_DEVICE_UUID>": "<YOUR_DEVICE_AUTH_TOKEN>"
       },
-      "secret": "<YOUR_16_BYTE_SECRET(base64 encoded)>",
+      "secret32": "<YOUR_32_BYTE_SECRET(base64 encoded)>",
+      "dbDriver": "sqlite",
       "logTextFormat": true
     }
     ```
-    - Replace `<YOUR_UUID>` with your UUID from step 1.1.
-    - Replace `<YOUR_AUTH_TOKEN>` with your auth token from step 1.2.
-    - Replace `<YOUR_16_BYTE_SECRET(base64 encoded)>` with your secret from step 1.3.
-   > [Here](main/config/example_config.json) is an example of how it should look like.
+    - Replace `<YOUR_DEVICE_UUID>` with your device UUID from step 1.1.
+    - Replace `<YOUR_DEVICE_AUTH_TOKEN>` with your device auth token from step 1.2.
+    - Replace `<YOUR_32_BYTE_SECRET(base64 encoded)>` with your secret from step 1.3.
+
+   Your `config.json` should now look like this:
+    ```json
+    {
+      "devices": {
+        "e5085a89-a881-4397-902e-a630f021afd8": "f83a888f-cbf8-4d78-82a2-3e3f253f181d"
+      },
+      "secret32": "kwNWDv1K8z/T4Muk8La4uzoUl2Q1G923rmm7kA5NrIE=",
+      "dbDriver": "sqlite",
+      "logTextFormat": true
+    }
+    ```
 
 2. Run the client
 
    To run the dockerized UBIRCH client, you will need to have [Docker](https://docs.docker.com/) installed on your
    computer. Then enter the following two lines in the terminal in your working directory:
     ```shell
-    docker pull ubirch/ubirch-client:v1.2.2
-    docker run -v $(pwd):/data -p 8080:8080 ubirch/ubirch-client:v1.2.2
+    docker pull ubirch/ubirch-client:v3.0.0
+    docker run -v $(pwd):/data -p 8080:8080 ubirch/ubirch-client:v3.0.0
     ```
 
    When the client is first started, it will create an ECDSA key pair for your device and register the public key at the
@@ -1023,14 +1035,22 @@ status `0`. In case of failed migration, the exit status is set to `1`.
 
    You should see a console output like this:
     ```console
-    {"level":"info","msg":"UBIRCH client (v2.0.0, build=local)","time":"2021-03-01T18:41:20+01:00"}
-    {"level":"info","msg":"loading configuration from file: config.json","time":"2021-03-01T18:41:20+01:00"}
-    INFO[2021-03-01 18:41:20.291 +0100] 1 known UUID(s)
-    INFO[2021-03-01 18:41:20.291 +0100] UBIRCH backend environment: prod
-    INFO[2021-03-01 18:41:20.291 +0100] protocol context will be stored in local file system
-    INFO[2021-03-01 18:41:20.291 +0100] generating new key pair for UUID 50b1a5bb-83cd-4251-b674-b3c71a058fc3
-    INFO[2021-03-01 18:41:20.664 +0100] 50b1a5bb-83cd-4251-b674-b3c71a058fc3: registering public key at key service: https://key.prod.ubirch.com/api/keyService/v1/pubkey
-    INFO[2021-03-01 18:41:22.130 +0100] starting HTTP service
+    {"level":"info","message":"UBIRCH client (version=devbuild, revision=0000000)","time":"2022-10-31T07:36:28Z"}
+    {"level":"info","message":"arg #1: /data","time":"2022-10-31T07:36:28Z"}
+    {"level":"info","message":"loading configuration from file: /data/config.json","time":"2022-10-31T07:36:28Z"}
+    time="2022-10-31 07:36:28.152 +0000" level=warning msg="identity registration endpoint disabled. To enable, set json:\"enableRegistrationEndpoint\" env:\"UBIRCH_ENABLE_REGISTRATION_ENDPOINT\" =true"
+    time="2022-10-31 07:36:28.153 +0000" level=warning msg="CSR creation endpoint disabled. To enable, set json:\"enableCSRCreationEndpoint\" env:\"UBIRCH_ENABLE_CSR_CREATION_ENDPOINT\" =true"
+    time="2022-10-31 07:36:28.154 +0000" level=warning msg="key deactivation endpoint disabled. To enable, set json:\"enableDeactivationEndpoint\" env:\"ENABLE_DEACTIVATION_ENDPOINT\" =true"
+    time="2022-10-31 07:36:28.155 +0000" level=info msg="UBIRCH backend environment: prod"
+    time="2022-10-31 07:36:28.155 +0000" level=info msg="initializing sqlite database connection"
+    time="2022-10-31 07:36:28.285 +0000" level=info msg="0 known internal identities (signing and verification):"
+    time="2022-10-31 07:36:28.287 +0000" level=info msg="0 known external identities (verification only):"
+    time="2022-10-31 07:36:28.296 +0000" level=info msg="e5085a89-a881-4397-902e-a630f021afd8: initializing identity"
+    time="2022-10-31 07:36:28.750 +0000" level=info msg="e5085a89-a881-4397-902e-a630f021afd8: key certificate: {\"pubKeyInfo\":{\"algorithm\":\"ecdsa-p256v1\",\"created\":\"2022-10-31T07:36:28.739Z\",\"hwDeviceId\":\"e5085a89-a881-4397-902e-a630f021afd8\",\"pubKey\":\"//3eUKJOrGaYCoPBOMMUquX3cn+EXHMqCKu7IJWu/Xs1x7oJ4HU6LLWksf8toG0ir1VreFo8A5tJEGvxmQbe0w==\",\"pubKeyId\":\"//3eUKJOrGaYCoPBOMMUquX3cn+EXHMqCKu7IJWu/Xs1x7oJ4HU6LLWksf8toG0ir1VreFo8A5tJEGvxmQbe0w==\",\"validNotAfter\":\"2032-10-28T07:36:28.739Z\",\"validNotBefore\":\"2022-10-31T07:36:28.739Z\"},\"signature\":\"GpGZzgTtvZ0InzvqNlNh3CEMkNxLY+G/og1qBe8J/ouhHs4OS5us1JEenzyym+cKJaHAaNYMscZA3jdrFxnZ+w==\"}"
+    time="2022-10-31 07:36:30.231 +0000" level=info msg="e5085a89-a881-4397-902e-a630f021afd8: creating CSR"
+    time="2022-10-31 07:36:30.257 +0000" level=info msg="e5085a89-a881-4397-902e-a630f021afd8: CSR [PEM]: -----BEGIN CERTIFICATE REQUEST-----\nMIIBDjCBtAIBADBSMQswCQYDVQQGEwJERTEUMBIGA1UEChMLdWJpcmNoIEdtYkgx\nLTArBgNVBAMTJGU1MDg1YTg5LWE4ODEtNDM5Ny05MDJlLWE2MzBmMDIxYWZkODBZ\nMBMGByqGSM49AgEGCCqGSM49AwEHA0IABP/93lCiTqxmmAqDwTjDFKrl93J/hFxz\nKgiruyCVrv17Nce6CeB1Oiy1pLH/LaBtIq9Va3haPAObSRBr8ZkG3tOgADAKBggq\nhkjOPQQDAgNJADBGAiEA8UANAK6JLUk+TQMZ4FtWsJQJT/dWyhonF/ZbUuV03n0C\nIQCQj7U/la0wf9FuBYvn813sQ3FE/P1E43fwLni0pxTH2g==\n-----END CERTIFICATE REQUEST-----\n"
+    time="2022-10-31 07:36:30.270 +0000" level=info msg="starting HTTP server"
+    
     ```
    That means the client is running and ready!
 
@@ -1039,40 +1059,38 @@ status `0`. In case of failed migration, the exit status is set to `1`.
    ---
    **WARNING**
 
-   The client stores the encrypted signing keys in a local file `keys.json`, which will be created in the
-   working directory upon first start-up. **Do not delete this file**, as our backend will not accept new key
-   registrations once a device already has a registered key.
-
-   The client also creates a subdirectory `/signatures`, which contains the previous UPP signatures for chaining.
+   The client stores the encrypted signing keys in a local file `sqlite.db`, which will be created in the
+   working directory upon first start-up. **Do not delete this file**, as our backend will not accept the
+   registration of a new key once a device already has a registered key.
     
    ---
 
 3. Seal your data
 
-   The client is now listening for HTTP requests on port `8080`. You can either...
-    - send JSON data to the `/<UUID>`-endpoint with `Content-Type: application/json`-header, or
-    - send hashes to the `/<UUID>/hash`-endpoint with `Content-Type: application/octet-stream`-header.
+   The client is now listening for HTTP requests on port `8080`. You can send either...
+    - JSON data packages to the `/<UUID>`-endpoint with `Content-Type: application/json`-header, or
+    - SHA256 hashes of your data to the `/<UUID>/hash`-endpoint with `Content-Type: application/octet-stream`-header.
 
    Since the data hash for every UPP must be unique, ensure that the body of each request has a unique content. You can
    do that, for example, by adding an ID and a timestamp to the JSON data package. For more information
    see [Uniqueness of hashes](#Uniqueness-of-hashes).
 
-   **Floating-point numbers and integers greater than 2<sup>53</sup> are not allowed as values for the JSON data
-   package!**
+   Floating-point numbers and integers greater than 2<sup>53</sup> are not allowed as values for the JSON data
+   package!
 
    You also need to set the `X-Auth-Token`-header with your UBIRCH backend auth token from step 1.
 
    Here is an example of how a request to the client would look like using `CURL`:
    ```shell
-   curl localhost:8080/<YOUR_UUID> \
-    -H "X-Auth-Token: <YOUR_AUTH_TOKEN>" \
+   curl localhost:8080/<YOUR_DEVICE_UUID> \
+    -H "X-Auth-Token: <YOUR_DEVICE_AUTH_TOKEN>" \
     -H "Content-Type: application/json" \
-    -d '{"id": "50b1a5bb-83cd-4251-b674-b3c71a058fc3", "ts": 1614621028, "data": "1234567890"}' \
+    -d '{"id": "e5085a89-a881-4397-902e-a630f021afd8", "ts": 1667202152, "data": "1234567890"}' \
     -i -s
    ```
 
-   > Insert `<YOUR_AUTH_TOKEN>` and `<YOUR_UUID>` and a request body with your own unique content to ensure a unique
-   hash!
+   > Insert `<YOUR_DEVICE_UUID>` and `<YOUR_DEVICE_AUTH_TOKEN>` and a request body with your own unique content to
+   > ensure a unique hash! In case of hash collision, the request will fail with status code `409`.
 
    When the client receives a request, it hashes the data from the request body and creates a chained Ubirch Protocol
    Package (UPP) with the data hash as payload. The UPP will be signed with the private key of the device and sent to
@@ -1080,11 +1098,12 @@ status `0`. In case of failed migration, the exit status is set to `1`.
 
    The console output of the client should look like this:
     ```console
-    INFO[2021-03-01 18:52:59.471 +0100] 50b1a5bb-83cd-4251-b674-b3c71a058fc3: anchoring hash: CDUvtOIBnnZ8im/UXQn5G/q5EK9l2Bqy+HyMgSzPZoA=
-    INFO[2021-03-01 18:53:00.313 +0100] 50b1a5bb-83cd-4251-b674-b3c71a058fc3: request ID: 0f11686e-aee3-4e97-8d0d-793a0c31d969
+    time="2022-10-31 07:44:48.178 +0000" level=info msg="create UPP: uuid: e5085a89-a881-4397-902e-a630f021afd8, hash: 5snVjoqWbqLbhABMD1L5OguJyvcsxbJOECQSurDqs5k=, operation: chain, offline: false"
+    time="2022-10-31 07:44:48.909 +0000" level=info msg="e5085a89-a881-4397-902e-a630f021afd8: request ID: 3c6e0e19-63b6-4d42-b316-3f46481f14cc"
+    
     ```
 
-   Take note of the hash for [verification](#verification).
+   > Take note of the hash for [verification](#verification).
 
    If your request was successful, you'll get the HTTP response code `200`.
 
@@ -1094,31 +1113,35 @@ status `0`. In case of failed migration, the exit status is set to `1`.
    this [MessagePack to JSON Converter](https://toolslick.com/conversion/data/messagepack-to-json). You can read more
    about UPPs [here](https://developer.ubirch.com/utp).
 
-   ```json
+    ```json
     {
-        "hash": "CDUvtOIBnnZ8im/UXQn5G/q5EK9l2Bqy+HyMgSzPZoA=",
-        "upp": "liPEEFCxpbuDzUJRtnSzxxoFj8PEQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAxCAINS+04gGednyKb9RdCfkb+rkQr2XYGrL4fIyBLM9mgMRAIVlhgxobRl7ApJerXUyJ5cBxBJJ7gwPUN9AKgKJWxAxkWMWufRp8jW9Ha79s5hYbNp9+bn94cMflWyAyyjy4Ew==",
-        "response": {
-            "statusCode": 200,
-            "header": {
-                "Content-Length": [
-                    "187"
-                ],
-                "Content-Type": [
-                    "application/octet-stream"
-                ],
-                "Date": [
-                    "Mon, 01 Mar 2021 17:53:00 GMT"
-                ],
-                "Server": [
-                    "ubirch-trust-service/1.0"
-                ]
-            },
-            "content": "liPEEJ08eP8i80RBpdGFxjbUhv/EQCFZYYMaG0ZewKSXq11MieXAcQSSe4MD1DfQCoCiVsQMZFjFrn0afI1vR2u/bOYWGzaffm5/eHDH5VsgMso8uBMAxCAPEWhuruNOl40NeToMMdlpAAAAAAAAAAAAAAAAAAAAAMRA+IFgAugN6CY1xPSch1TwhFdac8yRA1QhPRXOhUt7rudrwrNv0NAEJGlLw1wUSpcSLmBFQaoRb9EezmYxmtF7iA=="
+      "hash": "5snVjoqWbqLbhABMD1L5OguJyvcsxbJOECQSurDqs5k=",
+      "upp": "liPEEOUIWomogUOXkC6mMPAhr9jEQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAxCDmydWOipZuotuEAEwPUvk6C4nK9yzFsk4QJBK6sOqzmcRA0fYMXgkdjoAOPE9jXV/gfBxb9kl9WierPozz+usi+WLUNTD98al0QX6TWB3i1pg43XDL0/lHf8E+4AhWfFFlCQ==",
+      "publicKey": "//3eUKJOrGaYCoPBOMMUquX3cn+EXHMqCKu7IJWu/Xs1x7oJ4HU6LLWksf8toG0ir1VreFo8A5tJEGvxmQbe0w==",
+      "response": {
+        "statusCode": 200,
+        "header": {
+          "Content-Length": [
+            "187"
+          ],
+          "Content-Type": [
+            "application/octet-stream"
+          ],
+          "Date": [
+            "Mon, 31 Oct 2022 07:44:48 GMT"
+          ],
+          "Server": [
+            "ubirch-trust-service/1.0"
+          ],
+          "Strict-Transport-Security": [
+            "max-age=15552000; includeSubDomains; preload"
+          ]
         },
-        "requestID": "0f11686e-aee3-4e97-8d0d-793a0c31d969"
+        "content": "liPEEBCy4aRWs0//mtrMjCD5MBbEQNH2DF4JHY6ADjxPY11f4HwcW/ZJfVonqz6M8/rrIvli1DUw/fGpdEF+k1gd4taYON1wy9P5R3/BPuAIVnxRZQkAxCA8bg4ZY7ZNQrMWP0ZIHxTMAAAAAAAAAAAAAAAAAAAAAMRAtCx79HokXAELQRbiEoE9YVPLfx4Zdh9fC93QO4X4e60HXseQUdVFtbuQBQiz2yqHBuoQyMQVsu2fBPreNihifA=="
+      },
+      "requestID": "3c6e0e19-63b6-4d42-b316-3f46481f14cc"
     }
-   ```
+    ```
    If you get a response code other than `200`, it means that something went wrong. In this case the client will respond
    with an error message. You can also find error messages in the console output of the client.
 
@@ -1140,7 +1163,7 @@ UBIRCH verification service:
 https://verify.prod.ubirch.com/api/upp/verify/anchor
 ```
 
-> e.g. `curl -d '<YOUR_HASH>' https://verify.prod.ubirch.com/api/upp/verify/anchor`
+> e.g. `curl -d '5snVjoqWbqLbhABMD1L5OguJyvcsxbJOECQSurDqs5k=' https://verify.prod.ubirch.com/api/upp/verify/anchor`
 
 This endpoint checks if the *UPP*, which contains the data hash has arrived correctly and was verifiable, gives
 information about the chain (*prev*ious UPP) as well as blockchain info on the time frame (the upper and lower bounds)
@@ -1151,27 +1174,25 @@ If the verification was successful, the service will send a *200* response with 
 
 ```json
 {
-  "upp": "liPEEJnqh/TPxEVni9ELTBXq9V7EQGOMAcwCV4rbHGZT+A8sd2DOpRB2mdUyZSSg7wB5hYNix5CszzbhRksmDTP/mADH1EBEPnUgfXbo6Y6dbFBL6CgAxCAy+oS7kDq+fc74gcKSX1UsG0iuOx5iwkW/MyED7Df9PcRAQ9hNm3gkM5vyeIX8zwI+7D/VbsgpLV5o4oYLFo7FilA8Urj5ELQNrC0PKYKco0LoC7xNbVoIhrvOnLNZVyme3w==",
-  "prev": "liPEEJnqh/TPxEVni9ELTBXq9V7EQFMVGwqOGvuiYahX5+1E9Le/Jse778baMOWX4kPCuvTQnwzCoFOvHY09aor7Wl0Hn7h2mPg7kdJ6N2ZRGKNtXB0AxCCPcQmVZAl1b++fj5h0r17cb1+zPJS3WnjqYt+JsmrZoMRAY4wBzAJXitscZlP4Dyx3YM6lEHaZ1TJlJKDvAHmFg2LHkKzPNuFGSyYNM/+YAMfUQEQ+dSB9dujpjp1sUEvoKA==",
+  "upp": "liPEEOUIWomogUOXkC6mMPAhr9jEQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAxCDmydWOipZuotuEAEwPUvk6C4nK9yzFsk4QJBK6sOqzmcRA0fYMXgkdjoAOPE9jXV/gfBxb9kl9WierPozz+usi+WLUNTD98al0QX6TWB3i1pg43XDL0/lHf8E+4AhWfFFlCQ==",
+  "prev": null,
   "anchors": [
     {
       "label": "PUBLIC_CHAIN",
       "properties": {
-        "timestamp": "2020-04-16T22:09:17.836Z",
-        "hash": "CAGRDRTQBNNHHQONUHBMWPHMUTMCYJ9XNKJJNTHMBUZXYKEUKTERIFMNNFBKWUAMAMXERJBQQFNQWA999",
-        "public_chain": "IOTA_TESTNET_IOTA_TESTNET_NETWORK",
-        "prev_hash": "ca6d36581d1265d38d7cb69a6a410aefb5142cbd31c3004cb7bbe6ec83457d9c683eb0a2e498083699e9e6dc233356be0df6f9fb2e1810d65e71b1bd155b3580",
-        "type": "PUBLIC_CHAIN"
+        "timestamp": "2022-10-31T07:45:21.625Z",
+        "hash": "5d9f841fed2d4b7693b91586d8b7312d681dcfb8e070ba7153a8032835bb109d",
+        "public_chain": "IOTA_MAINNET_IOTA_MAINNET_NETWORK",
+        "prev_hash": "65cf37759c94accebf1d7344a9d5a5bcafef3b5198772fff8b63ed7458ee155d5735e2e7d9eb6f09c7517115038dc72b15d5ed997a55bf7b59ccef708636c394"
       }
     },
     {
       "label": "PUBLIC_CHAIN",
       "properties": {
-        "timestamp": "2020-04-16T22:09:25.614Z",
-        "hash": "0x229d8e167a45efe8a552fff884ca2ca540d331dbd51a427107d8ac12f184dc25",
-        "public_chain": "ETHEREUM_TESTNET_RINKEBY_TESTNET_NETWORK",
-        "prev_hash": "ca6d36581d1265d38d7cb69a6a410aefb5142cbd31c3004cb7bbe6ec83457d9c683eb0a2e498083699e9e6dc233356be0df6f9fb2e1810d65e71b1bd155b3580",
-        "type": "PUBLIC_CHAIN"
+        "timestamp": "2022-10-31T07:47:03.100Z",
+        "hash": "0xe87fdf636a781638ff6e1be573172699986f82ea2f8d06595f39a39e433c420b",
+        "public_chain": "ETHEREUM-CLASSIC_MAINNET_ETHERERUM_CLASSIC_MAINNET_NETWORK",
+        "prev_hash": "3f2129956066cdb62f690bb080d7c2c029d64a657db88ec3b043f0b9472400f946f9d28c4af49c6005424f33dc1349140df9a2020fa470c58c955d80dac297e5"
       }
     }
   ]
