@@ -139,6 +139,22 @@ func TestInitHTTPServer(t *testing.T) {
 			},
 		},
 		{
+			name:               "identity registration - bad auth",
+			enableRegistration: true,
+			request: func() *http.Request {
+				payload := []byte("{\"uuid\": \"5133fbdd-978d-4f95-9af9-41abdef2f2b4\", \"password\": \"1234\"}")
+				request := httptest.NewRequest(http.MethodPut, "/register", bytes.NewReader(payload))
+				request.Header.Add(XAuthHeader, "wrong_pw")
+				request.Header.Add("Content-Type", JSONType)
+				return request
+			}(),
+			setExpectations: func(m *mock.Mock) {},
+			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
+				assert.Equal(t, http.StatusUnauthorized, w.Code)
+				assert.Contains(t, w.Body.String(), "Unauthorized")
+			},
+		},
+		{
 			name:               "identity registration",
 			enableRegistration: true,
 			request: func() *http.Request {
@@ -171,6 +187,20 @@ func TestInitHTTPServer(t *testing.T) {
 				m.AssertNotCalled(t, "getCSR", uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4"))
 				assert.Equal(t, http.StatusNotFound, w.Code)
 				assert.Contains(t, w.Body.String(), "not found")
+			},
+		},
+		{
+			name:              "CSR creation - bad auth",
+			enableCSRCreation: true,
+			request: func() *http.Request {
+				request := httptest.NewRequest(http.MethodGet, "/5133fbdd-978d-4f95-9af9-41abdef2f2b4/csr", nil)
+				request.Header.Add(XAuthHeader, "wrong_pw")
+				return request
+			}(),
+			setExpectations: func(m *mock.Mock) {},
+			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
+				assert.Equal(t, http.StatusUnauthorized, w.Code)
+				assert.Contains(t, w.Body.String(), "Unauthorized")
 			},
 		},
 		{
@@ -209,6 +239,22 @@ func TestInitHTTPServer(t *testing.T) {
 			},
 		},
 		{
+			name:               "deactivation - bad auth",
+			enableDeactivation: true,
+			request: func() *http.Request {
+				payload := []byte("{\"id\": \"5133fbdd-978d-4f95-9af9-41abdef2f2b4\", \"active\": false}")
+				request := httptest.NewRequest(http.MethodPut, "/device/updateActive", bytes.NewReader(payload))
+				request.Header.Add(XAuthHeader, "wrong_pw")
+				request.Header.Add("Content-Type", JSONType)
+				return request
+			}(),
+			setExpectations: func(m *mock.Mock) {},
+			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
+				assert.Equal(t, http.StatusUnauthorized, w.Code)
+				assert.Contains(t, w.Body.String(), "Unauthorized")
+			},
+		},
+		{
 			name:               "deactivation",
 			enableDeactivation: true,
 			request: func() *http.Request {
@@ -244,6 +290,46 @@ func TestInitHTTPServer(t *testing.T) {
 				m.AssertExpectations(t)
 				assert.Equal(t, http.StatusOK, w.Code)
 				assert.Contains(t, w.Body.String(), "key reactivation successful")
+			},
+		},
+		{
+			name: "chain - unknown UUID",
+			request: func() *http.Request {
+				payload := []byte("{\"c\": \"d\", \"a\": \"b\", \"e\": \"f\"}")
+				request := httptest.NewRequest(http.MethodPost, "/5133fbdd-978d-4f95-9af9-41abdef2f2b4", bytes.NewReader(payload))
+				request.Header.Add(XAuthHeader, testAuth)
+				request.Header.Add("Content-Type", JSONType)
+				return request
+			}(),
+			setExpectations: func(m *mock.Mock) {
+				// checkAuth(ctx context.Context, uid uuid.UUID, auth string) (ok, found bool, err error)
+				m.On("checkAuth", mock.AnythingOfType("*context.timerCtx"), uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4"), testAuth).
+					Return(true, false, nil)
+			},
+			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
+				m.AssertExpectations(t)
+				assert.Equal(t, http.StatusNotFound, w.Code)
+				assert.Equal(t, w.Body.String(), "unknown UUID\n")
+			},
+		},
+		{
+			name: "chain - bad auth",
+			request: func() *http.Request {
+				payload := []byte("{\"c\": \"d\", \"a\": \"b\", \"e\": \"f\"}")
+				request := httptest.NewRequest(http.MethodPost, "/5133fbdd-978d-4f95-9af9-41abdef2f2b4", bytes.NewReader(payload))
+				request.Header.Add(XAuthHeader, testAuth)
+				request.Header.Add("Content-Type", JSONType)
+				return request
+			}(),
+			setExpectations: func(m *mock.Mock) {
+				// checkAuth(ctx context.Context, uid uuid.UUID, auth string) (ok, found bool, err error)
+				m.On("checkAuth", mock.AnythingOfType("*context.timerCtx"), uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4"), testAuth).
+					Return(false, true, nil)
+			},
+			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
+				m.AssertExpectations(t)
+				assert.Equal(t, http.StatusUnauthorized, w.Code)
+				assert.Equal(t, w.Body.String(), "invalid auth token\n")
 			},
 		},
 		{
