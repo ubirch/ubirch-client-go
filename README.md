@@ -379,8 +379,8 @@ same private key that signed the anchoring request.
 
 #### UPP Offline Sealing
 
-The client supports offline hash sealing, where the created UPP is not sent to the UBIRCH backend, but only retrieved in
-the HTTP response content.
+The client supports offline hash sealing, where the created UPP is not sent to the UBIRCH backend, but only returned as
+part of the HTTP response content.
 
 - chained
 
