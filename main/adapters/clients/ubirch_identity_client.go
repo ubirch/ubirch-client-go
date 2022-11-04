@@ -92,7 +92,7 @@ func (c *IdentityServiceClient) IsKeyRegistered(id uuid.UUID, pubKey []byte) (bo
 }
 
 func (c *IdentityServiceClient) SubmitKeyRegistration(uid uuid.UUID, cert []byte) error {
-	log.Debugf("%s: registering public key at key service: %s", uid, cert)
+	log.Debugf("%s: registering public key at key service: %s, cert: %s", uid, c.KeyServiceURL, cert)
 
 	keyRegHeader := map[string]string{"content-type": "application/json"}
 
