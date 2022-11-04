@@ -84,13 +84,13 @@ func TestInitHTTPServer(t *testing.T) {
 		enableCSRCreation  bool
 		enableDeactivation bool
 		request            *http.Request
-		setExpectations    func(m *mock.Mock)
+		setMockBehavior    func(m *mock.Mock)
 		tcChecks           func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock)
 	}{
 		{
 			name:            "health check",
 			request:         httptest.NewRequest(http.MethodGet, "/healthz", nil),
-			setExpectations: func(m *mock.Mock) {},
+			setMockBehavior: func(m *mock.Mock) {},
 			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
 				assert.Equal(t, http.StatusOK, w.Code)
 				assert.Equal(t, serverID, w.Header().Get("Server"))
@@ -100,7 +100,7 @@ func TestInitHTTPServer(t *testing.T) {
 		{
 			name:            "readiness check",
 			request:         httptest.NewRequest(http.MethodGet, "/readyz", nil),
-			setExpectations: func(m *mock.Mock) {},
+			setMockBehavior: func(m *mock.Mock) {},
 			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
 				assert.Equal(t, http.StatusOK, w.Code)
 				assert.Equal(t, serverID, w.Header().Get("Server"))
@@ -110,7 +110,7 @@ func TestInitHTTPServer(t *testing.T) {
 		{
 			name:            "metrics",
 			request:         httptest.NewRequest(http.MethodGet, "/metrics", nil),
-			setExpectations: func(m *mock.Mock) {},
+			setMockBehavior: func(m *mock.Mock) {},
 			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
 				assert.Equal(t, http.StatusOK, w.Code)
 				// fixme
@@ -129,7 +129,7 @@ func TestInitHTTPServer(t *testing.T) {
 				request.Header.Add("Content-Type", JSONType)
 				return request
 			}(),
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("initialize", uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4"), "1234").Return([]byte("csr"), nil)
 			},
 			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
@@ -148,7 +148,7 @@ func TestInitHTTPServer(t *testing.T) {
 				request.Header.Add("Content-Type", JSONType)
 				return request
 			}(),
-			setExpectations: func(m *mock.Mock) {},
+			setMockBehavior: func(m *mock.Mock) {},
 			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
 				assert.Equal(t, http.StatusUnauthorized, w.Code)
 				assert.Contains(t, w.Body.String(), "Unauthorized")
@@ -164,7 +164,7 @@ func TestInitHTTPServer(t *testing.T) {
 				request.Header.Add("Content-Type", JSONType)
 				return request
 			}(),
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("initialize", uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4"), "1234").Return([]byte("csr"), nil)
 			},
 			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
@@ -180,7 +180,7 @@ func TestInitHTTPServer(t *testing.T) {
 				request.Header.Add(XAuthHeader, testAuth)
 				return request
 			}(),
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("getCSR", uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4")).Return([]byte("csr"), nil)
 			},
 			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
@@ -197,7 +197,7 @@ func TestInitHTTPServer(t *testing.T) {
 				request.Header.Add(XAuthHeader, "wrong_pw")
 				return request
 			}(),
-			setExpectations: func(m *mock.Mock) {},
+			setMockBehavior: func(m *mock.Mock) {},
 			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
 				assert.Equal(t, http.StatusUnauthorized, w.Code)
 				assert.Contains(t, w.Body.String(), "Unauthorized")
@@ -211,7 +211,7 @@ func TestInitHTTPServer(t *testing.T) {
 				request.Header.Add(XAuthHeader, testAuth)
 				return request
 			}(),
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("getCSR", uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4")).Return([]byte("csr"), nil)
 			},
 			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
@@ -229,7 +229,7 @@ func TestInitHTTPServer(t *testing.T) {
 				request.Header.Add("Content-Type", JSONType)
 				return request
 			}(),
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("deactivate", uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4")).Return(nil)
 			},
 			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
@@ -248,7 +248,7 @@ func TestInitHTTPServer(t *testing.T) {
 				request.Header.Add("Content-Type", JSONType)
 				return request
 			}(),
-			setExpectations: func(m *mock.Mock) {},
+			setMockBehavior: func(m *mock.Mock) {},
 			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
 				assert.Equal(t, http.StatusUnauthorized, w.Code)
 				assert.Contains(t, w.Body.String(), "Unauthorized")
@@ -264,7 +264,7 @@ func TestInitHTTPServer(t *testing.T) {
 				request.Header.Add("Content-Type", JSONType)
 				return request
 			}(),
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("deactivate", uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4")).Return(nil)
 			},
 			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
@@ -283,7 +283,7 @@ func TestInitHTTPServer(t *testing.T) {
 				request.Header.Add("Content-Type", JSONType)
 				return request
 			}(),
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("reactivate", uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4")).Return(nil)
 			},
 			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
@@ -301,7 +301,7 @@ func TestInitHTTPServer(t *testing.T) {
 				request.Header.Add("Content-Type", JSONType)
 				return request
 			}(),
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				// checkAuth(ctx context.Context, uid uuid.UUID, auth string) (ok, found bool, err error)
 				m.On("checkAuth", mock.AnythingOfType("*context.timerCtx"), uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4"), testAuth).
 					Return(true, false, nil)
@@ -321,7 +321,7 @@ func TestInitHTTPServer(t *testing.T) {
 				request.Header.Add("Content-Type", JSONType)
 				return request
 			}(),
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				// checkAuth(ctx context.Context, uid uuid.UUID, auth string) (ok, found bool, err error)
 				m.On("checkAuth", mock.AnythingOfType("*context.timerCtx"), uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4"), testAuth).
 					Return(false, true, nil)
@@ -341,7 +341,7 @@ func TestInitHTTPServer(t *testing.T) {
 				request.Header.Add("Content-Type", JSONType)
 				return request
 			}(),
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				// checkAuth(ctx context.Context, uid uuid.UUID, auth string) (ok, found bool, err error)
 				m.On("checkAuth", mock.AnythingOfType("*context.timerCtx"), uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4"), testAuth).Return(true, true, nil)
 				m.On("sign",
@@ -375,7 +375,7 @@ func TestInitHTTPServer(t *testing.T) {
 				request.Header.Add("Content-Type", "text/plain")
 				return request
 			}(),
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("checkAuth", mock.AnythingOfType("*context.timerCtx"), uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4"), testAuth).Return(true, true, nil)
 				m.On("sign",
 					mock.AnythingOfType("*context.timerCtx"),
@@ -406,7 +406,7 @@ func TestInitHTTPServer(t *testing.T) {
 				request.Header.Add("Content-Type", JSONType)
 				return request
 			}(),
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("checkAuth", mock.AnythingOfType("*context.timerCtx"), uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4"), testAuth).Return(true, true, nil)
 				m.On("sign",
 					mock.AnythingOfType("*context.timerCtx"),
@@ -437,7 +437,7 @@ func TestInitHTTPServer(t *testing.T) {
 				request.Header.Add("Content-Type", "text/plain")
 				return request
 			}(),
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("checkAuth", mock.AnythingOfType("*context.timerCtx"), uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4"), testAuth).Return(true, true, nil)
 				m.On("sign",
 					mock.AnythingOfType("*context.timerCtx"),
@@ -468,7 +468,7 @@ func TestInitHTTPServer(t *testing.T) {
 				request.Header.Add("Content-Type", JSONType)
 				return request
 			}(),
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("checkAuth", mock.AnythingOfType("*context.timerCtx"), uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4"), testAuth).Return(true, true, nil)
 				m.On("sign",
 					mock.AnythingOfType("*context.timerCtx"),
@@ -499,7 +499,7 @@ func TestInitHTTPServer(t *testing.T) {
 				request.Header.Add("Content-Type", "text/plain")
 				return request
 			}(),
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("checkAuth", mock.AnythingOfType("*context.timerCtx"), uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4"), testAuth).Return(true, true, nil)
 				m.On("sign",
 					mock.AnythingOfType("*context.timerCtx"),
@@ -530,7 +530,7 @@ func TestInitHTTPServer(t *testing.T) {
 				request.Header.Add("Content-Type", JSONType)
 				return request
 			}(),
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("checkAuth", mock.AnythingOfType("*context.timerCtx"), uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4"), testAuth).Return(true, true, nil)
 				m.On("sign",
 					mock.AnythingOfType("*context.timerCtx"),
@@ -561,7 +561,7 @@ func TestInitHTTPServer(t *testing.T) {
 				request.Header.Add("Content-Type", "text/plain")
 				return request
 			}(),
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("checkAuth", mock.AnythingOfType("*context.timerCtx"), uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4"), testAuth).Return(true, true, nil)
 				m.On("sign",
 					mock.AnythingOfType("*context.timerCtx"),
@@ -592,7 +592,7 @@ func TestInitHTTPServer(t *testing.T) {
 				request.Header.Add("Content-Type", JSONType)
 				return request
 			}(),
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("checkAuth", mock.AnythingOfType("*context.timerCtx"), uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4"), testAuth).Return(true, true, nil)
 				m.On("sign",
 					mock.AnythingOfType("*context.timerCtx"),
@@ -623,7 +623,7 @@ func TestInitHTTPServer(t *testing.T) {
 				request.Header.Add("Content-Type", "text/plain")
 				return request
 			}(),
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("checkAuth", mock.AnythingOfType("*context.timerCtx"), uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4"), testAuth).Return(true, true, nil)
 				m.On("sign",
 					mock.AnythingOfType("*context.timerCtx"),
@@ -654,7 +654,7 @@ func TestInitHTTPServer(t *testing.T) {
 				request.Header.Add("Content-Type", JSONType)
 				return request
 			}(),
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("checkAuth", mock.AnythingOfType("*context.timerCtx"), uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4"), testAuth).Return(true, true, nil)
 				m.On("sign",
 					mock.AnythingOfType("*context.timerCtx"),
@@ -685,7 +685,7 @@ func TestInitHTTPServer(t *testing.T) {
 				request.Header.Add("Content-Type", "text/plain")
 				return request
 			}(),
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("checkAuth", mock.AnythingOfType("*context.timerCtx"), uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4"), testAuth).Return(true, true, nil)
 				m.On("sign",
 					mock.AnythingOfType("*context.timerCtx"),
@@ -716,7 +716,7 @@ func TestInitHTTPServer(t *testing.T) {
 				request.Header.Add("Content-Type", JSONType)
 				return request
 			}(),
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("checkAuth", mock.AnythingOfType("*context.timerCtx"), uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4"), testAuth).Return(true, true, nil)
 				m.On("sign",
 					mock.AnythingOfType("*context.timerCtx"),
@@ -747,7 +747,7 @@ func TestInitHTTPServer(t *testing.T) {
 				request.Header.Add("Content-Type", "text/plain")
 				return request
 			}(),
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("checkAuth", mock.AnythingOfType("*context.timerCtx"), uuid.MustParse("5133fbdd-978d-4f95-9af9-41abdef2f2b4"), testAuth).Return(true, true, nil)
 				m.On("sign",
 					mock.AnythingOfType("*context.timerCtx"),
@@ -777,7 +777,7 @@ func TestInitHTTPServer(t *testing.T) {
 				request.Header.Add("Content-Type", JSONType)
 				return request
 			}(),
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("verify",
 					mock.AnythingOfType("*context.timerCtx"),
 					[]byte{0x80, 0xc9, 0x83, 0xc2, 0xfa, 0x61, 0x75, 0x1b, 0x2f, 0x78, 0x42, 0xa3, 0xa3, 0x39, 0x34, 0xfc, 0xbe, 0xd1, 0xc4, 0x3a, 0xa2, 0x5c, 0xa3, 0xb6, 0x39, 0x5c, 0x12, 0xf5, 0x53, 0xe2, 0xf0, 0x5e},
@@ -802,7 +802,7 @@ func TestInitHTTPServer(t *testing.T) {
 				request.Header.Add("Content-Type", "text/plain")
 				return request
 			}(),
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("verify",
 					mock.AnythingOfType("*context.timerCtx"),
 					[]byte{0x80, 0xc9, 0x83, 0xc2, 0xfa, 0x61, 0x75, 0x1b, 0x2f, 0x78, 0x42, 0xa3, 0xa3, 0x39, 0x34, 0xfc, 0xbe, 0xd1, 0xc4, 0x3a, 0xa2, 0x5c, 0xa3, 0xb6, 0x39, 0x5c, 0x12, 0xf5, 0x53, 0xe2, 0xf0, 0x5e},
@@ -828,7 +828,7 @@ func TestInitHTTPServer(t *testing.T) {
 				request.Header.Add(XUPPHeader, "lSLEEO+ddLjS0Ujco3KcgNmjOnMAxEBoSogWBWsuKckx353EPQNVuZfbpr/pzcThZgawbVxuD0ljiKjtkHr2eo00rrndBhMTdz2kezf9e0OvxwGzh9K2xEBTra3qLFPlhEvG1Uj2yHZoyDsn4zlLRqtYkq54/NhizZpzobb+4NJds1Kxw++4BASfsXuGJsr8RrRhokICg+Um")
 				return request
 			}(),
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("verifyOffline",
 					[]byte{0x95, 0x22, 0xc4, 0x10, 0xef, 0x9d, 0x74, 0xb8, 0xd2, 0xd1, 0x48, 0xdc, 0xa3, 0x72, 0x9c, 0x80, 0xd9, 0xa3, 0x3a, 0x73, 0x0, 0xc4, 0x40, 0x68, 0x4a, 0x88, 0x16, 0x5, 0x6b, 0x2e, 0x29, 0xc9, 0x31, 0xdf, 0x9d, 0xc4, 0x3d, 0x3, 0x55, 0xb9, 0x97, 0xdb, 0xa6, 0xbf, 0xe9, 0xcd, 0xc4, 0xe1, 0x66, 0x6, 0xb0, 0x6d, 0x5c, 0x6e, 0xf, 0x49, 0x63, 0x88, 0xa8, 0xed, 0x90, 0x7a, 0xf6, 0x7a, 0x8d, 0x34, 0xae, 0xb9, 0xdd, 0x6, 0x13, 0x13, 0x77, 0x3d, 0xa4, 0x7b, 0x37, 0xfd, 0x7b, 0x43, 0xaf, 0xc7, 0x1, 0xb3, 0x87, 0xd2, 0xb6, 0xc4, 0x40, 0x53, 0xad, 0xad, 0xea, 0x2c, 0x53, 0xe5, 0x84, 0x4b, 0xc6, 0xd5, 0x48, 0xf6, 0xc8, 0x76, 0x68, 0xc8, 0x3b, 0x27, 0xe3, 0x39, 0x4b, 0x46, 0xab, 0x58, 0x92, 0xae, 0x78, 0xfc, 0xd8, 0x62, 0xcd, 0x9a, 0x73, 0xa1, 0xb6, 0xfe, 0xe0, 0xd2, 0x5d, 0xb3, 0x52, 0xb1, 0xc3, 0xef, 0xb8, 0x4, 0x4, 0x9f, 0xb1, 0x7b, 0x86, 0x26, 0xca, 0xfc, 0x46, 0xb4, 0x61, 0xa2, 0x42, 0x2, 0x83, 0xe5, 0x26},
 					[]byte{0x80, 0xc9, 0x83, 0xc2, 0xfa, 0x61, 0x75, 0x1b, 0x2f, 0x78, 0x42, 0xa3, 0xa3, 0x39, 0x34, 0xfc, 0xbe, 0xd1, 0xc4, 0x3a, 0xa2, 0x5c, 0xa3, 0xb6, 0x39, 0x5c, 0x12, 0xf5, 0x53, 0xe2, 0xf0, 0x5e},
@@ -854,7 +854,7 @@ func TestInitHTTPServer(t *testing.T) {
 				request.Header.Add(XUPPHeader, "lSLEEO+ddLjS0Ujco3KcgNmjOnMAxEBoSogWBWsuKckx353EPQNVuZfbpr/pzcThZgawbVxuD0ljiKjtkHr2eo00rrndBhMTdz2kezf9e0OvxwGzh9K2xEBTra3qLFPlhEvG1Uj2yHZoyDsn4zlLRqtYkq54/NhizZpzobb+4NJds1Kxw++4BASfsXuGJsr8RrRhokICg+Um")
 				return request
 			}(),
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("verifyOffline",
 					[]byte{0x95, 0x22, 0xc4, 0x10, 0xef, 0x9d, 0x74, 0xb8, 0xd2, 0xd1, 0x48, 0xdc, 0xa3, 0x72, 0x9c, 0x80, 0xd9, 0xa3, 0x3a, 0x73, 0x0, 0xc4, 0x40, 0x68, 0x4a, 0x88, 0x16, 0x5, 0x6b, 0x2e, 0x29, 0xc9, 0x31, 0xdf, 0x9d, 0xc4, 0x3d, 0x3, 0x55, 0xb9, 0x97, 0xdb, 0xa6, 0xbf, 0xe9, 0xcd, 0xc4, 0xe1, 0x66, 0x6, 0xb0, 0x6d, 0x5c, 0x6e, 0xf, 0x49, 0x63, 0x88, 0xa8, 0xed, 0x90, 0x7a, 0xf6, 0x7a, 0x8d, 0x34, 0xae, 0xb9, 0xdd, 0x6, 0x13, 0x13, 0x77, 0x3d, 0xa4, 0x7b, 0x37, 0xfd, 0x7b, 0x43, 0xaf, 0xc7, 0x1, 0xb3, 0x87, 0xd2, 0xb6, 0xc4, 0x40, 0x53, 0xad, 0xad, 0xea, 0x2c, 0x53, 0xe5, 0x84, 0x4b, 0xc6, 0xd5, 0x48, 0xf6, 0xc8, 0x76, 0x68, 0xc8, 0x3b, 0x27, 0xe3, 0x39, 0x4b, 0x46, 0xab, 0x58, 0x92, 0xae, 0x78, 0xfc, 0xd8, 0x62, 0xcd, 0x9a, 0x73, 0xa1, 0xb6, 0xfe, 0xe0, 0xd2, 0x5d, 0xb3, 0x52, 0xb1, 0xc3, 0xef, 0xb8, 0x4, 0x4, 0x9f, 0xb1, 0x7b, 0x86, 0x26, 0xca, 0xfc, 0x46, 0xb4, 0x61, 0xa2, 0x42, 0x2, 0x83, 0xe5, 0x26},
 					[]byte{0x80, 0xc9, 0x83, 0xc2, 0xfa, 0x61, 0x75, 0x1b, 0x2f, 0x78, 0x42, 0xa3, 0xa3, 0x39, 0x34, 0xfc, 0xbe, 0xd1, 0xc4, 0x3a, 0xa2, 0x5c, 0xa3, 0xb6, 0x39, 0x5c, 0x12, 0xf5, 0x53, 0xe2, 0xf0, 0x5e},
@@ -876,7 +876,7 @@ func TestInitHTTPServer(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			m := &mock.Mock{}
 			m.Test(t)
-			c.setExpectations(m)
+			c.setMockBehavior(m)
 
 			conf := &config.Config{
 				StaticAuth:                 testAuth,

@@ -56,12 +56,12 @@ func TestVerifier_Verify(t *testing.T) {
 	testCases := []struct {
 		name                          string
 		VerifyFromKnownIdentitiesOnly bool
-		setExpectations               func(m *mock.Mock)
+		setMockBehavior               func(m *mock.Mock)
 		tcChecks                      func(t *testing.T, resp h.HTTPResponse, m *mock.Mock)
 	}{
 		{
 			name: "verification success",
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("RequestHash", base64.StdEncoding.EncodeToString(testHash[:])).
 					Return(h.HTTPResponse{
 						StatusCode: http.StatusOK,
@@ -79,7 +79,7 @@ func TestVerifier_Verify(t *testing.T) {
 		},
 		{
 			name: "load public key",
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("RequestHash", base64.StdEncoding.EncodeToString(testHash[:])).
 					Return(h.HTTPResponse{
 						StatusCode: http.StatusOK,
@@ -100,7 +100,7 @@ func TestVerifier_Verify(t *testing.T) {
 		},
 		{
 			name: "not found",
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("RequestHash", base64.StdEncoding.EncodeToString(testHash[:])).
 					Return(h.HTTPResponse{StatusCode: http.StatusNotFound}, nil)
 			},
@@ -112,7 +112,7 @@ func TestVerifier_Verify(t *testing.T) {
 		{
 			name:                          "UPP from unknown identity",
 			VerifyFromKnownIdentitiesOnly: true,
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("RequestHash", base64.StdEncoding.EncodeToString(testHash[:])).
 					Return(h.HTTPResponse{
 						StatusCode: http.StatusOK,
@@ -128,7 +128,7 @@ func TestVerifier_Verify(t *testing.T) {
 		},
 		{
 			name: "internal server error",
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("RequestHash", base64.StdEncoding.EncodeToString(testHash[:])).
 					Return(h.HTTPResponse{
 						StatusCode: http.StatusOK,
@@ -144,7 +144,7 @@ func TestVerifier_Verify(t *testing.T) {
 		},
 		{
 			name: "invalid signature",
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("RequestHash", base64.StdEncoding.EncodeToString(testHash[:])).
 					Return(h.HTTPResponse{
 						StatusCode: http.StatusOK,
@@ -165,7 +165,7 @@ func TestVerifier_Verify(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			m := &mock.Mock{}
 			m.Test(t)
-			c.setExpectations(m)
+			c.setMockBehavior(m)
 
 			v := Verifier{
 				VerifierProtocol:              &mockProto{mock: m},
@@ -187,13 +187,13 @@ func TestVerifier_VerifyOffline(t *testing.T) {
 	testCases := []struct {
 		name            string
 		upp             []byte
-		setExpectations func(m *mock.Mock)
+		setMockBehavior func(m *mock.Mock)
 		tcChecks        func(t *testing.T, resp h.HTTPResponse, m *mock.Mock)
 	}{
 		{
 			name: "verification success",
 			upp:  testVerificationUPP,
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("LoadPublicKey", testUuid).Return(testPublicKeyPEM, nil)
 				m.On("PublicKeyPEMToBytes", testPublicKeyPEM).Return(testPublicKey, nil)
 				m.On("Verify", testUuid, testVerificationUPP).Return(true, nil)
@@ -206,7 +206,7 @@ func TestVerifier_VerifyOffline(t *testing.T) {
 		{
 			name: "UPP from unknown identity",
 			upp:  testVerificationUPP,
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("LoadPublicKey", testUuid).Return([]byte{}, r.ErrNotExist)
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
@@ -217,7 +217,7 @@ func TestVerifier_VerifyOffline(t *testing.T) {
 		{
 			name:            "invalid UPP",
 			upp:             testVerificationUPP[1:],
-			setExpectations: func(m *mock.Mock) {},
+			setMockBehavior: func(m *mock.Mock) {},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
 				m.AssertExpectations(t)
 				assert.Equal(t, getVerificationResponse(http.StatusBadRequest, testHash[:], testVerificationUPP[1:], uuid.Nil, nil, ErrInvalidUPP.Error()), resp)
@@ -226,7 +226,7 @@ func TestVerifier_VerifyOffline(t *testing.T) {
 		{
 			name: "internal server error",
 			upp:  testVerificationUPP,
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("LoadPublicKey", testUuid).Return(testPublicKeyPEM, nil)
 				m.On("PublicKeyPEMToBytes", testPublicKeyPEM).Return(testPublicKey, nil)
 				m.On("Verify", testUuid, testVerificationUPP).Return(false, fmt.Errorf("some error"))
@@ -239,7 +239,7 @@ func TestVerifier_VerifyOffline(t *testing.T) {
 		{
 			name: "invalid signature",
 			upp:  testVerificationUPP,
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("LoadPublicKey", testUuid).Return(testPublicKeyPEM, nil)
 				m.On("PublicKeyPEMToBytes", testPublicKeyPEM).Return(testPublicKey, nil)
 				m.On("Verify", testUuid, testVerificationUPP).Return(false, nil)
@@ -252,7 +252,7 @@ func TestVerifier_VerifyOffline(t *testing.T) {
 		{
 			name: "hash mismatch",
 			upp:  testSignedUPP,
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("LoadPublicKey", testUuid).Return(testPublicKeyPEM, nil)
 				m.On("PublicKeyPEMToBytes", testPublicKeyPEM).Return(testPublicKey, nil)
 				m.On("Verify", testUuid, testSignedUPP).Return(true, nil)
@@ -267,7 +267,7 @@ func TestVerifier_VerifyOffline(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			m := &mock.Mock{}
 			m.Test(t)
-			c.setExpectations(m)
+			c.setMockBehavior(m)
 
 			v := Verifier{
 				VerifierProtocol: &mockProto{mock: m},
