@@ -70,7 +70,7 @@ func TestSigner_Sign(t *testing.T) {
 	testCases := []struct {
 		name            string
 		msg             h.HTTPRequest
-		setExpectations func(m *mock.Mock)
+		setMockBehavior func(m *mock.Mock)
 		tcChecks        func(t *testing.T, resp h.HTTPResponse, m *mock.Mock)
 	}{
 		{
@@ -83,7 +83,7 @@ func TestSigner_Sign(t *testing.T) {
 				Operation: h.ChainHash,
 				Offline:   false,
 			},
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("LoadActiveFlag", testUuid).Return(true, nil)
 				m.On("StartTransaction", mock.AnythingOfType("*context.emptyCtx")).Return(&mockTx{}, nil)
 				m.On("LoadSignatureForUpdate", &mockTx{}, testUuid).Return(testSignature, nil)
@@ -114,7 +114,7 @@ func TestSigner_Sign(t *testing.T) {
 				Operation: h.ChainHash,
 				Offline:   true,
 			},
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("LoadActiveFlag", testUuid).Return(true, nil)
 				m.On("StartTransaction", mock.AnythingOfType("*context.emptyCtx")).Return(&mockTx{}, nil)
 				m.On("LoadSignatureForUpdate", &mockTx{}, testUuid).Return(testSignature, nil)
@@ -144,7 +144,7 @@ func TestSigner_Sign(t *testing.T) {
 				Operation: h.AnchorHash,
 				Offline:   false,
 			},
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("LoadActiveFlag", testUuid).Return(true, nil)
 				m.On("Sign", &ubirch.SignedUPP{
 					Version: ubirch.Signed,
@@ -170,7 +170,7 @@ func TestSigner_Sign(t *testing.T) {
 				Operation: h.AnchorHash,
 				Offline:   true,
 			},
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("LoadActiveFlag", testUuid).Return(true, nil)
 				m.On("Sign", &ubirch.SignedUPP{
 					Version: ubirch.Signed,
@@ -194,7 +194,7 @@ func TestSigner_Sign(t *testing.T) {
 				Hash:      testHash,
 				Operation: h.DisableHash,
 			},
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("LoadActiveFlag", testUuid).Return(true, nil)
 				m.On("Sign", &ubirch.SignedUPP{
 					Version: ubirch.Signed,
@@ -219,7 +219,7 @@ func TestSigner_Sign(t *testing.T) {
 				Hash:      testHash,
 				Operation: h.EnableHash,
 			},
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("LoadActiveFlag", testUuid).Return(true, nil)
 				m.On("Sign", &ubirch.SignedUPP{
 					Version: ubirch.Signed,
@@ -244,7 +244,7 @@ func TestSigner_Sign(t *testing.T) {
 				Hash:      testHash,
 				Operation: h.DeleteHash,
 			},
-			setExpectations: func(m *mock.Mock) {
+			setMockBehavior: func(m *mock.Mock) {
 				m.On("LoadActiveFlag", testUuid).Return(true, nil)
 				m.On("Sign", &ubirch.SignedUPP{
 					Version: ubirch.Signed,
@@ -265,7 +265,7 @@ func TestSigner_Sign(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			m := &mock.Mock{}
 			m.Test(t)
-			c.setExpectations(m)
+			c.setMockBehavior(m)
 
 			s := Signer{
 				SignerProtocol:    &mockProto{mock: m},
