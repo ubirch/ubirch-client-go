@@ -101,7 +101,7 @@ func InitHTTPServer(conf *config.Config,
 	// chain offline:      /<uuid>/offline
 	// chain offline hash: /<uuid>/offline/hash
 	httpServer.AddServiceEndpoint(UUIDPath,
-		signingService.HandleRequest(ChainHash),
+		signingService.HandleSigningRequest(ChainHash),
 		true,
 	)
 
@@ -110,28 +110,28 @@ func InitHTTPServer(conf *config.Config,
 	// sign offline:      /<uuid>/anchor/offline
 	// sign offline hash: /<uuid>/anchor/offline/hash
 	httpServer.AddServiceEndpoint(path.Join(UUIDPath, string(AnchorHash)),
-		signingService.HandleRequest(AnchorHash),
+		signingService.HandleSigningRequest(AnchorHash),
 		true,
 	)
 
 	// disable:      /<uuid>/disable
 	// disable hash: /<uuid>/disable/hash
 	httpServer.AddServiceEndpoint(path.Join(UUIDPath, string(DisableHash)),
-		signingService.HandleRequest(DisableHash),
+		signingService.HandleSigningRequest(DisableHash),
 		false,
 	)
 
 	// enable:      /<uuid>/enable
 	// enable hash: /<uuid>/enable/hash
 	httpServer.AddServiceEndpoint(path.Join(UUIDPath, string(EnableHash)),
-		signingService.HandleRequest(EnableHash),
+		signingService.HandleSigningRequest(EnableHash),
 		false,
 	)
 
 	// delete:      /<uuid>/delete
 	// delete hash: /<uuid>/delete/hash
 	httpServer.AddServiceEndpoint(path.Join(UUIDPath, string(DeleteHash)),
-		signingService.HandleRequest(DeleteHash),
+		signingService.HandleSigningRequest(DeleteHash),
 		false,
 	)
 
