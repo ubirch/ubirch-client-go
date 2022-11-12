@@ -146,7 +146,7 @@ func InitHTTPServer(conf *config.Config,
 	// verify offline:      /verify/offline
 	// verify offline hash: /verify/offline/hash
 	httpServer.AddServiceEndpoint(VerifyPath,
-		verificationService.HandleRequest,
+		verificationService.HandleVerificationRequest,
 		true,
 	)
 

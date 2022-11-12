@@ -17,7 +17,14 @@ type VerificationService struct {
 	VerifyOffline
 }
 
-func (s *VerificationService) HandleRequest(offline, isHashRequest bool) http.HandlerFunc {
+// HandleVerificationRequest unpacks an incoming HTTP request and calls either Verify or VerifyOffline depending
+// on the endpoint the request was received at.
+//
+// There are online and offline verification endpoints, as well as endpoints for direct hash injection and JSON
+// data packages. For that reason, the function is nested in a way that it can be passed to the AddServiceEndpoint
+// function with the following signature:
+// func (srv *HTTPServer) AddServiceEndpoint(endpointPath string, handle func(offline bool, isHash bool) http.HandlerFunc, supportOffline bool)
+func (s *VerificationService) HandleVerificationRequest(offline, isHashRequest bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
