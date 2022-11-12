@@ -69,10 +69,9 @@ The configuration can be set via a configuration file (`config.json`) or environ
 
 There are three mandatory configurations:
 
-1. a DSN to connect to a postgreSQL database, where the protocol context (i.e. keys, previous signatures, auth
-   tokens) can be stored
-2. a 32 byte base64 encoded secret, which will be used to encrypt the signing keys
-3. a static authentication token to protect the registration endpoint
+1. the desired database driver and DSN (see [Context Management](#Context-Management))
+2. a 32 byte base64 encoded secret, which will be used to encrypt the signing keys in the database
+3. a static token which will be used for authentication against some endpoints
 
 > You can generate a random 32 byte base64 encoded secret in a Linux/macOS terminal
 > with `head -c 32 /dev/urandom | base64`
@@ -80,7 +79,7 @@ There are three mandatory configurations:
 At start-up, the client will first check if the `UBIRCH_SECRET32` environment variable exists and, if it does exist,
 load the configuration from the environment variables. If the `UBIRCH_SECRET32` environment variable is not set or
 empty, the client will try to load the `config.json`-file from the working directory. If neither exist, the client will
-abort and exit.
+abort and exit with status `1`.
 
 ### File Based Configuration
 
@@ -88,9 +87,8 @@ abort and exit.
 
 ```json
 {
-  "postgresDSN": "postgres://<username>:<password>@<hostname>:5432/<database>",
   "secret32": "<32 byte secret (base64 encoded)>",
-  "registerAuth": "<static auth token for register endpoint>"
+  "registerAuth": "<static auth token>"
 }
 ```
 
@@ -98,10 +96,9 @@ abort and exit.
 
 ### Environment Based Configuration
 
-```shell
-UBIRCH_POSTGRES_DSN=postgres://<username>:<password>@<hostname>:5432/<database>
+```console
 UBIRCH_SECRET32=<32 byte secret (base64 encoded)>
-UBIRCH_REGISTERAUTH=<static auth token for register endpoint>
+UBIRCH_REGISTERAUTH=<static auth token>
 ```
 
 > See [example.env](main/config/example.env) as an example for environment-based configuration.
@@ -109,20 +106,76 @@ UBIRCH_REGISTERAUTH=<static auth token for register endpoint>
 All further configuration parameters have default values, that can be changed as described
 under [Optional Configurations](#optional-configurations).
 
-## Identity Initialization
+## Context Management
+
+The identity context is stored persistently in a database. The user can choose between connecting to a postgres database
+or using the local file system, i.e. SQLite.
+
+- `config.json`:
+    ```json
+      "dbDriver": "<postgres | sqlite>",
+    ```
+- or environment variable:
+    ```console
+    UBIRCH_DB_DRIVER=<postgres | sqlite>
+    ```
+
+### PostgreSQL
+
+In order to connect the client to a postgres database, the DSN must be set in the configuration.
+
+- add the following key-value pair to your `config.json`:
+    ```json
+      "dbDSN": "postgres://<username>:<password>@<hostname>:5432/<database>",
+    ```
+- or set the following environment variable:
+    ```console
+    UBIRCH_DB_DSN=postgres://<username>:<password>@<hostname>:5432/<database>
+    ```
+
+The maximum number of open connections to the database can be limited with `dbMaxConns` (json)
+or `UBIRCH_DB_MAX_CONNS` (env). The default is `0` (unlimited).
+
+### SQLite
+
+If the driver is set to `sqlite`, the client will by default create a SQLite database file `sqlite.db` in the mounted
+volume upon first startup.
+
+Alternatively, a custom path (relative to the mounted volume) and filename can be set in the configuration.
+It is also possible to overwrite the default SQLite database configuration by appending a `?` followed by a query string
+to the filename. For more information about this, see https://pkg.go.dev/modernc.org/sqlite#Driver.Open
+
+- `config.json`:
+    ```json
+      "dbDSN": "path/to/sqlite.db",
+    ```
+- or environment variable:
+    ```console
+    UBIRCH_DB_DSN=path/to/sqlite.db
+    ```
+
+The use of a SQLite database is appropriate in case the application is running on a system with limited space, like
+embedded devices, and only one or very few identities need to be managed.
+
+When compared to postgreSQL, a drawback of SQLite is the performance while handling a high load of chaining
+requests for multiple identities at the same time.
+
+## Identity Registration / Initialization
 
 The UBIRCH client is able to handle multiple cryptographic identities.
 An identity has a universally unique identifier (UUID), private and public key, and an auth token.
-Before signing requests can be processed, an identity has to be initialized.
+Before signing requests can be processed, a UUID with its auth token has to be registered at the UBIRCH client.
 
-The initialization consists of three parts:
+Registering a new UUID triggers an identity initialization, which consists of three parts:
 
-- key generation (ECDSA)
+- key pair generation (ECDSA)
 - public key registration at the UBIRCH backend
-- storing of the context in the database
+- storing of the identity context in the database
 
-The initialization can be triggered via [HTTP request](#identity-registration)
-or [configuration](#identity-initialization-via-configuration).
+Identities can be registered at the UBIRCH client in two ways:
+
+1. via [configuration](#identity-initialization-via-configuration)
+2. via [HTTP request](#identity-registration)
 
 Either way, the first step is to register the identity's UUID with the UBIRCH backend
 and acquire an authentication token.
@@ -150,12 +203,15 @@ their authentication token.
     }
   ```
 - or as environment variable:
-    ```shell
+    ```console
     UBIRCH_DEVICES=<UUID>:<ubirch backend auth token>,<another UUID>:<another ubirch backend auth token>
     ```
 
 Alternatively, the device UUIDs and their corresponding authentication tokens can also be set through a file
 `identities.json`. See example: [example_identities.json](main/config/example_identities.json)
+
+Once the identities have been initialized successfully, their UUIDs and auth tokens are persistently stored in the
+connected database and can be removed from the configuration.
 
 ## Run Client in Docker container
 
@@ -163,13 +219,13 @@ To get the latest multi-architecture image, check
 the [releases](https://github.com/ubirch/ubirch-client-go/releases/latest)
 and pull the latest release from Docker Hub using the release tag, e.g.:
 
-```console
+```shell
 docker pull ubirch/ubirch-client:v2.2.3
 ```
 
 To start the multi-arch Docker image on any system, run:
 
-```console
+```shell
 docker run -v $(pwd):/data --network host ubirch/ubirch-client:v2.2.3
 ```
 
@@ -179,7 +235,7 @@ variables), and the TLS certificate and key files (if TLS is enabled).
 
 It is also possible to pass an absolute path instead of `$(pwd)`.
 
-If the */data* path is not used for either configuration file, nor TLS cert files,
+If the */data* path is not used for either configuration file, SQLite DB, nor TLS cert files,
 the `-v $(pwd):/data` parameter can be omitted.
 
 ## Interface Description
@@ -327,7 +383,7 @@ for *Niomon* error codes.
 1. original data (JSON):
 
     - anchor hash (**chained**)
-        ```console
+        ```shell
         curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f \
           -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
           -H "Content-Type: application/json" \
@@ -335,7 +391,7 @@ for *Niomon* error codes.
           -i
       ```
     - anchor hash (**unchained**)
-        ```console
+        ```shell
         curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/anchor \
           -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
           -H "Content-Type: application/json" \
@@ -343,7 +399,7 @@ for *Niomon* error codes.
           -i
       ```
     - disable hash
-        ```console
+        ```shell
         curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/disable \
           -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
           -H "Content-Type: application/json" \
@@ -351,7 +407,7 @@ for *Niomon* error codes.
           -i
       ```
     - enable hash
-        ```console
+        ```shell
         curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/enable \
           -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
           -H "Content-Type: application/json" \
@@ -359,7 +415,7 @@ for *Niomon* error codes.
           -i
       ```
     - delete hash
-        ```console
+        ```shell
         curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/delete \
           -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
           -H "Content-Type: application/json" \
@@ -370,7 +426,7 @@ for *Niomon* error codes.
 1. direct data hash injection
 
     - anchor hash (**chained**)
-        ```console
+        ```shell
         curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/hash \
           -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
           -H "Content-Type: text/plain" \
@@ -378,7 +434,7 @@ for *Niomon* error codes.
           -i
       ```
     - anchor hash (**unchained**)
-        ```console
+        ```shell
         curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/anchor/hash \
           -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
           -H "Content-Type: text/plain" \
@@ -386,7 +442,7 @@ for *Niomon* error codes.
           -i
       ```
     - disable hash
-        ```console
+        ```shell
         curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/disable/hash \
           -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
           -H "Content-Type: text/plain" \
@@ -394,7 +450,7 @@ for *Niomon* error codes.
           -i
       ```
     - enable hash
-        ```console
+        ```shell
         curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/enable/hash \
           -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
           -H "Content-Type: text/plain" \
@@ -402,7 +458,7 @@ for *Niomon* error codes.
           -i
       ```
     - delete hash
-        ```console
+        ```shell
         curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/delete/hash \
           -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
           -H "Content-Type: text/plain" \
@@ -444,9 +500,9 @@ The response body consists of either an error message, or a JSON map with
 }
 ```
 
-### Key De-/Re-Activation
+### Key Deactivation
 
-A key can be de-activated ...
+A key can be deactivated. Signing requests for identities with deactivated key will fail with status code `400`.
 
     curl ${host}/device/updateActive -X PUT \
     -H "X-Auth-Token: ${registerAuth}" \
@@ -454,7 +510,9 @@ A key can be de-activated ...
     -d '{"id":${device_uuid},"active":false}' \
     -i
 
-... and re-activated .
+### Key Reactivation
+
+A deactivated key can be reactivated.
 
     curl ${host}/device/updateActive -X PUT \
     -H "X-Auth-Token: ${registerAuth}" \
@@ -479,7 +537,7 @@ http://localhost:8080
 Here is an example of a request to the client using `CURL`.
 
 - original data (JSON):
-  ```console
+  ```shell
   curl localhost:8080/<UUID> \
     -H "X-Auth-Token: <AUTH_TOKEN>" \
     -H "Content-Type: application/json" \
@@ -488,7 +546,7 @@ Here is an example of a request to the client using `CURL`.
   ```
 
 - direct data hash injection:
-  ```console
+  ```shell
   curl localhost:8080/<UUID>/hash \
     -H "X-Auth-Token: <AUTH_TOKEN>" \
     -H "Content-Type: text/plain" \
@@ -557,6 +615,29 @@ package!**
 
 ## Optional Configurations
 
+### SQLite DSN
+
+If no postgres DSN is set, the client defaults to the usage of a SQLite database with the following DSN
+
+```
+sqlite.db?_txlock=EXCLUSIVE&_pragma=journal_mode(WAL)&_pragma=synchronous(FULL)&_pragma=wal_autocheckpoint(4)&_pragma=wal_checkpoint(PASSIVE)&_pragma=journal_size_limit(32000)&_pragma=busy_timeout(100)
+```
+
+The default values can be overwritten by adding a custom SQLite DSN to the configuration.
+
+- json:
+    ```json
+      "sqliteDSN": "<database file name>[?<query string>]",
+    ```
+- env:
+    ```console
+    UBIRCH_SQLITE_DSN=<database file name>[?<query string>]
+    ```
+
+A query string can optionally be appended to the database file name. If no query string is appended, the defaults from
+above will be used. More information about the query string can be found in the documentation of the sqlite
+library: https://pkg.go.dev/modernc.org/sqlite#Driver.Open
+
 ### Set the UBIRCH backend environment
 
 The `env` configuration refers to the UBIRCH backend environment. The default value is `prod`, which is the production
@@ -574,25 +655,8 @@ To switch to the `demo` backend environment
       "env": "demo"
     ```
 - or set the following environment variable:
-    ```shell
+    ```console
     UBIRCH_ENV=demo
-    ```
-
-### Customize X.509 Certificate Signing Requests
-
-The client creates X.509 Certificate Signing Requests (*CSRs*) for the public keys of the devices it is managing. The *
-Common Name* of the CSR subject is the UUID associated with the public key. The values for the *Organization* and *
-Country* of the CSR subject can be set through the configuration.
-
-- add the following key-value pairs to your `config.json`:
-    ```json
-      "CSR_country": "<CSR Subject Country Name (2 letter code)>",
-      "CSR_organization": "<CSR Subject Organization Name (e.g. company)>"
-    ```
-- or set the following environment variables:
-    ```shell
-    UBIRCH_CSR_COUNTRY=<CSR Subject Country Name (2 letter code)>
-    UBIRCH_CSR_ORGANIZATION=<CSR Subject Organization Name (e.g. company)>
     ```
 
 ### Set TCP address
@@ -604,7 +668,7 @@ You can specify the TCP address for the server to listen on, in the form `host:p
       "TCP_addr": ":8080",
     ```
 - or set the following environment variable:
-    ```shell
+    ```console
     UBIRCH_TCP_ADDR=:8080
     ```
 
@@ -623,7 +687,7 @@ You can specify the TCP address for the server to listen on, in the form `host:p
 
    In order to serve HTTPS endpoints, you can run the following command to create a self-signed certificate with
    openssl. With this command it will be valid for ten years.
-    ```console
+    ```shell
     openssl req -x509 -newkey rsa:4096 -keyout key.pem -nodes -out cert.pem -days 3650
     ```
 
@@ -634,7 +698,7 @@ You can specify the TCP address for the server to listen on, in the form `host:p
           "TLS": true
         ```
     - or set the following environment variable:
-        ```shell
+        ```console
         UBIRCH_TLS=true
          ```
 
@@ -650,7 +714,7 @@ You can specify the TCP address for the server to listen on, in the form `host:p
           "TLSKeyFile": "<path/to/TLS-key-filename>"
         ```
     - or set the following environment variables:
-        ```shell
+        ```console
         UBIRCH_TLS_CERTFILE=certs/cert.pem
         UBIRCH_TLS_KEYFILE=certs/key.pem
         ```
@@ -669,7 +733,7 @@ To enable CORS and configure a list of *allowed origins*, i.e. origins a cross-d
       "CORS_origins": ["<allowed origin>"]
     ```
 - or set the following environment variables:
-    ```shell
+    ```console
     UBIRCH_CORS=true
     UBIRCH_CORS_ORIGINS=<allowed origin>
     ```
@@ -681,6 +745,23 @@ Setting *allowed origins* is optional. If CORS is enabled, but no *allowed origi
 is `["*"]`
 which means, **all** origins will be allowed.
 
+### Customize X.509 Certificate Signing Requests
+
+The client creates X.509 Certificate Signing Requests (*CSRs*) for the public keys of the devices it is managing. The *
+Common Name* of the CSR subject is the UUID associated with the public key. The values for the *Organization* and *
+Country* of the CSR subject can be set through the configuration.
+
+- add the following key-value pairs to your `config.json`:
+    ```json
+      "CSR_country": "<CSR Subject Country Name (2 letter code)>",
+      "CSR_organization": "<CSR Subject Organization Name (e.g. company)>"
+    ```
+- or set the following environment variables:
+    ```console
+    UBIRCH_CSR_COUNTRY=<CSR Subject Country Name (2 letter code)>
+    UBIRCH_CSR_ORGANIZATION=<CSR Subject Organization Name (e.g. company)>
+    ```
+
 ### Extended Debug Output
 
 To set the logging level to `debug` and so enable extended debug output,
@@ -690,7 +771,7 @@ To set the logging level to `debug` and so enable extended debug output,
       "debug": true
     ```
 - or set the following environment variable:
-    ```shell
+    ```console
     UBIRCH_DEBUG=true
     ```
 
@@ -698,14 +779,34 @@ To set the logging level to `debug` and so enable extended debug output,
 
 By default, the log of the client is in JSON format. To change it to a (more human-eye-friendly) text format,
 
-- add the following key-value pairs to your `config.json`:
+- add the following key-value pair to your `config.json`:
     ```json
       "logTextFormat": true
     ```
-- or set the following environment variables:
-    ```shell
+- or set the following environment variable:
+    ```console
     UBIRCH_LOGTEXTFORMAT=true
     ```
+
+## Legacy file-based context migration
+
+In version 1 of the client, the context has been stored in files. In order to use a newer version, the context can be
+migrated into a database.
+
+First, add the new mandatory [configurations](#Configuration) to your existing one.
+
+If you want to use a postgreSQL database, the DSN has to be set in the configuration (json:`postgresDSN` /
+env: `UBIRCH_POSTGRES_DSN`).
+If no postgres DSN is set, the file-based context will be migrated to a SQLite DB in the mounted volume.
+
+To start the migration process, run the client with the command-line flag `--migrate`.
+
+```shell
+docker run -v $(pwd):/data --network host ubirch/ubirch-client:v2.x.x /data --migrate
+```
+
+After successful migration, the legacy context files will automatically be **deleted** and the process will exit with
+status `0`. In case of failed migration, the exit status is set to `1`.
 
 ## Quick Start
 
@@ -743,7 +844,7 @@ By default, the log of the client is in JSON format. To change it to a (more hum
 
    To run the dockerized UBIRCH client, you will need to have [Docker](https://docs.docker.com/) installed on your
    computer. Then enter the following two lines in the terminal in your working directory:
-    ```console
+    ```shell
     docker pull ubirch/ubirch-client:v1.2.2
     docker run -v $(pwd):/data -p 8080:8080 ubirch/ubirch-client:v1.2.2
     ```
@@ -793,7 +894,7 @@ By default, the log of the client is in JSON format. To change it to a (more hum
    You also need to set the `X-Auth-Token`-header with your UBIRCH backend auth token from step 1.
 
    Here is an example of how a request to the client would look like using `CURL`:
-   ```console
+   ```shell
    curl localhost:8080/<YOUR_UUID> \
     -H "X-Auth-Token: <YOUR_AUTH_TOKEN>" \
     -H "Content-Type: application/json" \

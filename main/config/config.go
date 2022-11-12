@@ -49,6 +49,10 @@ const (
 	defaultTLSCertFile = "cert.pem"
 	defaultTLSKeyFile  = "key.pem"
 
+	postgresDriver    = "postgres"
+	sqliteDriver      = "sqlite"
+	defaultSQLiteName = "sqlite.db"
+
 	defaultKeyDerivationParamMemory      = 15
 	defaultKeyDerivationParamTime        = 2
 	defaultKeyDerivationParamParallelism = 1
@@ -59,12 +63,13 @@ const (
 var IsDevelopment bool
 
 type Config struct {
-	Devices            map[string]string `json:"devices"`                                             // maps UUIDs to backend auth tokens (mandatory)
-	Secret16Base64     string            `json:"secret" envconfig:"secret"`                           // 16 bytes secret used to encrypt the key store (mandatory for migration) LEGACY
+	Devices            map[string]string `json:"devices"`                                             // maps UUIDs to backend auth tokens
+	Secret16Base64     string            `json:"secret" envconfig:"secret"`                           // LEGACY: 16 bytes secret used to encrypt the key store (mandatory only for migration)
 	Secret32Base64     string            `json:"secret32" envconfig:"secret32"`                       // 32 byte secret used to encrypt the key store (mandatory)
 	RegisterAuth       string            `json:"registerAuth"`                                        // auth token needed for new identity registration
 	Env                string            `json:"env"`                                                 // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
-	PostgresDSN        string            `json:"postgresDSN" envconfig:"POSTGRES_DSN"`                // data source name for postgres database
+	DbDriver           string            `json:"dbDriver" envconfig:"DB_DRIVER"`                      // database driver name
+	DbDSN              string            `json:"dbDSN" envconfig:"DB_DSN"`                            // data source name for database, path to the sqlite db file
 	DbMaxConns         int               `json:"dbMaxConns" envconfig:"DB_MAX_CONNS"`                 // maximum number of open connections to the database
 	TCP_addr           string            `json:"TCP_addr"`                                            // the TCP address for the server to listen on, in the form "host:port", defaults to ":8080"
 	TLS                bool              `json:"TLS"`                                                 // enable serving HTTPS endpoints, defaults to 'false'
@@ -111,6 +116,7 @@ func (c *Config) Load(configDir, filename string) error {
 	if c.Debug {
 		log.SetLevel(log.DebugLevel)
 	}
+
 	if c.LogTextFormat {
 		log.SetFormatter(&log.TextFormatter{FullTimestamp: true, TimestampFormat: "2006-01-02 15:04:05.000 -0700"})
 	}
@@ -125,9 +131,11 @@ func (c *Config) Load(configDir, filename string) error {
 		return err
 	}
 
+	// set defaults
 	c.setDefaultCSR()
 	c.setDefaultTLS(configDir)
 	c.setDefaultCORS()
+	c.setDefaultSQLite(configDir)
 	c.setKeyDerivationParams()
 	return c.setDefaultURLs()
 }
@@ -159,12 +167,31 @@ func (c *Config) loadFile(filename string) error {
 }
 
 func (c *Config) checkMandatory() error {
+	var missingConfig bool
+
 	if len(c.SecretBytes32) != secretLength32 {
-		return fmt.Errorf("secret for aes-256 key encryption ('secret32') length must be %d bytes (is %d)", secretLength32, len(c.SecretBytes32))
+		missingConfig = true
+		log.Errorf("secret for aes-256 key encryption ('secret32' / 'UBIRCH_SECRET32') length must be %d bytes (is %d)", secretLength32, len(c.SecretBytes32))
+	}
+
+	if len(c.DbDriver) == 0 {
+		missingConfig = true
+		log.Errorf("missing 'dbDriver' / 'UBIRCH_DB_DRIVER' in configuration (\"%s\" | \"%s\")", postgresDriver, sqliteDriver)
+	} else if c.DbDriver != postgresDriver && c.DbDriver != sqliteDriver {
+		missingConfig = true
+		log.Errorf("invalid value for 'dbDriver' / 'UBIRCH_DB_DRIVER' in configuration: \"%s\", expected \"%s\" or \"%s\"", c.DbDriver, postgresDriver, sqliteDriver)
+	} else if c.DbDriver == postgresDriver && len(c.DbDSN) == 0 {
+		missingConfig = true
+		log.Errorf("missing 'dbDSN' / 'UBIRCH_DB_DSN' for %s in configuration", c.DbDriver)
 	}
 
 	if len(c.RegisterAuth) == 0 {
-		return fmt.Errorf("auth token for identity registration ('registerAuth') wasn't set")
+		missingConfig = true
+		log.Errorf("missing 'registerAuth' / 'UBIRCH_REGISTERAUTH' in configuration")
+	}
+
+	if missingConfig {
+		return fmt.Errorf("missing mandatory configuration")
 	}
 
 	return nil
@@ -213,6 +240,15 @@ func (c *Config) setDefaultCORS() {
 			c.CORS_Origins = []string{"*"} // allow all origins
 		}
 		log.Debugf(" - Allowed Origins: %v", c.CORS_Origins)
+	}
+}
+
+func (c *Config) setDefaultSQLite(configDir string) {
+	if c.DbDriver == sqliteDriver {
+		if c.DbDSN == "" {
+			c.DbDSN = defaultSQLiteName
+		}
+		c.DbDSN = filepath.Join(configDir, c.DbDSN)
 	}
 }
 

@@ -39,7 +39,7 @@ IMAGE_TAG := $(VERSION)
 IMAGE_ARCHS := amd64 arm arm64 386 # supported architectures
 
 GO = go
-GO_VERSION := 1.16
+GO_VERSION := 1.19
 LDFLAGS = -ldflags "-buildid= -s -w -X main.Version=$(VERSION) -X main.Revision=$(REVISION)"
 GO_BUILD = $(GO) build -tags="netgo" -trimpath $(LDFLAGS)
 UPX=upx --quiet --quiet
@@ -50,7 +50,7 @@ THISDIR = $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 .PHONY: lint
 lint:
 	@# we supress echoing the command, so every output line
-	@# can be considered a linting error. 
+	@# can be considered a linting error.
 	@$(DOCKER) run --rm -v $(THISDIR):/app:ro -w /app $(GO_LINTER_IMAGE) golangci-lint run
 
 .PHONY: build
@@ -66,9 +66,10 @@ test:
 	$(DOCKER) run -t --rm -v $(THISDIR):/app -w /app golang:$(GO_VERSION) \
 	go test ./...
 
-.PHONY: image 
+.PHONY: image
 image:
-	$(DOCKER) build -t $(IMAGE_REPO):$(IMAGE_TAG) \
+	$(DOCKER) build -t $(IMAGE_REPO):$(IMAGE_TAG)-arm \
+	    --build-arg="GOARCH=arm" \
 		--build-arg="VERSION=$(VERSION)" \
 		--build-arg="REVISION=$(REVISION)" \
 		--build-arg="GOVERSION=$(GO_VERSION)" \
