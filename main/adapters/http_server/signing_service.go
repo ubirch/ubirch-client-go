@@ -27,7 +27,15 @@ type SigningService struct {
 	Sign
 }
 
-func (s *SigningService) HandleRequest(op Operation) func(bool, bool) http.HandlerFunc {
+// HandleSigningRequest unpacks an incoming HTTP request and calls the Sign function with the according parameters.
+// The function expects an Operation as parameter. Supported operations are anchoring, chaining, deleting etc.
+//
+// There are online and offline signing endpoints for several operations, as well as endpoints for direct hash
+// injection and JSON data packages for all operations. For that reason, the function is nested in a way that
+// it can be passed to the AddServiceEndpoint function with the following signature:
+// func (srv *HTTPServer) AddServiceEndpoint(endpointPath string, handle func(offline bool, isHash bool) http.HandlerFunc, supportOffline bool)
+// That way we can call AddServiceEndpoint once for each operation in order to initialize the above endpoints.
+func (s *SigningService) HandleSigningRequest(op Operation) func(bool, bool) http.HandlerFunc {
 	return func(offline, isHashRequest bool) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			var err error
