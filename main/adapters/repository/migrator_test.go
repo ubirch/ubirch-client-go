@@ -90,14 +90,14 @@ func cleanUpMigrationTest(t *testing.T, c *config.Config, configDir string) {
 	_, err = os.Stat(filepath.Join(configDir, contextFileName_Legacy+".bck"))
 	assert.Truef(t, os.IsNotExist(err), "%s has not been cleaned up after migration", contextFileName_Legacy+".bck")
 
-	_, err = os.Stat(filepath.Join(configDir, keyFileName))
-	assert.Truef(t, os.IsNotExist(err), "%s has not been cleaned up after migration", keyFileName)
-
-	_, err = os.Stat(filepath.Join(configDir, keyFileName+".bck"))
-	assert.Truef(t, os.IsNotExist(err), "%s has not been cleaned up after migration", keyFileName+".bck")
-
-	_, err = os.Stat(filepath.Join(configDir, signatureDirName))
-	assert.Truef(t, os.IsNotExist(err), "%s has not been cleaned up after migration", signatureDirName)
+	//_, err = os.Stat(filepath.Join(configDir, keyFileName))
+	//assert.Truef(t, os.IsNotExist(err), "%s has not been cleaned up after migration", keyFileName)
+	//
+	//_, err = os.Stat(filepath.Join(configDir, keyFileName+".bck"))
+	//assert.Truef(t, os.IsNotExist(err), "%s has not been cleaned up after migration", keyFileName+".bck")
+	//
+	//_, err = os.Stat(filepath.Join(configDir, signatureDirName))
+	//assert.Truef(t, os.IsNotExist(err), "%s has not been cleaned up after migration", signatureDirName)
 
 	ctxManager, err := GetContextManager(c)
 	require.NoError(t, err)
