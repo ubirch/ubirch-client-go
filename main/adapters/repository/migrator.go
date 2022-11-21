@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/ubirch/ubirch-client-go/main/config"
@@ -69,7 +68,6 @@ func Migrate(c *config.Config, configDir string) error {
 
 	log.Infof("successfully migrated file-based context to database")
 
-	cleanUpLegacyFiles(configDir)
 	return nil
 }
 
@@ -169,26 +167,4 @@ func migrateIdentities(c *config.Config, configDir string, p *ExtendedProtocol) 
 	}
 
 	return tx.Commit()
-}
-
-func cleanUpLegacyFiles(configDir string) {
-	log.Infof("removing legacy context from file system")
-
-	keyFile := filepath.Join(configDir, keyFileName)
-	err := os.Remove(keyFile)
-	if err != nil {
-		log.Warnf("could not remove key file %s from file system: %v", keyFile, err)
-	}
-
-	keyFileBck := filepath.Join(configDir, keyFileName+".bck")
-	err = os.Remove(keyFileBck)
-	if err != nil && !os.IsNotExist(err) {
-		log.Warnf("could not remove key backup file %s from file system: %v", keyFileBck, err)
-	}
-
-	signatureDir := filepath.Join(configDir, signatureDirName)
-	err = os.RemoveAll(signatureDir)
-	if err != nil {
-		log.Warnf("could not remove signature directory %s from file system: %v", signatureDir, err)
-	}
 }

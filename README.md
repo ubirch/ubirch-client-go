@@ -959,14 +959,10 @@ with the UBIRCH backend, could be the following:
 
 ## Legacy file-based context migration
 
-In version 1 of the client, the context has been stored in files. In order to use a newer version, the context can be
-migrated into a database.
+Version 1 of the client used a file-based context management. In order to update the client from v1 to a newer version
+(>v2) while keeping the existing context, the context can be migrated from the legacy context files into a database.
 
-First, add the new mandatory [configurations](#Configuration) to your existing one.
-
-If you want to use a postgreSQL database, the DSN has to be set in the configuration (json:`postgresDSN` /
-env: `UBIRCH_POSTGRES_DSN`).
-If no postgres DSN is set, the file-based context will be migrated to a SQLite DB in the mounted volume.
+First, add the new mandatory [configurations](#Configuration) to your existing configuration.
 
 To start the migration process, run the client with the command-line flag `--migrate`.
 
@@ -974,8 +970,13 @@ To start the migration process, run the client with the command-line flag `--mig
 docker run -v $(pwd):/data --network host ubirch/ubirch-client:v2.x.x /data --migrate
 ```
 
-After successful migration, the legacy context files will automatically be **deleted** and the process will exit with
-status `0`. In case of failed migration, the exit status is set to `1`.
+After successful migration, the process will exit with status `0`. In case of failed migration, the exit status is `1`.
+
+Lastly, the legacy context files can be deleted.
+
+```shell
+rm -rf keys.json keys.json.bck signatures
+```
 
 ## Quick Start
 
