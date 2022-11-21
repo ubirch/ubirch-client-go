@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/ubirch/ubirch-client-go/main/ent"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	h "github.com/ubirch/ubirch-client-go/main/adapters/http_server"
@@ -37,6 +38,12 @@ func (m *mockProto) Verify(id uuid.UUID, upp []byte) (bool, error) {
 	return args.Bool(0), args.Error(1)
 }
 
+func (m *mockProto) StoreExternalIdentity(ctx context.Context, extId ent.ExternalIdentity) error {
+	defer func() { m.done <- true }()
+	args := m.mock.MethodCalled("StoreExternalIdentity", ctx, extId)
+	return args.Error(0)
+}
+
 func RequestHash(m *mock.Mock) func(hashBase64 string) (h.HTTPResponse, error) {
 	return func(hashBase64 string) (h.HTTPResponse, error) {
 		args := m.MethodCalled("RequestHash", hashBase64)
@@ -57,7 +64,7 @@ func TestVerifier_Verify(t *testing.T) {
 		name                          string
 		VerifyFromKnownIdentitiesOnly bool
 		setMockBehavior               func(m *mock.Mock)
-		tcChecks                      func(t *testing.T, resp h.HTTPResponse, m *mock.Mock)
+		tcChecks                      func(t *testing.T, resp h.HTTPResponse, m *mockProto)
 	}{
 		{
 			name: "verification success",
@@ -72,8 +79,8 @@ func TestVerifier_Verify(t *testing.T) {
 				m.On("PublicKeyPEMToBytes", testPublicKeyPEM).Return(testPublicKey, nil)
 				m.On("Verify", testUuid, testVerificationUPP).Return(true, nil)
 			},
-			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
-				m.AssertExpectations(t)
+			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mockProto) {
+				m.mock.AssertExpectations(t)
 				assert.Equal(t, getVerificationResponse(http.StatusOK, testHash[:], testVerificationUPP, testUuid, testPublicKey, ""), resp)
 			},
 		},
@@ -90,11 +97,16 @@ func TestVerifier_Verify(t *testing.T) {
 				m.On("RequestPublicKeys", testUuid).Return(testKeyRegs, nil)
 				m.On("SetPublicKeyBytes", testUuid, testPublicKey).Return(nil)
 				m.On("LoadPublicKey", testUuid).Return(testPublicKeyPEM, nil)
+				m.On("StoreExternalIdentity", context.TODO(), ent.ExternalIdentity{
+					Uid:       testUuid,
+					PublicKey: testPublicKeyPEM,
+				}).Return(nil)
 				m.On("PublicKeyPEMToBytes", testPublicKeyPEM).Return(testPublicKey, nil)
 				m.On("Verify", testUuid, testVerificationUPP).Return(true, nil)
 			},
-			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
-				m.AssertExpectations(t)
+			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mockProto) {
+				<-m.done
+				m.mock.AssertExpectations(t)
 				assert.Equal(t, getVerificationResponse(http.StatusOK, testHash[:], testVerificationUPP, testUuid, testPublicKey, ""), resp)
 			},
 		},
@@ -104,8 +116,8 @@ func TestVerifier_Verify(t *testing.T) {
 				m.On("RequestHash", base64.StdEncoding.EncodeToString(testHash[:])).
 					Return(h.HTTPResponse{StatusCode: http.StatusNotFound}, nil)
 			},
-			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
-				m.AssertExpectations(t)
+			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mockProto) {
+				m.mock.AssertExpectations(t)
 				assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 			},
 		},
@@ -121,8 +133,8 @@ func TestVerifier_Verify(t *testing.T) {
 					}, nil)
 				m.On("LoadPublicKey", testUuid).Return([]byte{}, r.ErrNotExist)
 			},
-			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
-				m.AssertExpectations(t)
+			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mockProto) {
+				m.mock.AssertExpectations(t)
 				assert.Equal(t, getVerificationResponse(http.StatusForbidden, testHash[:], testVerificationUPP, testUuid, nil, ErrUnknownIdentity.Error()), resp)
 			},
 		},
@@ -137,8 +149,8 @@ func TestVerifier_Verify(t *testing.T) {
 					}, nil)
 				m.On("LoadPublicKey", testUuid).Return([]byte{}, fmt.Errorf("some error"))
 			},
-			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
-				m.AssertExpectations(t)
+			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mockProto) {
+				m.mock.AssertExpectations(t)
 				assert.Equal(t, getVerificationResponse(http.StatusInternalServerError, testHash[:], testVerificationUPP, testUuid, nil, "some error"), resp)
 			},
 		},
@@ -155,22 +167,22 @@ func TestVerifier_Verify(t *testing.T) {
 				m.On("PublicKeyPEMToBytes", testPublicKeyPEM).Return(testPublicKey, nil)
 				m.On("Verify", testUuid, testVerificationUPP).Return(false, nil)
 			},
-			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
-				m.AssertExpectations(t)
+			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mockProto) {
+				m.mock.AssertExpectations(t)
 				assert.Equal(t, getVerificationResponse(http.StatusForbidden, testHash[:], testVerificationUPP, testUuid, testPublicKey, "invalid UPP signature"), resp)
 			},
 		},
 	}
 	for _, c := range testCases {
 		t.Run(c.name, func(t *testing.T) {
-			m := &mock.Mock{}
-			m.Test(t)
-			c.setMockBehavior(m)
+			m := &mockProto{mock: &mock.Mock{}, done: make(chan bool)}
+			m.mock.Test(t)
+			c.setMockBehavior(m.mock)
 
 			v := Verifier{
-				VerifierProtocol:              &mockProto{mock: m},
-				RequestHash:                   RequestHash(m),
-				RequestPublicKeys:             RequestPublicKeys(m),
+				VerifierProtocol:              m,
+				RequestHash:                   RequestHash(m.mock),
+				RequestPublicKeys:             RequestPublicKeys(m.mock),
 				VerifyFromKnownIdentitiesOnly: c.VerifyFromKnownIdentitiesOnly,
 				VerificationTimeout:           time.Second,
 			}

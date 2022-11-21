@@ -1,35 +1,41 @@
 package repository
 
-import (
-	"fmt"
-)
+// the following SQL statements are called upon every startup and have to be safe to be executed multiple times
 
-const (
-	PostgresIdentity = iota
-	SQLiteIdentity
+var createPostgres = []string{
+	`CREATE TABLE IF NOT EXISTS identity(
+		uid VARCHAR(255) NOT NULL PRIMARY KEY,
+		private_key BYTEA NOT NULL,
+		public_key BYTEA NOT NULL,
+		signature BYTEA NOT NULL,
+		auth_token VARCHAR(255) NOT NULL,
+		active boolean NOT NULL DEFAULT(TRUE));`,
 
-	IdentityTableName = "identity"
-)
-
-var create = map[int]string{
-	PostgresIdentity: fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s("+
-		"uid VARCHAR(255) NOT NULL PRIMARY KEY, "+
-		"private_key BYTEA NOT NULL, "+
-		"public_key BYTEA NOT NULL, "+
-		"signature BYTEA NOT NULL, "+
-		"auth_token VARCHAR(255) NOT NULL, "+
-		"active boolean NOT NULL DEFAULT(TRUE));", IdentityTableName),
-
-	SQLiteIdentity: fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s("+
-		"uid TEXT NOT NULL PRIMARY KEY, "+
-		"private_key BLOB NOT NULL, "+
-		"public_key BLOB NOT NULL, "+
-		"signature BLOB NOT NULL, "+
-		"auth_token TEXT NOT NULL, "+
-		"active INTEGER NOT NULL DEFAULT(TRUE));", IdentityTableName),
+	`CREATE TABLE IF NOT EXISTS external_identity(
+		uid VARCHAR(255) NOT NULL PRIMARY KEY,
+		public_key BYTEA NOT NULL);`,
 }
 
-func (dm *DatabaseManager) CreateTable(tableType int) error {
-	_, err := dm.db.Exec(create[tableType])
-	return err
+var createSQLite = []string{
+	`CREATE TABLE IF NOT EXISTS identity(
+		uid TEXT NOT NULL PRIMARY KEY,
+		private_key BLOB NOT NULL,
+		public_key BLOB NOT NULL,
+		signature BLOB NOT NULL,
+		auth_token TEXT NOT NULL,
+		active INTEGER NOT NULL DEFAULT(TRUE));`,
+
+	`CREATE TABLE IF NOT EXISTS external_identity(
+		uid TEXT NOT NULL PRIMARY KEY,
+		public_key BLOB NOT NULL);`,
+}
+
+func (dm *DatabaseManager) CreateTables(createStatements []string) error {
+	for _, create := range createStatements {
+		_, err := dm.db.Exec(create)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

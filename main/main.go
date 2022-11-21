@@ -134,7 +134,7 @@ func main() {
 		VerifierProtocol:              protocol,
 		RequestHash:                   client.RequestHash,
 		RequestPublicKeys:             client.RequestPublicKeys,
-		VerifyFromKnownIdentitiesOnly: false, // TODO: make configurable
+		VerifyFromKnownIdentitiesOnly: conf.VerifyFromKnownIdentitiesOnly,
 		VerificationTimeout:           time.Duration(conf.VerificationTimeoutMs) * time.Millisecond,
 	}
 

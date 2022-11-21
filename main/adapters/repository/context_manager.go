@@ -29,6 +29,12 @@ type ContextManager interface {
 	StoreAuth(TransactionCtx, uuid.UUID, string) error
 	LoadAuthForUpdate(TransactionCtx, uuid.UUID) (string, error)
 
+	StoreExternalIdentity(context.Context, ent.ExternalIdentity) error
+	LoadExternalIdentity(context.Context, uuid.UUID) (*ent.ExternalIdentity, error)
+
+	GetIdentityUUIDs() ([]uuid.UUID, error)
+	GetExternalIdentityUUIDs() ([]uuid.UUID, error)
+
 	IsReady() error
 	Close() error
 }

@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"database/sql"
 	"encoding/base64"
 	"math/rand"
 	"os"
@@ -25,7 +24,7 @@ func TestDatabaseManager_sqlite(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	testIdentity := generateRandomIdentity()
+	testIdentity := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -100,7 +99,7 @@ func TestDatabaseManager_StoreActiveFlag_sqlite(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	testIdentity := generateRandomIdentity()
+	testIdentity := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -140,7 +139,7 @@ func TestDatabaseManager_SetSignature_sqlite(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	testIdentity := generateRandomIdentity()
+	testIdentity := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -187,7 +186,7 @@ func TestDatabaseManager_LoadSignatureForUpdate_sqlite(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	testIdentity := generateRandomIdentity()
+	testIdentity := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -221,7 +220,7 @@ func TestDatabaseManager_StoreAuth_sqlite(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	testIdentity := generateRandomIdentity()
+	testIdentity := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -290,7 +289,7 @@ func TestStoreExisting_sqlite(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	testIdentity := generateRandomIdentity()
+	testIdentity := getTestIdentity()
 
 	// store identity
 	ctx, cancel := context.WithCancel(context.Background())
@@ -320,7 +319,7 @@ func TestDatabaseManager_CancelTransaction_sqlite(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	testIdentity := generateRandomIdentity()
+	testIdentity := getTestIdentity()
 
 	// store identity, but cancel context, so transaction will be rolled back
 	ctx, cancel := context.WithCancel(context.Background())
@@ -373,7 +372,7 @@ func TestDatabaseManager_StartTransaction2_sqlite(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	testIdentity := generateRandomIdentity()
+	testIdentity := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -455,14 +454,18 @@ func TestDatabaseLoad_sqlite(t *testing.T) {
 	// generate identities
 	var testIdentities []ent.Identity
 	for i := 0; i < testLoad/10; i++ {
-		testIdentities = append(testIdentities, generateRandomIdentity())
+		id := getTestIdentity()
+		id.Uid = uuid.New()
+		testIdentities = append(testIdentities, id)
 	}
 
 	// store identities
 	for i, testId := range testIdentities {
 		wg.Add(1)
 		go func(idx int, id ent.Identity) {
-			err := storeIdentity(dm, id, wg)
+			defer wg.Done()
+
+			err := storeIdentity(dm, id)
 			if err != nil {
 				t.Errorf("%s: identity could not be stored: %v", id.Uid, err)
 			}
@@ -488,20 +491,6 @@ func TestDatabaseLoad_sqlite(t *testing.T) {
 	//}
 }
 
-func TestDatabaseManager_RecoverUndefinedTable_sqlite(t *testing.T) {
-	db, err := sql.Open(SQLite, filepath.Join(t.TempDir(), testSQLiteDSN+sqliteConfig))
-	require.NoError(t, err)
-
-	dm := &DatabaseManager{
-		options:    &sql.TxOptions{},
-		db:         db,
-		driverName: SQLite,
-	}
-
-	_, err = dm.LoadIdentity(uuid.New())
-	assert.Equal(t, ErrNotExist, err)
-}
-
 func TestDatabaseManager_Retry_sqlite(t *testing.T) {
 	dm, err := initSQLiteDB(t, 0)
 	require.NoError(t, err)
@@ -521,6 +510,99 @@ func TestDatabaseManager_Retry_sqlite(t *testing.T) {
 	liteErr, ok := err.(*sqlite.Error)
 	require.True(t, ok)
 	require.Equal(t, 5, liteErr.Code())
+}
+
+func TestDatabaseManager_StoreExternalIdentity_sqlite(t *testing.T) {
+	dm, err := initSQLiteDB(t, 0)
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	testExtId := ent.ExternalIdentity{
+		Uid:       uuid.New(),
+		PublicKey: make([]byte, 64),
+	}
+	rand.Read(testExtId.PublicKey)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	_, err = dm.LoadExternalIdentity(ctx, testExtId.Uid)
+	assert.Equal(t, ErrNotExist, err)
+
+	err = dm.StoreExternalIdentity(ctx, testExtId)
+	require.NoError(t, err)
+
+	err = dm.StoreExternalIdentity(ctx, testExtId)
+	assert.Error(t, err)
+
+	storedExtId, err := dm.LoadExternalIdentity(ctx, testExtId.Uid)
+	require.NoError(t, err)
+	assert.Equal(t, storedExtId.Uid, testExtId.Uid)
+	assert.Equal(t, storedExtId.PublicKey, testExtId.PublicKey)
+
+	cancel()
+
+	err = dm.StoreExternalIdentity(ctx, testExtId)
+	assert.EqualError(t, err, "context canceled")
+
+	_, err = dm.LoadExternalIdentity(ctx, testExtId.Uid)
+	assert.EqualError(t, err, "context canceled")
+}
+
+func TestDatabaseManager_GetIdentityUUIDs_sqlite(t *testing.T) {
+	dm, err := initSQLiteDB(t, 0)
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	// generate and store identities for testing
+	var testUUIDs []uuid.UUID
+	for i := 0; i < 10; i++ {
+		testId := getTestIdentity()
+		testId.Uid = uuid.New()
+
+		err = storeIdentity(dm, testId)
+		require.NoError(t, err)
+
+		testUUIDs = append(testUUIDs, testId.Uid)
+	}
+
+	ids, err := dm.GetIdentityUUIDs()
+	require.NoError(t, err)
+
+	assert.Equal(t, len(ids), len(testUUIDs))
+
+	for _, id := range testUUIDs {
+		assert.Contains(t, ids, id)
+	}
+}
+
+func TestDatabaseManager_GetExternalIdentityUUIDs_sqlite(t *testing.T) {
+	dm, err := initSQLiteDB(t, 0)
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	// generate and store external identities for testing
+	var testExtUUIDs []uuid.UUID
+	for i := 0; i < 10; i++ {
+		testExtId := ent.ExternalIdentity{
+			Uid:       uuid.New(),
+			PublicKey: make([]byte, 64),
+		}
+
+		err = dm.StoreExternalIdentity(context.TODO(), testExtId)
+		require.NoError(t, err)
+
+		testExtUUIDs = append(testExtUUIDs, testExtId.Uid)
+	}
+
+	ids, err := dm.GetExternalIdentityUUIDs()
+	require.NoError(t, err)
+
+	assert.Equal(t, len(ids), len(testExtUUIDs))
+
+	for _, id := range testExtUUIDs {
+		assert.Contains(t, ids, id)
+	}
 }
 
 func initSQLiteDB(t *testing.T, maxConns int) (*DatabaseManager, error) {

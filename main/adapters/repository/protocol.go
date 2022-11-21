@@ -41,6 +41,11 @@ type ExtendedProtocol struct {
 }
 
 func NewExtendedProtocol(ctxManager ContextManager, conf *config.Config) (*ExtendedProtocol, error) {
+	err := logKnownIdentities(ctxManager)
+	if err != nil {
+		return nil, err
+	}
+
 	keyCache := NewKeyCache()
 
 	crypto := &ubirch.ECDSACryptoContext{
@@ -160,6 +165,36 @@ func (p *ExtendedProtocol) StoreSignature(tx TransactionCtx, uid uuid.UUID, sign
 	return tx.Commit()
 }
 
+func (p *ExtendedProtocol) StoreExternalIdentity(ctx context.Context, extId ent.ExternalIdentity) (err error) {
+	// store public key raw bytes
+	extId.PublicKey, err = p.PublicKeyPEMToBytes(extId.PublicKey)
+	if err != nil {
+		return err
+	}
+
+	return p.ContextManager.StoreExternalIdentity(ctx, extId)
+}
+
+func (p *ExtendedProtocol) LoadExternalIdentity(ctx context.Context, uid uuid.UUID) (*ent.ExternalIdentity, error) {
+	extId, err := p.ContextManager.LoadExternalIdentity(ctx, uid)
+	if err != nil {
+		return nil, err
+	}
+
+	extId.PublicKey, err = p.PublicKeyBytesToPEM(extId.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+
+	// load public key to cache
+	err = p.keyCache.SetPublicKey(uid, extId.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return extId, nil
+}
+
 func (p *ExtendedProtocol) LoadPrivateKey(uid uuid.UUID) (privKeyPEM []byte, err error) {
 	privKeyPEM, err = p.keyCache.GetPrivateKey(uid)
 	if err != nil {
@@ -179,13 +214,25 @@ func (p *ExtendedProtocol) LoadPublicKey(uid uuid.UUID) (pubKeyPEM []byte, err e
 	if err != nil {
 		i, err := p.LoadIdentity(uid)
 		if err != nil {
-			return nil, err
+			if err == ErrNotExist { // if the public key is not one of the internal identities, try external identities
+				return p.loadPublicKeyFromExternalIdentity(uid)
+			} else {
+				return nil, err
+			}
 		}
 
-		pubKeyPEM = i.PublicKey
+		return i.PublicKey, nil
 	}
 
 	return pubKeyPEM, nil
+}
+
+func (p *ExtendedProtocol) loadPublicKeyFromExternalIdentity(uid uuid.UUID) (pubKeyPEM []byte, err error) {
+	extId, err := p.LoadExternalIdentity(context.TODO(), uid)
+	if err != nil {
+		return nil, err
+	}
+	return extId.PublicKey, nil
 }
 
 func (p *ExtendedProtocol) IsInitialized(uid uuid.UUID) (initialized bool, err error) {
@@ -289,6 +336,30 @@ func (p *ExtendedProtocol) checkIdentityAttributes(i *ent.Identity) error {
 
 	if len(i.AuthToken) == 0 {
 		return fmt.Errorf("empty auth token")
+	}
+
+	return nil
+}
+
+func logKnownIdentities(ctxManager ContextManager) error {
+	ids, err := ctxManager.GetIdentityUUIDs()
+	if err != nil {
+		return err
+	}
+
+	log.Infof("%d known internal identities (signing and verification):", len(ids))
+	for i, id := range ids {
+		log.Infof("\t%d: %s", i, id)
+	}
+
+	extIds, err := ctxManager.GetExternalIdentityUUIDs()
+	if err != nil {
+		return err
+	}
+
+	log.Infof("%d known external identities (verification only):", len(extIds))
+	for i, id := range extIds {
+		log.Infof("\t%d: %s", i, id)
 	}
 
 	return nil

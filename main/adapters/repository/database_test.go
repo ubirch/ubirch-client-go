@@ -20,7 +20,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/ubirch/ubirch-client-go/main/config"
 	"github.com/ubirch/ubirch-client-go/main/ent"
-	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 )
 
 const testLoad = 100
@@ -30,7 +29,7 @@ func TestDatabaseManager(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	testIdentity := generateRandomIdentity()
+	testIdentity := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -105,7 +104,7 @@ func TestDatabaseManager_StoreActiveFlag(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	testIdentity := generateRandomIdentity()
+	testIdentity := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -145,7 +144,7 @@ func TestDatabaseManager_SetSignature(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	testIdentity := generateRandomIdentity()
+	testIdentity := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -192,7 +191,7 @@ func TestDatabaseManager_LoadSignatureForUpdate(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	testIdentity := generateRandomIdentity()
+	testIdentity := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -232,7 +231,7 @@ func TestDatabaseManager_StoreAuth(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	testIdentity := generateRandomIdentity()
+	testIdentity := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -306,7 +305,7 @@ func TestStoreExisting(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	testIdentity := generateRandomIdentity()
+	testIdentity := getTestIdentity()
 
 	// store identity
 	ctx, cancel := context.WithCancel(context.Background())
@@ -336,7 +335,7 @@ func TestDatabaseManager_CancelTransaction(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	testIdentity := generateRandomIdentity()
+	testIdentity := getTestIdentity()
 
 	// store identity, but cancel context, so transaction will be rolled back
 	ctx, cancel := context.WithCancel(context.Background())
@@ -424,14 +423,18 @@ func TestDatabaseLoad(t *testing.T) {
 	// generate identities
 	var testIdentities []ent.Identity
 	for i := 0; i < testLoad; i++ {
-		testIdentities = append(testIdentities, generateRandomIdentity())
+		id := getTestIdentity()
+		id.Uid = uuid.New()
+		testIdentities = append(testIdentities, id)
 	}
 
 	// store identities
 	for i, testId := range testIdentities {
 		wg.Add(1)
 		go func(idx int, id ent.Identity) {
-			err := storeIdentity(dm, id, wg)
+			defer wg.Done()
+
+			err := storeIdentity(dm, id)
 			if err != nil {
 				t.Errorf("%s: identity could not be stored: %v", id.Uid, err)
 			}
@@ -506,6 +509,99 @@ func TestDatabaseManager_Retry(t *testing.T) {
 	wg.Wait()
 }
 
+func TestDatabaseManager_StoreExternalIdentity(t *testing.T) {
+	dm, err := initDB(0)
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	testExtId := ent.ExternalIdentity{
+		Uid:       uuid.New(),
+		PublicKey: make([]byte, 64),
+	}
+	rand.Read(testExtId.PublicKey)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	_, err = dm.LoadExternalIdentity(ctx, testExtId.Uid)
+	assert.Equal(t, ErrNotExist, err)
+
+	err = dm.StoreExternalIdentity(ctx, testExtId)
+	require.NoError(t, err)
+
+	err = dm.StoreExternalIdentity(ctx, testExtId)
+	assert.Error(t, err)
+
+	storedExtId, err := dm.LoadExternalIdentity(ctx, testExtId.Uid)
+	require.NoError(t, err)
+	assert.Equal(t, storedExtId.Uid, testExtId.Uid)
+	assert.Equal(t, storedExtId.PublicKey, testExtId.PublicKey)
+
+	cancel()
+
+	err = dm.StoreExternalIdentity(ctx, testExtId)
+	assert.EqualError(t, err, "context canceled")
+
+	_, err = dm.LoadExternalIdentity(ctx, testExtId.Uid)
+	assert.EqualError(t, err, "context canceled")
+}
+
+func TestDatabaseManager_GetIdentityUUIDs(t *testing.T) {
+	dm, err := initDB(0)
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	// generate and store identities for testing
+	var testUUIDs []uuid.UUID
+	for i := 0; i < 10; i++ {
+		testId := getTestIdentity()
+		testId.Uid = uuid.New()
+
+		err = storeIdentity(dm, testId)
+		require.NoError(t, err)
+
+		testUUIDs = append(testUUIDs, testId.Uid)
+	}
+
+	ids, err := dm.GetIdentityUUIDs()
+	require.NoError(t, err)
+
+	assert.Equal(t, len(ids), len(testUUIDs))
+
+	for _, id := range testUUIDs {
+		assert.Contains(t, ids, id)
+	}
+}
+
+func TestDatabaseManager_GetExternalIdentityUUIDs(t *testing.T) {
+	dm, err := initDB(0)
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	// generate and store external identities for testing
+	var testExtUUIDs []uuid.UUID
+	for i := 0; i < 10; i++ {
+		testExtId := ent.ExternalIdentity{
+			Uid:       uuid.New(),
+			PublicKey: make([]byte, 64),
+		}
+
+		err = dm.StoreExternalIdentity(context.TODO(), testExtId)
+		require.NoError(t, err)
+
+		testExtUUIDs = append(testExtUUIDs, testExtId.Uid)
+	}
+
+	ids, err := dm.GetExternalIdentityUUIDs()
+	require.NoError(t, err)
+
+	assert.Equal(t, len(ids), len(testExtUUIDs))
+
+	for _, id := range testExtUUIDs {
+		assert.Contains(t, ids, id)
+	}
+}
+
 func getConfig() (*config.Config, error) {
 	configFileName := "config_test.json"
 	fileHandle, err := os.Open(filepath.Join("../../", configFileName))
@@ -547,8 +643,15 @@ func initDB(maxConns int) (*DatabaseManager, error) {
 }
 
 func cleanUpDB(t assert.TestingT, dm *DatabaseManager) {
-	dropTableQuery := fmt.Sprintf("DROP TABLE %s;", IdentityTableName)
+	dropTableQuery := "DROP TABLE identity;"
 	err := dm.retry(func() error {
+		_, err := dm.db.Exec(dropTableQuery)
+		return err
+	})
+	assert.NoError(t, err)
+
+	dropTableQuery = "DROP TABLE external_identity;"
+	err = dm.retry(func() error {
 		_, err := dm.db.Exec(dropTableQuery)
 		return err
 	})
@@ -558,46 +661,7 @@ func cleanUpDB(t assert.TestingT, dm *DatabaseManager) {
 	assert.NoError(t, err)
 }
 
-func generateRandomIdentity() ent.Identity {
-	uid := uuid.New()
-
-	keystore := &MockKeystorer{}
-
-	c := ubirch.ECDSACryptoContext{Keystore: keystore}
-
-	err := c.GenerateKey(uid)
-	if err != nil {
-		panic(err)
-	}
-
-	priv, err := keystore.GetPrivateKey(uid)
-	if err != nil {
-		panic(err)
-	}
-
-	pub, err := keystore.GetPublicKey(uid)
-	if err != nil {
-		panic(err)
-	}
-
-	sig := make([]byte, 64)
-	rand.Read(sig)
-
-	auth := make([]byte, 16)
-	rand.Read(auth)
-
-	return ent.Identity{
-		Uid:        uuid.New(),
-		PrivateKey: priv,
-		PublicKey:  pub,
-		Signature:  sig,
-		AuthToken:  base64.StdEncoding.EncodeToString(auth),
-	}
-}
-
-func storeIdentity(ctxManager ContextManager, id ent.Identity, wg *sync.WaitGroup) error {
-	defer wg.Done()
-
+func storeIdentity(ctxManager ContextManager, id ent.Identity) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

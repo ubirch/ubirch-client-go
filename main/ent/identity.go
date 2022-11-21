@@ -9,3 +9,8 @@ type Identity struct {
 	Signature  []byte
 	AuthToken  string
 }
+
+type ExternalIdentity struct {
+	Uid       uuid.UUID
+	PublicKey []byte
+}
