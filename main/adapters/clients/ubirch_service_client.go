@@ -2,9 +2,11 @@ package clients
 
 import (
 	"bytes"
+	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
+	"time"
 
 	h "github.com/ubirch/ubirch-client-go/main/adapters/http_server"
 )
@@ -15,20 +17,11 @@ type UbirchServiceClient struct {
 	VerificationServiceClient
 }
 
-// Post submits a message to a backend service
-// returns the response or encountered errors
-func Post(serviceURL string, data []byte, header map[string]string) (h.HTTPResponse, error) {
-	return sendRequest(http.MethodPost, serviceURL, data, header)
-}
+func sendRequest(method string, serviceURL string, data []byte, header map[string]string, timeout time.Duration) (h.HTTPResponse, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
-func Delete(serviceURL string, data []byte, header map[string]string) (h.HTTPResponse, error) {
-	return sendRequest(http.MethodDelete, serviceURL, data, header)
-}
-
-func sendRequest(method string, serviceURL string, data []byte, header map[string]string) (h.HTTPResponse, error) {
-	client := &http.Client{Timeout: h.BackendRequestTimeout}
-
-	req, err := http.NewRequest(method, serviceURL, bytes.NewBuffer(data))
+	req, err := http.NewRequestWithContext(ctx, method, serviceURL, bytes.NewBuffer(data))
 	if err != nil {
 		return h.HTTPResponse{}, fmt.Errorf("can't make new post request: %v", err)
 	}
@@ -37,7 +30,7 @@ func sendRequest(method string, serviceURL string, data []byte, header map[strin
 		req.Header.Set(k, v)
 	}
 
-	resp, err := client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return h.HTTPResponse{}, err
 	}
@@ -45,7 +38,7 @@ func sendRequest(method string, serviceURL string, data []byte, header map[strin
 	//noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()
 
-	respBodyBytes, err := ioutil.ReadAll(resp.Body)
+	respBodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return h.HTTPResponse{}, err
 	}

@@ -5,7 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"path"
 	"sync"
@@ -16,18 +16,8 @@ import (
 )
 
 type SigningResponse struct {
-	Error     string       `json:"error,omitempty"`
-	Operation string       `json:"operation,omitempty"`
-	Hash      []byte       `json:"hash,omitempty"`
-	UPP       []byte       `json:"upp,omitempty"`
-	Response  HTTPResponse `json:"response,omitempty"`
-	RequestID string       `json:"requestID,omitempty"`
-}
-
-type HTTPResponse struct {
-	StatusCode int         `json:"statusCode"`
-	Header     http.Header `json:"header"`
-	Content    []byte      `json:"content"`
+	Hash []byte
+	UPP  []byte
 }
 
 type Sender struct {
@@ -170,7 +160,7 @@ func (s *Sender) sendRequest(clientURL string, header http.Header, hash []byte) 
 	if resp.StatusCode == http.StatusOK {
 		s.addTime(duration)
 	} else {
-		respBody, _ := ioutil.ReadAll(resp.Body)
+		respBody, _ := io.ReadAll(resp.Body)
 		return SigningResponse{}, fmt.Errorf("%d: %s", resp.StatusCode, respBody)
 	}
 

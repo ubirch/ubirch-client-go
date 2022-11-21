@@ -18,9 +18,10 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"path"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
@@ -31,8 +32,9 @@ import (
 )
 
 type IdentityServiceClient struct {
-	KeyServiceURL      string
-	IdentityServiceURL string
+	KeyServiceURL          string
+	IdentityServiceURL     string
+	IdentityServiceTimeout time.Duration
 }
 
 // RequestPublicKeys requests a devices public keys at the identity service
@@ -55,11 +57,11 @@ func (c *IdentityServiceClient) RequestPublicKeys(id uuid.UUID) ([]ubirch.Signed
 	}
 
 	if h.HttpFailed(resp.StatusCode) {
-		respContent, _ := ioutil.ReadAll(resp.Body)
+		respContent, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("retrieving public key info from %s failed: (%s) %s", url, resp.Status, string(respContent))
 	}
 
-	respBodyBytes, err := ioutil.ReadAll(resp.Body)
+	respBodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("unable to read response body: %v", err)
 	}
@@ -90,11 +92,11 @@ func (c *IdentityServiceClient) IsKeyRegistered(id uuid.UUID, pubKey []byte) (bo
 }
 
 func (c *IdentityServiceClient) SubmitKeyRegistration(uid uuid.UUID, cert []byte) error {
-	log.Debugf("%s: registering public key at key service", uid)
+	log.Debugf("%s: registering public key at key service: %s, cert: %s", uid, c.KeyServiceURL, cert)
 
 	keyRegHeader := map[string]string{"content-type": "application/json"}
 
-	resp, err := Post(c.KeyServiceURL, cert, keyRegHeader)
+	resp, err := sendRequest(http.MethodPost, c.KeyServiceURL, cert, keyRegHeader, c.IdentityServiceTimeout)
 	if err != nil {
 		return fmt.Errorf("error sending key registration: %v", err)
 	}
@@ -110,7 +112,7 @@ func (c *IdentityServiceClient) RequestKeyDeletion(uid uuid.UUID, cert []byte) e
 
 	keyDelHeader := map[string]string{"content-type": "application/json"}
 
-	resp, err := Delete(c.KeyServiceURL, cert, keyDelHeader)
+	resp, err := sendRequest(http.MethodDelete, c.KeyServiceURL, cert, keyDelHeader, c.IdentityServiceTimeout)
 	if err != nil {
 		return fmt.Errorf("error sending key deletion request: %v", err)
 	}
@@ -121,13 +123,13 @@ func (c *IdentityServiceClient) RequestKeyDeletion(uid uuid.UUID, cert []byte) e
 	return nil
 }
 
-// SubmitCSR submits a X.509 Certificate Signing Request for the public key to the identity service
+// SubmitCSR submits an X.509 Certificate Signing Request for the public key to the identity service
 func (c *IdentityServiceClient) SubmitCSR(uid uuid.UUID, csr []byte) error {
 	log.Debugf("%s: submitting CSR to identity service", uid)
 
 	CSRHeader := map[string]string{"content-type": "application/octet-stream"}
 
-	resp, err := Post(c.IdentityServiceURL, csr, CSRHeader)
+	resp, err := sendRequest(http.MethodPost, c.IdentityServiceURL, csr, CSRHeader, c.IdentityServiceTimeout)
 	if err != nil {
 		return fmt.Errorf("error sending CSR: %v", err)
 	}

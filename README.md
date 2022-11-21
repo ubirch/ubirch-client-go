@@ -67,11 +67,10 @@ make publish IMAGE_TAG=stable # will tag a multi-arch image with the selected ta
 
 The configuration can be set via a configuration file (`config.json`) or environment variables.
 
-There are three mandatory configurations:
+There are two mandatory configurations:
 
 1. the desired database driver and DSN (see [Context Management](#Context-Management))
 2. a 32 byte base64 encoded secret, which will be used to encrypt the signing keys in the database
-3. a static token which will be used for authentication against some endpoints
 
 > You can generate a random 32 byte base64 encoded secret in a Linux/macOS terminal
 > with `head -c 32 /dev/urandom | base64`
@@ -87,8 +86,7 @@ abort and exit with status `1`.
 
 ```json
 {
-  "secret32": "<32 byte secret (base64 encoded)>",
-  "registerAuth": "<static auth token>"
+  "secret32": "<32 byte secret (base64 encoded)>"
 }
 ```
 
@@ -98,7 +96,6 @@ abort and exit with status `1`.
 
 ```console
 UBIRCH_SECRET32=<32 byte secret (base64 encoded)>
-UBIRCH_REGISTERAUTH=<static auth token>
 ```
 
 > See [example.env](main/config/example.env) as an example for environment-based configuration.
@@ -177,8 +174,26 @@ Identities can be registered at the UBIRCH client in two ways:
 1. via [configuration](#identity-initialization-via-configuration)
 2. via [HTTP request](#identity-registration)
 
-Either way, the first step is to register the identity's UUID with the UBIRCH backend
-and acquire an authentication token.
+If identity registration via HTTP requests is desired, the respective endpoint must be enabled and a static
+authentication token must be set in the configuration.
+This token is then used to authenticate requests against the identity registration endpoint.
+
+- json:
+
+```json
+  "staticAuth": "<static auth token>",
+  "enableRegistrationEndpoint": true,
+```
+
+- env:
+
+```console
+UBIRCH_STATIC_AUTH=<static auth token>
+UBIRCH_ENABLE_REGISTRATION_ENDPOINT=true
+```
+
+Before registering a new identity at the UBIRCH client, the first step is to register the identity's UUID with the
+UBIRCH backend and acquire an authentication token for that identity.
 
 > A UUID can easily be generated in a Linux/macOS terminal with the `uuidgen` command.
 
@@ -240,6 +255,74 @@ the `-v $(pwd):/data` parameter can be omitted.
 
 ## Interface Description
 
+| Endpoint                       | Description                                                               |
+|--------------------------------|---------------------------------------------------------------------------|
+| `/healthz`                     | Liveness check                                                            |
+| `/readyz`                      | Readiness check                                                           |
+| `/metrics`                     | Prometheus Metrics                                                        |
+| `/register`                    | [Identity Registration](#Identity-Registration)                           |
+| `/${uuid}/csr`                 | [CSR Generation](#CSR-Generation)                                         |
+| `/${uuid}`                     | [Anchoring Hashes (chained) - original data](#Anchoring-Hashes)           |
+| `/${uuid}/hash`                | [Anchoring Hashes (chained) - hash](#Anchoring-Hashes)                    |
+| `/${uuid}/anchor`              | [Anchoring Hashes (no chain) - original data](#Anchoring-Hashes)          |
+| `/${uuid}/anchor/hash`         | [Anchoring Hashes (no chain) - hash](#Anchoring-Hashes)                   |
+| `/${uuid}/disable`             | [Disabling Hashes - original data](#Update-Operations)                    |
+| `/${uuid}/disable/hash`        | [Disabling Hashes - hash](#Update-Operations)                             |
+| `/${uuid}/enable`              | [Enabling Hashes - original data](#Update-Operations)                     |
+| `/${uuid}/enable/hash`         | [Enabling Hashes - hash](#Update-Operations)                              |
+| `/${uuid}/delete`              | [Deleting Hashes - original data](#Update-Operations)                     |
+| `/${uuid}/delete/hash`         | [Deleting Hashes - hash](#Update-Operations)                              |
+| `/${uuid}/offline`             | [Offline Sealing Hashes (chained) - original data](#UPP-Offline-Sealing)  |
+| `/${uuid}/offline/hash`        | [Offline Sealing Hashes (chained) - hash](#UPP-Offline-Sealing)           |
+| `/${uuid}/anchor/offline`      | [Offline Sealing Hashes (no chain) - original data](#UPP-Offline-Sealing) |
+| `/${uuid}/anchor/offline/hash` | [Offline Sealing Hashes (no chain) - hash](#UPP-Offline-Sealing)          |
+| `/verify`                      | [Verifying Hashes - original data](#UPP-Verification)                     |
+| `/verify/hash`                 | [Verifying Hashes - hash](#UPP-Verification)                              |
+| `/verify/offline`              | [Offline Verification - original data](#UPP-Offline-Verification)         |
+| `/verify/offline/hash`         | [Offline Verification - hash](#UPP-Offline-Verification)                  |
+| `/device/updateActive`         | [Key De- and Re-activation](#Key-Deactivation)                            |
+
+### Identity Registration
+
+Sending a registration request invokes the generation of a ECDSA key pair for signing UPPs. On success, the response
+contains an X.509 Certificate Signing Request in PEM format.
+
+    curl ${host}/register -X PUT \
+    -H "X-Auth-Token: ${staticAuth}" \
+    -H "Content-Type: application/json" \
+    -d '{"uuid":${device_uuid}, "password":${password}}' \
+    -i
+
+The "password" is the [UBIRCH backend authentication token](#how-to-acquire-the-ubirch-backend-authentication-token).
+
+### CSR Generation
+
+If CSR creation via HTTP requests is desired, the respective endpoint must be enabled and a static
+authentication token must be set in the configuration.
+This token is then used to authenticate requests against the CSR creation endpoint.
+
+- json:
+
+```json
+  "staticAuth": "<static auth token>",
+  "enableCSRCreationEndpoint": true,
+```
+
+- env:
+
+```console
+UBIRCH_STATIC_AUTH=<static auth token>
+UBIRCH_ENABLE_CSR_CREATION_ENDPOINT=true
+```
+
+A CSR for an already registered identity can be retrieved from the CSR endpoint.
+
+    curl ${host}/${uuid}/csr -X GET \
+    -H "X-Auth-Token: ${staticAuth}" \
+    -i
+
+### UPP Signing
+
 The UBIRCH client provides HTTP endpoints for both original data and direct hash injection, i.e. the SHA256 digest of
 the original data. If the client receives original data, it will create a SHA256 hash before any further processing.
 
@@ -251,69 +334,71 @@ independently in order to be able to verify it later.
 >
 > See [reproducibility of hashes](#reproducibility-of-hashes).
 
-### Identity Registration
-
-Sending a registration request invokes the generation of a ECDSA key pair for signing UPPs. On success, the response
-contains an X.509 Certificate Signing Request in PEM format.
-
-    curl ${host}/register -X PUT \
-    -H "X-Auth-Token: ${registerAuth}" \
-    -H "Content-Type: application/json" \
-    -d '{"uuid":${device_uuid}, "password":${password}}' \
-    -i
-
-The "password" is the [UBIRCH backend authentication token](#how-to-acquire-the-ubirch-backend-authentication-token).
-
-### CSR Generation
-
-A CSR for an already registered identity can be retrieved from the CSR endpoint.
-
-    curl ${host}/${uuid}/csr -X GET \
-    -H "X-Auth-Token: ${registerAuth}" \
-    -i
-
-### UPP Signing
-
 Signing service endpoints require an authentication token, which corresponds to the `UUID` used in the request. The
-token must be sent with the request header. Without it, the client will not accept the request.
+token must be sent with the request header.
 
-| Request Header | Description |
+| Request Header | Description                              |
 |----------------|------------------------------------------|
 | `X-Auth-Token` | UBIRCH backend token related to `<UUID>` |
 
 > See [how to acquire the UBIRCH backend token](#how-to-acquire-the-ubirch-backend-authentication-token).
 
-#### Anchoring Hashes (chained)
+#### Anchoring Hashes
 
-| Method | Path | Content-Type | Description |
-|--------|------|--------------|-------------|
-| POST | `/<UUID>` | `application/octet-stream` | original data (binary) will be hashed, chained, signed, and anchored |
-| POST | `/<UUID>` | `application/json` | original data (JSON data package) will be hashed, chained, signed, and anchored |
-| POST | `/<UUID>/hash` | `application/octet-stream` | SHA256 hash (binary) will be chained, signed, and anchored |
-| POST | `/<UUID>/hash` | `text/plain` | SHA256 hash (base64 string repr.) will be chained, signed, and anchored  |
+- chained
 
-#### Anchoring Hashes (no chain)
+| Method | Path           | Content-Type               | Description                                                                     |
+|--------|----------------|----------------------------|---------------------------------------------------------------------------------|
+| POST   | `/<UUID>`      | `application/octet-stream` | original data (binary) will be hashed, chained, signed, and anchored            |
+| POST   | `/<UUID>`      | `application/json`         | original data (JSON data package) will be hashed, chained, signed, and anchored |
+| POST   | `/<UUID>/hash` | `application/octet-stream` | SHA256 hash (binary) will be chained, signed, and anchored                      |
+| POST   | `/<UUID>/hash` | `text/plain`               | SHA256 hash (base64 string repr.) will be chained, signed, and anchored         |
 
-| Method | Path | Content-Type | Description |
-|--------|------|--------------|-------------|
-| POST | `/<UUID>/anchor` | `application/octet-stream` | original data (binary) will be hashed signed, and anchored |
-| POST | `/<UUID>/anchor` | `application/json` | original data (JSON data package) will be hashed signed, and anchored |
-| POST | `/<UUID>/anchor/hash` | `application/octet-stream` | SHA256 hash (binary) will be signed, and anchored |
-| POST | `/<UUID>/anchor/hash` | `text/plain` | SHA256 hash (base64 string repr.) will be signed, and anchored |
+- no chain
+
+| Method | Path                  | Content-Type               | Description                                                            |
+|--------|-----------------------|----------------------------|------------------------------------------------------------------------|
+| POST   | `/<UUID>/anchor`      | `application/octet-stream` | original data (binary) will be hashed, signed, and anchored            |
+| POST   | `/<UUID>/anchor`      | `application/json`         | original data (JSON data package) will be hashed, signed, and anchored |
+| POST   | `/<UUID>/anchor/hash` | `application/octet-stream` | SHA256 hash (binary) will be signed, and anchored                      |
+| POST   | `/<UUID>/anchor/hash` | `text/plain`               | SHA256 hash (base64 string repr.) will be signed, and anchored         |
 
 #### Update Operations
 
 Beside anchoring, the client can request hash update operations from the UBIRCH backend, i.e. `disable`, `enable`
 and `delete`.
 
-| Update Operation | Path (original data)| Path (hash) |
-|------------------|---------------------|-------------|
-| disable | `/<UUID>/disable` | `/<UUID>/disable/hash` |
-| enable  | `/<UUID>/enable`  | `/<UUID>/enable/hash`  |
-| delete  | `/<UUID>/delete`  | `/<UUID>/delete/hash`  |
+| Update Operation | Path (original data) | Path (hash)            |
+|------------------|----------------------|------------------------|
+| disable          | `/<UUID>/disable`    | `/<UUID>/disable/hash` |
+| enable           | `/<UUID>/enable`     | `/<UUID>/enable/hash`  |
+| delete           | `/<UUID>/delete`     | `/<UUID>/delete/hash`  |
 
 Hash update requests to the UBIRCH backend must come from the same UUID that anchored said hash and be signed by the
 same private key that signed the anchoring request.
+
+#### UPP Offline Sealing
+
+The client supports offline hash sealing, where the created UPP is not sent to the UBIRCH backend, but only returned as
+part of the HTTP response content.
+
+- chained
+
+| Method | Path                   | Content-Type               | Description                                                           |
+|--------|------------------------|----------------------------|-----------------------------------------------------------------------|
+| POST   | `/<UUID>/offline`      | `application/octet-stream` | original data (binary) will be hashed, chained, and signed            |
+| POST   | `/<UUID>/offline`      | `application/json`         | original data (JSON data package) will be hashed, chained, and signed |
+| POST   | `/<UUID>/offline/hash` | `application/octet-stream` | SHA256 hash (binary) will be chained and signed                       |
+| POST   | `/<UUID>/offline/hash` | `text/plain`               | SHA256 hash (base64 string repr.) will be chained and signed          |
+
+- no chain
+
+| Method | Path                          | Content-Type               | Description                                                 |
+|--------|-------------------------------|----------------------------|-------------------------------------------------------------|
+| POST   | `/<UUID>/anchor/offline`      | `application/octet-stream` | original data (binary) will be hashed and signed            |
+| POST   | `/<UUID>/anchor/offline`      | `application/json`         | original data (JSON data package) will be hashed and signed |
+| POST   | `/<UUID>/anchor/offline/hash` | `application/octet-stream` | SHA256 hash (binary) will be signed                         |
+| POST   | `/<UUID>/anchor/offline/hash` | `text/plain`               | SHA256 hash (base64 string repr.) will be signed            |
 
 #### UPP Signing Response
 
@@ -329,7 +414,6 @@ The response body consists of either an error message, or a JSON map with
 - the public key, that corresponds to the private key with which the UPP was signed,
 - the response from the UBIRCH backend,
 - the unique request ID
-- *optional:* a description of an occurred error (**the `error`-key is only present in case an error occurred**)
 
 ```fundamental
 {
@@ -342,7 +426,6 @@ The response body consists of either an error message, or a JSON map with
     "content": "<base64 encoded backend response content>"
   },
   "requestID": "<request ID (standard hex string representation)>",
-  "error": "error message"
 }
 ```
 
@@ -363,10 +446,11 @@ The response body consists of either an error message, or a JSON map with
 |                   |   | x | invalid SHA256 hash size (≠ 32 bytes) |
 | 401 - Unauthorized | x | x | unknown UUID |
 |                    | x | x | invalid auth token |
+| 403 - Forbidden | x | x | UPP signature verification failed (*only for verification*) |
 | 404 - Not Found | x | x | invalid UUID  |
 |                 | x | x | invalid operation (≠ `anchor` / `disable` / `enable` / `delete`) |
 | 500 - Internal Server Error | x | x | signing failed |
-|                             | x | x | sending request to server failed |
+| 502 - Bad Gateway | x | x | sending request to UBIRCH backend failed |
 | 503 - Service Temporarily Unavailable | x | x | service busy |
 | 504 - Gateway Timeout | x | x | service was unable to produce a timely response |
 
@@ -390,7 +474,7 @@ for *Niomon* error codes.
           -d '{"id": "ba70ad8b-a564-4e58-9a3b-224ac0f0153f", "ts": 1585838578, "data": "1234567890"}' \
           -i
       ```
-    - anchor hash (**unchained**)
+    - anchor hash (**no chain**)
         ```shell
         curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/anchor \
           -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
@@ -433,7 +517,7 @@ for *Niomon* error codes.
           -d "wp1WK/3z5yHiGBYUZReiMN4UVM2lUJzAtGg9kFtdy3A=" \
           -i
       ```
-    - anchor hash (**unchained**)
+    - anchor hash (**no chain**)
         ```shell
         curl localhost:8080/ba70ad8b-a564-4e58-9a3b-224ac0f0153f/anchor/hash \
           -H "X-Auth-Token: 32e325d5-b6a9-4800-b750-49c53b9350fc" \
@@ -470,12 +554,34 @@ for *Niomon* error codes.
 
 Verification endpoints do not require an authentication token.
 
-| Method | Path | Content-Type | Description |
-|--------|------|--------------|-------------|
-| POST | `/verify` | `application/octet-stream` | verify hash of original data (binary) |
-| POST | `/verify` | `application/json` | verify hash of original data (JSON data package) |
-| POST | `/verify/hash` | `application/octet-stream` | verify hash (binary) |
-| POST | `/verify/hash` | `text/plain` | verify hash (base64 string repr.) |
+| Method | Path           | Content-Type               | Description                                      |
+|--------|----------------|----------------------------|--------------------------------------------------|
+| POST   | `/verify`      | `application/octet-stream` | verify hash of original data (binary)            |
+| POST   | `/verify`      | `application/json`         | verify hash of original data (JSON data package) |
+| POST   | `/verify/hash` | `application/octet-stream` | verify hash (binary)                             |
+| POST   | `/verify/hash` | `text/plain`               | verify hash (base64 string repr.)                |
+
+#### UPP Offline Verification
+
+It is possible to verify that a UPP contains a given data hash and has a valid signature of a known identity without an
+internet connection.
+
+Just like the standard verification, the offline verification endpoint expects the data or data hash in the request
+body, but additionally expects the base64 representation of the UPP in the header `X-Ubirch-UPP`.
+
+```shell
+curl ${host}/verify/offline -X POST \
+ -H "X-Ubirch-UPP: liPEEO6QegJtYkRNpXhDJV/hplXEQGLoJh2SbSjQ7datOhGsWokSqO7Sckts1LGOxiBQ8SZoeql8ypLHpDLiYXQZ4MJ9vx1y/5rXwKl7VV+PG8eNEFAAxCCSV78s1WG2QGMS5vBVZOF51/JDHjjBqk/8x3VgpfL+dMRA7xvnoOSTNAYMJxItAkbzAMcD+YP2AX1bkfkV8EJUCNk7oI8DSPKmnNZ8gsb7fEv6DXGMTdFkGTtOvgpmkCNU7g==" \
+ -H "Content-Type: application/json" \
+ -d '{"id": "ee907a02-6d62-444d-a578-43255fe1a655", "ts": 1651746633, "data": "1234567890"}'
+```
+
+```shell
+curl ${host}/verify/offline/hash -X POST   \
+ -H "X-Ubirch-UPP: liPEEO6QegJtYkRNpXhDJV/hplXEQGLoJh2SbSjQ7datOhGsWokSqO7Sckts1LGOxiBQ8SZoeql8ypLHpDLiYXQZ4MJ9vx1y/5rXwKl7VV+PG8eNEFAAxCCSV78s1WG2QGMS5vBVZOF51/JDHjjBqk/8x3VgpfL+dMRA7xvnoOSTNAYMJxItAkbzAMcD+YP2AX1bkfkV8EJUCNk7oI8DSPKmnNZ8gsb7fEv6DXGMTdFkGTtOvgpmkCNU7g=="  \
+ -H "Content-Type: text/plain" \
+ -d "kle/LNVhtkBjEubwVWThedfyQx44wapP/Md1YKXy/nQ="
+```
 
 #### UPP Verification Response
 
@@ -502,20 +608,39 @@ The response body consists of either an error message, or a JSON map with
 
 ### Key Deactivation
 
-A key can be deactivated. Signing requests for identities with deactivated key will fail with status code `400`.
+If key de- and re-activation via HTTP requests is desired, the respective endpoint must be enabled and a static
+authentication token must be set in the configuration.
+This token is then used to authenticate requests against the deactivation endpoint.
+
+- json:
+
+```json
+  "staticAuth": "<static auth token>",
+  "enableDeactivationEndpoint": true,
+```
+
+- env:
+
+```console
+UBIRCH_STATIC_AUTH=<static auth token>
+UBIRCH_ENABLE_DEACTIVATION_ENDPOINT=true
+```
+
+A key can be deactivated with the following request. Signing requests for identities with deactivated key will fail with
+status code `400`.
 
     curl ${host}/device/updateActive -X PUT \
-    -H "X-Auth-Token: ${registerAuth}" \
+    -H "X-Auth-Token: ${staticAuth}" \
     -H "Content-Type: application/json" \
     -d '{"id":${device_uuid},"active":false}' \
     -i
 
 ### Key Reactivation
 
-A deactivated key can be reactivated.
+A deactivated key can be reactivated with the following request.
 
     curl ${host}/device/updateActive -X PUT \
-    -H "X-Auth-Token: ${registerAuth}" \
+    -H "X-Auth-Token: ${staticAuth}" \
     -H "Content-Type: application/json" \
     -d '{"id":${device_uuid},"active":true}' \
     -i
@@ -787,6 +912,24 @@ By default, the log of the client is in JSON format. To change it to a (more hum
     ```console
     UBIRCH_LOGTEXTFORMAT=true
     ```
+
+### Request Timeouts
+
+The following request-related timeouts can be configured.
+
+| json                       | env                           | description                                                                                          | default value |
+|----------------------------|-------------------------------|------------------------------------------------------------------------------------------------------|---------------|
+| `identityServiceTimeoutMs` | `IDENTITY_SERVICE_TIMEOUT_MS` | time limit for requests to the UBIRCH identity service in milliseconds                               | 10000         |
+| `authServiceTimeoutMs`     | `AUTH_SERVICE_TIMEOUT_MS`     | time limit for requests to the UBIRCH authentication service (niomon) in milliseconds                | 2000          |
+| `verifyServiceTimeoutMs`   | `VERIFY_SERVICE_TIMEOUT_MS`   | time limit for requests to the UBIRCH verification service in milliseconds                           | 600           |
+| `verificationTimeoutMs`    | `VERIFICATION_TIMEOUT_MS`     | time limit for repeated attempts to verify a hash at the UBIRCH verification service in milliseconds | 2000          |
+
+_If a hash can not be verified by the UBIRCH verification service, a possible reason is that the verification was
+attempted too early after anchoring and that a subsequent request will be successful. Because of this, the client
+retries the verification if it fails with an HTTP response code `404`._
+
+- _`verifyServiceTimeoutMs` is the HTTP client timeout for each individual request to the verification service_
+- _`verificationTimeoutMs` is the max. duration that verification will be attempted repeatedly_
 
 ## Legacy file-based context migration
 

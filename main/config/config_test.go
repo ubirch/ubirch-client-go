@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-const expectedConfig = `{"devices":null,"secret":"MTIzNDU2Nzg5MDU2Nzg5MA==","secret32":"VsCwmGssk7Ho2APyq1reGAKkB/+e8GlRfhM3NbYQWPU=","registerAuth":"test123","env":"","dbDriver":"","dbDSN":"","dbMaxConns":0,"TCP_addr":"","TLS":false,"TLSCertFile":"","TLSKeyFile":"","CORS":false,"CORS_origins":null,"CSR_country":"","CSR_organization":"","debug":false,"logTextFormat":false,"kdMaxTotalMemMiB":0,"kdParamMemMiB":0,"kdParamTime":0,"kdParamParallelism":0,"kdParamKeyLen":0,"kdParamSaltLen":0,"kdUpdateParams":false,"KeyService":"","IdentityService":"","Niomon":"","VerifyService":"","SecretBytes32":null}`
+const expectedConfig = `{"devices":null,"secret":"MTIzNDU2Nzg5MDU2Nzg5MA==","secret32":"VsCwmGssk7Ho2APyq1reGAKkB/+e8GlRfhM3NbYQWPU=","staticAuth":"test123","enableRegistrationEndpoint":false,"enableCSRCreationEndpoint":false,"enableDeactivationEndpoint":false,"env":"","dbDriver":"","dbDSN":"","dbMaxConns":0,"TCP_addr":"","TLS":false,"TLSCertFile":"","TLSKeyFile":"","CORS":false,"CORS_origins":null,"CSR_country":"","CSR_organization":"","debug":false,"logTextFormat":false,"kdMaxTotalMemMiB":0,"kdParamMemMiB":0,"kdParamTime":0,"kdParamParallelism":0,"kdParamKeyLen":0,"kdParamSaltLen":0,"kdUpdateParams":false,"identityServiceTimeoutMs":0,"authServiceTimeoutMs":0,"verifyServiceTimeoutMs":0,"verificationTimeoutMs":0,"KeyService":"","IdentityService":"","Niomon":"","VerifyService":"","SecretBytes32":null}`
 
 func TestConfig(t *testing.T) {
 	configBytes := []byte(expectedConfig)

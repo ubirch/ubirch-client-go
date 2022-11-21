@@ -8,25 +8,24 @@ import (
 	"os/signal"
 	"path"
 	"syscall"
+	"time"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/cors"
+	"github.com/ubirch/ubirch-client-go/main/config"
 
 	log "github.com/sirupsen/logrus"
 	prom "github.com/ubirch/ubirch-client-go/main/prometheus"
 )
 
-type Service interface {
-	HandleRequest(w http.ResponseWriter, r *http.Request)
-}
-
-type ServerEndpoint struct {
-	Path string
-	Service
-}
-
-func (*ServerEndpoint) HandleOptions(http.ResponseWriter, *http.Request) {}
+const (
+	GatewayTimeout  = 20 * time.Second // time after which a 504 response will be sent if no timely response could be produced
+	ShutdownTimeout = 10 * time.Second // time after which the server will be shut down forcefully if graceful shutdown did not happen before
+	ReadTimeout     = 1 * time.Second  // maximum duration for reading the entire request -> low since we only expect requests with small content
+	WriteTimeout    = 60 * time.Second // time after which the connection will be closed if response was not written -> this should never happen
+	IdleTimeout     = 60 * time.Second // time to wait for the next request when keep-alives are enabled
+)
 
 type HTTPServer struct {
 	Router   *chi.Mux
@@ -43,6 +42,117 @@ func NewRouter() *chi.Mux {
 	return router
 }
 
+func InitHTTPServer(conf *config.Config,
+	initialize InitializeIdentity, getCSR GetCSR,
+	checkAuth CheckAuth, sign Sign,
+	verify Verify, verifyOffline VerifyOffline,
+	deactivate UpdateActivateStatus, reactivate UpdateActivateStatus,
+	serverID string, readinessChecks []func() error) *HTTPServer {
+
+	httpServer := &HTTPServer{
+		Router:   NewRouter(),
+		Addr:     conf.TCP_addr,
+		TLS:      conf.TLS,
+		CertFile: conf.TLS_CertFile,
+		KeyFile:  conf.TLS_KeyFile,
+	}
+
+	if conf.CORS && config.IsDevelopment { // never enable CORS on production stage
+		httpServer.SetUpCORS(conf.CORS_Origins, conf.Debug)
+	}
+
+	// set up endpoints for liveness and readiness checks
+	httpServer.Router.Get(LivenessCheckEndpoint, Health(serverID))
+	httpServer.Router.Get(ReadinessCheckEndpoint, Ready(serverID, readinessChecks))
+
+	// set up metrics
+	httpServer.Router.Method(http.MethodGet, MetricsEndpoint, prom.Handler())
+
+	// set up endpoint for identity registration
+	if conf.EnableRegistrationEndpoint {
+		httpServer.Router.Put(RegisterEndpoint, Register(conf.StaticAuth, initialize))
+	} else {
+		httpServer.Router.Put(RegisterEndpoint, http.NotFound)
+	}
+
+	// set up endpoint for CSR creation
+	fetchCSREndpoint := path.Join(UUIDPath, CSREndpoint) // /<uuid>/csr
+	if conf.EnableCSRCreationEndpoint {
+		httpServer.Router.Get(fetchCSREndpoint, FetchCSR(conf.StaticAuth, getCSR))
+	} else {
+		httpServer.Router.Get(fetchCSREndpoint, http.NotFound)
+	}
+
+	// set up endpoint for key status updates (de-/re-activation)
+	if conf.EnableDeactivationEndpoint {
+		httpServer.Router.Put(ActiveUpdateEndpoint, UpdateActive(conf.StaticAuth, deactivate, reactivate))
+	} else {
+		httpServer.Router.Put(ActiveUpdateEndpoint, http.NotFound)
+	}
+
+	// set up endpoints for signing
+	signingService := &SigningService{
+		CheckAuth: checkAuth,
+		Sign:      sign,
+	}
+
+	// chain:              /<uuid>
+	// chain hash:         /<uuid>/hash
+	// chain offline:      /<uuid>/offline
+	// chain offline hash: /<uuid>/offline/hash
+	httpServer.AddServiceEndpoint(UUIDPath,
+		signingService.HandleSigningRequest(ChainHash),
+		true,
+	)
+
+	// sign:              /<uuid>/anchor
+	// sign hash:         /<uuid>/anchor/hash
+	// sign offline:      /<uuid>/anchor/offline
+	// sign offline hash: /<uuid>/anchor/offline/hash
+	httpServer.AddServiceEndpoint(path.Join(UUIDPath, string(AnchorHash)),
+		signingService.HandleSigningRequest(AnchorHash),
+		true,
+	)
+
+	// disable:      /<uuid>/disable
+	// disable hash: /<uuid>/disable/hash
+	httpServer.AddServiceEndpoint(path.Join(UUIDPath, string(DisableHash)),
+		signingService.HandleSigningRequest(DisableHash),
+		false,
+	)
+
+	// enable:      /<uuid>/enable
+	// enable hash: /<uuid>/enable/hash
+	httpServer.AddServiceEndpoint(path.Join(UUIDPath, string(EnableHash)),
+		signingService.HandleSigningRequest(EnableHash),
+		false,
+	)
+
+	// delete:      /<uuid>/delete
+	// delete hash: /<uuid>/delete/hash
+	httpServer.AddServiceEndpoint(path.Join(UUIDPath, string(DeleteHash)),
+		signingService.HandleSigningRequest(DeleteHash),
+		false,
+	)
+
+	// set up endpoints for verification
+	verificationService := &VerificationService{
+		Verify:        verify,
+		VerifyOffline: verifyOffline,
+	}
+
+	// verify:              /verify
+	// verify hash:         /verify/hash
+	// verify offline:      /verify/offline
+	// verify offline hash: /verify/offline/hash
+	httpServer.AddServiceEndpoint(VerifyPath,
+		verificationService.HandleVerificationRequest,
+		true,
+	)
+
+	return httpServer
+}
+
 func (srv *HTTPServer) SetUpCORS(allowedOrigins []string, debug bool) {
 	srv.Router.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   allowedOrigins,
@@ -55,14 +165,24 @@ func (srv *HTTPServer) SetUpCORS(allowedOrigins []string, debug bool) {
 	}))
 }
 
-func (srv *HTTPServer) AddServiceEndpoint(endpoint ServerEndpoint) {
-	hashEndpointPath := path.Join(endpoint.Path, HashEndpoint)
+func HandleOptions(http.ResponseWriter, *http.Request) {}
 
-	srv.Router.Post(endpoint.Path, endpoint.HandleRequest)
-	srv.Router.Post(hashEndpointPath, endpoint.HandleRequest)
+func (srv *HTTPServer) AddServiceEndpoint(endpointPath string, handle func(offline, isHash bool) http.HandlerFunc, supportOffline bool) {
+	hashEndpointPath := path.Join(endpointPath, HashEndpoint)
 
-	srv.Router.Options(endpoint.Path, endpoint.HandleOptions)
-	srv.Router.Options(hashEndpointPath, endpoint.HandleOptions)
+	srv.Router.Post(endpointPath, handle(false, false))
+	srv.Router.Post(hashEndpointPath, handle(false, true))
+
+	if supportOffline {
+		offlineEndpointPath := path.Join(endpointPath, OfflinePath)
+		offlineHashEndpointPath := path.Join(offlineEndpointPath, HashEndpoint)
+
+		srv.Router.Post(offlineEndpointPath, handle(true, false))
+		srv.Router.Post(offlineHashEndpointPath, handle(true, true))
+	}
+
+	srv.Router.Options(endpointPath, HandleOptions)
+	srv.Router.Options(hashEndpointPath, HandleOptions)
 }
 
 func (srv *HTTPServer) Serve() error {

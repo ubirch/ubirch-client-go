@@ -18,11 +18,13 @@ type HTTPResponse struct {
 
 // SendResponse forwards a response to the client
 func SendResponse(w http.ResponseWriter, resp HTTPResponse) {
-	for k, v := range resp.Header {
-		w.Header().Set(k, v[0])
+	for key, values := range resp.Header {
+		for _, v := range values {
+			w.Header().Add(key, v)
+		}
 	}
 	w.WriteHeader(resp.StatusCode)
-	_, err := w.Write(append(resp.Content, '\n'))
+	_, err := w.Write(resp.Content)
 	if err != nil {
 		log.Errorf("unable to write response: %s", err)
 	}

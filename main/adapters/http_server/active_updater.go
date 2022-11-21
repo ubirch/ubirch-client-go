@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -12,14 +12,24 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const (
+	reactivation = "key reactivation"
+	deactivation = "key deactivation"
+)
+
 type ActiveUpdatePayload struct {
 	Uid    uuid.UUID `json:"id"`
 	Active bool      `json:"active"`
 }
 
+type UpdateActivateStatus func(uid uuid.UUID) error
+
 func UpdateActive(auth string,
-	deactivate func(uid uuid.UUID) error,
-	reactivate func(uid uuid.UUID) error) http.HandlerFunc {
+	deactivate UpdateActivateStatus,
+	reactivate UpdateActivateStatus) http.HandlerFunc {
+	if len(auth) == 0 {
+		panic("missing auth token for key deactivation endpoint")
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		if AuthToken(r.Header) != auth {
 			log.Warnf("unauthorized key de-/re-activation attempt")
@@ -39,10 +49,10 @@ func UpdateActive(auth string,
 		uid := activeUpdatePayload.Uid
 
 		if activeUpdatePayload.Active {
-			action = "key reactivation"
+			action = reactivation
 			err = reactivate(uid)
 		} else {
-			action = "key deactivation"
+			action = deactivation
 			err = deactivate(uid)
 		}
 		if err != nil {
@@ -60,7 +70,7 @@ func UpdateActive(auth string,
 		SendResponse(w, HTTPResponse{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
-			Content:    []byte(action + " successful"),
+			Content:    []byte(action + " successful\n"),
 		})
 	}
 }
@@ -71,7 +81,7 @@ func GetActiveUpdatePayload(r *http.Request) (*ActiveUpdatePayload, error) {
 		return nil, fmt.Errorf("invalid content-type: expected %s, got %s", JSONType, contentType)
 	}
 
-	reqBodyBytes, err := ioutil.ReadAll(r.Body)
+	reqBodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
 		return nil, err
 	}

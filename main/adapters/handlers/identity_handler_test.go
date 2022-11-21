@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/pem"
 	"errors"
 	"math/rand"
@@ -12,30 +11,22 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/ubirch/ubirch-client-go/main/config"
 	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	h "github.com/ubirch/ubirch-client-go/main/adapters/http_server"
 	r "github.com/ubirch/ubirch-client-go/main/adapters/repository"
 )
 
-var (
-	testUuid      = uuid.New()
-	testAuth      = "123456"
-	testSecret, _ = base64.StdEncoding.DecodeString("ZQJt1OC9+4OZtgZLLT9mX25BbrZdxtOQBjK4GyRF2fQ=")
-	conf          = &config.Config{SecretBytes32: testSecret}
-)
-
 func TestIdentityHandler_InitIdentity(t *testing.T) {
-	m := newMock()
-
 	p, err := r.NewExtendedProtocol(&r.MockCtxMngr{}, conf)
 	require.NoError(t, err)
+
+	csrChan := make(chan []byte)
 
 	idHandler := &IdentityHandler{
 		Protocol:              p,
 		SubmitKeyRegistration: MockSubmitKeyRegistration,
-		SubmitCSR:             m.MockSubmitCSR,
+		SubmitCSR:             asynchMockSubmitCSR(csrChan),
 		SubjectCountry:        "AA",
 		SubjectOrganization:   "test GmbH",
 	}
@@ -51,7 +42,7 @@ func TestIdentityHandler_InitIdentity(t *testing.T) {
 		t.Errorf("rest: %q", rest)
 	}
 
-	submittedCSR := <-m.result
+	submittedCSR := <-csrChan
 	assert.Equal(t, block.Bytes, submittedCSR)
 
 	csr, err := x509.ParseCertificateRequest(block.Bytes)
@@ -151,22 +142,22 @@ func TestIdentityHandler_InitIdentity_BadSubmitCSR(t *testing.T) {
 }
 
 func TestIdentityHandler_CreateCSR(t *testing.T) {
-	m := newMock()
-
 	p, err := r.NewExtendedProtocol(&r.MockCtxMngr{}, conf)
 	require.NoError(t, err)
+
+	csrChan := make(chan []byte)
 
 	idHandler := &IdentityHandler{
 		Protocol:              p,
 		SubmitKeyRegistration: MockSubmitKeyRegistration,
-		SubmitCSR:             m.MockSubmitCSR,
+		SubmitCSR:             asynchMockSubmitCSR(csrChan),
 		SubjectCountry:        "AA",
 		SubjectOrganization:   "test GmbH",
 	}
 
 	_, err = idHandler.InitIdentity(testUuid, testAuth)
 	require.NoError(t, err)
-	<-m.result
+	<-csrChan
 
 	csrPEM, err := idHandler.CreateCSR(testUuid)
 	require.NoError(t, err)
@@ -179,7 +170,7 @@ func TestIdentityHandler_CreateCSR(t *testing.T) {
 		t.Errorf("rest: %q", rest)
 	}
 
-	submittedCSR := <-m.result
+	submittedCSR := <-csrChan
 	assert.Equal(t, block.Bytes, submittedCSR)
 
 	csr, err := x509.ParseCertificateRequest(block.Bytes)
@@ -440,19 +431,11 @@ func MockSubmitKeyDeletionBad(uuid.UUID, []byte) error {
 	return MockSubmitKeyDeletionErr
 }
 
-type mock struct {
-	result chan []byte
-}
-
-func newMock() *mock {
-	return &mock{
-		result: make(chan []byte),
+func asynchMockSubmitCSR(csrChan chan []byte) func(uid uuid.UUID, csr []byte) error {
+	return func(uid uuid.UUID, csr []byte) error {
+		csrChan <- csr
+		return nil
 	}
-}
-
-func (m *mock) MockSubmitCSR(uid uuid.UUID, csr []byte) error {
-	m.result <- csr
-	return nil
 }
 
 func MockSubmitCSR(uuid.UUID, []byte) error {
