@@ -71,8 +71,13 @@ func reactivate(m *mock.Mock) UpdateActivateStatus {
 	}
 }
 
-var (
+const (
 	serverID        = "test server"
+	testHeader      = "X-Test-Header"
+	testHeaderValue = "test header value"
+)
+
+var (
 	readinessChecks []func() error
 )
 
@@ -354,7 +359,7 @@ func TestInitHTTPServer(t *testing.T) {
 				).Return(HTTPResponse{
 					StatusCode: http.StatusOK,
 					//Header:     http.Header{"test": []string{"1", "2", "3"}},
-					Header:  http.Header{"test": []string{"header"}},
+					Header:  http.Header{testHeader: []string{testHeaderValue}},
 					Content: []byte("chained"),
 				})
 			},
@@ -362,7 +367,7 @@ func TestInitHTTPServer(t *testing.T) {
 				m.AssertExpectations(t)
 				assert.Equal(t, http.StatusOK, w.Code)
 				//assert.Equal(t, []string{"1", "2", "3"}, w.Header().Get("test"))
-				assert.Equal(t, "header", w.Header().Get("test"))
+				assert.Equal(t, testHeaderValue, w.Header().Get(testHeader))
 				assert.Contains(t, w.Body.String(), "chained")
 			},
 		},
@@ -386,14 +391,14 @@ func TestInitHTTPServer(t *testing.T) {
 					false,
 				).Return(HTTPResponse{
 					StatusCode: http.StatusOK,
-					Header:     http.Header{"test": []string{"header"}},
+					Header:     http.Header{testHeader: []string{testHeaderValue}},
 					Content:    []byte("chained hash"),
 				})
 			},
 			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
 				m.AssertExpectations(t)
 				assert.Equal(t, http.StatusOK, w.Code)
-				assert.Equal(t, "header", w.Header().Get("test"))
+				assert.Equal(t, testHeaderValue, w.Header().Get(testHeader))
 				assert.Contains(t, w.Body.String(), "chained hash")
 			},
 		},
@@ -417,14 +422,14 @@ func TestInitHTTPServer(t *testing.T) {
 					true,
 				).Return(HTTPResponse{
 					StatusCode: http.StatusOK,
-					Header:     http.Header{"test": []string{"header"}},
+					Header:     http.Header{testHeader: []string{testHeaderValue}},
 					Content:    []byte("chained offline"),
 				})
 			},
 			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
 				m.AssertExpectations(t)
 				assert.Equal(t, http.StatusOK, w.Code)
-				assert.Equal(t, "header", w.Header().Get("test"))
+				assert.Equal(t, testHeaderValue, w.Header().Get(testHeader))
 				assert.Contains(t, w.Body.String(), "chained offline")
 			},
 		},
@@ -448,14 +453,14 @@ func TestInitHTTPServer(t *testing.T) {
 					true,
 				).Return(HTTPResponse{
 					StatusCode: http.StatusOK,
-					Header:     http.Header{"test": []string{"header"}},
+					Header:     http.Header{testHeader: []string{testHeaderValue}},
 					Content:    []byte("chained offline hash"),
 				})
 			},
 			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
 				m.AssertExpectations(t)
 				assert.Equal(t, http.StatusOK, w.Code)
-				assert.Equal(t, "header", w.Header().Get("test"))
+				assert.Equal(t, testHeaderValue, w.Header().Get(testHeader))
 				assert.Contains(t, w.Body.String(), "chained offline hash")
 			},
 		},
@@ -479,14 +484,14 @@ func TestInitHTTPServer(t *testing.T) {
 					false,
 				).Return(HTTPResponse{
 					StatusCode: http.StatusOK,
-					Header:     http.Header{"test": []string{"header"}},
+					Header:     http.Header{testHeader: []string{testHeaderValue}},
 					Content:    []byte("anchored"),
 				})
 			},
 			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
 				m.AssertExpectations(t)
 				assert.Equal(t, http.StatusOK, w.Code)
-				assert.Equal(t, "header", w.Header().Get("test"))
+				assert.Equal(t, testHeaderValue, w.Header().Get(testHeader))
 				assert.Contains(t, w.Body.String(), "anchored")
 			},
 		},
@@ -510,14 +515,14 @@ func TestInitHTTPServer(t *testing.T) {
 					false,
 				).Return(HTTPResponse{
 					StatusCode: http.StatusOK,
-					Header:     http.Header{"test": []string{"header"}},
+					Header:     http.Header{testHeader: []string{testHeaderValue}},
 					Content:    []byte("anchored hash"),
 				})
 			},
 			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
 				m.AssertExpectations(t)
 				assert.Equal(t, http.StatusOK, w.Code)
-				assert.Equal(t, "header", w.Header().Get("test"))
+				assert.Equal(t, testHeaderValue, w.Header().Get(testHeader))
 				assert.Contains(t, w.Body.String(), "anchored hash")
 			},
 		},
@@ -541,14 +546,14 @@ func TestInitHTTPServer(t *testing.T) {
 					true,
 				).Return(HTTPResponse{
 					StatusCode: http.StatusOK,
-					Header:     http.Header{"test": []string{"header"}},
+					Header:     http.Header{testHeader: []string{testHeaderValue}},
 					Content:    []byte("anchored offline"),
 				})
 			},
 			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
 				m.AssertExpectations(t)
 				assert.Equal(t, http.StatusOK, w.Code)
-				assert.Equal(t, "header", w.Header().Get("test"))
+				assert.Equal(t, testHeaderValue, w.Header().Get(testHeader))
 				assert.Contains(t, w.Body.String(), "anchored offline")
 			},
 		},
@@ -572,14 +577,14 @@ func TestInitHTTPServer(t *testing.T) {
 					true,
 				).Return(HTTPResponse{
 					StatusCode: http.StatusOK,
-					Header:     http.Header{"test": []string{"header"}},
+					Header:     http.Header{testHeader: []string{testHeaderValue}},
 					Content:    []byte("anchored offline hash"),
 				})
 			},
 			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
 				m.AssertExpectations(t)
 				assert.Equal(t, http.StatusOK, w.Code)
-				assert.Equal(t, "header", w.Header().Get("test"))
+				assert.Equal(t, testHeaderValue, w.Header().Get(testHeader))
 				assert.Contains(t, w.Body.String(), "anchored offline hash")
 			},
 		},
@@ -603,14 +608,14 @@ func TestInitHTTPServer(t *testing.T) {
 					false,
 				).Return(HTTPResponse{
 					StatusCode: http.StatusOK,
-					Header:     http.Header{"test": []string{"header"}},
+					Header:     http.Header{testHeader: []string{testHeaderValue}},
 					Content:    []byte("disabled"),
 				})
 			},
 			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
 				m.AssertExpectations(t)
 				assert.Equal(t, http.StatusOK, w.Code)
-				assert.Equal(t, "header", w.Header().Get("test"))
+				assert.Equal(t, testHeaderValue, w.Header().Get(testHeader))
 				assert.Contains(t, w.Body.String(), "disabled")
 			},
 		},
@@ -634,14 +639,14 @@ func TestInitHTTPServer(t *testing.T) {
 					false,
 				).Return(HTTPResponse{
 					StatusCode: http.StatusOK,
-					Header:     http.Header{"test": []string{"header"}},
+					Header:     http.Header{testHeader: []string{testHeaderValue}},
 					Content:    []byte("disabled hash"),
 				})
 			},
 			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
 				m.AssertExpectations(t)
 				assert.Equal(t, http.StatusOK, w.Code)
-				assert.Equal(t, "header", w.Header().Get("test"))
+				assert.Equal(t, testHeaderValue, w.Header().Get(testHeader))
 				assert.Contains(t, w.Body.String(), "disabled hash")
 			},
 		},
@@ -665,14 +670,14 @@ func TestInitHTTPServer(t *testing.T) {
 					false,
 				).Return(HTTPResponse{
 					StatusCode: http.StatusOK,
-					Header:     http.Header{"test": []string{"header"}},
+					Header:     http.Header{testHeader: []string{testHeaderValue}},
 					Content:    []byte("enabled"),
 				})
 			},
 			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
 				m.AssertExpectations(t)
 				assert.Equal(t, http.StatusOK, w.Code)
-				assert.Equal(t, "header", w.Header().Get("test"))
+				assert.Equal(t, testHeaderValue, w.Header().Get(testHeader))
 				assert.Contains(t, w.Body.String(), "enabled")
 			},
 		},
@@ -696,14 +701,14 @@ func TestInitHTTPServer(t *testing.T) {
 					false,
 				).Return(HTTPResponse{
 					StatusCode: http.StatusOK,
-					Header:     http.Header{"test": []string{"header"}},
+					Header:     http.Header{testHeader: []string{testHeaderValue}},
 					Content:    []byte("enabled hash"),
 				})
 			},
 			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
 				m.AssertExpectations(t)
 				assert.Equal(t, http.StatusOK, w.Code)
-				assert.Equal(t, "header", w.Header().Get("test"))
+				assert.Equal(t, testHeaderValue, w.Header().Get(testHeader))
 				assert.Contains(t, w.Body.String(), "enabled hash")
 			},
 		},
@@ -727,14 +732,14 @@ func TestInitHTTPServer(t *testing.T) {
 					false,
 				).Return(HTTPResponse{
 					StatusCode: http.StatusOK,
-					Header:     http.Header{"test": []string{"header"}},
+					Header:     http.Header{testHeader: []string{testHeaderValue}},
 					Content:    []byte("deleted"),
 				})
 			},
 			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
 				m.AssertExpectations(t)
 				assert.Equal(t, http.StatusOK, w.Code)
-				assert.Equal(t, "header", w.Header().Get("test"))
+				assert.Equal(t, testHeaderValue, w.Header().Get(testHeader))
 				assert.Contains(t, w.Body.String(), "deleted")
 			},
 		},
@@ -758,14 +763,14 @@ func TestInitHTTPServer(t *testing.T) {
 					false,
 				).Return(HTTPResponse{
 					StatusCode: http.StatusOK,
-					Header:     http.Header{"test": []string{"header"}},
+					Header:     http.Header{testHeader: []string{testHeaderValue}},
 					Content:    []byte("deleted hash"),
 				})
 			},
 			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
 				m.AssertExpectations(t)
 				assert.Equal(t, http.StatusOK, w.Code)
-				assert.Equal(t, "header", w.Header().Get("test"))
+				assert.Equal(t, testHeaderValue, w.Header().Get(testHeader))
 				assert.Contains(t, w.Body.String(), "deleted hash")
 			},
 		},
@@ -783,14 +788,14 @@ func TestInitHTTPServer(t *testing.T) {
 					[]byte{0x80, 0xc9, 0x83, 0xc2, 0xfa, 0x61, 0x75, 0x1b, 0x2f, 0x78, 0x42, 0xa3, 0xa3, 0x39, 0x34, 0xfc, 0xbe, 0xd1, 0xc4, 0x3a, 0xa2, 0x5c, 0xa3, 0xb6, 0x39, 0x5c, 0x12, 0xf5, 0x53, 0xe2, 0xf0, 0x5e},
 				).Return(HTTPResponse{
 					StatusCode: http.StatusOK,
-					Header:     http.Header{"test": []string{"header"}},
+					Header:     http.Header{testHeader: []string{testHeaderValue}},
 					Content:    []byte("verified"),
 				})
 			},
 			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
 				m.AssertExpectations(t)
 				assert.Equal(t, http.StatusOK, w.Code)
-				assert.Equal(t, "header", w.Header().Get("test"))
+				assert.Equal(t, testHeaderValue, w.Header().Get(testHeader))
 				assert.Contains(t, w.Body.String(), "verified")
 			},
 		},
@@ -808,14 +813,14 @@ func TestInitHTTPServer(t *testing.T) {
 					[]byte{0x80, 0xc9, 0x83, 0xc2, 0xfa, 0x61, 0x75, 0x1b, 0x2f, 0x78, 0x42, 0xa3, 0xa3, 0x39, 0x34, 0xfc, 0xbe, 0xd1, 0xc4, 0x3a, 0xa2, 0x5c, 0xa3, 0xb6, 0x39, 0x5c, 0x12, 0xf5, 0x53, 0xe2, 0xf0, 0x5e},
 				).Return(HTTPResponse{
 					StatusCode: http.StatusOK,
-					Header:     http.Header{"test": []string{"header"}},
+					Header:     http.Header{testHeader: []string{testHeaderValue}},
 					Content:    []byte("verified hash"),
 				})
 			},
 			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
 				m.AssertExpectations(t)
 				assert.Equal(t, http.StatusOK, w.Code)
-				assert.Equal(t, "header", w.Header().Get("test"))
+				assert.Equal(t, testHeaderValue, w.Header().Get(testHeader))
 				assert.Contains(t, w.Body.String(), "verified hash")
 			},
 		},
@@ -834,14 +839,14 @@ func TestInitHTTPServer(t *testing.T) {
 					[]byte{0x80, 0xc9, 0x83, 0xc2, 0xfa, 0x61, 0x75, 0x1b, 0x2f, 0x78, 0x42, 0xa3, 0xa3, 0x39, 0x34, 0xfc, 0xbe, 0xd1, 0xc4, 0x3a, 0xa2, 0x5c, 0xa3, 0xb6, 0x39, 0x5c, 0x12, 0xf5, 0x53, 0xe2, 0xf0, 0x5e},
 				).Return(HTTPResponse{
 					StatusCode: http.StatusOK,
-					Header:     http.Header{"test": []string{"header"}},
+					Header:     http.Header{testHeader: []string{testHeaderValue}},
 					Content:    []byte("verified offline"),
 				})
 			},
 			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
 				m.AssertExpectations(t)
 				assert.Equal(t, http.StatusOK, w.Code)
-				assert.Equal(t, "header", w.Header().Get("test"))
+				assert.Equal(t, testHeaderValue, w.Header().Get(testHeader))
 				assert.Contains(t, w.Body.String(), "verified offline")
 			},
 		},
@@ -860,14 +865,14 @@ func TestInitHTTPServer(t *testing.T) {
 					[]byte{0x80, 0xc9, 0x83, 0xc2, 0xfa, 0x61, 0x75, 0x1b, 0x2f, 0x78, 0x42, 0xa3, 0xa3, 0x39, 0x34, 0xfc, 0xbe, 0xd1, 0xc4, 0x3a, 0xa2, 0x5c, 0xa3, 0xb6, 0x39, 0x5c, 0x12, 0xf5, 0x53, 0xe2, 0xf0, 0x5e},
 				).Return(HTTPResponse{
 					StatusCode: http.StatusOK,
-					Header:     http.Header{"test": []string{"header"}},
+					Header:     http.Header{testHeader: []string{testHeaderValue}},
 					Content:    []byte("verified offline hash"),
 				})
 			},
 			tcChecks: func(t *testing.T, w *httptest.ResponseRecorder, m *mock.Mock) {
 				m.AssertExpectations(t)
 				assert.Equal(t, http.StatusOK, w.Code)
-				assert.Equal(t, "header", w.Header().Get("test"))
+				assert.Equal(t, testHeaderValue, w.Header().Get(testHeader))
 				assert.Contains(t, w.Body.String(), "verified offline hash")
 			},
 		},
