@@ -102,7 +102,7 @@ func TestSigner_Sign(t *testing.T) {
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
 				m.AssertExpectations(t)
-				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testChainedUPP, testPublicKey, testBckndResp, testRequestID), resp)
+				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testChainedUPP, testPublicKey, &testBckndResp, testRequestID), resp)
 			},
 		},
 		{
@@ -132,7 +132,7 @@ func TestSigner_Sign(t *testing.T) {
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
 				m.AssertExpectations(t)
-				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testChainedUPP, testPublicKey, h.HTTPResponse{}, ""), resp)
+				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testChainedUPP, testPublicKey, nil, ""), resp)
 			},
 		},
 		{
@@ -158,7 +158,7 @@ func TestSigner_Sign(t *testing.T) {
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
 				m.AssertExpectations(t)
-				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testSignedUPP, testPublicKey, testBckndResp, testRequestID), resp)
+				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testSignedUPP, testPublicKey, &testBckndResp, testRequestID), resp)
 			},
 		},
 		{
@@ -183,7 +183,7 @@ func TestSigner_Sign(t *testing.T) {
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
 				m.AssertExpectations(t)
-				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testSignedUPP, testPublicKey, h.HTTPResponse{}, ""), resp)
+				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testSignedUPP, testPublicKey, nil, ""), resp)
 			},
 		},
 		{
@@ -208,7 +208,7 @@ func TestSigner_Sign(t *testing.T) {
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
 				m.AssertExpectations(t)
-				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testSignedUPP, testPublicKey, testBckndResp, testRequestID), resp)
+				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testSignedUPP, testPublicKey, &testBckndResp, testRequestID), resp)
 			},
 		},
 		{
@@ -233,7 +233,7 @@ func TestSigner_Sign(t *testing.T) {
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
 				m.AssertExpectations(t)
-				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testSignedUPP, testPublicKey, testBckndResp, testRequestID), resp)
+				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testSignedUPP, testPublicKey, &testBckndResp, testRequestID), resp)
 			},
 		},
 		{
@@ -258,7 +258,7 @@ func TestSigner_Sign(t *testing.T) {
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
 				m.AssertExpectations(t)
-				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testSignedUPP, testPublicKey, testBckndResp, testRequestID), resp)
+				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testSignedUPP, testPublicKey, &testBckndResp, testRequestID), resp)
 			},
 		},
 	}
