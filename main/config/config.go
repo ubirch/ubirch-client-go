@@ -89,6 +89,7 @@ type Config struct {
 	CSR_Organization              string            `json:"CSR_organization"`                                                            // subject organization for public key Certificate Signing Requests
 	Debug                         bool              `json:"debug"`                                                                       // enable extended debug output, defaults to 'false'
 	LogTextFormat                 bool              `json:"logTextFormat"`                                                               // log in text format for better human readability, default format is JSON
+	LogKnownIdentities            bool              `json:"logKnownIdentities" envconfig:"LOG_KNOWN_IDENTITIES"`                         // log the UUIDs of all known identities at startup
 	KdMaxTotalMemMiB              uint32            `json:"kdMaxTotalMemMiB" envconfig:"KD_MAX_TOTAL_MEM_MIB"`                           // maximal total memory to use for key derivation at a time in MiB
 	KdParamMemMiB                 uint32            `json:"kdParamMemMiB" envconfig:"KD_PARAM_MEM_MIB"`                                  // memory parameter for key derivation, specifies the size of the memory in MiB
 	KdParamTime                   uint32            `json:"kdParamTime" envconfig:"KD_PARAM_TIME"`                                       // time parameter for key derivation, specifies the number of passes over the memory

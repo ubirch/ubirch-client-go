@@ -913,6 +913,19 @@ By default, the log of the client is in JSON format. To change it to a (more hum
     UBIRCH_LOGTEXTFORMAT=true
     ```
 
+### Log Known Identities
+
+To log the UUIDs of all known (registered) identities at startup,
+
+- add the following key-value pair to your `config.json`:
+    ```json
+      "logKnownIdentities": true
+    ```
+- or set the following environment variable:
+    ```console
+    UBIRCH_LOG_KNOWN_IDENTITIES=true
+    ```
+
 ### Request Timeouts
 
 The following request-related timeouts can be configured.
@@ -1003,7 +1016,8 @@ rm -rf keys.json keys.json.bck signatures
       },
       "secret32": "<YOUR_32_BYTE_SECRET(base64 encoded)>",
       "dbDriver": "sqlite",
-      "logTextFormat": true
+      "logTextFormat": true, 
+      "logKnownIdentities": true
     }
     ```
     - Replace `<YOUR_DEVICE_UUID>` with your device UUID from step 1.1.
@@ -1018,7 +1032,8 @@ rm -rf keys.json keys.json.bck signatures
       },
       "secret32": "kwNWDv1K8z/T4Muk8La4uzoUl2Q1G923rmm7kA5NrIE=",
       "dbDriver": "sqlite",
-      "logTextFormat": true
+      "logTextFormat": true, 
+      "logKnownIdentities": true
     }
     ```
 
@@ -1044,8 +1059,8 @@ rm -rf keys.json keys.json.bck signatures
     time="2022-10-31 07:36:28.154 +0000" level=warning msg="key deactivation endpoint disabled. To enable, set json:\"enableDeactivationEndpoint\" env:\"ENABLE_DEACTIVATION_ENDPOINT\" =true"
     time="2022-10-31 07:36:28.155 +0000" level=info msg="UBIRCH backend environment: prod"
     time="2022-10-31 07:36:28.155 +0000" level=info msg="initializing sqlite database connection"
-    time="2022-10-31 07:36:28.285 +0000" level=info msg="0 known internal identities (signing and verification):"
-    time="2022-10-31 07:36:28.287 +0000" level=info msg="0 known external identities (verification only):"
+    time="2022-10-31 07:36:28.285 +0000" level=info msg="0 known internal identities (signing and verification)"
+    time="2022-10-31 07:36:28.287 +0000" level=info msg="0 known external identities (verification only)"
     time="2022-10-31 07:36:28.296 +0000" level=info msg="e5085a89-a881-4397-902e-a630f021afd8: initializing identity"
     time="2022-10-31 07:36:28.750 +0000" level=info msg="e5085a89-a881-4397-902e-a630f021afd8: key certificate: {\"pubKeyInfo\":{\"algorithm\":\"ecdsa-p256v1\",\"created\":\"2022-10-31T07:36:28.739Z\",\"hwDeviceId\":\"e5085a89-a881-4397-902e-a630f021afd8\",\"pubKey\":\"//3eUKJOrGaYCoPBOMMUquX3cn+EXHMqCKu7IJWu/Xs1x7oJ4HU6LLWksf8toG0ir1VreFo8A5tJEGvxmQbe0w==\",\"pubKeyId\":\"//3eUKJOrGaYCoPBOMMUquX3cn+EXHMqCKu7IJWu/Xs1x7oJ4HU6LLWksf8toG0ir1VreFo8A5tJEGvxmQbe0w==\",\"validNotAfter\":\"2032-10-28T07:36:28.739Z\",\"validNotBefore\":\"2022-10-31T07:36:28.739Z\"},\"signature\":\"GpGZzgTtvZ0InzvqNlNh3CEMkNxLY+G/og1qBe8J/ouhHs4OS5us1JEenzyym+cKJaHAaNYMscZA3jdrFxnZ+w==\"}"
     time="2022-10-31 07:36:30.231 +0000" level=info msg="e5085a89-a881-4397-902e-a630f021afd8: creating CSR"
