@@ -1,6 +1,9 @@
 import json
+import random
 
 import requests
+
+from helpers import get_random_json, serialize, hash_bytes, to_base64
 
 
 class TestIntegration:
@@ -13,6 +16,7 @@ class TestIntegration:
     pwd = config["testDevice"]["password"]
     env = config["env"]
     pubkey_url = f"https://identity.{env}.ubirch.com/api/keyService/v1/pubkey/current/hardwareId/{uuid}"
+    verify_url = f"https://verify.{env}.ubirch.com/api/upp"
 
     def test_health(self):
         url = self.host + "/healthz"
@@ -54,9 +58,9 @@ class TestIntegration:
                    and res.content == b'identity already registered\n')
 
         # check if key was registered at ubirch identity service
-        res = requests.get(self.pubkey_url)
+        pubkey_res = requests.get(self.pubkey_url)
 
-        assert len(res.json()) == 1
+        assert len(pubkey_res.json()) == 1
 
     def test_csr(self):
         url = self.host + f"/{self.uuid}/csr"
@@ -79,9 +83,9 @@ class TestIntegration:
         assert res.content == b'key deactivation successful\n'
 
         # check if key was deleted at ubirch identity service
-        res = requests.get(self.pubkey_url)
+        pubkey_res = requests.get(self.pubkey_url)
 
-        assert len(res.json()) == 0
+        assert len(pubkey_res.json()) == 0
 
     def test_reactivate(self):
         url = self.host + "/device/updateActive"
@@ -94,6 +98,47 @@ class TestIntegration:
         assert res.content == b'key reactivation successful\n'
 
         # check if key was registered at ubirch identity service
-        res = requests.get(self.pubkey_url)
+        pubkey_res = requests.get(self.pubkey_url)
 
-        assert len(res.json()) == 1
+        assert len(pubkey_res.json()) == 1
+
+    def test_chain(self):
+        url = self.host + f"/{self.uuid}"
+        header = {'Content-Type': 'application/json', 'X-Auth-Token': self.pwd}
+        data_json = get_random_json()
+        data_hash_64 = to_base64(hash_bytes(serialize(data_json)))
+
+        res = requests.post(url, json=data_json, headers=header)
+
+        assert res.status_code == 200
+        assert res.json()["hash"] == data_hash_64
+        assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
+        assert res.json()["response"]["statusCode"] == 200
+
+        # check if hash is known by ubirch verification service
+        verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
+
+        assert verify_res.status_code == 200
+        assert verify_res.json()["upp"] == res.json()["upp"]
+
+        # todo check if consecutive requests to this endpoint result in correctly chained UPPs
+
+    def test_chain_hash(self):
+        url = self.host + f"/{self.uuid}/hash"
+        header = {'Content-Type': 'text/plain', 'X-Auth-Token': self.pwd}
+        data_hash_64 = to_base64(random.randbytes(32))
+
+        res = requests.post(url, data=data_hash_64, headers=header)
+
+        assert res.status_code == 200
+        assert res.json()["hash"] == data_hash_64
+        assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
+        assert res.json()["response"]["statusCode"] == 200
+
+        # check if hash is known by ubirch verification service
+        verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
+
+        assert verify_res.status_code == 200
+        assert verify_res.json()["upp"] == res.json()["upp"]
+
+        # todo check if consecutive requests to this endpoint result in correctly chained UPPs
