@@ -44,11 +44,11 @@ var hintLookup = map[h.Operation]ubirch.Hint{
 }
 
 type signingResponse struct {
-	Hash      []byte         `json:"hash"`
-	UPP       []byte         `json:"upp"`
-	PublicKey []byte         `json:"publicKey"`
-	Response  h.HTTPResponse `json:"response,omitempty"`
-	RequestID string         `json:"requestID,omitempty"`
+	Hash      []byte          `json:"hash"`
+	UPP       []byte          `json:"upp"`
+	PublicKey []byte          `json:"publicKey"`
+	Response  *h.HTTPResponse `json:"response,omitempty"`
+	RequestID string          `json:"requestID,omitempty"`
 }
 
 type SignerProtocol interface {
@@ -119,7 +119,7 @@ func (s *Signer) Sign(msg h.HTTPRequest) h.HTTPResponse {
 
 	var resp h.HTTPResponse
 	if msg.Offline {
-		resp = getSigningResponse(http.StatusOK, msg.Hash[:], uppBytes, pub, h.HTTPResponse{}, "")
+		resp = getSigningResponse(http.StatusOK, msg.Hash[:], uppBytes, pub, nil, "")
 	} else {
 		resp = s.sendUPP(msg, uppBytes, pub)
 	}
@@ -204,7 +204,7 @@ func (s *Signer) sendUPP(msg h.HTTPRequest, upp []byte, pub []byte) h.HTTPRespon
 		}
 	}
 
-	resp := getSigningResponse(backendResp.StatusCode, msg.Hash[:], upp, pub, backendResp, requestID)
+	resp := getSigningResponse(backendResp.StatusCode, msg.Hash[:], upp, pub, &backendResp, requestID)
 
 	if h.HttpFailed(backendResp.StatusCode) {
 		log.Errorf("%s: request to ubirch authentication service (niomon) failed: (%d) %s", msg.ID, backendResp.StatusCode, string(resp.Content))
@@ -236,7 +236,7 @@ func errorResponse(code int, message string) h.HTTPResponse {
 	}
 }
 
-func getSigningResponse(statusCode int, hash, upp, pub []byte, backendResp h.HTTPResponse, requestID string) h.HTTPResponse {
+func getSigningResponse(statusCode int, hash, upp, pub []byte, backendResp *h.HTTPResponse, requestID string) h.HTTPResponse {
 	signingResp, err := json.Marshal(signingResponse{
 		Hash:      hash,
 		UPP:       upp,
