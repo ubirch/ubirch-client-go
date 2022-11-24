@@ -7,8 +7,15 @@ class TestIntegration:
     with open("config.json", "r") as f:
         config = json.load(f)
 
+    host = config["host"]
+    auth = config["staticAuth"]
+    uuid = config["testDevice"]["uuid"]
+    pwd = config["testDevice"]["password"]
+    env = config["env"]
+    pubkey_url = f"https://identity.{env}.ubirch.com/api/keyService/v1/pubkey/current/hardwareId/{uuid}"
+
     def test_health(self):
-        url = self.config["baseURL"] + "/healthz"
+        url = self.host + "/healthz"
 
         res = requests.get(url)
 
@@ -16,7 +23,7 @@ class TestIntegration:
         assert res.content == b'OK\n'
 
     def test_ready(self):
-        url = self.config["baseURL"] + "/readyz"
+        url = self.host + "/readyz"
 
         res = requests.get(url)
 
@@ -24,7 +31,7 @@ class TestIntegration:
         assert res.content == b'OK\n'
 
     def test_metrics(self):
-        url = self.config["baseURL"] + "/metrics"
+        url = self.host + "/metrics"
 
         res = requests.get(url)
 
@@ -34,10 +41,11 @@ class TestIntegration:
                and res.content.__contains__(b'# TYPE response_status counter')
 
     def test_register(self):
-        url = self.config["baseURL"] + "/register"
-        header = {'Content-Type': 'application/json', 'X-Auth-Token': self.config["staticAuth"]}
+        url = self.host + "/register"
+        header = {'Content-Type': 'application/json', 'X-Auth-Token': self.auth}
+        body = {"uuid": self.uuid, "password": self.pwd}
 
-        res = requests.put(url, json=self.config["testDevice"], headers=header)
+        res = requests.put(url, json=body, headers=header)
 
         assert (res.status_code == 200
                 and res.content.startswith(b'-----BEGIN CERTIFICATE REQUEST-----\n')
@@ -46,18 +54,13 @@ class TestIntegration:
                    and res.content == b'identity already registered\n')
 
         # check if key was registered at ubirch identity service
-        uid = self.config["testDevice"]["uuid"]
-        env = self.config["env"]
-        identity_service_url = f"https://identity.{env}.ubirch.com/api/keyService/v1/pubkey/current/hardwareId/{uid}"
-
-        res = requests.get(identity_service_url)
+        res = requests.get(self.pubkey_url)
 
         assert len(res.json()) == 1
 
     def test_csr(self):
-        uid = self.config["testDevice"]["uuid"]
-        url = self.config["baseURL"] + f"/{uid}/csr"
-        header = {'X-Auth-Token': self.config["staticAuth"]}
+        url = self.host + f"/{self.uuid}/csr"
+        header = {'X-Auth-Token': self.auth}
 
         res = requests.get(url, headers=header)
 
@@ -66,10 +69,9 @@ class TestIntegration:
                and res.content.endswith(b'-----END CERTIFICATE REQUEST-----\n')
 
     def test_deactivate(self):
-        uid = self.config["testDevice"]["uuid"]
-        url = self.config["baseURL"] + "/device/updateActive"
-        header = {'Content-Type': 'application/json', 'X-Auth-Token': self.config["staticAuth"]}
-        body = {"id": uid, "active": False}
+        url = self.host + "/device/updateActive"
+        header = {'Content-Type': 'application/json', 'X-Auth-Token': self.auth}
+        body = {"id": self.uuid, "active": False}
 
         res = requests.put(url, json=body, headers=header)
 
@@ -77,19 +79,14 @@ class TestIntegration:
         assert res.content == b'key deactivation successful\n'
 
         # check if key was deleted at ubirch identity service
-        uid = self.config["testDevice"]["uuid"]
-        env = self.config["env"]
-        identity_service_url = f"https://identity.{env}.ubirch.com/api/keyService/v1/pubkey/current/hardwareId/{uid}"
-
-        res = requests.get(identity_service_url)
+        res = requests.get(self.pubkey_url)
 
         assert len(res.json()) == 0
 
     def test_reactivate(self):
-        uid = self.config["testDevice"]["uuid"]
-        url = self.config["baseURL"] + "/device/updateActive"
-        header = {'Content-Type': 'application/json', 'X-Auth-Token': self.config["staticAuth"]}
-        body = {"id": uid, "active": True}
+        url = self.host + "/device/updateActive"
+        header = {'Content-Type': 'application/json', 'X-Auth-Token': self.auth}
+        body = {"id": self.uuid, "active": True}
 
         res = requests.put(url, json=body, headers=header)
 
@@ -97,10 +94,6 @@ class TestIntegration:
         assert res.content == b'key reactivation successful\n'
 
         # check if key was registered at ubirch identity service
-        uid = self.config["testDevice"]["uuid"]
-        env = self.config["env"]
-        identity_service_url = f"https://identity.{env}.ubirch.com/api/keyService/v1/pubkey/current/hardwareId/{uid}"
-
-        res = requests.get(identity_service_url)
+        res = requests.get(self.pubkey_url)
 
         assert len(res.json()) == 1
