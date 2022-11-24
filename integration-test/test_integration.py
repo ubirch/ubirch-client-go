@@ -1,6 +1,7 @@
 import json
 import random
 
+import pytest
 import requests
 
 from helpers import get_random_json, serialize, hash_bytes, to_base64
@@ -140,5 +141,46 @@ class TestIntegration:
 
         assert verify_res.status_code == 200
         assert verify_res.json()["upp"] == res.json()["upp"]
+
+        # todo check if consecutive requests to this endpoint result in correctly chained UPPs
+
+    def test_chain_offline(self):
+        url = self.host + f"/{self.uuid}/offline"
+        header = {'Content-Type': 'application/json', 'X-Auth-Token': self.pwd}
+        data_json = get_random_json()
+        data_hash_64 = to_base64(hash_bytes(serialize(data_json)))
+
+        res = requests.post(url, json=data_json, headers=header)
+
+        assert res.status_code == 200
+        assert res.json()["hash"] == data_hash_64
+        assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
+        with pytest.raises(KeyError):
+            res.json()["response"]
+
+        # make sure hash is unknown by ubirch verification service
+        verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
+
+        assert verify_res.status_code == 404
+
+        # todo check if consecutive requests to this endpoint result in correctly chained UPPs
+
+    def test_chain_offline_hash(self):
+        url = self.host + f"/{self.uuid}/offline/hash"
+        header = {'Content-Type': 'text/plain', 'X-Auth-Token': self.pwd}
+        data_hash_64 = to_base64(random.randbytes(32))
+
+        res = requests.post(url, data=data_hash_64, headers=header)
+
+        assert res.status_code == 200
+        assert res.json()["hash"] == data_hash_64
+        assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
+        with pytest.raises(KeyError):
+            res.json()["response"]
+
+        # make sure hash is unknown by ubirch verification service
+        verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
+
+        assert verify_res.status_code == 404
 
         # todo check if consecutive requests to this endpoint result in correctly chained UPPs
