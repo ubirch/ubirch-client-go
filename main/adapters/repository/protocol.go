@@ -41,7 +41,7 @@ type ExtendedProtocol struct {
 }
 
 func NewExtendedProtocol(ctxManager ContextManager, conf *config.Config) (*ExtendedProtocol, error) {
-	err := logKnownIdentities(ctxManager)
+	err := logKnownIdentities(ctxManager, conf.LogKnownIdentities)
 	if err != nil {
 		return nil, err
 	}
@@ -341,15 +341,17 @@ func (p *ExtendedProtocol) checkIdentityAttributes(i *ent.Identity) error {
 	return nil
 }
 
-func logKnownIdentities(ctxManager ContextManager) error {
+func logKnownIdentities(ctxManager ContextManager, logKnownIdentities bool) error {
 	ids, err := ctxManager.GetIdentityUUIDs()
 	if err != nil {
 		return err
 	}
 
-	log.Infof("%d known internal identities (signing and verification):", len(ids))
-	for i, id := range ids {
-		log.Infof("\t%d: %s", i, id)
+	log.Infof("%d known internal identities (signing and verification)", len(ids))
+	if logKnownIdentities {
+		for i, id := range ids {
+			log.Infof("%6d: %s", i, id)
+		}
 	}
 
 	extIds, err := ctxManager.GetExternalIdentityUUIDs()
@@ -357,9 +359,11 @@ func logKnownIdentities(ctxManager ContextManager) error {
 		return err
 	}
 
-	log.Infof("%d known external identities (verification only):", len(extIds))
-	for i, id := range extIds {
-		log.Infof("\t%d: %s", i, id)
+	log.Infof("%d known external identities (verification only)", len(extIds))
+	if logKnownIdentities {
+		for i, id := range extIds {
+			log.Infof("%6d: %s", i, id)
+		}
 	}
 
 	return nil
