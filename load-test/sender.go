@@ -51,16 +51,10 @@ func NewSender() *Sender {
 func (s *Sender) register(url urlpkg.URL, id, auth, registerAuth string) error {
 	url.Path = path.Join(url.Path, "register")
 
-	header := http.Header{}
-	header.Set("Content-Type", "application/json")
-	header.Set("X-Auth-Token", registerAuth)
-
-	registrationData := map[string]string{
+	body, err := json.Marshal(map[string]string{
 		"uuid":     id,
 		"password": auth,
-	}
-
-	body, err := json.Marshal(registrationData)
+	})
 	if err != nil {
 		return err
 	}
@@ -70,7 +64,8 @@ func (s *Sender) register(url urlpkg.URL, id, auth, registerAuth string) error {
 		return err
 	}
 
-	req.Header = header
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Auth-Token", registerAuth)
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
