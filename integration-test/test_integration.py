@@ -112,6 +112,8 @@ class TestIntegration:
         res = requests.post(url, json=data_json, headers=header)
 
         assert res.status_code == 200
+        upp = binascii.a2b_base64(res.json()["upp"])
+        assert upp[0] == 0x96 and upp[1] == 0x23
         assert res.json()["hash"] == data_hash_64
         assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         assert res.json()["response"]["statusCode"] == 200
@@ -132,6 +134,8 @@ class TestIntegration:
         res = requests.post(url, data=data_hash_64, headers=header)
 
         assert res.status_code == 200
+        upp = binascii.a2b_base64(res.json()["upp"])
+        assert upp[0] == 0x96 and upp[1] == 0x23
         assert res.json()["hash"] == data_hash_64
         assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         assert res.json()["response"]["statusCode"] == 200
@@ -153,6 +157,8 @@ class TestIntegration:
         res = requests.post(url, json=data_json, headers=header)
 
         assert res.status_code == 200
+        upp = binascii.a2b_base64(res.json()["upp"])
+        assert upp[0] == 0x96 and upp[1] == 0x23
         assert res.json()["hash"] == data_hash_64
         assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         with pytest.raises(KeyError):
@@ -173,6 +179,8 @@ class TestIntegration:
         res = requests.post(url, data=data_hash_64, headers=header)
 
         assert res.status_code == 200
+        upp = binascii.a2b_base64(res.json()["upp"])
+        assert upp[0] == 0x96 and upp[1] == 0x23
         assert res.json()["hash"] == data_hash_64
         assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         with pytest.raises(KeyError):
