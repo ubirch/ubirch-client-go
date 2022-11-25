@@ -1,7 +1,9 @@
 import binascii
 import json
 import random
+import uuid
 
+import msgpack
 import pytest
 import requests
 
@@ -116,11 +118,17 @@ class TestIntegration:
         res = requests.post(url, json=data_json, headers=header)
 
         assert res.status_code == 200
-        upp = binascii.a2b_base64(res.json()["upp"])
-        assert upp[0] == 0x96 and upp[1] == 0x23
         assert res.json()["hash"] == data_hash_64
         assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         assert res.json()["response"]["statusCode"] == 200
+
+        upp = binascii.a2b_base64(res.json()["upp"])
+        unpacked = msgpack.unpackb(upp)
+        assert len(unpacked) == 6
+        assert unpacked[0] == 0x23
+        assert unpacked[1] == uuid.UUID(self.uuid).bytes
+        assert unpacked[3] == 0x00
+        assert unpacked[4] == binascii.a2b_base64(data_hash_64)
 
         # check if hash is known by ubirch verification service
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
@@ -138,11 +146,17 @@ class TestIntegration:
         res = requests.post(url, data=data_hash_64, headers=header)
 
         assert res.status_code == 200
-        upp = binascii.a2b_base64(res.json()["upp"])
-        assert upp[0] == 0x96 and upp[1] == 0x23
         assert res.json()["hash"] == data_hash_64
         assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         assert res.json()["response"]["statusCode"] == 200
+
+        upp = binascii.a2b_base64(res.json()["upp"])
+        unpacked = msgpack.unpackb(upp)
+        assert len(unpacked) == 6
+        assert unpacked[0] == 0x23
+        assert unpacked[1] == uuid.UUID(self.uuid).bytes
+        assert unpacked[3] == 0x00
+        assert unpacked[4] == binascii.a2b_base64(data_hash_64)
 
         # check if hash is known by ubirch verification service
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
@@ -161,12 +175,18 @@ class TestIntegration:
         res = requests.post(url, json=data_json, headers=header)
 
         assert res.status_code == 200
-        upp = binascii.a2b_base64(res.json()["upp"])
-        assert upp[0] == 0x96 and upp[1] == 0x23
         assert res.json()["hash"] == data_hash_64
         assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         with pytest.raises(KeyError):
             res.json()["response"]
+
+        upp = binascii.a2b_base64(res.json()["upp"])
+        unpacked = msgpack.unpackb(upp)
+        assert len(unpacked) == 6
+        assert unpacked[0] == 0x23
+        assert unpacked[1] == uuid.UUID(self.uuid).bytes
+        assert unpacked[3] == 0x00
+        assert unpacked[4] == binascii.a2b_base64(data_hash_64)
 
         # make sure hash is unknown by ubirch verification service
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
@@ -183,12 +203,18 @@ class TestIntegration:
         res = requests.post(url, data=data_hash_64, headers=header)
 
         assert res.status_code == 200
-        upp = binascii.a2b_base64(res.json()["upp"])
-        assert upp[0] == 0x96 and upp[1] == 0x23
         assert res.json()["hash"] == data_hash_64
         assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         with pytest.raises(KeyError):
             res.json()["response"]
+
+        upp = binascii.a2b_base64(res.json()["upp"])
+        unpacked = msgpack.unpackb(upp)
+        assert len(unpacked) == 6
+        assert unpacked[0] == 0x23
+        assert unpacked[1] == uuid.UUID(self.uuid).bytes
+        assert unpacked[3] == 0x00
+        assert unpacked[4] == binascii.a2b_base64(data_hash_64)
 
         # make sure hash is unknown by ubirch verification service
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
@@ -206,11 +232,17 @@ class TestIntegration:
         res = requests.post(url, json=data_json, headers=header)
 
         assert res.status_code == 200
-        upp = binascii.a2b_base64(res.json()["upp"])
-        assert upp[0] == 0x95 and upp[1] == 0x22
         assert res.json()["hash"] == data_hash_64
         assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         assert res.json()["response"]["statusCode"] == 200
+
+        upp = binascii.a2b_base64(res.json()["upp"])
+        unpacked = msgpack.unpackb(upp)
+        assert len(unpacked) == 5
+        assert unpacked[0] == 0x22
+        assert unpacked[1] == uuid.UUID(self.uuid).bytes
+        assert unpacked[2] == 0x00
+        assert unpacked[3] == binascii.a2b_base64(data_hash_64)
 
         # check if hash is known by ubirch verification service
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
@@ -226,17 +258,182 @@ class TestIntegration:
         res = requests.post(url, data=data_hash_64, headers=header)
 
         assert res.status_code == 200
-        upp = binascii.a2b_base64(res.json()["upp"])
-        assert upp[0] == 0x95 and upp[1] == 0x22
         assert res.json()["hash"] == data_hash_64
         assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         assert res.json()["response"]["statusCode"] == 200
+
+        upp = binascii.a2b_base64(res.json()["upp"])
+        unpacked = msgpack.unpackb(upp)
+        assert len(unpacked) == 5
+        assert unpacked[0] == 0x22
+        assert unpacked[1] == uuid.UUID(self.uuid).bytes
+        assert unpacked[2] == 0x00
+        assert unpacked[3] == binascii.a2b_base64(data_hash_64)
 
         # check if hash is known by ubirch verification service
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
 
         assert verify_res.status_code == 200
         assert verify_res.json()["upp"] == res.json()["upp"]
+
+    def test_disable(self):
+        url = self.host + f"/{self.uuid}/disable"
+        header = {'Content-Type': 'application/json', 'X-Auth-Token': self.pwd}
+        data_json = self.test_json
+        data_hash_64 = to_base64(hash_bytes(serialize(data_json)))
+
+        res = requests.post(url, json=data_json, headers=header)
+
+        assert res.status_code == 200
+        assert res.json()["hash"] == data_hash_64
+        assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
+        assert res.json()["response"]["statusCode"] == 200
+
+        upp = binascii.a2b_base64(res.json()["upp"])
+        unpacked = msgpack.unpackb(upp)
+        assert len(unpacked) == 5
+        assert unpacked[0] == 0x22
+        assert unpacked[1] == uuid.UUID(self.uuid).bytes
+        assert unpacked[2] == 0xFA
+        assert unpacked[3] == binascii.a2b_base64(data_hash_64)
+
+        # FIXME race-condition or cached hash by verification service makes the following assertion fail sometimes
+        # assert hash has been disabled in ubirch backend
+        # verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
+        #
+        # assert verify_res.status_code == 404
+
+    def test_disable_hash(self):
+        url = self.host + f"/{self.uuid}/disable/hash"
+        header = {'Content-Type': 'text/plain', 'X-Auth-Token': self.pwd}
+        data_hash_64 = self.test_hash
+
+        res = requests.post(url, data=data_hash_64, headers=header)
+
+        assert res.status_code == 200
+        assert res.json()["hash"] == data_hash_64
+        assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
+        assert res.json()["response"]["statusCode"] == 200
+
+        upp = binascii.a2b_base64(res.json()["upp"])
+        unpacked = msgpack.unpackb(upp)
+        assert len(unpacked) == 5
+        assert unpacked[0] == 0x22
+        assert unpacked[1] == uuid.UUID(self.uuid).bytes
+        assert unpacked[2] == 0xFA
+        assert unpacked[3] == binascii.a2b_base64(data_hash_64)
+
+        # FIXME race-condition or cached hash by verification service makes the following assertion fail sometimes
+        # assert hash has been disabled in ubirch backend
+        # verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
+        #
+        # assert verify_res.status_code == 404
+
+    def test_enable(self):
+        url = self.host + f"/{self.uuid}/enable"
+        header = {'Content-Type': 'application/json', 'X-Auth-Token': self.pwd}
+        data_json = self.test_json
+        data_hash_64 = to_base64(hash_bytes(serialize(data_json)))
+
+        res = requests.post(url, json=data_json, headers=header)
+
+        assert res.status_code == 200
+        assert res.json()["hash"] == data_hash_64
+        assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
+        assert res.json()["response"]["statusCode"] == 200
+
+        upp = binascii.a2b_base64(res.json()["upp"])
+        unpacked = msgpack.unpackb(upp)
+        assert len(unpacked) == 5
+        assert unpacked[0] == 0x22
+        assert unpacked[1] == uuid.UUID(self.uuid).bytes
+        assert unpacked[2] == 0xFB
+        assert unpacked[3] == binascii.a2b_base64(data_hash_64)
+
+        # FIXME race-condition or cached hash by verification service makes the following assertion fail sometimes
+        # assert hash has been enabled in ubirch backend
+        # verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
+        #
+        # assert verify_res.status_code == 200
+
+    def test_enable_hash(self):
+        url = self.host + f"/{self.uuid}/enable/hash"
+        header = {'Content-Type': 'text/plain', 'X-Auth-Token': self.pwd}
+        data_hash_64 = self.test_hash
+
+        res = requests.post(url, data=data_hash_64, headers=header)
+
+        assert res.status_code == 200
+        assert res.json()["hash"] == data_hash_64
+        assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
+        assert res.json()["response"]["statusCode"] == 200
+
+        upp = binascii.a2b_base64(res.json()["upp"])
+        unpacked = msgpack.unpackb(upp)
+        assert len(unpacked) == 5
+        assert unpacked[0] == 0x22
+        assert unpacked[1] == uuid.UUID(self.uuid).bytes
+        assert unpacked[2] == 0xFB
+        assert unpacked[3] == binascii.a2b_base64(data_hash_64)
+
+        # FIXME race-condition or cached hash by verification service makes the following assertion fail sometimes
+        # assert hash has been enabled in ubirch backend
+        # verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
+        #
+        # assert verify_res.status_code == 200
+
+    def test_delete(self):
+        url = self.host + f"/{self.uuid}/delete"
+        header = {'Content-Type': 'application/json', 'X-Auth-Token': self.pwd}
+        data_json = self.test_json
+        data_hash_64 = to_base64(hash_bytes(serialize(data_json)))
+
+        res = requests.post(url, json=data_json, headers=header)
+
+        assert res.status_code == 200
+        assert res.json()["hash"] == data_hash_64
+        assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
+        assert res.json()["response"]["statusCode"] == 200
+
+        upp = binascii.a2b_base64(res.json()["upp"])
+        unpacked = msgpack.unpackb(upp)
+        assert len(unpacked) == 5
+        assert unpacked[0] == 0x22
+        assert unpacked[1] == uuid.UUID(self.uuid).bytes
+        assert unpacked[2] == 0xFC
+        assert unpacked[3] == binascii.a2b_base64(data_hash_64)
+
+        # FIXME race-condition or cached hash by verification service makes the following assertion fail sometimes
+        # assert hash has been deleted in ubirch backend
+        # verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
+        #
+        # assert verify_res.status_code == 404
+
+    def test_delete_hash(self):
+        url = self.host + f"/{self.uuid}/delete/hash"
+        header = {'Content-Type': 'text/plain', 'X-Auth-Token': self.pwd}
+        data_hash_64 = self.test_hash
+
+        res = requests.post(url, data=data_hash_64, headers=header)
+
+        assert res.status_code == 200
+        assert res.json()["hash"] == data_hash_64
+        assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
+        assert res.json()["response"]["statusCode"] == 200
+
+        upp = binascii.a2b_base64(res.json()["upp"])
+        unpacked = msgpack.unpackb(upp)
+        assert len(unpacked) == 5
+        assert unpacked[0] == 0x22
+        assert unpacked[1] == uuid.UUID(self.uuid).bytes
+        assert unpacked[2] == 0xFC
+        assert unpacked[3] == binascii.a2b_base64(data_hash_64)
+
+        # FIXME race-condition or cached hash by verification service makes the following assertion fail sometimes
+        # assert hash has been deleted in ubirch backend
+        # verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
+        #
+        # assert verify_res.status_code == 404
 
     def test_anchor_offline(self):
         url = self.host + f"/{self.uuid}/anchor/offline"
@@ -247,12 +444,18 @@ class TestIntegration:
         res = requests.post(url, json=data_json, headers=header)
 
         assert res.status_code == 200
-        upp = binascii.a2b_base64(res.json()["upp"])
-        assert upp[0] == 0x95 and upp[1] == 0x22
         assert res.json()["hash"] == data_hash_64
         assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         with pytest.raises(KeyError):
             res.json()["response"]
+
+        upp = binascii.a2b_base64(res.json()["upp"])
+        unpacked = msgpack.unpackb(upp)
+        assert len(unpacked) == 5
+        assert unpacked[0] == 0x22
+        assert unpacked[1] == uuid.UUID(self.uuid).bytes
+        assert unpacked[2] == 0x00
+        assert unpacked[3] == binascii.a2b_base64(data_hash_64)
 
         # make sure hash is unknown by ubirch verification service
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
@@ -267,12 +470,18 @@ class TestIntegration:
         res = requests.post(url, data=data_hash_64, headers=header)
 
         assert res.status_code == 200
-        upp = binascii.a2b_base64(res.json()["upp"])
-        assert upp[0] == 0x95 and upp[1] == 0x22
         assert res.json()["hash"] == data_hash_64
         assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         with pytest.raises(KeyError):
             res.json()["response"]
+
+        upp = binascii.a2b_base64(res.json()["upp"])
+        unpacked = msgpack.unpackb(upp)
+        assert len(unpacked) == 5
+        assert unpacked[0] == 0x22
+        assert unpacked[1] == uuid.UUID(self.uuid).bytes
+        assert unpacked[2] == 0x00
+        assert unpacked[3] == binascii.a2b_base64(data_hash_64)
 
         # make sure hash is unknown by ubirch verification service
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
