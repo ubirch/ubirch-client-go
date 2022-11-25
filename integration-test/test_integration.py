@@ -487,3 +487,87 @@ class TestIntegration:
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
 
         assert verify_res.status_code == 404
+
+    def test_verify(self):
+        # anchor data to verify
+        url = self.host + f"/{self.uuid}"
+        header = {'Content-Type': 'application/json', 'X-Auth-Token': self.pwd}
+        data_json = get_random_json()
+        data_hash_64 = to_base64(hash_bytes(serialize(data_json)))
+
+        signing_res = requests.post(url, json=data_json, headers=header)
+
+        assert signing_res.status_code == 200
+
+        # verify data
+        url = self.host + "/verify"
+        verify_res = requests.post(url, json=data_json, headers={'Content-Type': 'application/json'})
+
+        assert verify_res.status_code == 200
+        assert verify_res.json()["hash"] == data_hash_64
+        assert verify_res.json()["upp"] == signing_res.json()["upp"]
+        assert verify_res.json()["uuid"] == self.uuid
+        assert verify_res.json()["pubKey"] == signing_res.json()["publicKey"]
+
+    def test_verify_hash(self):
+        # anchor hash to verify
+        url = self.host + f"/{self.uuid}/hash"
+        header = {'Content-Type': 'text/plain', 'X-Auth-Token': self.pwd}
+        data_hash_64 = to_base64(random.randbytes(32))
+
+        signing_res = requests.post(url, data=data_hash_64, headers=header)
+
+        assert signing_res.status_code == 200
+
+        # verify hash
+        url = self.host + "/verify/hash"
+        verify_res = requests.post(url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
+
+        assert verify_res.status_code == 200
+        assert verify_res.json()["hash"] == data_hash_64
+        assert verify_res.json()["upp"] == signing_res.json()["upp"]
+        assert verify_res.json()["uuid"] == self.uuid
+        assert verify_res.json()["pubKey"] == signing_res.json()["publicKey"]
+
+    def test_verify_offline(self):
+        # sign data to verify
+        url = self.host + f"/{self.uuid}/offline"
+        header = {'Content-Type': 'application/json', 'X-Auth-Token': self.pwd}
+        data_json = get_random_json()
+        data_hash_64 = to_base64(hash_bytes(serialize(data_json)))
+
+        signing_res = requests.post(url, json=data_json, headers=header)
+
+        assert signing_res.status_code == 200
+
+        # verify data offline
+        url = self.host + "/verify/offline"
+        header = {'Content-Type': 'application/json', 'X-Ubirch-UPP': signing_res.json()["upp"]}
+        verify_res = requests.post(url, json=data_json, headers=header)
+
+        assert verify_res.status_code == 200
+        assert verify_res.json()["hash"] == data_hash_64
+        assert verify_res.json()["upp"] == signing_res.json()["upp"]
+        assert verify_res.json()["uuid"] == self.uuid
+        assert verify_res.json()["pubKey"] == signing_res.json()["publicKey"]
+
+    def test_verify_offline_hash(self):
+        # sign hash to verify
+        url = self.host + f"/{self.uuid}/offline/hash"
+        header = {'Content-Type': 'text/plain', 'X-Auth-Token': self.pwd}
+        data_hash_64 = to_base64(random.randbytes(32))
+
+        signing_res = requests.post(url, data=data_hash_64, headers=header)
+
+        assert signing_res.status_code == 200
+
+        # verify hash offline
+        url = self.host + "/verify/offline/hash"
+        header = {'Content-Type': 'text/plain', 'X-Ubirch-UPP': signing_res.json()["upp"]}
+        verify_res = requests.post(url, data=data_hash_64, headers=header)
+
+        assert verify_res.status_code == 200
+        assert verify_res.json()["hash"] == data_hash_64
+        assert verify_res.json()["upp"] == signing_res.json()["upp"]
+        assert verify_res.json()["uuid"] == self.uuid
+        assert verify_res.json()["pubKey"] == signing_res.json()["publicKey"]
