@@ -1,3 +1,4 @@
+import binascii
 import json
 import random
 
@@ -18,6 +19,9 @@ class TestIntegration:
     env = config["env"]
     pubkey_url = f"https://identity.{env}.ubirch.com/api/keyService/v1/pubkey/current/hardwareId/{uuid}"
     verify_url = f"https://verify.{env}.ubirch.com/api/upp"
+
+    test_json = {"d": 0, "a": 1, "c": 2, "b": 3}
+    test_hash = "6zTRVetfJZONC3QdipR12hIdF7YJL34AWVUSAELrk1Y="
 
     def test_health(self):
         url = self.host + "/healthz"
@@ -192,3 +196,44 @@ class TestIntegration:
         assert verify_res.status_code == 404
 
         # todo check if consecutive requests to this endpoint result in correctly chained UPPs
+
+    def test_anchor(self):
+        url = self.host + f"/{self.uuid}/anchor"
+        header = {'Content-Type': 'application/json', 'X-Auth-Token': self.pwd}
+        data_json = self.test_json
+        data_hash_64 = to_base64(hash_bytes(serialize(data_json)))
+
+        res = requests.post(url, json=data_json, headers=header)
+
+        assert res.status_code == 200
+        upp = binascii.a2b_base64(res.json()["upp"])
+        assert upp[0] == 0x95 and upp[1] == 0x22
+        assert res.json()["hash"] == data_hash_64
+        assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
+        assert res.json()["response"]["statusCode"] == 200
+
+        # check if hash is known by ubirch verification service
+        verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
+
+        assert verify_res.status_code == 200
+        assert verify_res.json()["upp"] == res.json()["upp"]
+
+    def test_anchor_hash(self):
+        url = self.host + f"/{self.uuid}/anchor/hash"
+        header = {'Content-Type': 'text/plain', 'X-Auth-Token': self.pwd}
+        data_hash_64 = self.test_hash
+
+        res = requests.post(url, data=data_hash_64, headers=header)
+
+        assert res.status_code == 200
+        upp = binascii.a2b_base64(res.json()["upp"])
+        assert upp[0] == 0x95 and upp[1] == 0x22
+        assert res.json()["hash"] == data_hash_64
+        assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
+        assert res.json()["response"]["statusCode"] == 200
+
+        # check if hash is known by ubirch verification service
+        verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
+
+        assert verify_res.status_code == 200
+        assert verify_res.json()["upp"] == res.json()["upp"]
