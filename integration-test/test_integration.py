@@ -136,7 +136,17 @@ class TestIntegration:
         assert verify_res.status_code == 200
         assert verify_res.json()["upp"] == res.json()["upp"]
 
-        # todo check if consecutive requests to this endpoint result in correctly chained UPPs
+        # check if consecutive requests to this endpoint result in correctly chained UPPs
+        prev_signature = unpacked[5]
+        for i in range(10):
+            res = requests.post(url, json=get_random_json(), headers=header)
+
+            assert res.status_code == 200
+
+            unpacked = msgpack.unpackb(binascii.a2b_base64(res.json()["upp"]))
+            assert unpacked[2] == prev_signature, f"chain check failed in loop {i}"
+
+            prev_signature = unpacked[5]
 
     def test_chain_hash(self):
         url = self.host + f"/{self.uuid}/hash"
@@ -164,7 +174,17 @@ class TestIntegration:
         assert verify_res.status_code == 200
         assert verify_res.json()["upp"] == res.json()["upp"]
 
-        # todo check if consecutive requests to this endpoint result in correctly chained UPPs
+        # check if consecutive requests to this endpoint result in correctly chained UPPs
+        prev_signature = unpacked[5]
+        for i in range(10):
+            res = requests.post(url, data=to_base64(random.randbytes(32)), headers=header)
+
+            assert res.status_code == 200
+
+            unpacked = msgpack.unpackb(binascii.a2b_base64(res.json()["upp"]))
+            assert unpacked[2] == prev_signature, f"chain check failed in loop {i}"
+
+            prev_signature = unpacked[5]
 
     def test_chain_offline(self):
         url = self.host + f"/{self.uuid}/offline"
@@ -193,7 +213,17 @@ class TestIntegration:
 
         assert verify_res.status_code == 404
 
-        # todo check if consecutive requests to this endpoint result in correctly chained UPPs
+        # check if consecutive requests to this endpoint result in correctly chained UPPs
+        prev_signature = unpacked[5]
+        for i in range(10):
+            res = requests.post(url, json=get_random_json(), headers=header)
+
+            assert res.status_code == 200
+
+            unpacked = msgpack.unpackb(binascii.a2b_base64(res.json()["upp"]))
+            assert unpacked[2] == prev_signature, f"chain check failed in loop {i}"
+
+            prev_signature = unpacked[5]
 
     def test_chain_offline_hash(self):
         url = self.host + f"/{self.uuid}/offline/hash"
@@ -221,7 +251,17 @@ class TestIntegration:
 
         assert verify_res.status_code == 404
 
-        # todo check if consecutive requests to this endpoint result in correctly chained UPPs
+        # check if consecutive requests to this endpoint result in correctly chained UPPs
+        prev_signature = unpacked[5]
+        for i in range(10):
+            res = requests.post(url, data=to_base64(random.randbytes(32)), headers=header)
+
+            assert res.status_code == 200
+
+            unpacked = msgpack.unpackb(binascii.a2b_base64(res.json()["upp"]))
+            assert unpacked[2] == prev_signature, f"chain check failed in loop {i}"
+
+            prev_signature = unpacked[5]
 
     def test_anchor(self):
         url = self.host + f"/{self.uuid}/anchor"
@@ -518,6 +558,9 @@ class TestIntegration:
         signing_res = requests.post(url, data=data_hash_64, headers=header)
 
         assert signing_res.status_code == 200
+
+        # fixme we might need to wait here or make sure to use quick verification endpoint
+        #  -> header parameter for quick verification?
 
         # verify hash
         url = self.host + "/verify/hash"
