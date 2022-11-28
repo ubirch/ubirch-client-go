@@ -1,6 +1,7 @@
 import binascii
 import json
 import random
+import time
 import uuid
 
 import msgpack
@@ -533,6 +534,10 @@ class TestIntegration:
 
         assert signing_res.status_code == 200
 
+        # since the UPP-signer does not use the quick verify endpoint, we need
+        # to sleep after anchoring to ensure the hash can be verified
+        time.sleep(1)
+
         # verify data
         url = self.host + "/verify"
         verify_res = requests.post(url, json=data_json, headers={'Content-Type': 'application/json'})
@@ -553,8 +558,9 @@ class TestIntegration:
 
         assert signing_res.status_code == 200
 
-        # fixme we might need to wait here or make sure to use quick verification endpoint
-        #  -> header parameter for quick verification?
+        # since the UPP-signer does not use the quick verify endpoint, we need
+        # to sleep after anchoring to ensure the hash can be verified
+        time.sleep(1)
 
         # verify hash
         url = self.host + "/verify/hash"
