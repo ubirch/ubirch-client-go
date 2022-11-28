@@ -6,6 +6,8 @@ The integration test is written in python, using the `pytest` module.
 
 The test identity must be registered at the ubirch console / thing API in advance.
 
+`config.json`:
+
 ```json
 {
   "host": "<base URL of the UPP-signer instance under test>",
