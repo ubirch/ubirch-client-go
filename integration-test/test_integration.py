@@ -337,11 +337,10 @@ class TestIntegration:
         assert unpacked[2] == 0xFA
         assert unpacked[3] == binascii.a2b_base64(data_hash_64)
 
-        # FIXME race-condition or cached hash by verification service makes the following assertion fail sometimes
         # assert hash has been disabled in ubirch backend
-        # verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
-        #
-        # assert verify_res.status_code == 404
+        verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
+
+        assert verify_res.status_code == 404
 
     def test_disable_hash(self):
         url = self.host + f"/{self.uuid}/disable/hash"
@@ -363,11 +362,10 @@ class TestIntegration:
         assert unpacked[2] == 0xFA
         assert unpacked[3] == binascii.a2b_base64(data_hash_64)
 
-        # FIXME race-condition or cached hash by verification service makes the following assertion fail sometimes
         # assert hash has been disabled in ubirch backend
-        # verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
-        #
-        # assert verify_res.status_code == 404
+        verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
+
+        assert verify_res.status_code == 404
 
     def test_enable(self):
         url = self.host + f"/{self.uuid}/enable"
@@ -390,11 +388,10 @@ class TestIntegration:
         assert unpacked[2] == 0xFB
         assert unpacked[3] == binascii.a2b_base64(data_hash_64)
 
-        # FIXME race-condition or cached hash by verification service makes the following assertion fail sometimes
         # assert hash has been enabled in ubirch backend
-        # verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
-        #
-        # assert verify_res.status_code == 200
+        verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
+
+        assert verify_res.status_code == 200
 
     def test_enable_hash(self):
         url = self.host + f"/{self.uuid}/enable/hash"
@@ -416,11 +413,10 @@ class TestIntegration:
         assert unpacked[2] == 0xFB
         assert unpacked[3] == binascii.a2b_base64(data_hash_64)
 
-        # FIXME race-condition or cached hash by verification service makes the following assertion fail sometimes
         # assert hash has been enabled in ubirch backend
-        # verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
-        #
-        # assert verify_res.status_code == 200
+        verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
+
+        assert verify_res.status_code == 200
 
     def test_delete(self):
         url = self.host + f"/{self.uuid}/delete"
@@ -443,11 +439,10 @@ class TestIntegration:
         assert unpacked[2] == 0xFC
         assert unpacked[3] == binascii.a2b_base64(data_hash_64)
 
-        # FIXME race-condition or cached hash by verification service makes the following assertion fail sometimes
         # assert hash has been deleted in ubirch backend
-        # verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
-        #
-        # assert verify_res.status_code == 404
+        verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
+
+        assert verify_res.status_code == 404
 
     def test_delete_hash(self):
         url = self.host + f"/{self.uuid}/delete/hash"
@@ -469,11 +464,10 @@ class TestIntegration:
         assert unpacked[2] == 0xFC
         assert unpacked[3] == binascii.a2b_base64(data_hash_64)
 
-        # FIXME race-condition or cached hash by verification service makes the following assertion fail sometimes
         # assert hash has been deleted in ubirch backend
-        # verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
-        #
-        # assert verify_res.status_code == 404
+        verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
+
+        assert verify_res.status_code == 404
 
     def test_anchor_offline(self):
         url = self.host + f"/{self.uuid}/anchor/offline"
