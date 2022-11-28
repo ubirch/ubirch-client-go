@@ -34,7 +34,7 @@ const (
 	JSONType = "application/json"
 
 	XUPPHeader  = "X-Ubirch-UPP"
-	XAuthHeader = "x-auth-token"
+	XAuthHeader = "X-Auth-Token"
 
 	HexEncoding = "hex"
 
