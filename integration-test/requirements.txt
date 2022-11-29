@@ -1,3 +1,4 @@
+ecdsa
 msgpack
 pytest
 requests

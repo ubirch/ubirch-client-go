@@ -3,7 +3,9 @@ import json
 import random
 import time
 import uuid
-from binascii import b2a_base64
+from binascii import b2a_base64, a2b_base64
+
+import ecdsa
 
 symbols = ("a", "b", "c", "d", "e", "f", "A", "B", "C", "D", "E", "F",
            "ä", "ë", "ï", "ö", "ü", "ÿ", "Ä", "Ë", "Ï", "Ö", "Ü", "Ÿ",
@@ -48,3 +50,15 @@ def hash_bytes(serialized: bytes) -> bytes:
 
 def to_base64(hash_bytes: bytes) -> str:
     return b2a_base64(hash_bytes, newline=False).decode()
+
+
+def verify_upp_signature(upp_bytes: bytes, pubkey_bas64: bytes) -> bool:
+    pubkey_bytes = a2b_base64(pubkey_bas64)
+
+    vk = ecdsa.VerifyingKey.from_string(pubkey_bytes, curve=ecdsa.NIST256p, hashfunc=hashlib.sha256)
+
+    try:
+        vk.verify(upp_bytes[-64:], upp_bytes[:-66])
+        return True
+    except ecdsa.BadSignatureError:
+        return False
