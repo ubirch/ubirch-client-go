@@ -18,8 +18,8 @@ symbols = ("a", "b", "c", "d", "e", "f", "A", "B", "C", "D", "E", "F",
 ")
 
 
-# generates a random JSON message
 def get_random_json() -> dict:
+    """generates a random JSON message"""
     return {
         "id": str(uuid.uuid4()),
         "ts": int(time.time()),
@@ -50,6 +50,12 @@ def get_hash(serialized: bytes) -> bytes:
 
 def to_base64(hash_bytes: bytes) -> str:
     return b2a_base64(hash_bytes, newline=False).decode()
+
+
+def get_random_hash_base64():
+    """return 32 random bytes in base64 encoding"""
+    # return to_base64(random.randbytes(32))   # randbytes() is new in version 3.9
+    return to_base64(bytearray(random.getrandbits(8) for _ in range(32)))
 
 
 def verify_upp_signature(upp_bytes: bytes, pubkey_bas64: bytes) -> bool:

@@ -1,6 +1,5 @@
 import binascii
 import json
-import random
 import time
 import uuid
 
@@ -8,7 +7,7 @@ import msgpack
 import pytest
 import requests
 
-from helpers import get_random_json, serialize, get_hash, to_base64, verify_upp_signature
+from helpers import get_random_json, serialize, get_hash, to_base64, get_random_hash_base64, verify_upp_signature
 
 
 class TestIntegration:
@@ -158,7 +157,7 @@ class TestIntegration:
     def test_chain_hash(self):
         url = self.host + f"/{self.uuid}/hash"
         header = {'Content-Type': 'text/plain', 'X-Auth-Token': self.pwd}
-        data_hash_64 = to_base64(random.randbytes(32))
+        data_hash_64 = get_random_hash_base64()
 
         res = requests.post(url, data=data_hash_64, headers=header)
 
@@ -189,7 +188,9 @@ class TestIntegration:
         # check if consecutive requests to this endpoint result in correctly chained UPPs
         prev_signature = unpacked[5]
         for i in range(10):
-            res = requests.post(url, data=to_base64(random.randbytes(32)), headers=header)
+            data_hash_64 = get_random_hash_base64()
+
+            res = requests.post(url, data=data_hash_64, headers=header)
 
             assert res.status_code == 200
 
@@ -245,7 +246,7 @@ class TestIntegration:
     def test_chain_offline_hash(self):
         url = self.host + f"/{self.uuid}/offline/hash"
         header = {'Content-Type': 'text/plain', 'X-Auth-Token': self.pwd}
-        data_hash_64 = to_base64(random.randbytes(32))
+        data_hash_64 = get_random_hash_base64()
 
         res = requests.post(url, data=data_hash_64, headers=header)
 
@@ -276,7 +277,9 @@ class TestIntegration:
         # check if consecutive requests to this endpoint result in correctly chained UPPs
         prev_signature = unpacked[5]
         for i in range(10):
-            res = requests.post(url, data=to_base64(random.randbytes(32)), headers=header)
+            data_hash_64 = get_random_hash_base64()
+
+            res = requests.post(url, data=data_hash_64, headers=header)
 
             assert res.status_code == 200
 
@@ -566,7 +569,7 @@ class TestIntegration:
     def test_anchor_offline_hash(self):
         url = self.host + f"/{self.uuid}/anchor/offline/hash"
         header = {'Content-Type': 'text/plain', 'X-Auth-Token': self.pwd}
-        data_hash_64 = to_base64(random.randbytes(32))
+        data_hash_64 = get_random_hash_base64()
 
         res = requests.post(url, data=data_hash_64, headers=header)
 
@@ -623,7 +626,7 @@ class TestIntegration:
         # anchor hash to verify
         url = self.host + f"/{self.uuid}/hash"
         header = {'Content-Type': 'text/plain', 'X-Auth-Token': self.pwd}
-        data_hash_64 = to_base64(random.randbytes(32))
+        data_hash_64 = get_random_hash_base64()
 
         signing_res = requests.post(url, data=data_hash_64, headers=header)
 
@@ -669,7 +672,7 @@ class TestIntegration:
         # sign hash to verify
         url = self.host + f"/{self.uuid}/offline/hash"
         header = {'Content-Type': 'text/plain', 'X-Auth-Token': self.pwd}
-        data_hash_64 = to_base64(random.randbytes(32))
+        data_hash_64 = get_random_hash_base64()
 
         signing_res = requests.post(url, data=data_hash_64, headers=header)
 
