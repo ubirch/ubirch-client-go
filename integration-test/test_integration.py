@@ -1,13 +1,8 @@
-import binascii
-import json
-import time
-import uuid
-
 import msgpack
 import pytest
 import requests
 
-from helpers import get_random_json, serialize, get_hash, to_base64, get_random_hash_base64, verify_upp_signature
+from helpers import *
 
 
 class TestIntegration:
@@ -122,13 +117,13 @@ class TestIntegration:
         assert res.json()["hash"] == data_hash_64
         assert res.json()["response"]["statusCode"] == 200
 
-        upp = binascii.a2b_base64(res.json()["upp"])
+        upp = a2b_base64(res.json()["upp"])
         unpacked = msgpack.unpackb(upp)
         assert len(unpacked) == 6
         assert unpacked[0] == 0x23
         assert unpacked[1] == uuid.UUID(self.uuid).bytes
         assert unpacked[3] == 0x00
-        assert unpacked[4] == binascii.a2b_base64(data_hash_64)
+        assert unpacked[4] == a2b_base64(data_hash_64)
 
         registered_pubkey = requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         assert res.json()["publicKey"] == registered_pubkey
@@ -150,7 +145,7 @@ class TestIntegration:
 
             assert res.status_code == 200, f"request failed ({i}): [{res.status_code}] {res.content}"
 
-            unpacked = msgpack.unpackb(binascii.a2b_base64(res.json()["upp"]))
+            unpacked = msgpack.unpackb(a2b_base64(res.json()["upp"]))
             assert unpacked[2] == prev_signature, f"chain check failed in loop {i}"
 
             prev_signature = unpacked[5]
@@ -166,13 +161,13 @@ class TestIntegration:
         assert res.json()["hash"] == data_hash_64
         assert res.json()["response"]["statusCode"] == 200
 
-        upp = binascii.a2b_base64(res.json()["upp"])
+        upp = a2b_base64(res.json()["upp"])
         unpacked = msgpack.unpackb(upp)
         assert len(unpacked) == 6
         assert unpacked[0] == 0x23
         assert unpacked[1] == uuid.UUID(self.uuid).bytes
         assert unpacked[3] == 0x00
-        assert unpacked[4] == binascii.a2b_base64(data_hash_64)
+        assert unpacked[4] == a2b_base64(data_hash_64)
 
         registered_pubkey = requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         assert res.json()["publicKey"] == registered_pubkey
@@ -196,7 +191,7 @@ class TestIntegration:
 
             assert res.status_code == 200, f"request failed ({i}): [{res.status_code}] {res.content}"
 
-            unpacked = msgpack.unpackb(binascii.a2b_base64(res.json()["upp"]))
+            unpacked = msgpack.unpackb(a2b_base64(res.json()["upp"]))
             assert unpacked[2] == prev_signature, f"chain check failed in loop {i}"
 
             prev_signature = unpacked[5]
@@ -214,13 +209,13 @@ class TestIntegration:
         with pytest.raises(KeyError):
             res.json()["response"]
 
-        upp = binascii.a2b_base64(res.json()["upp"])
+        upp = a2b_base64(res.json()["upp"])
         unpacked = msgpack.unpackb(upp)
         assert len(unpacked) == 6
         assert unpacked[0] == 0x23
         assert unpacked[1] == uuid.UUID(self.uuid).bytes
         assert unpacked[3] == 0x00
-        assert unpacked[4] == binascii.a2b_base64(data_hash_64)
+        assert unpacked[4] == a2b_base64(data_hash_64)
 
         registered_pubkey = requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         assert res.json()["publicKey"] == registered_pubkey
@@ -241,7 +236,7 @@ class TestIntegration:
 
             assert res.status_code == 200, f"request failed ({i}): [{res.status_code}] {res.content}"
 
-            unpacked = msgpack.unpackb(binascii.a2b_base64(res.json()["upp"]))
+            unpacked = msgpack.unpackb(a2b_base64(res.json()["upp"]))
             assert unpacked[2] == prev_signature, f"chain check failed in loop {i}"
 
             prev_signature = unpacked[5]
@@ -258,13 +253,13 @@ class TestIntegration:
         with pytest.raises(KeyError):
             res.json()["response"]
 
-        upp = binascii.a2b_base64(res.json()["upp"])
+        upp = a2b_base64(res.json()["upp"])
         unpacked = msgpack.unpackb(upp)
         assert len(unpacked) == 6
         assert unpacked[0] == 0x23
         assert unpacked[1] == uuid.UUID(self.uuid).bytes
         assert unpacked[3] == 0x00
-        assert unpacked[4] == binascii.a2b_base64(data_hash_64)
+        assert unpacked[4] == a2b_base64(data_hash_64)
 
         registered_pubkey = requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         assert res.json()["publicKey"] == registered_pubkey
@@ -287,7 +282,7 @@ class TestIntegration:
 
             assert res.status_code == 200, f"request failed ({i}): [{res.status_code}] {res.content}"
 
-            unpacked = msgpack.unpackb(binascii.a2b_base64(res.json()["upp"]))
+            unpacked = msgpack.unpackb(a2b_base64(res.json()["upp"]))
             assert unpacked[2] == prev_signature, f"chain check failed in loop {i}"
 
             prev_signature = unpacked[5]
@@ -304,13 +299,13 @@ class TestIntegration:
         assert res.json()["hash"] == data_hash_64
         assert res.json()["response"]["statusCode"] == 200
 
-        upp = binascii.a2b_base64(res.json()["upp"])
+        upp = a2b_base64(res.json()["upp"])
         unpacked = msgpack.unpackb(upp)
         assert len(unpacked) == 5
         assert unpacked[0] == 0x22
         assert unpacked[1] == uuid.UUID(self.uuid).bytes
         assert unpacked[2] == 0x00
-        assert unpacked[3] == binascii.a2b_base64(data_hash_64)
+        assert unpacked[3] == a2b_base64(data_hash_64)
 
         registered_pubkey = requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         assert res.json()["publicKey"] == registered_pubkey
@@ -336,13 +331,13 @@ class TestIntegration:
         assert res.json()["hash"] == data_hash_64
         assert res.json()["response"]["statusCode"] == 200
 
-        upp = binascii.a2b_base64(res.json()["upp"])
+        upp = a2b_base64(res.json()["upp"])
         unpacked = msgpack.unpackb(upp)
         assert len(unpacked) == 5
         assert unpacked[0] == 0x22
         assert unpacked[1] == uuid.UUID(self.uuid).bytes
         assert unpacked[2] == 0x00
-        assert unpacked[3] == binascii.a2b_base64(data_hash_64)
+        assert unpacked[3] == a2b_base64(data_hash_64)
 
         registered_pubkey = requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         assert res.json()["publicKey"] == registered_pubkey
@@ -369,13 +364,13 @@ class TestIntegration:
         assert res.json()["hash"] == data_hash_64
         assert res.json()["response"]["statusCode"] == 200
 
-        upp = binascii.a2b_base64(res.json()["upp"])
+        upp = a2b_base64(res.json()["upp"])
         unpacked = msgpack.unpackb(upp)
         assert len(unpacked) == 5
         assert unpacked[0] == 0x22
         assert unpacked[1] == uuid.UUID(self.uuid).bytes
         assert unpacked[2] == 0xFA
-        assert unpacked[3] == binascii.a2b_base64(data_hash_64)
+        assert unpacked[3] == a2b_base64(data_hash_64)
 
         registered_pubkey = requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         assert res.json()["publicKey"] == registered_pubkey
@@ -400,13 +395,13 @@ class TestIntegration:
         assert res.json()["hash"] == data_hash_64
         assert res.json()["response"]["statusCode"] == 200
 
-        upp = binascii.a2b_base64(res.json()["upp"])
+        upp = a2b_base64(res.json()["upp"])
         unpacked = msgpack.unpackb(upp)
         assert len(unpacked) == 5
         assert unpacked[0] == 0x22
         assert unpacked[1] == uuid.UUID(self.uuid).bytes
         assert unpacked[2] == 0xFA
-        assert unpacked[3] == binascii.a2b_base64(data_hash_64)
+        assert unpacked[3] == a2b_base64(data_hash_64)
 
         registered_pubkey = requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         assert res.json()["publicKey"] == registered_pubkey
@@ -432,13 +427,13 @@ class TestIntegration:
         assert res.json()["hash"] == data_hash_64
         assert res.json()["response"]["statusCode"] == 200
 
-        upp = binascii.a2b_base64(res.json()["upp"])
+        upp = a2b_base64(res.json()["upp"])
         unpacked = msgpack.unpackb(upp)
         assert len(unpacked) == 5
         assert unpacked[0] == 0x22
         assert unpacked[1] == uuid.UUID(self.uuid).bytes
         assert unpacked[2] == 0xFB
-        assert unpacked[3] == binascii.a2b_base64(data_hash_64)
+        assert unpacked[3] == a2b_base64(data_hash_64)
 
         registered_pubkey = requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         assert res.json()["publicKey"] == registered_pubkey
@@ -463,13 +458,13 @@ class TestIntegration:
         assert res.json()["hash"] == data_hash_64
         assert res.json()["response"]["statusCode"] == 200
 
-        upp = binascii.a2b_base64(res.json()["upp"])
+        upp = a2b_base64(res.json()["upp"])
         unpacked = msgpack.unpackb(upp)
         assert len(unpacked) == 5
         assert unpacked[0] == 0x22
         assert unpacked[1] == uuid.UUID(self.uuid).bytes
         assert unpacked[2] == 0xFB
-        assert unpacked[3] == binascii.a2b_base64(data_hash_64)
+        assert unpacked[3] == a2b_base64(data_hash_64)
 
         registered_pubkey = requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         assert res.json()["publicKey"] == registered_pubkey
@@ -495,13 +490,13 @@ class TestIntegration:
         assert res.json()["hash"] == data_hash_64
         assert res.json()["response"]["statusCode"] == 200
 
-        upp = binascii.a2b_base64(res.json()["upp"])
+        upp = a2b_base64(res.json()["upp"])
         unpacked = msgpack.unpackb(upp)
         assert len(unpacked) == 5
         assert unpacked[0] == 0x22
         assert unpacked[1] == uuid.UUID(self.uuid).bytes
         assert unpacked[2] == 0xFC
-        assert unpacked[3] == binascii.a2b_base64(data_hash_64)
+        assert unpacked[3] == a2b_base64(data_hash_64)
 
         registered_pubkey = requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         assert res.json()["publicKey"] == registered_pubkey
@@ -526,13 +521,13 @@ class TestIntegration:
         assert res.json()["hash"] == data_hash_64
         assert res.json()["response"]["statusCode"] == 200
 
-        upp = binascii.a2b_base64(res.json()["upp"])
+        upp = a2b_base64(res.json()["upp"])
         unpacked = msgpack.unpackb(upp)
         assert len(unpacked) == 5
         assert unpacked[0] == 0x22
         assert unpacked[1] == uuid.UUID(self.uuid).bytes
         assert unpacked[2] == 0xFC
-        assert unpacked[3] == binascii.a2b_base64(data_hash_64)
+        assert unpacked[3] == a2b_base64(data_hash_64)
 
         registered_pubkey = requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         assert res.json()["publicKey"] == registered_pubkey
@@ -559,13 +554,13 @@ class TestIntegration:
         with pytest.raises(KeyError):
             res.json()["response"]
 
-        upp = binascii.a2b_base64(res.json()["upp"])
+        upp = a2b_base64(res.json()["upp"])
         unpacked = msgpack.unpackb(upp)
         assert len(unpacked) == 5
         assert unpacked[0] == 0x22
         assert unpacked[1] == uuid.UUID(self.uuid).bytes
         assert unpacked[2] == 0x00
-        assert unpacked[3] == binascii.a2b_base64(data_hash_64)
+        assert unpacked[3] == a2b_base64(data_hash_64)
 
         registered_pubkey = requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         assert res.json()["publicKey"] == registered_pubkey
@@ -591,13 +586,13 @@ class TestIntegration:
         with pytest.raises(KeyError):
             res.json()["response"]
 
-        upp = binascii.a2b_base64(res.json()["upp"])
+        upp = a2b_base64(res.json()["upp"])
         unpacked = msgpack.unpackb(upp)
         assert len(unpacked) == 5
         assert unpacked[0] == 0x22
         assert unpacked[1] == uuid.UUID(self.uuid).bytes
         assert unpacked[2] == 0x00
-        assert unpacked[3] == binascii.a2b_base64(data_hash_64)
+        assert unpacked[3] == a2b_base64(data_hash_64)
 
         registered_pubkey = requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         assert res.json()["publicKey"] == registered_pubkey
