@@ -31,7 +31,7 @@ class TestIntegration:
 
         res = requests.get(url)
 
-        assert res.status_code == 200
+        assert res.status_code == 200, f"request failed: [{res.status_code}] {res.content}"
         assert res.content == b'OK\n'
 
     def test_ready(self):
@@ -39,7 +39,7 @@ class TestIntegration:
 
         res = requests.get(url)
 
-        assert res.status_code == 200
+        assert res.status_code == 200, f"request failed: [{res.status_code}] {res.content}"
         assert res.content == b'OK\n'
 
     def test_metrics(self):
@@ -47,7 +47,7 @@ class TestIntegration:
 
         res = requests.get(url)
 
-        assert res.status_code == 200
+        assert res.status_code == 200, f"request failed: [{res.status_code}] {res.content}"
         assert res.content.__contains__(b'# TYPE http_requests_total counter') \
                and res.content.__contains__(b'# TYPE http_response_time_seconds histogram') \
                and res.content.__contains__(b'# TYPE response_status counter')
@@ -63,7 +63,7 @@ class TestIntegration:
                 and res.content.startswith(b'-----BEGIN CERTIFICATE REQUEST-----\n')
                 and res.content.endswith(b'-----END CERTIFICATE REQUEST-----\n')) \
                or (res.status_code == 409
-                   and res.content == b'identity already registered\n')
+                   and res.content == b'identity already registered\n'), f"request failed: [{res.status_code}] {res.content}"
 
         # check if key was registered at ubirch identity service
         pubkey_res = requests.get(self.pubkey_url)
@@ -76,7 +76,7 @@ class TestIntegration:
 
         res = requests.get(url, headers=header)
 
-        assert res.status_code == 200
+        assert res.status_code == 200, f"request failed: [{res.status_code}] {res.content}"
         assert res.content.startswith(b'-----BEGIN CERTIFICATE REQUEST-----\n') \
                and res.content.endswith(b'-----END CERTIFICATE REQUEST-----\n')
 
@@ -87,7 +87,7 @@ class TestIntegration:
 
         res = requests.put(url, json=body, headers=header)
 
-        assert res.status_code == 200
+        assert res.status_code == 200, f"request failed: [{res.status_code}] {res.content}"
         assert res.content == b'key deactivation successful\n'
 
         # check if key was deleted at ubirch identity service
@@ -102,7 +102,7 @@ class TestIntegration:
 
         res = requests.put(url, json=body, headers=header)
 
-        assert res.status_code == 200
+        assert res.status_code == 200, f"request failed: [{res.status_code}] {res.content}"
         assert res.content == b'key reactivation successful\n'
 
         # check if key was registered at ubirch identity service
@@ -118,7 +118,7 @@ class TestIntegration:
 
         res = requests.post(url, json=data_json, headers=header)
 
-        assert res.status_code == 200
+        assert res.status_code == 200, f"request failed: [{res.status_code}] {res.content}"
         assert res.json()["hash"] == data_hash_64
         assert res.json()["response"]["statusCode"] == 200
 
@@ -139,7 +139,8 @@ class TestIntegration:
         # check if hash is known by ubirch verification service
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
 
-        assert verify_res.status_code == 200
+        assert verify_res.status_code == 200, f"hash not found at {self.verify_url}" if verify_res.status_code == 404 \
+            else f"request failed: [{verify_res.status_code}] {verify_res.content}"
         assert verify_res.json()["upp"] == res.json()["upp"]
 
         # check if consecutive requests to this endpoint result in correctly chained UPPs
@@ -147,7 +148,7 @@ class TestIntegration:
         for i in range(10):
             res = requests.post(url, json=get_random_json(), headers=header)
 
-            assert res.status_code == 200
+            assert res.status_code == 200, f"request failed ({i}): [{res.status_code}] {res.content}"
 
             unpacked = msgpack.unpackb(binascii.a2b_base64(res.json()["upp"]))
             assert unpacked[2] == prev_signature, f"chain check failed in loop {i}"
@@ -161,7 +162,7 @@ class TestIntegration:
 
         res = requests.post(url, data=data_hash_64, headers=header)
 
-        assert res.status_code == 200
+        assert res.status_code == 200, f"request failed: [{res.status_code}] {res.content}"
         assert res.json()["hash"] == data_hash_64
         assert res.json()["response"]["statusCode"] == 200
 
@@ -182,7 +183,8 @@ class TestIntegration:
         # check if hash is known by ubirch verification service
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
 
-        assert verify_res.status_code == 200
+        assert verify_res.status_code == 200, f"hash not found at {self.verify_url}" if verify_res.status_code == 404 \
+            else f"request failed: [{verify_res.status_code}] {verify_res.content}"
         assert verify_res.json()["upp"] == res.json()["upp"]
 
         # check if consecutive requests to this endpoint result in correctly chained UPPs
@@ -192,7 +194,7 @@ class TestIntegration:
 
             res = requests.post(url, data=data_hash_64, headers=header)
 
-            assert res.status_code == 200
+            assert res.status_code == 200, f"request failed ({i}): [{res.status_code}] {res.content}"
 
             unpacked = msgpack.unpackb(binascii.a2b_base64(res.json()["upp"]))
             assert unpacked[2] == prev_signature, f"chain check failed in loop {i}"
@@ -207,7 +209,7 @@ class TestIntegration:
 
         res = requests.post(url, json=data_json, headers=header)
 
-        assert res.status_code == 200
+        assert res.status_code == 200, f"request failed: [{res.status_code}] {res.content}"
         assert res.json()["hash"] == data_hash_64
         with pytest.raises(KeyError):
             res.json()["response"]
@@ -229,14 +231,15 @@ class TestIntegration:
         # make sure hash is unknown by ubirch verification service
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
 
-        assert verify_res.status_code == 404
+        assert verify_res.status_code == 404, f"hash found at {self.verify_url}" if verify_res.status_code == 200 \
+            else f"request failed: [{verify_res.status_code}] {verify_res.content}"
 
         # check if consecutive requests to this endpoint result in correctly chained UPPs
         prev_signature = unpacked[5]
         for i in range(10):
             res = requests.post(url, json=get_random_json(), headers=header)
 
-            assert res.status_code == 200
+            assert res.status_code == 200, f"request failed ({i}): [{res.status_code}] {res.content}"
 
             unpacked = msgpack.unpackb(binascii.a2b_base64(res.json()["upp"]))
             assert unpacked[2] == prev_signature, f"chain check failed in loop {i}"
@@ -250,7 +253,7 @@ class TestIntegration:
 
         res = requests.post(url, data=data_hash_64, headers=header)
 
-        assert res.status_code == 200
+        assert res.status_code == 200, f"request failed: [{res.status_code}] {res.content}"
         assert res.json()["hash"] == data_hash_64
         with pytest.raises(KeyError):
             res.json()["response"]
@@ -272,7 +275,8 @@ class TestIntegration:
         # make sure hash is unknown by ubirch verification service
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
 
-        assert verify_res.status_code == 404
+        assert verify_res.status_code == 404, f"hash found at {self.verify_url}" if verify_res.status_code == 200 \
+            else f"request failed: [{verify_res.status_code}] {verify_res.content}"
 
         # check if consecutive requests to this endpoint result in correctly chained UPPs
         prev_signature = unpacked[5]
@@ -281,7 +285,7 @@ class TestIntegration:
 
             res = requests.post(url, data=data_hash_64, headers=header)
 
-            assert res.status_code == 200
+            assert res.status_code == 200, f"request failed ({i}): [{res.status_code}] {res.content}"
 
             unpacked = msgpack.unpackb(binascii.a2b_base64(res.json()["upp"]))
             assert unpacked[2] == prev_signature, f"chain check failed in loop {i}"
@@ -296,7 +300,7 @@ class TestIntegration:
 
         res = requests.post(url, json=data_json, headers=header)
 
-        assert res.status_code == 200
+        assert res.status_code == 200, f"request failed: [{res.status_code}] {res.content}"
         assert res.json()["hash"] == data_hash_64
         assert res.json()["response"]["statusCode"] == 200
 
@@ -317,7 +321,8 @@ class TestIntegration:
         # check if hash is known by ubirch verification service
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
 
-        assert verify_res.status_code == 200
+        assert verify_res.status_code == 200, f"hash not found at {self.verify_url}" if verify_res.status_code == 404 \
+            else f"request failed: [{verify_res.status_code}] {verify_res.content}"
         assert verify_res.json()["upp"] == res.json()["upp"]
 
     def test_anchor_hash(self):
@@ -327,7 +332,7 @@ class TestIntegration:
 
         res = requests.post(url, data=data_hash_64, headers=header)
 
-        assert res.status_code == 200
+        assert res.status_code == 200, f"request failed: [{res.status_code}] {res.content}"
         assert res.json()["hash"] == data_hash_64
         assert res.json()["response"]["statusCode"] == 200
 
@@ -348,7 +353,8 @@ class TestIntegration:
         # check if hash is known by ubirch verification service
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
 
-        assert verify_res.status_code == 200
+        assert verify_res.status_code == 200, f"hash not found at {self.verify_url}" if verify_res.status_code == 404 \
+            else f"request failed: [{verify_res.status_code}] {verify_res.content}"
         assert verify_res.json()["upp"] == res.json()["upp"]
 
     def test_disable(self):
@@ -359,7 +365,7 @@ class TestIntegration:
 
         res = requests.post(url, json=data_json, headers=header)
 
-        assert res.status_code == 200
+        assert res.status_code == 200, f"request failed: [{res.status_code}] {res.content}"
         assert res.json()["hash"] == data_hash_64
         assert res.json()["response"]["statusCode"] == 200
 
@@ -380,7 +386,8 @@ class TestIntegration:
         # assert hash has been disabled in ubirch backend
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
 
-        assert verify_res.status_code == 404
+        assert verify_res.status_code == 404, f"hash found at {self.verify_url}" if verify_res.status_code == 200 \
+            else f"request failed: [{verify_res.status_code}] {verify_res.content}"
 
     def test_disable_hash(self):
         url = self.host + f"/{self.uuid}/disable/hash"
@@ -389,7 +396,7 @@ class TestIntegration:
 
         res = requests.post(url, data=data_hash_64, headers=header)
 
-        assert res.status_code == 200
+        assert res.status_code == 200, f"request failed: [{res.status_code}] {res.content}"
         assert res.json()["hash"] == data_hash_64
         assert res.json()["response"]["statusCode"] == 200
 
@@ -410,7 +417,8 @@ class TestIntegration:
         # assert hash has been disabled in ubirch backend
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
 
-        assert verify_res.status_code == 404
+        assert verify_res.status_code == 404, f"hash found at {self.verify_url}" if verify_res.status_code == 200 \
+            else f"request failed: [{verify_res.status_code}] {verify_res.content}"
 
     def test_enable(self):
         url = self.host + f"/{self.uuid}/enable"
@@ -420,7 +428,7 @@ class TestIntegration:
 
         res = requests.post(url, json=data_json, headers=header)
 
-        assert res.status_code == 200
+        assert res.status_code == 200, f"request failed: [{res.status_code}] {res.content}"
         assert res.json()["hash"] == data_hash_64
         assert res.json()["response"]["statusCode"] == 200
 
@@ -441,7 +449,8 @@ class TestIntegration:
         # assert hash has been enabled in ubirch backend
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
 
-        assert verify_res.status_code == 200
+        assert verify_res.status_code == 200, f"hash not found at {self.verify_url}" if verify_res.status_code == 404 \
+            else f"request failed: [{verify_res.status_code}] {verify_res.content}"
 
     def test_enable_hash(self):
         url = self.host + f"/{self.uuid}/enable/hash"
@@ -450,7 +459,7 @@ class TestIntegration:
 
         res = requests.post(url, data=data_hash_64, headers=header)
 
-        assert res.status_code == 200
+        assert res.status_code == 200, f"request failed: [{res.status_code}] {res.content}"
         assert res.json()["hash"] == data_hash_64
         assert res.json()["response"]["statusCode"] == 200
 
@@ -471,7 +480,8 @@ class TestIntegration:
         # assert hash has been enabled in ubirch backend
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
 
-        assert verify_res.status_code == 200
+        assert verify_res.status_code == 200, f"hash not found at {self.verify_url}" if verify_res.status_code == 404 \
+            else f"request failed: [{verify_res.status_code}] {verify_res.content}"
 
     def test_delete(self):
         url = self.host + f"/{self.uuid}/delete"
@@ -481,7 +491,7 @@ class TestIntegration:
 
         res = requests.post(url, json=data_json, headers=header)
 
-        assert res.status_code == 200
+        assert res.status_code == 200, f"request failed: [{res.status_code}] {res.content}"
         assert res.json()["hash"] == data_hash_64
         assert res.json()["response"]["statusCode"] == 200
 
@@ -502,7 +512,8 @@ class TestIntegration:
         # assert hash has been deleted in ubirch backend
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
 
-        assert verify_res.status_code == 404
+        assert verify_res.status_code == 404, f"hash found at {self.verify_url}" if verify_res.status_code == 200 \
+            else f"request failed: [{verify_res.status_code}] {verify_res.content}"
 
     def test_delete_hash(self):
         url = self.host + f"/{self.uuid}/delete/hash"
@@ -511,7 +522,7 @@ class TestIntegration:
 
         res = requests.post(url, data=data_hash_64, headers=header)
 
-        assert res.status_code == 200
+        assert res.status_code == 200, f"request failed: [{res.status_code}] {res.content}"
         assert res.json()["hash"] == data_hash_64
         assert res.json()["response"]["statusCode"] == 200
 
@@ -532,7 +543,8 @@ class TestIntegration:
         # assert hash has been deleted in ubirch backend
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
 
-        assert verify_res.status_code == 404
+        assert verify_res.status_code == 404, f"hash found at {self.verify_url}" if verify_res.status_code == 200 \
+            else f"request failed: [{verify_res.status_code}] {verify_res.content}"
 
     def test_anchor_offline(self):
         url = self.host + f"/{self.uuid}/anchor/offline"
@@ -542,7 +554,7 @@ class TestIntegration:
 
         res = requests.post(url, json=data_json, headers=header)
 
-        assert res.status_code == 200
+        assert res.status_code == 200, f"request failed: [{res.status_code}] {res.content}"
         assert res.json()["hash"] == data_hash_64
         with pytest.raises(KeyError):
             res.json()["response"]
@@ -564,7 +576,8 @@ class TestIntegration:
         # make sure hash is unknown by ubirch verification service
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
 
-        assert verify_res.status_code == 404
+        assert verify_res.status_code == 404, f"hash found at {self.verify_url}" if verify_res.status_code == 200 \
+            else f"request failed: [{verify_res.status_code}] {verify_res.content}"
 
     def test_anchor_offline_hash(self):
         url = self.host + f"/{self.uuid}/anchor/offline/hash"
@@ -573,7 +586,7 @@ class TestIntegration:
 
         res = requests.post(url, data=data_hash_64, headers=header)
 
-        assert res.status_code == 200
+        assert res.status_code == 200, f"request failed: [{res.status_code}] {res.content}"
         assert res.json()["hash"] == data_hash_64
         with pytest.raises(KeyError):
             res.json()["response"]
@@ -595,7 +608,8 @@ class TestIntegration:
         # make sure hash is unknown by ubirch verification service
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
 
-        assert verify_res.status_code == 404
+        assert verify_res.status_code == 404, f"hash found at {self.verify_url}" if verify_res.status_code == 200 \
+            else f"request failed: [{verify_res.status_code}] {verify_res.content}"
 
     def test_verify(self):
         # anchor data to verify
@@ -606,7 +620,7 @@ class TestIntegration:
 
         signing_res = requests.post(url, json=data_json, headers=header)
 
-        assert signing_res.status_code == 200
+        assert signing_res.status_code == 200, f"request failed: [{signing_res.status_code}] {signing_res.content}"
 
         # since the UPP-signer does not use the quick verify endpoint, we need
         # to sleep after anchoring to ensure the hash can be verified
@@ -616,7 +630,7 @@ class TestIntegration:
         url = self.host + "/verify"
         verify_res = requests.post(url, json=data_json, headers={'Content-Type': 'application/json'})
 
-        assert verify_res.status_code == 200
+        assert verify_res.status_code == 200, f"request failed: [{verify_res.status_code}] {verify_res.content}"
         assert verify_res.json()["hash"] == data_hash_64
         assert verify_res.json()["upp"] == signing_res.json()["upp"]
         assert verify_res.json()["uuid"] == self.uuid
@@ -630,7 +644,7 @@ class TestIntegration:
 
         signing_res = requests.post(url, data=data_hash_64, headers=header)
 
-        assert signing_res.status_code == 200
+        assert signing_res.status_code == 200, f"request failed: [{signing_res.status_code}] {signing_res.content}"
 
         # since the UPP-signer does not use the quick verify endpoint, we need
         # to sleep after anchoring to ensure the hash can be verified
@@ -640,7 +654,7 @@ class TestIntegration:
         url = self.host + "/verify/hash"
         verify_res = requests.post(url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
 
-        assert verify_res.status_code == 200
+        assert verify_res.status_code == 200, f"request failed: [{verify_res.status_code}] {verify_res.content}"
         assert verify_res.json()["hash"] == data_hash_64
         assert verify_res.json()["upp"] == signing_res.json()["upp"]
         assert verify_res.json()["uuid"] == self.uuid
@@ -655,14 +669,14 @@ class TestIntegration:
 
         signing_res = requests.post(url, json=data_json, headers=header)
 
-        assert signing_res.status_code == 200
+        assert signing_res.status_code == 200, f"request failed: [{signing_res.status_code}] {signing_res.content}"
 
         # verify data offline
         url = self.host + "/verify/offline"
         header = {'Content-Type': 'application/json', 'X-Ubirch-UPP': signing_res.json()["upp"]}
         verify_res = requests.post(url, json=data_json, headers=header)
 
-        assert verify_res.status_code == 200
+        assert verify_res.status_code == 200, f"request failed: [{verify_res.status_code}] {verify_res.content}"
         assert verify_res.json()["hash"] == data_hash_64
         assert verify_res.json()["upp"] == signing_res.json()["upp"]
         assert verify_res.json()["uuid"] == self.uuid
@@ -676,14 +690,14 @@ class TestIntegration:
 
         signing_res = requests.post(url, data=data_hash_64, headers=header)
 
-        assert signing_res.status_code == 200
+        assert signing_res.status_code == 200, f"request failed: [{signing_res.status_code}] {signing_res.content}"
 
         # verify hash offline
         url = self.host + "/verify/offline/hash"
         header = {'Content-Type': 'text/plain', 'X-Ubirch-UPP': signing_res.json()["upp"]}
         verify_res = requests.post(url, data=data_hash_64, headers=header)
 
-        assert verify_res.status_code == 200
+        assert verify_res.status_code == 200, f"request failed: [{verify_res.status_code}] {verify_res.content}"
         assert verify_res.json()["hash"] == data_hash_64
         assert verify_res.json()["upp"] == signing_res.json()["upp"]
         assert verify_res.json()["uuid"] == self.uuid
