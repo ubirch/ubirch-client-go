@@ -20,6 +20,7 @@ class TestIntegration:
     uuid = config["testDevice"]["uuid"]
     pwd = config["testDevice"]["password"]
     env = config["env"]
+
     pubkey_url = f"https://identity.{env}.ubirch.com/api/keyService/v1/pubkey/current/hardwareId/{uuid}"
     verify_url = f"https://verify.{env}.ubirch.com/api/upp"
 
