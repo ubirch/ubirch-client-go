@@ -8,7 +8,7 @@ import msgpack
 import pytest
 import requests
 
-from helpers import get_random_json, serialize, hash_bytes, to_base64
+from helpers import get_random_json, serialize, hash_bytes, to_base64, verify_upp_signature
 
 
 class TestIntegration:
@@ -120,7 +120,6 @@ class TestIntegration:
 
         assert res.status_code == 200
         assert res.json()["hash"] == data_hash_64
-        assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         assert res.json()["response"]["statusCode"] == 200
 
         upp = binascii.a2b_base64(res.json()["upp"])
@@ -130,6 +129,12 @@ class TestIntegration:
         assert unpacked[1] == uuid.UUID(self.uuid).bytes
         assert unpacked[3] == 0x00
         assert unpacked[4] == binascii.a2b_base64(data_hash_64)
+
+        registered_pubkey = requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
+        assert res.json()["publicKey"] == registered_pubkey
+
+        # verify UPP signature locally
+        assert verify_upp_signature(upp, registered_pubkey), "invalid UPP signature"
 
         # check if hash is known by ubirch verification service
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
@@ -158,7 +163,6 @@ class TestIntegration:
 
         assert res.status_code == 200
         assert res.json()["hash"] == data_hash_64
-        assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         assert res.json()["response"]["statusCode"] == 200
 
         upp = binascii.a2b_base64(res.json()["upp"])
@@ -168,6 +172,12 @@ class TestIntegration:
         assert unpacked[1] == uuid.UUID(self.uuid).bytes
         assert unpacked[3] == 0x00
         assert unpacked[4] == binascii.a2b_base64(data_hash_64)
+
+        registered_pubkey = requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
+        assert res.json()["publicKey"] == registered_pubkey
+
+        # verify UPP signature locally
+        assert verify_upp_signature(upp, registered_pubkey), "invalid UPP signature"
 
         # check if hash is known by ubirch verification service
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
@@ -197,7 +207,6 @@ class TestIntegration:
 
         assert res.status_code == 200
         assert res.json()["hash"] == data_hash_64
-        assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         with pytest.raises(KeyError):
             res.json()["response"]
 
@@ -208,6 +217,12 @@ class TestIntegration:
         assert unpacked[1] == uuid.UUID(self.uuid).bytes
         assert unpacked[3] == 0x00
         assert unpacked[4] == binascii.a2b_base64(data_hash_64)
+
+        registered_pubkey = requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
+        assert res.json()["publicKey"] == registered_pubkey
+
+        # verify UPP signature locally
+        assert verify_upp_signature(upp, registered_pubkey), "invalid UPP signature"
 
         # make sure hash is unknown by ubirch verification service
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
@@ -235,7 +250,6 @@ class TestIntegration:
 
         assert res.status_code == 200
         assert res.json()["hash"] == data_hash_64
-        assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         with pytest.raises(KeyError):
             res.json()["response"]
 
@@ -246,6 +260,12 @@ class TestIntegration:
         assert unpacked[1] == uuid.UUID(self.uuid).bytes
         assert unpacked[3] == 0x00
         assert unpacked[4] == binascii.a2b_base64(data_hash_64)
+
+        registered_pubkey = requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
+        assert res.json()["publicKey"] == registered_pubkey
+
+        # verify UPP signature locally
+        assert verify_upp_signature(upp, registered_pubkey), "invalid UPP signature"
 
         # make sure hash is unknown by ubirch verification service
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
@@ -274,7 +294,6 @@ class TestIntegration:
 
         assert res.status_code == 200
         assert res.json()["hash"] == data_hash_64
-        assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         assert res.json()["response"]["statusCode"] == 200
 
         upp = binascii.a2b_base64(res.json()["upp"])
@@ -284,6 +303,12 @@ class TestIntegration:
         assert unpacked[1] == uuid.UUID(self.uuid).bytes
         assert unpacked[2] == 0x00
         assert unpacked[3] == binascii.a2b_base64(data_hash_64)
+
+        registered_pubkey = requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
+        assert res.json()["publicKey"] == registered_pubkey
+
+        # verify UPP signature locally
+        assert verify_upp_signature(upp, registered_pubkey), "invalid UPP signature"
 
         # check if hash is known by ubirch verification service
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
@@ -300,7 +325,6 @@ class TestIntegration:
 
         assert res.status_code == 200
         assert res.json()["hash"] == data_hash_64
-        assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         assert res.json()["response"]["statusCode"] == 200
 
         upp = binascii.a2b_base64(res.json()["upp"])
@@ -310,6 +334,12 @@ class TestIntegration:
         assert unpacked[1] == uuid.UUID(self.uuid).bytes
         assert unpacked[2] == 0x00
         assert unpacked[3] == binascii.a2b_base64(data_hash_64)
+
+        registered_pubkey = requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
+        assert res.json()["publicKey"] == registered_pubkey
+
+        # verify UPP signature locally
+        assert verify_upp_signature(upp, registered_pubkey), "invalid UPP signature"
 
         # check if hash is known by ubirch verification service
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
@@ -327,7 +357,6 @@ class TestIntegration:
 
         assert res.status_code == 200
         assert res.json()["hash"] == data_hash_64
-        assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         assert res.json()["response"]["statusCode"] == 200
 
         upp = binascii.a2b_base64(res.json()["upp"])
@@ -337,6 +366,12 @@ class TestIntegration:
         assert unpacked[1] == uuid.UUID(self.uuid).bytes
         assert unpacked[2] == 0xFA
         assert unpacked[3] == binascii.a2b_base64(data_hash_64)
+
+        registered_pubkey = requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
+        assert res.json()["publicKey"] == registered_pubkey
+
+        # verify UPP signature locally
+        assert verify_upp_signature(upp, registered_pubkey), "invalid UPP signature"
 
         # assert hash has been disabled in ubirch backend
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
@@ -352,7 +387,6 @@ class TestIntegration:
 
         assert res.status_code == 200
         assert res.json()["hash"] == data_hash_64
-        assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         assert res.json()["response"]["statusCode"] == 200
 
         upp = binascii.a2b_base64(res.json()["upp"])
@@ -362,6 +396,12 @@ class TestIntegration:
         assert unpacked[1] == uuid.UUID(self.uuid).bytes
         assert unpacked[2] == 0xFA
         assert unpacked[3] == binascii.a2b_base64(data_hash_64)
+
+        registered_pubkey = requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
+        assert res.json()["publicKey"] == registered_pubkey
+
+        # verify UPP signature locally
+        assert verify_upp_signature(upp, registered_pubkey), "invalid UPP signature"
 
         # assert hash has been disabled in ubirch backend
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
@@ -378,7 +418,6 @@ class TestIntegration:
 
         assert res.status_code == 200
         assert res.json()["hash"] == data_hash_64
-        assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         assert res.json()["response"]["statusCode"] == 200
 
         upp = binascii.a2b_base64(res.json()["upp"])
@@ -388,6 +427,12 @@ class TestIntegration:
         assert unpacked[1] == uuid.UUID(self.uuid).bytes
         assert unpacked[2] == 0xFB
         assert unpacked[3] == binascii.a2b_base64(data_hash_64)
+
+        registered_pubkey = requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
+        assert res.json()["publicKey"] == registered_pubkey
+
+        # verify UPP signature locally
+        assert verify_upp_signature(upp, registered_pubkey), "invalid UPP signature"
 
         # assert hash has been enabled in ubirch backend
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
@@ -403,7 +448,6 @@ class TestIntegration:
 
         assert res.status_code == 200
         assert res.json()["hash"] == data_hash_64
-        assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         assert res.json()["response"]["statusCode"] == 200
 
         upp = binascii.a2b_base64(res.json()["upp"])
@@ -413,6 +457,12 @@ class TestIntegration:
         assert unpacked[1] == uuid.UUID(self.uuid).bytes
         assert unpacked[2] == 0xFB
         assert unpacked[3] == binascii.a2b_base64(data_hash_64)
+
+        registered_pubkey = requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
+        assert res.json()["publicKey"] == registered_pubkey
+
+        # verify UPP signature locally
+        assert verify_upp_signature(upp, registered_pubkey), "invalid UPP signature"
 
         # assert hash has been enabled in ubirch backend
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
@@ -429,7 +479,6 @@ class TestIntegration:
 
         assert res.status_code == 200
         assert res.json()["hash"] == data_hash_64
-        assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         assert res.json()["response"]["statusCode"] == 200
 
         upp = binascii.a2b_base64(res.json()["upp"])
@@ -439,6 +488,12 @@ class TestIntegration:
         assert unpacked[1] == uuid.UUID(self.uuid).bytes
         assert unpacked[2] == 0xFC
         assert unpacked[3] == binascii.a2b_base64(data_hash_64)
+
+        registered_pubkey = requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
+        assert res.json()["publicKey"] == registered_pubkey
+
+        # verify UPP signature locally
+        assert verify_upp_signature(upp, registered_pubkey), "invalid UPP signature"
 
         # assert hash has been deleted in ubirch backend
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
@@ -454,7 +509,6 @@ class TestIntegration:
 
         assert res.status_code == 200
         assert res.json()["hash"] == data_hash_64
-        assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         assert res.json()["response"]["statusCode"] == 200
 
         upp = binascii.a2b_base64(res.json()["upp"])
@@ -464,6 +518,12 @@ class TestIntegration:
         assert unpacked[1] == uuid.UUID(self.uuid).bytes
         assert unpacked[2] == 0xFC
         assert unpacked[3] == binascii.a2b_base64(data_hash_64)
+
+        registered_pubkey = requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
+        assert res.json()["publicKey"] == registered_pubkey
+
+        # verify UPP signature locally
+        assert verify_upp_signature(upp, registered_pubkey), "invalid UPP signature"
 
         # assert hash has been deleted in ubirch backend
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
@@ -480,7 +540,6 @@ class TestIntegration:
 
         assert res.status_code == 200
         assert res.json()["hash"] == data_hash_64
-        assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         with pytest.raises(KeyError):
             res.json()["response"]
 
@@ -491,6 +550,12 @@ class TestIntegration:
         assert unpacked[1] == uuid.UUID(self.uuid).bytes
         assert unpacked[2] == 0x00
         assert unpacked[3] == binascii.a2b_base64(data_hash_64)
+
+        registered_pubkey = requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
+        assert res.json()["publicKey"] == registered_pubkey
+
+        # verify UPP signature locally
+        assert verify_upp_signature(upp, registered_pubkey), "invalid UPP signature"
 
         # make sure hash is unknown by ubirch verification service
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
@@ -506,7 +571,6 @@ class TestIntegration:
 
         assert res.status_code == 200
         assert res.json()["hash"] == data_hash_64
-        assert res.json()["publicKey"] == requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
         with pytest.raises(KeyError):
             res.json()["response"]
 
@@ -517,6 +581,12 @@ class TestIntegration:
         assert unpacked[1] == uuid.UUID(self.uuid).bytes
         assert unpacked[2] == 0x00
         assert unpacked[3] == binascii.a2b_base64(data_hash_64)
+
+        registered_pubkey = requests.get(self.pubkey_url).json()[0]["pubKeyInfo"]["pubKey"]
+        assert res.json()["publicKey"] == registered_pubkey
+
+        # verify UPP signature locally
+        assert verify_upp_signature(upp, registered_pubkey), "invalid UPP signature"
 
         # make sure hash is unknown by ubirch verification service
         verify_res = requests.post(self.verify_url, data=data_hash_64, headers={'Content-Type': 'text/plain'})
