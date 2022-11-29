@@ -8,7 +8,7 @@ import msgpack
 import pytest
 import requests
 
-from helpers import get_random_json, serialize, hash_bytes, to_base64, verify_upp_signature
+from helpers import get_random_json, serialize, get_hash, to_base64, verify_upp_signature
 
 
 class TestIntegration:
@@ -114,7 +114,7 @@ class TestIntegration:
         url = self.host + f"/{self.uuid}"
         header = {'Content-Type': 'application/json', 'X-Auth-Token': self.pwd}
         data_json = get_random_json()
-        data_hash_64 = to_base64(hash_bytes(serialize(data_json)))
+        data_hash_64 = to_base64(get_hash(serialize(data_json)))
 
         res = requests.post(url, json=data_json, headers=header)
 
@@ -201,7 +201,7 @@ class TestIntegration:
         url = self.host + f"/{self.uuid}/offline"
         header = {'Content-Type': 'application/json', 'X-Auth-Token': self.pwd}
         data_json = get_random_json()
-        data_hash_64 = to_base64(hash_bytes(serialize(data_json)))
+        data_hash_64 = to_base64(get_hash(serialize(data_json)))
 
         res = requests.post(url, json=data_json, headers=header)
 
@@ -288,7 +288,7 @@ class TestIntegration:
         url = self.host + f"/{self.uuid}/anchor"
         header = {'Content-Type': 'application/json', 'X-Auth-Token': self.pwd}
         data_json = self.test_json
-        data_hash_64 = to_base64(hash_bytes(serialize(data_json)))
+        data_hash_64 = to_base64(get_hash(serialize(data_json)))
 
         res = requests.post(url, json=data_json, headers=header)
 
@@ -351,7 +351,7 @@ class TestIntegration:
         url = self.host + f"/{self.uuid}/disable"
         header = {'Content-Type': 'application/json', 'X-Auth-Token': self.pwd}
         data_json = self.test_json
-        data_hash_64 = to_base64(hash_bytes(serialize(data_json)))
+        data_hash_64 = to_base64(get_hash(serialize(data_json)))
 
         res = requests.post(url, json=data_json, headers=header)
 
@@ -412,7 +412,7 @@ class TestIntegration:
         url = self.host + f"/{self.uuid}/enable"
         header = {'Content-Type': 'application/json', 'X-Auth-Token': self.pwd}
         data_json = self.test_json
-        data_hash_64 = to_base64(hash_bytes(serialize(data_json)))
+        data_hash_64 = to_base64(get_hash(serialize(data_json)))
 
         res = requests.post(url, json=data_json, headers=header)
 
@@ -473,7 +473,7 @@ class TestIntegration:
         url = self.host + f"/{self.uuid}/delete"
         header = {'Content-Type': 'application/json', 'X-Auth-Token': self.pwd}
         data_json = self.test_json
-        data_hash_64 = to_base64(hash_bytes(serialize(data_json)))
+        data_hash_64 = to_base64(get_hash(serialize(data_json)))
 
         res = requests.post(url, json=data_json, headers=header)
 
@@ -534,7 +534,7 @@ class TestIntegration:
         url = self.host + f"/{self.uuid}/anchor/offline"
         header = {'Content-Type': 'application/json', 'X-Auth-Token': self.pwd}
         data_json = get_random_json()
-        data_hash_64 = to_base64(hash_bytes(serialize(data_json)))
+        data_hash_64 = to_base64(get_hash(serialize(data_json)))
 
         res = requests.post(url, json=data_json, headers=header)
 
@@ -598,7 +598,7 @@ class TestIntegration:
         url = self.host + f"/{self.uuid}"
         header = {'Content-Type': 'application/json', 'X-Auth-Token': self.pwd}
         data_json = get_random_json()
-        data_hash_64 = to_base64(hash_bytes(serialize(data_json)))
+        data_hash_64 = to_base64(get_hash(serialize(data_json)))
 
         signing_res = requests.post(url, json=data_json, headers=header)
 
@@ -647,7 +647,7 @@ class TestIntegration:
         url = self.host + f"/{self.uuid}/offline"
         header = {'Content-Type': 'application/json', 'X-Auth-Token': self.pwd}
         data_json = get_random_json()
-        data_hash_64 = to_base64(hash_bytes(serialize(data_json)))
+        data_hash_64 = to_base64(get_hash(serialize(data_json)))
 
         signing_res = requests.post(url, json=data_json, headers=header)
 

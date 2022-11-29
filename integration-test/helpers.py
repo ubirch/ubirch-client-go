@@ -44,7 +44,7 @@ def serialize(msg: dict) -> bytes:
     return json.dumps(msg, separators=(',', ':'), sort_keys=True, ensure_ascii=False).encode()
 
 
-def hash_bytes(serialized: bytes) -> bytes:
+def get_hash(serialized: bytes) -> bytes:
     return hashlib.sha256(serialized).digest()
 
 
