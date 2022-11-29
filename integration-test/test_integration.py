@@ -610,7 +610,7 @@ class TestIntegration:
 
         # since the UPP-signer does not use the quick verify endpoint, we need
         # to sleep after anchoring to ensure the hash can be verified
-        time.sleep(1)
+        time.sleep(2)
 
         # verify data
         url = self.host + "/verify"
@@ -634,7 +634,7 @@ class TestIntegration:
 
         # since the UPP-signer does not use the quick verify endpoint, we need
         # to sleep after anchoring to ensure the hash can be verified
-        time.sleep(1)
+        time.sleep(2)
 
         # verify hash
         url = self.host + "/verify/hash"
