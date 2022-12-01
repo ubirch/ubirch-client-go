@@ -16,9 +16,8 @@ package main
 
 import (
 	"fmt"
-	"net/http"
 	"os"
-	"path"
+	"time"
 
 	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
 	"github.com/ubirch/ubirch-client-go/main/adapters/handlers"
@@ -28,7 +27,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	h "github.com/ubirch/ubirch-client-go/main/adapters/http_server"
-	prom "github.com/ubirch/ubirch-client-go/main/prometheus"
 )
 
 var (
@@ -43,13 +41,11 @@ func main() {
 		serviceName = "ubirch-client"
 		configFile  = "config.json"
 		MigrateArg  = "--migrate"
-		InitArg     = "--init-identities-conf"
 	)
 
 	var (
 		configDir       string
 		migrate         bool
-		initIdentities  bool
 		serverID        = fmt.Sprintf("%s/%s", serviceName, Version)
 		readinessChecks []func() error
 	)
@@ -67,8 +63,6 @@ func main() {
 			log.Infof("arg #%d: %s", i+1, arg)
 			if arg == MigrateArg {
 				migrate = true
-			} else if arg == InitArg {
-				initIdentities = true
 			} else {
 				configDir = arg
 			}
@@ -111,8 +105,11 @@ func main() {
 	client := &clients.UbirchServiceClient{}
 	client.KeyServiceURL = conf.KeyService
 	client.IdentityServiceURL = conf.IdentityService
+	client.IdentityServiceTimeout = time.Duration(conf.IdentityServiceTimeoutMs) * time.Millisecond
 	client.AuthServiceURL = conf.Niomon
+	client.AuthServiceTimeout = time.Duration(conf.AuthServiceTimeoutMs) * time.Millisecond
 	client.VerifyServiceURL = conf.VerifyService
+	client.VerifyServiceTimeout = time.Duration(conf.VerifyServiceTimeoutMs) * time.Millisecond
 
 	idHandler := &handlers.IdentityHandler{
 		Protocol:              protocol,
@@ -123,82 +120,31 @@ func main() {
 		SubjectOrganization:   conf.CSR_Organization,
 	}
 
-	if initIdentities {
-		err = idHandler.InitIdentities(conf.Devices)
-		if err != nil {
-			log.Fatalf("initialization of identities from configuration failed: %v", err)
-		}
-		log.Infof("successfully initialized identities from configuration")
-		os.Exit(0)
+	err = idHandler.InitIdentities(conf.Devices)
+	if err != nil {
+		log.Fatalf("initialization of identities from configuration failed: %v", err)
 	}
 
 	signer := handlers.Signer{
-		Protocol:          protocol,
+		SignerProtocol:    protocol,
 		SendToAuthService: client.SendToAuthService,
 	}
 
 	verifier := handlers.Verifier{
-		Protocol:                      protocol,
+		VerifierProtocol:              protocol,
 		RequestHash:                   client.RequestHash,
 		RequestPublicKeys:             client.RequestPublicKeys,
-		VerifyFromKnownIdentitiesOnly: false, // TODO: make configurable
+		VerifyFromKnownIdentitiesOnly: conf.VerifyFromKnownIdentitiesOnly,
+		VerificationTimeout:           time.Duration(conf.VerificationTimeoutMs) * time.Millisecond,
 	}
 
 	// set up HTTP server
-	httpServer := h.HTTPServer{
-		Router:   h.NewRouter(),
-		Addr:     conf.TCP_addr,
-		TLS:      conf.TLS,
-		CertFile: conf.TLS_CertFile,
-		KeyFile:  conf.TLS_KeyFile,
-	}
-
-	if conf.CORS && config.IsDevelopment { // never enable CORS on production stage
-		httpServer.SetUpCORS(conf.CORS_Origins, conf.Debug)
-	}
-
-	// set up metrics
-	httpServer.Router.Method(http.MethodGet, h.MetricsEndpoint, prom.Handler())
-
-	// set up endpoint for identity registration
-	httpServer.Router.Put(h.RegisterEndpoint, h.Register(conf.RegisterAuth, idHandler.InitIdentity))
-
-	// set up endpoint for key status updates (de-/re-activation)
-	httpServer.Router.Put(h.ActiveUpdateEndpoint, h.UpdateActive(conf.RegisterAuth, idHandler.DeactivateKey, idHandler.ReactivateKey))
-
-	// set up endpoint for CSRs
-	fetchCSREndpoint := path.Join(h.UUIDPath, h.CSREndpoint) // /<uuid>/csr
-	httpServer.Router.Get(fetchCSREndpoint, h.FetchCSR(conf.RegisterAuth, idHandler.CreateCSR))
-
-	// set up endpoint for chaining
-	httpServer.AddServiceEndpoint(h.ServerEndpoint{
-		Path: h.UUIDPath,
-		Service: &h.ChainingService{
-			CheckAuth: protocol.CheckAuth,
-			Chain:     signer.Chain,
-		},
-	})
-
-	// set up endpoint for signing
-	httpServer.AddServiceEndpoint(h.ServerEndpoint{
-		Path: path.Join(h.UUIDPath, h.OperationPath),
-		Service: &h.SigningService{
-			CheckAuth: protocol.CheckAuth,
-			Sign:      signer.Sign,
-		},
-	})
-
-	// set up endpoint for verification
-	httpServer.AddServiceEndpoint(h.ServerEndpoint{
-		Path: h.VerifyPath,
-		Service: &h.VerificationService{
-			Verify: verifier.Verify,
-		},
-	})
-
-	// set up endpoints for liveness and readiness checks
-	httpServer.Router.Get(h.LivenessCheckEndpoint, h.Health(serverID))
-	httpServer.Router.Get(h.ReadinessCheckEndpoint, h.Ready(serverID, readinessChecks))
+	httpServer := h.InitHTTPServer(conf,
+		idHandler.InitIdentity, idHandler.CreateCSR,
+		protocol.CheckAuth, signer.Sign,
+		verifier.Verify, verifier.VerifyOffline,
+		idHandler.DeactivateKey, idHandler.ReactivateKey,
+		serverID, readinessChecks)
 
 	// start HTTP server (blocks until SIGINT or SIGTERM is received)
 	if err = httpServer.Serve(); err != nil {

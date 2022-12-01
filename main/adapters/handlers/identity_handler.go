@@ -50,6 +50,7 @@ func (i *IdentityHandler) InitIdentities(identities map[string]string) error {
 
 		_, err = i.InitIdentity(uid, auth)
 		if err == h.ErrAlreadyInitialized {
+			log.Infof("%s: identity already initialized", uid)
 			continue
 		}
 		if err != nil {
@@ -145,6 +146,8 @@ func (i *IdentityHandler) createCSR(uid uuid.UUID) (csrPEM []byte, err error) {
 	i.asyncSendCSR(uid, csr)
 
 	csrPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})
+
+	log.Infof("%s: CSR [PEM]: %s", uid, csrPEM)
 
 	return csrPEM, nil
 }

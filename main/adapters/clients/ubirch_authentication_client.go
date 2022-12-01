@@ -16,18 +16,26 @@ package clients
 
 import (
 	"encoding/base64"
+	"net/http"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 
 	h "github.com/ubirch/ubirch-client-go/main/adapters/http_server"
+	prom "github.com/ubirch/ubirch-client-go/main/prometheus"
 )
 
 type AuthenticationServiceClient struct {
-	AuthServiceURL string
+	AuthServiceURL     string
+	AuthServiceTimeout time.Duration
 }
 
 func (c *AuthenticationServiceClient) SendToAuthService(uid uuid.UUID, auth string, upp []byte) (h.HTTPResponse, error) {
-	return Post(c.AuthServiceURL, upp, ubirchHeader(uid, auth))
+	timer := prometheus.NewTimer(prom.UpstreamResponseDuration)
+	defer timer.ObserveDuration()
+
+	return sendRequest(http.MethodPost, c.AuthServiceURL, upp, ubirchHeader(uid, auth), c.AuthServiceTimeout)
 }
 
 func ubirchHeader(uid uuid.UUID, auth string) map[string]string {

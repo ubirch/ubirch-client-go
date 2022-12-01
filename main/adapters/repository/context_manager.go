@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/config"
@@ -30,6 +29,12 @@ type ContextManager interface {
 	StoreAuth(TransactionCtx, uuid.UUID, string) error
 	LoadAuthForUpdate(TransactionCtx, uuid.UUID) (string, error)
 
+	StoreExternalIdentity(context.Context, ent.ExternalIdentity) error
+	LoadExternalIdentity(context.Context, uuid.UUID) (*ent.ExternalIdentity, error)
+
+	GetIdentityUUIDs() ([]uuid.UUID, error)
+	GetExternalIdentityUUIDs() ([]uuid.UUID, error)
+
 	IsReady() error
 	Close() error
 }
@@ -40,10 +45,5 @@ type TransactionCtx interface {
 }
 
 func GetContextManager(c *config.Config) (ContextManager, error) {
-	if c.PostgresDSN != "" {
-		return NewSqlDatabaseInfo(c.PostgresDSN, c.DbMaxConns)
-	} else {
-		return nil, fmt.Errorf("file-based context management is not supported in the current version. " +
-			"Please set a postgres DSN in the configuration and conntect to a database or downgrade to a version < 2.0.0")
-	}
+	return NewDatabaseManager(c.DbDriver, c.DbDSN, c.DbMaxConns)
 }

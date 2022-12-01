@@ -18,58 +18,98 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/ubirch/ubirch-client-go/main/ent"
+	"modernc.org/sqlite"
 
 	log "github.com/sirupsen/logrus"
 )
 
 const (
-	PostgreSql = "postgres"
+	PostgreSQL = "postgres"
+	SQLite     = "sqlite"
+
+	sqliteConfig = "?_txlock=EXCLUSIVE" + // https://www.sqlite.org/lang_transaction.html
+		"&_pragma=journal_mode(WAL)" + // https://www.sqlite.org/wal.html
+		"&_pragma=synchronous(FULL)" + // https://www.sqlite.org/pragma.html#pragma_synchronous
+		"&_pragma=wal_autocheckpoint(4)" + // checkpoint when WAL reaches x pages https://www.sqlite.org/pragma.html#pragma_wal_autocheckpoint
+		"&_pragma=wal_checkpoint(PASSIVE)" + // https://www.sqlite.org/pragma.html#pragma_wal_checkpoint
+		"&_pragma=journal_size_limit(32000)" + // max WAL file size in bytes https://www.sqlite.org/pragma.html#pragma_journal_size_limit
+		"&_pragma=busy_timeout(100)" // https://www.sqlite.org/pragma.html#pragma_busy_timeout
+
 	maxRetries = 2
 )
 
-// DatabaseManager contains the postgres database connection, and offers methods
+// DatabaseManager contains the database connection, and offers methods
 // for interacting with the database.
 type DatabaseManager struct {
-	options *sql.TxOptions
-	db      *sql.DB
+	options    *sql.TxOptions
+	db         *sql.DB
+	driverName string
 }
 
 // Ensure Database implements the ContextManager interface
 var _ ContextManager = (*DatabaseManager)(nil)
 
-// NewSqlDatabaseInfo takes a database connection string, returns a new initialized
-// database.
-func NewSqlDatabaseInfo(dataSourceName string, maxConns int) (*DatabaseManager, error) {
-	log.Infof("preparing postgres usage")
+// NewDatabaseManager takes a database connection string, returns a new initialized
+// SQL database manager.
+func NewDatabaseManager(driverName, dataSourceName string, maxConns int) (*DatabaseManager, error) {
+	if driverName == "" || dataSourceName == "" {
+		return nil, fmt.Errorf("empty database driverName or dataSourceName")
+	}
 
-	pg, err := sql.Open(PostgreSql, dataSourceName)
+	var isolationLvl sql.IsolationLevel
+	var createStatements []string
+
+	switch driverName {
+	case PostgreSQL:
+		isolationLvl = sql.LevelReadCommitted
+		createStatements = createPostgres
+	case SQLite:
+		isolationLvl = sql.LevelSerializable
+		createStatements = createSQLite
+		if !strings.Contains(dataSourceName, "?") {
+			dataSourceName += sqliteConfig
+		}
+	default:
+		return nil, fmt.Errorf("unsupported SQL database driver: %s, supported drivers: %s, %s",
+			driverName, PostgreSQL, SQLite)
+	}
+
+	log.Infof("initializing %s database connection", driverName)
+
+	db, err := sql.Open(driverName, dataSourceName)
 	if err != nil {
 		return nil, err
 	}
 
-	pg.SetMaxOpenConns(maxConns)
-	pg.SetMaxIdleConns(maxConns)
-	pg.SetConnMaxLifetime(10 * time.Minute)
-	pg.SetConnMaxIdleTime(1 * time.Minute)
+	db.SetMaxOpenConns(maxConns)
+	db.SetMaxIdleConns(maxConns)
+	db.SetConnMaxLifetime(10 * time.Minute)
+	db.SetConnMaxIdleTime(1 * time.Minute)
 
 	dm := &DatabaseManager{
 		options: &sql.TxOptions{
-			Isolation: sql.LevelReadCommitted,
+			Isolation: isolationLvl,
 			ReadOnly:  false,
 		},
-		db: pg,
+		db:         db,
+		driverName: driverName,
 	}
 
-	if err = dm.IsReady(); err != nil {
-		// if there is no connection to the database yet, continue anyway.
-		log.Warn(err)
+	if err = db.Ping(); err != nil {
+		if driverName == PostgreSQL && strings.Contains(err.Error(), "connection refused") {
+			// if there is no connection to the database yet, continue anyway.
+			log.Warnf("connection to the database could not yet be established: %v", err)
+		} else {
+			return nil, err
+		}
 	} else {
-		err = dm.CreateTable(PostgresIdentity)
+		err = dm.CreateTables(createStatements)
 		if err != nil {
 			return nil, fmt.Errorf("creating DB table failed: %v", err)
 		}
@@ -107,9 +147,8 @@ func (dm *DatabaseManager) StoreIdentity(transactionCtx TransactionCtx, i ent.Id
 		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
-	query := fmt.Sprintf(
-		"INSERT INTO %s (uid, private_key, public_key, signature, auth_token) VALUES ($1, $2, $3, $4, $5);",
-		PostgresIdentityTableName)
+	query :=
+		"INSERT INTO identity (uid, private_key, public_key, signature, auth_token) VALUES ($1, $2, $3, $4, $5);"
 
 	_, err := tx.Exec(query, &i.Uid, &i.PrivateKey, &i.PublicKey, &i.Signature, &i.AuthToken)
 
@@ -119,9 +158,7 @@ func (dm *DatabaseManager) StoreIdentity(transactionCtx TransactionCtx, i ent.Id
 func (dm *DatabaseManager) LoadIdentity(uid uuid.UUID) (*ent.Identity, error) {
 	i := ent.Identity{Uid: uid}
 
-	query := fmt.Sprintf(
-		"SELECT private_key, public_key, signature, auth_token FROM %s WHERE uid = $1;",
-		PostgresIdentityTableName)
+	query := "SELECT private_key, public_key, signature, auth_token FROM identity WHERE uid = $1;"
 
 	err := dm.retry(func() error {
 		err := dm.db.QueryRow(query, uid).Scan(&i.PrivateKey, &i.PublicKey, &i.Signature, &i.AuthToken)
@@ -140,7 +177,7 @@ func (dm *DatabaseManager) StoreActiveFlag(transactionCtx TransactionCtx, uid uu
 		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
-	query := fmt.Sprintf("UPDATE %s SET active = $1 WHERE uid = $2;", PostgresIdentityTableName)
+	query := "UPDATE identity SET active = $1 WHERE uid = $2;"
 
 	_, err := tx.Exec(query, &active, uid)
 
@@ -153,7 +190,12 @@ func (dm *DatabaseManager) LoadActiveFlagForUpdate(transactionCtx TransactionCtx
 		return false, fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
-	query := fmt.Sprintf("SELECT active FROM %s WHERE uid = $1 FOR UPDATE;", PostgresIdentityTableName)
+	query := "SELECT active FROM identity WHERE uid = $1"
+
+	if dm.driverName == PostgreSQL {
+		query += " FOR UPDATE"
+	}
+	query += ";"
 
 	err = tx.QueryRow(query, uid).Scan(&active)
 	if err == sql.ErrNoRows {
@@ -164,12 +206,15 @@ func (dm *DatabaseManager) LoadActiveFlagForUpdate(transactionCtx TransactionCtx
 }
 
 func (dm *DatabaseManager) LoadActiveFlag(uid uuid.UUID) (active bool, err error) {
-	query := fmt.Sprintf("SELECT active FROM %s WHERE uid = $1;", PostgresIdentityTableName)
+	query := "SELECT active FROM identity WHERE uid = $1;"
 
-	err = dm.db.QueryRow(query, uid).Scan(&active)
-	if err == sql.ErrNoRows {
-		return false, ErrNotExist
-	}
+	err = dm.retry(func() error {
+		err := dm.db.QueryRow(query, uid).Scan(&active)
+		if err == sql.ErrNoRows {
+			return ErrNotExist
+		}
+		return err
+	})
 
 	return active, err
 }
@@ -180,7 +225,7 @@ func (dm *DatabaseManager) StoreSignature(transactionCtx TransactionCtx, uid uui
 		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
-	query := fmt.Sprintf("UPDATE %s SET signature = $1 WHERE uid = $2;", PostgresIdentityTableName)
+	query := "UPDATE identity SET signature = $1 WHERE uid = $2;"
 
 	_, err := tx.Exec(query, &signature, uid)
 
@@ -193,7 +238,12 @@ func (dm *DatabaseManager) LoadSignatureForUpdate(transactionCtx TransactionCtx,
 		return nil, fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
-	query := fmt.Sprintf("SELECT signature FROM %s WHERE uid = $1 FOR UPDATE;", PostgresIdentityTableName)
+	query := "SELECT signature FROM identity WHERE uid = $1"
+
+	if dm.driverName == PostgreSQL {
+		query += " FOR UPDATE"
+	}
+	query += ";"
 
 	err = tx.QueryRow(query, uid).Scan(&signature)
 	if err == sql.ErrNoRows {
@@ -209,7 +259,7 @@ func (dm *DatabaseManager) StoreAuth(transactionCtx TransactionCtx, uid uuid.UUI
 		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
-	query := fmt.Sprintf("UPDATE %s SET auth_token = $1 WHERE uid = $2;", PostgresIdentityTableName)
+	query := "UPDATE identity SET auth_token = $1 WHERE uid = $2;"
 
 	_, err := tx.Exec(query, &auth, uid)
 
@@ -222,7 +272,12 @@ func (dm *DatabaseManager) LoadAuthForUpdate(transactionCtx TransactionCtx, uid 
 		return "", fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
 	}
 
-	query := fmt.Sprintf("SELECT auth_token FROM %s WHERE uid = $1 FOR UPDATE;", PostgresIdentityTableName)
+	query := "SELECT auth_token FROM identity WHERE uid = $1"
+
+	if dm.driverName == PostgreSQL {
+		query += " FOR UPDATE"
+	}
+	query += ";"
 
 	err = tx.QueryRow(query, uid).Scan(&auth)
 	if err == sql.ErrNoRows {
@@ -230,6 +285,68 @@ func (dm *DatabaseManager) LoadAuthForUpdate(transactionCtx TransactionCtx, uid 
 	}
 
 	return auth, err
+}
+
+func (dm *DatabaseManager) StoreExternalIdentity(ctx context.Context, extId ent.ExternalIdentity) error {
+	query := "INSERT INTO external_identity (uid, public_key) VALUES ($1, $2);"
+
+	err := dm.retry(func() error {
+		_, err := dm.db.ExecContext(ctx, query, &extId.Uid, &extId.PublicKey)
+		return err
+	})
+
+	return err
+}
+
+func (dm *DatabaseManager) LoadExternalIdentity(ctx context.Context, uid uuid.UUID) (*ent.ExternalIdentity, error) {
+	extId := ent.ExternalIdentity{Uid: uid}
+
+	query := "SELECT public_key FROM external_identity WHERE uid = $1;"
+
+	err := dm.retry(func() error {
+		err := dm.db.QueryRowContext(ctx, query, uid).Scan(&extId.PublicKey)
+		if err == sql.ErrNoRows {
+			return ErrNotExist
+		}
+		return err
+	})
+
+	return &extId, err
+}
+
+func (dm *DatabaseManager) GetIdentityUUIDs() ([]uuid.UUID, error) {
+	return dm.getUUIDs("SELECT uid FROM identity")
+}
+
+func (dm *DatabaseManager) GetExternalIdentityUUIDs() ([]uuid.UUID, error) {
+	return dm.getUUIDs("SELECT uid FROM external_identity")
+}
+
+func (dm *DatabaseManager) getUUIDs(query string) ([]uuid.UUID, error) {
+	rows, err := dm.db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err = rows.Close(); err != nil {
+			log.Error(err)
+		}
+	}()
+
+	var (
+		id  uuid.UUID
+		ids []uuid.UUID
+	)
+
+	for rows.Next() {
+		err = rows.Scan(&id)
+		if err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+
+	return ids, rows.Err()
 }
 
 func (dm *DatabaseManager) retry(f func() error) (err error) {
@@ -245,19 +362,32 @@ func (dm *DatabaseManager) retry(f func() error) (err error) {
 }
 
 func (dm *DatabaseManager) isRecoverable(err error) bool {
-	if pqErr, ok := err.(*pq.Error); ok {
-		switch pqErr.Code {
-		case "42P01": // undefined_table
-			err = dm.CreateTable(PostgresIdentity)
-			if err != nil {
-				log.Errorf("creating DB table failed: %v", err)
+	switch dm.driverName {
+	case PostgreSQL:
+		if pqErr, ok := err.(*pq.Error); ok {
+			switch pqErr.Code {
+			case "55P03", "53300", "53400": // lock_not_available, too_many_connections, configuration_limit_exceeded
+				time.Sleep(10 * time.Millisecond)
+				return true
+			case "42P01": // undefined_table
+				err = dm.CreateTables(createPostgres)
+				if err != nil {
+					log.Errorf("creating DB table failed: %v", err)
+				}
+				return true
 			}
-			return true
-		case "55P03", "53300", "53400": // lock_not_available, too_many_connections, configuration_limit_exceeded
-			time.Sleep(10 * time.Millisecond)
-			return true
+			log.Errorf("unexpected postgres database error: %s", pqErr)
 		}
-		log.Errorf("%s = %s", err, pqErr.Code)
+	case SQLite:
+		if liteErr, ok := err.(*sqlite.Error); ok {
+			if liteErr.Code() == 5 || // SQLITE_BUSY
+				liteErr.Code() == 6 || // SQLITE_LOCKED
+				liteErr.Code() == 261 { // SQLITE_BUSY_RECOVERY
+				time.Sleep(10 * time.Millisecond)
+				return true
+			}
+			log.Errorf("unexpected sqlite database error: %s", liteErr)
+		}
 	}
 	return false
 }

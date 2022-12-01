@@ -5,27 +5,19 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
+	"path"
 	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	urlpkg "net/url"
 )
 
 type SigningResponse struct {
-	Error     string       `json:"error,omitempty"`
-	Operation string       `json:"operation,omitempty"`
-	Hash      []byte       `json:"hash,omitempty"`
-	UPP       []byte       `json:"upp,omitempty"`
-	Response  HTTPResponse `json:"response,omitempty"`
-	RequestID string       `json:"requestID,omitempty"`
-}
-
-type HTTPResponse struct {
-	StatusCode int         `json:"statusCode"`
-	Header     http.Header `json:"header"`
-	Content    []byte      `json:"content"`
+	Hash []byte
+	UPP  []byte
 }
 
 type Sender struct {
@@ -39,8 +31,16 @@ type Sender struct {
 }
 
 func NewSender() *Sender {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.MaxIdleConns = httpConnectionPoolSize
+	transport.MaxConnsPerHost = httpConnectionPoolSize
+	transport.MaxIdleConnsPerHost = httpConnectionPoolSize
+
 	return &Sender{
-		httpClient:       &http.Client{Timeout: 30 * time.Second},
+		httpClient: &http.Client{
+			Timeout:   httpClientTimeoutSec * time.Second,
+			Transport: transport,
+		},
 		chainChecker:     NewChainChecker(),
 		statusCounter:    map[string]int{},
 		statusCounterMtx: &sync.Mutex{},
@@ -48,29 +48,24 @@ func NewSender() *Sender {
 	}
 }
 
-func (s *Sender) register(id, auth, registerAuth string) error {
-	url := clientBaseURL + "/register"
+func (s *Sender) register(url urlpkg.URL, id, auth, registerAuth string) error {
+	url.Path = path.Join(url.Path, "register")
 
-	header := http.Header{}
-	header.Set("Content-Type", "application/json")
-	header.Set("X-Auth-Token", registerAuth)
-
-	registrationData := map[string]string{
+	body, err := json.Marshal(map[string]string{
 		"uuid":     id,
 		"password": auth,
-	}
-
-	body, err := json.Marshal(registrationData)
+	})
 	if err != nil {
 		return err
 	}
 
-	req, err := http.NewRequest(http.MethodPut, url, bytes.NewBuffer(body))
+	req, err := http.NewRequest(http.MethodPut, url.String(), bytes.NewBuffer(body))
 	if err != nil {
 		return err
 	}
 
-	req.Header = header
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Auth-Token", registerAuth)
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
@@ -92,10 +87,11 @@ func (s *Sender) register(id, auth, registerAuth string) error {
 	return nil
 }
 
-func (s *Sender) sendRequests(id, auth string, offset time.Duration, wg *sync.WaitGroup) {
+func (s *Sender) sendRequests(url urlpkg.URL, uid, auth string, offset time.Duration, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	clientURL := clientBaseURL + fmt.Sprintf("/%s/hash", id)
+	url.Path = path.Join(url.Path, uid, "hash")
+
 	header := http.Header{}
 	header.Set("Content-Type", "application/octet-stream")
 	header.Set("X-Auth-Token", auth)
@@ -104,7 +100,7 @@ func (s *Sender) sendRequests(id, auth string, offset time.Duration, wg *sync.Wa
 
 	for i := 0; i < numberOfRequestsPerID; i++ {
 		wg.Add(1)
-		go s.sendAndCheckResponse(clientURL, header, wg)
+		go s.sendAndCheckResponse(url.String(), header, wg)
 
 		time.Sleep(time.Second / requestsPerSecondPerID)
 	}
@@ -149,7 +145,7 @@ func (s *Sender) sendRequest(clientURL string, header http.Header, hash []byte) 
 		return SigningResponse{}, err
 	}
 
-	duration := time.Now().Sub(start)
+	duration := time.Since(start)
 
 	//noinspection GoUnhandledErrorResult
 	defer resp.Body.Close()
@@ -159,7 +155,7 @@ func (s *Sender) sendRequest(clientURL string, header http.Header, hash []byte) 
 	if resp.StatusCode == http.StatusOK {
 		s.addTime(duration)
 	} else {
-		respBody, _ := ioutil.ReadAll(resp.Body)
+		respBody, _ := io.ReadAll(resp.Body)
 		return SigningResponse{}, fmt.Errorf("%d: %s", resp.StatusCode, respBody)
 	}
 

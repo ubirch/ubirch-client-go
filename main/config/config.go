@@ -49,45 +49,64 @@ const (
 	defaultTLSCertFile = "cert.pem"
 	defaultTLSKeyFile  = "key.pem"
 
+	postgresDriver    = "postgres"
+	sqliteDriver      = "sqlite"
+	defaultSQLiteName = "sqlite.db"
+
 	defaultKeyDerivationParamMemory      = 15
 	defaultKeyDerivationParamTime        = 2
 	defaultKeyDerivationParamParallelism = 1
 	defaultKeyDerivationKeyLen           = 32
 	defaultKeyDerivationSaltLen          = 16
+
+	defaultIdentityServiceTimeoutMs = 10_000 // should be high since we want to avoid canceling an otherwise successful key registration
+	defaultAuthServiceTimeoutMs     = 2_000
+	defaultVerifyServiceTimeoutMs   = 600
+	defaultVerificationTimeoutMs    = 2_000
 )
 
 var IsDevelopment bool
 
 type Config struct {
-	Devices            map[string]string `json:"devices"`                                             // maps UUIDs to backend auth tokens (mandatory)
-	Secret16Base64     string            `json:"secret" envconfig:"secret"`                           // 16 bytes secret used to encrypt the key store (mandatory for migration) LEGACY
-	Secret32Base64     string            `json:"secret32" envconfig:"secret32"`                       // 32 byte secret used to encrypt the key store (mandatory)
-	RegisterAuth       string            `json:"registerAuth"`                                        // auth token needed for new identity registration
-	Env                string            `json:"env"`                                                 // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
-	PostgresDSN        string            `json:"postgresDSN" envconfig:"POSTGRES_DSN"`                // data source name for postgres database
-	DbMaxConns         int               `json:"dbMaxConns" envconfig:"DB_MAX_CONNS"`                 // maximum number of open connections to the database
-	TCP_addr           string            `json:"TCP_addr"`                                            // the TCP address for the server to listen on, in the form "host:port", defaults to ":8080"
-	TLS                bool              `json:"TLS"`                                                 // enable serving HTTPS endpoints, defaults to 'false'
-	TLS_CertFile       string            `json:"TLSCertFile"`                                         // filename of TLS certificate file name, defaults to "cert.pem"
-	TLS_KeyFile        string            `json:"TLSKeyFile"`                                          // filename of TLS key file name, defaults to "key.pem"
-	CORS               bool              `json:"CORS"`                                                // enable CORS, defaults to 'false'
-	CORS_Origins       []string          `json:"CORS_origins"`                                        // list of allowed origin hosts, defaults to ["*"]
-	CSR_Country        string            `json:"CSR_country"`                                         // subject country for public key Certificate Signing Requests
-	CSR_Organization   string            `json:"CSR_organization"`                                    // subject organization for public key Certificate Signing Requests
-	Debug              bool              `json:"debug"`                                               // enable extended debug output, defaults to 'false'
-	LogTextFormat      bool              `json:"logTextFormat"`                                       // log in text format for better human readability, default format is JSON
-	KdMaxTotalMemMiB   uint32            `json:"kdMaxTotalMemMiB" envconfig:"KD_MAX_TOTAL_MEM_MIB"`   // maximal total memory to use for key derivation at a time in MiB
-	KdParamMemMiB      uint32            `json:"kdParamMemMiB" envconfig:"KD_PARAM_MEM_MIB"`          // memory parameter for key derivation, specifies the size of the memory in MiB
-	KdParamTime        uint32            `json:"kdParamTime" envconfig:"KD_PARAM_TIME"`               // time parameter for key derivation, specifies the number of passes over the memory
-	KdParamParallelism uint8             `json:"kdParamParallelism" envconfig:"KD_PARAM_PARALLELISM"` // parallelism (threads) parameter for key derivation, specifies the number of threads and can be adjusted to the number of available CPUs
-	KdParamKeyLen      uint32            `json:"kdParamKeyLen" envconfig:"KD_PARAM_KEY_LEN"`          // key length parameter for key derivation, specifies the length of the resulting key in bytes
-	KdParamSaltLen     uint32            `json:"kdParamSaltLen" envconfig:"KD_PARAM_SALT_LEN"`        // salt length parameter for key derivation, specifies the length of the random salt in bytes
-	KdUpdateParams     bool              `json:"kdUpdateParams" envconfig:"KD_UPDATE_PARAMS"`         // update key derivation parameters of already existing password hashes
-	KeyService         string            // key service URL (set automatically)
-	IdentityService    string            // identity service URL (set automatically)
-	Niomon             string            // authentication service URL (set automatically)
-	VerifyService      string            // verification service URL (set automatically)
-	SecretBytes32      []byte            // the decoded 32 byte key store secret for database (set automatically)
+	Devices                       map[string]string `json:"devices"`                                                                     // maps UUIDs to backend auth tokens
+	Secret16Base64                string            `json:"secret" envconfig:"secret"`                                                   // LEGACY: 16 bytes secret used to encrypt the key store (mandatory only for migration)
+	Secret32Base64                string            `json:"secret32" envconfig:"secret32"`                                               // 32 byte secret used to encrypt the key store (mandatory)
+	StaticAuth                    string            `json:"staticAuth" envconfig:"STATIC_AUTH"`                                          // static auth token needed for identity registration, csr creation or key deactivation
+	EnableRegistrationEndpoint    bool              `json:"enableRegistrationEndpoint" envconfig:"ENABLE_REGISTRATION_ENDPOINT"`         // expose endpoint for identity registration
+	EnableCSRCreationEndpoint     bool              `json:"enableCSRCreationEndpoint" envconfig:"ENABLE_CSR_CREATION_ENDPOINT"`          // expose endpoint for CSR creation
+	EnableDeactivationEndpoint    bool              `json:"enableDeactivationEndpoint" envconfig:"ENABLE_DEACTIVATION_ENDPOINT"`         // expose endpoint for key status updates (de-/re-activation)
+	Env                           string            `json:"env"`                                                                         // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
+	DbDriver                      string            `json:"dbDriver" envconfig:"DB_DRIVER"`                                              // database driver name
+	DbDSN                         string            `json:"dbDSN" envconfig:"DB_DSN"`                                                    // data source name for database, path to the sqlite db file
+	DbMaxConns                    int               `json:"dbMaxConns" envconfig:"DB_MAX_CONNS"`                                         // maximum number of open connections to the database
+	TCP_addr                      string            `json:"TCP_addr"`                                                                    // the TCP address for the server to listen on, in the form "host:port", defaults to ":8080"
+	TLS                           bool              `json:"TLS"`                                                                         // enable serving HTTPS endpoints, defaults to 'false'
+	TLS_CertFile                  string            `json:"TLSCertFile"`                                                                 // filename of TLS certificate file name, defaults to "cert.pem"
+	TLS_KeyFile                   string            `json:"TLSKeyFile"`                                                                  // filename of TLS key file name, defaults to "key.pem"
+	CORS                          bool              `json:"CORS"`                                                                        // enable CORS, defaults to 'false'
+	CORS_Origins                  []string          `json:"CORS_origins"`                                                                // list of allowed origin hosts, defaults to ["*"]
+	CSR_Country                   string            `json:"CSR_country"`                                                                 // subject country for public key Certificate Signing Requests
+	CSR_Organization              string            `json:"CSR_organization"`                                                            // subject organization for public key Certificate Signing Requests
+	Debug                         bool              `json:"debug"`                                                                       // enable extended debug output, defaults to 'false'
+	LogTextFormat                 bool              `json:"logTextFormat"`                                                               // log in text format for better human readability, default format is JSON
+	LogKnownIdentities            bool              `json:"logKnownIdentities" envconfig:"LOG_KNOWN_IDENTITIES"`                         // log the UUIDs of all known identities at startup
+	KdMaxTotalMemMiB              uint32            `json:"kdMaxTotalMemMiB" envconfig:"KD_MAX_TOTAL_MEM_MIB"`                           // maximal total memory to use for key derivation at a time in MiB
+	KdParamMemMiB                 uint32            `json:"kdParamMemMiB" envconfig:"KD_PARAM_MEM_MIB"`                                  // memory parameter for key derivation, specifies the size of the memory in MiB
+	KdParamTime                   uint32            `json:"kdParamTime" envconfig:"KD_PARAM_TIME"`                                       // time parameter for key derivation, specifies the number of passes over the memory
+	KdParamParallelism            uint8             `json:"kdParamParallelism" envconfig:"KD_PARAM_PARALLELISM"`                         // parallelism (threads) parameter for key derivation, specifies the number of threads and can be adjusted to the number of available CPUs
+	KdParamKeyLen                 uint32            `json:"kdParamKeyLen" envconfig:"KD_PARAM_KEY_LEN"`                                  // key length parameter for key derivation, specifies the length of the resulting key in bytes
+	KdParamSaltLen                uint32            `json:"kdParamSaltLen" envconfig:"KD_PARAM_SALT_LEN"`                                // salt length parameter for key derivation, specifies the length of the random salt in bytes
+	KdUpdateParams                bool              `json:"kdUpdateParams" envconfig:"KD_UPDATE_PARAMS"`                                 // update key derivation parameters of already existing password hashes
+	IdentityServiceTimeoutMs      int64             `json:"identityServiceTimeoutMs" envconfig:"IDENTITY_SERVICE_TIMEOUT_MS"`            // time limit for requests to the ubirch identity service in milliseconds
+	AuthServiceTimeoutMs          int64             `json:"authServiceTimeoutMs" envconfig:"AUTH_SERVICE_TIMEOUT_MS"`                    // time limit for requests to the ubirch authentication service (niomon) in milliseconds
+	VerifyServiceTimeoutMs        int64             `json:"verifyServiceTimeoutMs" envconfig:"VERIFY_SERVICE_TIMEOUT_MS"`                // time limit for requests to the ubirch verification service in milliseconds
+	VerificationTimeoutMs         int64             `json:"verificationTimeoutMs" envconfig:"VERIFICATION_TIMEOUT_MS"`                   // time limit for repeated attempts to verify a hash at the ubirch verification service in milliseconds
+	VerifyFromKnownIdentitiesOnly bool              `json:"verifyFromKnownIdentitiesOnly" envconfig:"VERIFY_FROM_KNOWN_IDENTITIES_ONLY"` // flag to determine if a public key should be retrieved from the ubirch identity service in case of incoming verification request for UPP from unknown identity
+	KeyService                    string            // key service URL (set automatically)
+	IdentityService               string            // identity service URL (set automatically)
+	Niomon                        string            // authentication service URL (set automatically)
+	VerifyService                 string            // verification service URL (set automatically)
+	SecretBytes32                 []byte            // the decoded 32 byte key store secret for database (set automatically)
 }
 
 func (c *Config) Load(configDir, filename string) error {
@@ -111,6 +130,7 @@ func (c *Config) Load(configDir, filename string) error {
 	if c.Debug {
 		log.SetLevel(log.DebugLevel)
 	}
+
 	if c.LogTextFormat {
 		log.SetFormatter(&log.TextFormatter{FullTimestamp: true, TimestampFormat: "2006-01-02 15:04:05.000 -0700"})
 	}
@@ -125,10 +145,13 @@ func (c *Config) Load(configDir, filename string) error {
 		return err
 	}
 
+	// set defaults
 	c.setDefaultCSR()
 	c.setDefaultTLS(configDir)
 	c.setDefaultCORS()
+	c.setDefaultSQLite(configDir)
 	c.setKeyDerivationParams()
+	c.setDefaultTimeouts()
 	return c.setDefaultURLs()
 }
 
@@ -159,12 +182,44 @@ func (c *Config) loadFile(filename string) error {
 }
 
 func (c *Config) checkMandatory() error {
+	var missingConfig bool
+
 	if len(c.SecretBytes32) != secretLength32 {
-		return fmt.Errorf("secret for aes-256 key encryption ('secret32') length must be %d bytes (is %d)", secretLength32, len(c.SecretBytes32))
+		missingConfig = true
+		log.Errorf("secret for aes-256 key encryption ('secret32' / 'UBIRCH_SECRET32') length must be %d bytes (is %d)", secretLength32, len(c.SecretBytes32))
 	}
 
-	if len(c.RegisterAuth) == 0 {
-		return fmt.Errorf("auth token for identity registration ('registerAuth') wasn't set")
+	if len(c.DbDriver) == 0 {
+		missingConfig = true
+		log.Errorf("missing 'dbDriver' / 'UBIRCH_DB_DRIVER' in configuration (\"%s\" | \"%s\")", postgresDriver, sqliteDriver)
+	} else if c.DbDriver != postgresDriver && c.DbDriver != sqliteDriver {
+		missingConfig = true
+		log.Errorf("invalid value for 'dbDriver' / 'UBIRCH_DB_DRIVER' in configuration: \"%s\", expected \"%s\" or \"%s\"", c.DbDriver, postgresDriver, sqliteDriver)
+	} else if c.DbDriver == postgresDriver && len(c.DbDSN) == 0 {
+		missingConfig = true
+		log.Errorf("missing 'dbDSN' / 'UBIRCH_DB_DSN' for %s in configuration", c.DbDriver)
+	}
+
+	if (c.EnableRegistrationEndpoint || c.EnableCSRCreationEndpoint || c.EnableDeactivationEndpoint) &&
+		len(c.StaticAuth) == 0 {
+		missingConfig = true
+		log.Errorf("missing 'staticAuth' / 'UBIRCH_STATIC_AUTH' in configuration")
+	}
+
+	if !c.EnableRegistrationEndpoint {
+		log.Warnf("identity registration endpoint disabled. To enable, set json:\"enableRegistrationEndpoint\" env:\"UBIRCH_ENABLE_REGISTRATION_ENDPOINT\" =true")
+	}
+
+	if !c.EnableCSRCreationEndpoint {
+		log.Warnf("CSR creation endpoint disabled. To enable, set json:\"enableCSRCreationEndpoint\" env:\"UBIRCH_ENABLE_CSR_CREATION_ENDPOINT\" =true")
+	}
+
+	if !c.EnableDeactivationEndpoint {
+		log.Warnf("key deactivation endpoint disabled. To enable, set json:\"enableDeactivationEndpoint\" env:\"ENABLE_DEACTIVATION_ENDPOINT\" =true")
+	}
+
+	if missingConfig {
+		return fmt.Errorf("missing mandatory configuration")
 	}
 
 	return nil
@@ -216,6 +271,15 @@ func (c *Config) setDefaultCORS() {
 	}
 }
 
+func (c *Config) setDefaultSQLite(configDir string) {
+	if c.DbDriver == sqliteDriver {
+		if c.DbDSN == "" {
+			c.DbDSN = defaultSQLiteName
+		}
+		c.DbDSN = filepath.Join(configDir, c.DbDSN)
+	}
+}
+
 func (c *Config) setKeyDerivationParams() {
 	if c.KdParamMemMiB == 0 {
 		c.KdParamMemMiB = defaultKeyDerivationParamMemory
@@ -235,6 +299,24 @@ func (c *Config) setKeyDerivationParams() {
 
 	if c.KdParamSaltLen == 0 {
 		c.KdParamSaltLen = defaultKeyDerivationSaltLen
+	}
+}
+
+func (c *Config) setDefaultTimeouts() {
+	if c.IdentityServiceTimeoutMs == 0 {
+		c.IdentityServiceTimeoutMs = defaultIdentityServiceTimeoutMs
+	}
+
+	if c.AuthServiceTimeoutMs == 0 {
+		c.AuthServiceTimeoutMs = defaultAuthServiceTimeoutMs
+	}
+
+	if c.VerifyServiceTimeoutMs == 0 {
+		c.VerifyServiceTimeoutMs = defaultVerifyServiceTimeoutMs
+	}
+
+	if c.VerificationTimeoutMs == 0 {
+		c.VerificationTimeoutMs = defaultVerificationTimeoutMs
 	}
 }
 
