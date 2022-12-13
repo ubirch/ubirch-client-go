@@ -554,6 +554,11 @@ func TestProtocol_Cache(t *testing.T) {
 }
 
 func TestProtocolLoad(t *testing.T) {
+	// this test communicates with the actual postgres database
+	if testing.Short() {
+		t.Skipf("skipping integration test %s in short mode", t.Name())
+	}
+
 	wg := &sync.WaitGroup{}
 
 	dm, err := initDB(0)

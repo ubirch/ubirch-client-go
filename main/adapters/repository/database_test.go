@@ -25,6 +25,11 @@ import (
 const testLoad = 100
 
 func TestDatabaseManager(t *testing.T) {
+	// this test communicates with the actual postgres database
+	if testing.Short() {
+		t.Skipf("skipping integration test %s in short mode", t.Name())
+	}
+
 	dm, err := initDB(0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
@@ -100,6 +105,11 @@ func TestDatabaseManager(t *testing.T) {
 }
 
 func TestDatabaseManager_StoreActiveFlag(t *testing.T) {
+	// this test communicates with the actual postgres database
+	if testing.Short() {
+		t.Skipf("skipping integration test %s in short mode", t.Name())
+	}
+
 	dm, err := initDB(0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
@@ -140,6 +150,11 @@ func TestDatabaseManager_StoreActiveFlag(t *testing.T) {
 }
 
 func TestDatabaseManager_SetSignature(t *testing.T) {
+	// this test communicates with the actual postgres database
+	if testing.Short() {
+		t.Skipf("skipping integration test %s in short mode", t.Name())
+	}
+
 	dm, err := initDB(0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
@@ -187,6 +202,11 @@ func TestDatabaseManager_SetSignature(t *testing.T) {
 }
 
 func TestDatabaseManager_LoadSignatureForUpdate(t *testing.T) {
+	// this test communicates with the actual postgres database
+	if testing.Short() {
+		t.Skipf("skipping integration test %s in short mode", t.Name())
+	}
+
 	dm, err := initDB(0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
@@ -227,6 +247,11 @@ func TestDatabaseManager_LoadSignatureForUpdate(t *testing.T) {
 }
 
 func TestDatabaseManager_StoreAuth(t *testing.T) {
+	// this test communicates with the actual postgres database
+	if testing.Short() {
+		t.Skipf("skipping integration test %s in short mode", t.Name())
+	}
+
 	dm, err := initDB(0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
@@ -274,6 +299,11 @@ func TestDatabaseManager_StoreAuth(t *testing.T) {
 }
 
 func TestDatabaseManager_Ready(t *testing.T) {
+	// this test communicates with the actual postgres database
+	if testing.Short() {
+		t.Skipf("skipping integration test %s in short mode", t.Name())
+	}
+
 	dm, err := initDB(0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
@@ -301,6 +331,11 @@ func TestDatabaseManager_NotReady(t *testing.T) {
 }
 
 func TestDatabaseManager_StoreExisting(t *testing.T) {
+	// this test communicates with the actual postgres database
+	if testing.Short() {
+		t.Skipf("skipping integration test %s in short mode", t.Name())
+	}
+
 	dm, err := initDB(0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
@@ -331,6 +366,11 @@ func TestDatabaseManager_StoreExisting(t *testing.T) {
 }
 
 func TestDatabaseManager_CancelTransaction(t *testing.T) {
+	// this test communicates with the actual postgres database
+	if testing.Short() {
+		t.Skipf("skipping integration test %s in short mode", t.Name())
+	}
+
 	dm, err := initDB(0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
@@ -367,6 +407,11 @@ func TestDatabaseManager_CancelTransaction(t *testing.T) {
 }
 
 func TestDatabaseManager_StartTransaction(t *testing.T) {
+	// this test communicates with the actual postgres database
+	if testing.Short() {
+		t.Skipf("skipping integration test %s in short mode", t.Name())
+	}
+
 	dm, err := initDB(1)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
@@ -384,6 +429,11 @@ func TestDatabaseManager_StartTransaction(t *testing.T) {
 }
 
 func TestDatabaseManager_InvalidTransactionCtx(t *testing.T) {
+	// this test communicates with the actual postgres database
+	if testing.Short() {
+		t.Skipf("skipping integration test %s in short mode", t.Name())
+	}
+
 	dm, err := initDB(0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
@@ -414,6 +464,11 @@ func TestDatabaseManager_InvalidTransactionCtx(t *testing.T) {
 }
 
 func TestDatabaseLoad(t *testing.T) {
+	// this test communicates with the actual postgres database
+	if testing.Short() {
+		t.Skipf("skipping integration test %s in short mode", t.Name())
+	}
+
 	wg := &sync.WaitGroup{}
 
 	dm, err := initDB(0)
@@ -461,6 +516,11 @@ func TestDatabaseLoad(t *testing.T) {
 }
 
 func TestDatabaseManager_RecoverUndefinedTable(t *testing.T) {
+	// this test communicates with the actual postgres database
+	if testing.Short() {
+		t.Skipf("skipping integration test %s in short mode", t.Name())
+	}
+
 	c, err := getConfig()
 	require.NoError(t, err)
 
@@ -478,6 +538,11 @@ func TestDatabaseManager_RecoverUndefinedTable(t *testing.T) {
 }
 
 func TestDatabaseManager_Retry(t *testing.T) {
+	// this test communicates with the actual postgres database
+	if testing.Short() {
+		t.Skipf("skipping integration test %s in short mode", t.Name())
+	}
+
 	c, err := getConfig()
 	require.NoError(t, err)
 
@@ -510,6 +575,11 @@ func TestDatabaseManager_Retry(t *testing.T) {
 }
 
 func TestDatabaseManager_StoreExternalIdentity(t *testing.T) {
+	// this test communicates with the actual postgres database
+	if testing.Short() {
+		t.Skipf("skipping integration test %s in short mode", t.Name())
+	}
+
 	dm, err := initDB(0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
@@ -547,6 +617,11 @@ func TestDatabaseManager_StoreExternalIdentity(t *testing.T) {
 }
 
 func TestDatabaseManager_GetIdentityUUIDs(t *testing.T) {
+	// this test communicates with the actual postgres database
+	if testing.Short() {
+		t.Skipf("skipping integration test %s in short mode", t.Name())
+	}
+
 	dm, err := initDB(0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
@@ -574,6 +649,11 @@ func TestDatabaseManager_GetIdentityUUIDs(t *testing.T) {
 }
 
 func TestDatabaseManager_GetExternalIdentityUUIDs(t *testing.T) {
+	// this test communicates with the actual postgres database
+	if testing.Short() {
+		t.Skipf("skipping integration test %s in short mode", t.Name())
+	}
+
 	dm, err := initDB(0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
