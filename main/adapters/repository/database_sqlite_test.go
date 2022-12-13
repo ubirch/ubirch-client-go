@@ -262,7 +262,7 @@ func TestDatabaseManager_StoreAuth_sqlite(t *testing.T) {
 	assert.Equal(t, base64.StdEncoding.EncodeToString(newAuth), auth)
 }
 
-func TestNewSqlDatabaseInfo_Ready_sqlite(t *testing.T) {
+func TestDatabaseManager_Ready_sqlite(t *testing.T) {
 	dm, err := initSQLiteDB(t, 0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
@@ -271,7 +271,7 @@ func TestNewSqlDatabaseInfo_Ready_sqlite(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestNewSqlDatabaseInfo_NotReady_sqlite(t *testing.T) {
+func TestDatabaseManager_NotReady_sqlite(t *testing.T) {
 	dsn := filepath.Join(t.TempDir(), testSQLiteDSN)
 	dm, err := NewDatabaseManager(SQLite, dsn, 0)
 	require.NoError(t, err)
@@ -284,7 +284,7 @@ func TestNewSqlDatabaseInfo_NotReady_sqlite(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestStoreExisting_sqlite(t *testing.T) {
+func TestDatabaseManager_StoreExisting_sqlite(t *testing.T) {
 	dm, err := initSQLiteDB(t, 0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)

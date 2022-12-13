@@ -273,7 +273,7 @@ func TestDatabaseManager_StoreAuth(t *testing.T) {
 	assert.Equal(t, base64.StdEncoding.EncodeToString(newAuth), auth)
 }
 
-func TestNewSqlDatabaseInfo_Ready(t *testing.T) {
+func TestDatabaseManager_Ready(t *testing.T) {
 	dm, err := initDB(0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
@@ -282,7 +282,7 @@ func TestNewSqlDatabaseInfo_Ready(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestNewSqlDatabaseInfo_NotReady(t *testing.T) {
+func TestDatabaseManager_NotReady(t *testing.T) {
 	// use DSN that is valid, but not reachable
 	unreachableDSN := "postgres://nousr:nopwd@localhost:0000/nodatabase"
 
@@ -300,7 +300,7 @@ func TestNewSqlDatabaseInfo_NotReady(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestStoreExisting(t *testing.T) {
+func TestDatabaseManager_StoreExisting(t *testing.T) {
 	dm, err := initDB(0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
