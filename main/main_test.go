@@ -19,10 +19,10 @@ import (
 	"testing"
 )
 
-//Flags used for skipping tests which need a reachable running client
+// Flags used for skipping tests which need a reachable running client
 var clientOnline = flag.Bool("clientOnline", false, "perform tests on a running client instance")
 
-//For these tests to work the client needs to be started and reachable at the following address
+// For these tests to work the client needs to be started and reachable at the following address
 const (
 	defaultClientAddress = "http://localhost:8080"
 )
@@ -31,7 +31,7 @@ const (
 var defaultUUID = ""
 var defaultAuthToken = ""
 
-//Helper function for constant test JSON definitions which panics if the test JSON can't be marshaled to bytes
+// Helper function for constant test JSON definitions which panics if the test JSON can't be marshaled to bytes
 func mustMarshalJSON(v interface{}) []byte {
 	jsonBytes, err := json.Marshal(v)
 	if err != nil {
@@ -68,32 +68,34 @@ func createHashRequest(address string, authToken string, uuidString string, hash
 // TestMain is the main test function, which checks the requirements and executes all other tests,
 // or exits with error message
 func TestMain(m *testing.M) {
-	const (
-		configFile = "test_config.json"
-	)
-	// load the configuration
-	conf := config.Config{}
-	err := conf.Load(".", configFile)
-	if err != nil {
-		log.Fatalf("\r\n" +
-			"###\r\n" +
-			"ERROR loading the configuration file: \r\n" + err.Error() + "'\r\n" +
-			"Please copy the 'sample_test_config.json' to '" + configFile + "'\r\n" +
-			"and enter the correct <UUID:AuthToken>, you want to test.\r\n\n" +
-			"The same configuration has to be used in the docker container,\r\n" +
-			"where it is named config.json\r\n" +
-			"###")
-	}
-	// extract the UUID and the Auth toke from the FIRST entry in the config
-	for key, value := range conf.Devices {
-		defaultUUID = key
-		defaultAuthToken = value
-		break
-	}
+	if *clientOnline {
+		const (
+			configFile = "test_config.json"
+		)
+		// load the configuration
+		conf := config.Config{}
+		err := conf.Load(".", configFile)
+		if err != nil {
+			log.Fatalf("\r\n" +
+				"###\r\n" +
+				"ERROR loading the configuration file: \r\n" + err.Error() + "'\r\n" +
+				"Please copy the 'sample_test_config.json' to '" + configFile + "'\r\n" +
+				"and enter the correct <UUID:AuthToken>, you want to test.\r\n\n" +
+				"The same configuration has to be used in the docker container,\r\n" +
+				"where it is named config.json\r\n" +
+				"###")
+		}
+		// extract the UUID and the Auth toke from the FIRST entry in the config
+		for key, value := range conf.Devices {
+			defaultUUID = key
+			defaultAuthToken = value
+			break
+		}
 
-	// run all other tests
-	code := m.Run()
-	os.Exit(code)
+		// run all other tests
+		code := m.Run()
+		os.Exit(code)
+	}
 }
 
 //################################################################
@@ -146,7 +148,7 @@ func TestHashRandom(t *testing.T) {
 	}
 }
 
-//TestHashTableFail tests cases with a specific hash as an input which must fail
+// TestHashTableFail tests cases with a specific hash as an input which must fail
 func TestHashTableFail(t *testing.T) {
 	if !*clientOnline {
 		t.Skip("skipping test in offline mode, use 'clientOnline' flag to enable")
@@ -222,7 +224,7 @@ func TestHashTableFail(t *testing.T) {
 	}
 }
 
-//TestHashTableSucceed tests cases with a specific hash as an input which must succeed
+// TestHashTableSucceed tests cases with a specific hash as an input which must succeed
 func TestHashTableSucceed(t *testing.T) {
 	if !*clientOnline {
 		t.Skip("skipping test in offline mode, use 'clientOnline' flag to enable")
@@ -284,7 +286,7 @@ func TestHashTableSucceed(t *testing.T) {
 	}
 }
 
-//TestJSONDataLength tests input of random Key/Value Pairs into the JSON endpoint
+// TestJSONDataLength tests input of random Key/Value Pairs into the JSON endpoint
 func TestJSONRandomKeyValuePairs(t *testing.T) {
 	if !*clientOnline {
 		t.Skip("skipping test in offline mode, use 'clientOnline' flag to enable")
@@ -364,7 +366,7 @@ func TestJSONRandomKeyValuePairs(t *testing.T) {
 	}
 }
 
-//TestJSONTableFail tests cases with a specific JSON as an input which must fail
+// TestJSONTableFail tests cases with a specific JSON as an input which must fail
 func TestJSONTableFail(t *testing.T) {
 	if !*clientOnline {
 		t.Skip("skipping test in offline mode, use 'clientOnline' flag to enable")
@@ -419,7 +421,7 @@ func TestJSONTableFail(t *testing.T) {
 	}
 }
 
-//TestJSONTableSucceed tests cases with a specific JSON as an input which must succeed
+// TestJSONTableSucceed tests cases with a specific JSON as an input which must succeed
 func TestJSONTableSucceed(t *testing.T) {
 	if !*clientOnline {
 		t.Skip("skipping test in offline mode, use 'clientOnline' flag to enable")
@@ -507,7 +509,7 @@ func TestJSONTableSucceed(t *testing.T) {
 	}
 }
 
-//TestJSONDataLength tests various length data input into the JSON endpoint
+// TestJSONDataLength tests various length data input into the JSON endpoint
 func TestJSONDataLength(t *testing.T) {
 	if !*clientOnline {
 		t.Skip("skipping test in offline mode, use 'clientOnline' flag to enable")

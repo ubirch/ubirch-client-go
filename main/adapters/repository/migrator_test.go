@@ -22,11 +22,16 @@ const (
 func TestMigrate(t *testing.T) {
 	testCases := []struct {
 		name   string
-		setDSN func(*config.Config, string) error
+		setDSN func(*testing.T, *config.Config, string) error
 	}{
 		{
 			name: "postgres migration",
-			setDSN: func(c *config.Config, _ string) error {
+			setDSN: func(t *testing.T, c *config.Config, _ string) error {
+				// this test communicates with the actual postgres database
+				if testing.Short() {
+					t.Skipf("skipping integration test %s in short mode", t.Name())
+				}
+
 				dbConf, err := getConfig()
 				if err != nil {
 					return err
@@ -38,7 +43,7 @@ func TestMigrate(t *testing.T) {
 		},
 		{
 			name: "sqlite migration",
-			setDSN: func(c *config.Config, configDir string) error {
+			setDSN: func(t *testing.T, c *config.Config, configDir string) error {
 				c.DbDriver = SQLite
 				c.DbDSN = filepath.Join(configDir, testSQLiteDSN)
 				return nil
@@ -52,7 +57,7 @@ func TestMigrate(t *testing.T) {
 			conf := setupMigrationTest(t, tmp)
 			defer cleanUpMigrationTest(t, conf, tmp)
 
-			err := c.setDSN(conf, tmp)
+			err := c.setDSN(t, conf, tmp)
 			require.NoError(t, err)
 
 			err = Migrate(conf, tmp)
