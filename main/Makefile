@@ -32,6 +32,9 @@ VERSION = $(shell git describe --tags --match 'v[0-9]*' --dirty='-dirty' --alway
 REVISION = $(shell git rev-parse --short HEAD)$(shell if ! git diff --no-ext-diff --quiet --exit-code; then echo -dirty; fi)
 CURRENT_BRANCH = $(shell git branch --show-current |tr -cd '[:alnum:]-.')
 
+DOCKER = DOCKER_CLI_EXPERIMENTAL=enabled DOCKER_BUILDKIT=1 docker
+THISDIR = $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
+
 NAME := ubirch-client
 SRC_URL = https://gitlab.com/ubirch/ubirch-client-go.git
 
@@ -66,7 +69,7 @@ pack: binaries
 .PHONY: test
 test:
 	$(DOCKER) run -t --rm -v $(THISDIR):/app -w /app golang:$(GO_VERSION) \
-	go test ./...
+	$(GO) test ./... -short
 
 .PHONY: clean
 clean:
