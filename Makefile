@@ -61,11 +61,6 @@ build:
 pack:
 	$(MAKE) pack -C main
 
-.PHONY: test
-test:
-	$(DOCKER) run -t --rm -v $(THISDIR):/app -w /app golang:$(GO_VERSION) \
-	go test ./...
-
 .PHONY: image
 image:
 	$(DOCKER) build -t $(IMAGE_REPO):$(IMAGE_TAG)-arm \
