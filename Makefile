@@ -46,7 +46,6 @@ UPX=upx --quiet --quiet
 DOCKER = DOCKER_CLI_EXPERIMENTAL=enabled DOCKER_BUILDKIT=1 docker
 GO_LINTER_IMAGE = golangci/golangci-lint:v1.32.1
 THISDIR = $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
-
 .PHONY: lint
 lint:
 	@# we supress echoing the command, so every output line
@@ -63,11 +62,22 @@ pack:
 
 .PHONY: test
 test:
-	$(DOCKER) run -t --rm -v $(THISDIR):/app -w /app golang:$(GO_VERSION) \
-	go test ./...
+	$(MAKE) test -C main
 
 .PHONY: image
 image:
+	$(DOCKER) build -t $(IMAGE_REPO):$(IMAGE_TAG) \
+		--build-arg="VERSION=$(VERSION)" \
+		--build-arg="REVISION=$(REVISION)" \
+		--build-arg="GOVERSION=$(GO_VERSION)" \
+		--label="org.opencontainers.image.title=$(NAME)" \
+		--label="org.opencontainers.image.created=$(NOW)" \
+		--label="org.opencontainers.image.source=$(SRC_URL)" \
+		--label="org.opencontainers.image.version=$(VERSION)" \
+		--label="org.opencontainers.image.revision=$(REVISION)" .
+
+.PHONY: image-arm
+image-arm:
 	$(DOCKER) build -t $(IMAGE_REPO):$(IMAGE_TAG)-arm \
 	    --build-arg="GOARCH=arm" \
 		--build-arg="VERSION=$(VERSION)" \
