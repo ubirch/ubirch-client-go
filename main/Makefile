@@ -69,7 +69,7 @@ pack: binaries
 .PHONY: test
 test:
 	$(DOCKER) run -t --rm -v $(THISDIR):/app -w /app golang:$(GO_VERSION) \
-	$(GO) test ./... -short
+	go test ./... -short
 
 .PHONY: clean
 clean:
