@@ -63,6 +63,18 @@ pack:
 
 .PHONY: image
 image:
+	$(DOCKER) build -t $(IMAGE_REPO):$(IMAGE_TAG) \
+		--build-arg="VERSION=$(VERSION)" \
+		--build-arg="REVISION=$(REVISION)" \
+		--build-arg="GOVERSION=$(GO_VERSION)" \
+		--label="org.opencontainers.image.title=$(NAME)" \
+		--label="org.opencontainers.image.created=$(NOW)" \
+		--label="org.opencontainers.image.source=$(SRC_URL)" \
+		--label="org.opencontainers.image.version=$(VERSION)" \
+		--label="org.opencontainers.image.revision=$(REVISION)" .
+
+.PHONY: image-arm
+image-arm:
 	$(DOCKER) build -t $(IMAGE_REPO):$(IMAGE_TAG)-arm \
 	    --build-arg="GOARCH=arm" \
 		--build-arg="VERSION=$(VERSION)" \
