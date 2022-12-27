@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"math/rand"
-	"os"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -269,19 +268,6 @@ func TestDatabaseManager_Ready_sqlite(t *testing.T) {
 
 	err = dm.IsReady()
 	require.NoError(t, err)
-}
-
-func TestDatabaseManager_NotReady_sqlite(t *testing.T) {
-	dsn := filepath.Join(t.TempDir(), testSQLiteDSN)
-	dm, err := NewDatabaseManager(SQLite, dsn, 0)
-	require.NoError(t, err)
-
-	// block access db file to provoke ping fail
-	err = os.Chmod(dsn, 0)
-	require.NoError(t, err)
-
-	err = dm.IsReady()
-	require.Error(t, err)
 }
 
 func TestDatabaseManager_StoreExisting_sqlite(t *testing.T) {
