@@ -52,13 +52,15 @@ func TestMigrate(t *testing.T) {
 	}
 	for _, c := range testCases {
 		t.Run(c.name, func(t *testing.T) {
+			conf := getMigrationConfig()
 			tmp := t.TempDir()
-
-			conf := setupMigrationTest(t, tmp)
-			defer cleanUpMigrationTest(t, conf, tmp)
 
 			err := c.setDSN(t, conf, tmp)
 			require.NoError(t, err)
+
+			err = setupMigrationTest(tmp)
+			require.NoError(t, err)
+			defer cleanUpMigrationTest(t, conf, tmp)
 
 			err = Migrate(conf, tmp)
 			require.NoError(t, err)
@@ -68,12 +70,13 @@ func TestMigrate(t *testing.T) {
 	}
 }
 
-func setupMigrationTest(t *testing.T, configDir string) *config.Config {
+func setupMigrationTest(configDir string) error {
 	legacyCtxFile := filepath.Join(configDir, contextFileName_Legacy)
 
-	err := os.WriteFile(legacyCtxFile, []byte(legacyProtocolCtxJson), filePerm)
-	require.NoError(t, err)
+	return os.WriteFile(legacyCtxFile, []byte(legacyProtocolCtxJson), filePerm)
+}
 
+func getMigrationConfig() *config.Config {
 	secretBytes32, _ := base64.StdEncoding.DecodeString(testSecret32Base64)
 
 	return &config.Config{
