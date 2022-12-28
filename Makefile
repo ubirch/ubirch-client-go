@@ -44,8 +44,9 @@ LDFLAGS = -ldflags "-buildid= -s -w -X main.Version=$(VERSION) -X main.Revision=
 GO_BUILD = $(GO) build -tags="netgo" -trimpath $(LDFLAGS)
 UPX=upx --quiet --quiet
 DOCKER = DOCKER_CLI_EXPERIMENTAL=enabled DOCKER_BUILDKIT=1 docker
-GO_LINTER_IMAGE = golangci/golangci-lint:v1.32.1
+GO_LINTER_IMAGE = golangci/golangci-lint:v1.50.1
 THISDIR = $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
+
 .PHONY: lint
 lint:
 	@# we supress echoing the command, so every output line
