@@ -28,6 +28,13 @@
 build/
 main/main
 *.bck
+*.bin
+*.tar
+*.tar.xz
+
+manifest-tool-linux-*
+
+sqlite.db
 
 /venv/
 /main/certs/
@@ -40,4 +47,3 @@ main/main
 /main/protocol.json
 /main/identities.json
 /load-test/config.json
-/integration-test/config.json
