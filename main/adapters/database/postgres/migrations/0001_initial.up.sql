@@ -1,4 +1,6 @@
-CREATE TABLE identity
+BEGIN;
+
+CREATE TABLE IF NOT EXISTS identity
 (
     uid         VARCHAR(255) NOT NULL PRIMARY KEY,
     private_key BYTEA        NOT NULL,
@@ -8,8 +10,10 @@ CREATE TABLE identity
     active      boolean      NOT NULL DEFAULT (TRUE)
 );
 
-CREATE TABLE external_identity
+CREATE TABLE IF NOT EXISTS external_identity
 (
     uid        VARCHAR(255) NOT NULL PRIMARY KEY,
     public_key BYTEA        NOT NULL
 );
+
+COMMIT;
