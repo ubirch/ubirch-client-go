@@ -112,28 +112,21 @@ func (q *Queries) LoadExternalIdentity(ctx context.Context, uid string) (Externa
 }
 
 const loadIdentity = `-- name: LoadIdentity :one
-SELECT uid, private_key, public_key, signature, auth_token
+SELECT uid, private_key, public_key, signature, auth_token, active
 FROM identity
 WHERE uid = $1
 `
 
-type LoadIdentityRow struct {
-	Uid        string
-	PrivateKey []byte
-	PublicKey  []byte
-	Signature  []byte
-	AuthToken  string
-}
-
-func (q *Queries) LoadIdentity(ctx context.Context, uid string) (LoadIdentityRow, error) {
+func (q *Queries) LoadIdentity(ctx context.Context, uid string) (Identity, error) {
 	row := q.db.QueryRow(ctx, loadIdentity, uid)
-	var i LoadIdentityRow
+	var i Identity
 	err := row.Scan(
 		&i.Uid,
 		&i.PrivateKey,
 		&i.PublicKey,
 		&i.Signature,
 		&i.AuthToken,
+		&i.Active,
 	)
 	return i, err
 }
@@ -199,8 +192,8 @@ func (q *Queries) StoreExternalIdentity(ctx context.Context, arg StoreExternalId
 }
 
 const storeIdentity = `-- name: StoreIdentity :exec
-INSERT INTO identity (uid, private_key, public_key, signature, auth_token)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO identity (uid, private_key, public_key, signature, auth_token, active)
+VALUES ($1, $2, $3, $4, $5, $6)
 `
 
 type StoreIdentityParams struct {
@@ -209,6 +202,7 @@ type StoreIdentityParams struct {
 	PublicKey  []byte
 	Signature  []byte
 	AuthToken  string
+	Active     bool
 }
 
 func (q *Queries) StoreIdentity(ctx context.Context, arg StoreIdentityParams) error {
@@ -218,6 +212,7 @@ func (q *Queries) StoreIdentity(ctx context.Context, arg StoreIdentityParams) er
 		arg.PublicKey,
 		arg.Signature,
 		arg.AuthToken,
+		arg.Active,
 	)
 	return err
 }

@@ -1,9 +1,9 @@
 -- name: StoreIdentity :exec
-INSERT INTO identity (uid, private_key, public_key, signature, auth_token)
-VALUES ($1, $2, $3, $4, $5);
+INSERT INTO identity (uid, private_key, public_key, signature, auth_token, active)
+VALUES ($1, $2, $3, $4, $5, $6);
 
 -- name: LoadIdentity :one
-SELECT uid, private_key, public_key, signature, auth_token
+SELECT uid, private_key, public_key, signature, auth_token, active
 FROM identity
 WHERE uid = $1;
 
