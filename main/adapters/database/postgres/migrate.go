@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"embed"
+	"fmt"
 	"net/http"
 
 	"github.com/golang-migrate/migrate/v4"
@@ -49,21 +50,21 @@ func getMigrator(pgxConn *pgx.Conn) *migrate.Migrate {
 	return migrator
 }
 
-func MigrateUp(pgxConn *pgx.Conn) {
+func MigrateUp(pgxConn *pgx.Conn) error {
 	migrator := getMigrator(pgxConn)
 
 	err := migrator.Up()
 	if err == migrate.ErrNoChange {
 		version, dirty, err := migrator.Version()
 		if dirty {
-			log.Fatalf("database schema is dirty, needs to be manually fixed. Schema version: %d", version)
+			return fmt.Errorf("database schema is dirty, needs to be manually fixed. Schema version: %d", version)
 		}
 		if err != nil {
-			log.Fatalf("database is migrated, but could not fetch schema version information. Error: %s", err)
+			return fmt.Errorf("database is migrated, but could not fetch schema version information. Error: %s", err)
 		}
 		// this is fine.
 		log.Infof("nothing to migrate. Schema is already at version: %d", version)
-		return
+		return nil
 	} else if err != nil {
 		log.Errorf("could not migrate database. Error: %s", err)
 
@@ -77,38 +78,40 @@ func MigrateUp(pgxConn *pgx.Conn) {
 
 			err := migrator.Force(lastCleanVersion)
 			if err != nil {
-				log.Fatalf("forcing schema version to %d failed: %v", lastCleanVersion, err)
+				return fmt.Errorf("forcing schema version to %d failed: %v", lastCleanVersion, err)
 			}
 		} else {
-			log.Fatalf("unable to fix schema version after failed migration. Version: %d, Dirty: %v, Error: %v", version, dirty, errVersion)
+			return fmt.Errorf("unable to fix schema version after failed migration. Version: %d, Dirty: %v, Error: %v", version, dirty, errVersion)
 		}
 
-		log.Fatalf("database migration failed for version %d", version)
+		return fmt.Errorf("database migration failed for version %d", version)
 	}
 	version, _, _ := migrator.Version()
 	log.Infof("database schema was migrated. New schema version: %d", version)
 
+	return nil
 }
 
-func Migrate(pgxConn *pgx.Conn, targetVersion uint) {
+func Migrate(pgxConn *pgx.Conn, targetVersion uint) error {
 	migrator := getMigrator(pgxConn)
 
 	err := migrator.Migrate(targetVersion)
 	if err == migrate.ErrNoChange {
 		version, dirty, err := migrator.Version()
 		if dirty {
-			log.Fatalf("database schema is dirty, needs to be manually fixed. Schema version: %d", version)
+			return fmt.Errorf("database schema is dirty, needs to be manually fixed. Schema version: %d", version)
 		}
 		if err != nil {
-			log.Fatalf("database is migrated, but could not fetch schema version information. Error: %s", err)
+			return fmt.Errorf("database is migrated, but could not fetch schema version information. Error: %s", err)
 		}
 		// this is fine.
 		log.Infof("nothing to migrate. Schema is already at version: %d", version)
-		return
+		return nil
 	} else if err != nil {
-		log.Fatalf("could not migrate database. Error: %s", err)
+		return fmt.Errorf("could not migrate database. Error: %s", err)
 	}
 	version, _, _ := migrator.Version()
 	log.Infof("database schema was migrated. New schema version: %d", version)
 
+	return nil
 }
