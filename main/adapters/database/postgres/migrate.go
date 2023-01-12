@@ -92,6 +92,30 @@ func MigrateUp(pgxConn *pgx.Conn) error {
 	return nil
 }
 
+func MigrateDown(pgxConn *pgx.Conn) error {
+	migrator := getMigrator(pgxConn)
+
+	err := migrator.Down()
+	if err == migrate.ErrNoChange {
+		version, dirty, err := migrator.Version()
+		if dirty {
+			return fmt.Errorf("database schema is dirty, needs to be manually fixed. Schema version: %d", version)
+		}
+		if err != nil {
+			return fmt.Errorf("database is migrated, but could not fetch schema version information. Error: %s", err)
+		}
+		// this is fine.
+		log.Infof("nothing to migrate. Schema is already at version: %d", version)
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("could not migrate database. Error: %s", err)
+	}
+	version, _, _ := migrator.Version()
+	log.Infof("database schema was migrated. New schema version: %d", version)
+
+	return nil
+}
+
 func Migrate(pgxConn *pgx.Conn, targetVersion uint) error {
 	migrator := getMigrator(pgxConn)
 
