@@ -1,59 +1,59 @@
 package postgres
 
 import (
-	"context"
+	"database/sql"
 	"os"
 	"testing"
 
-	"github.com/jackc/pgx/v4"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/stretchr/testify/require"
 )
 
 func TestMigrateUp(t *testing.T) {
 	var dsn = os.Getenv("UBIRCH_TEST_DB_DSN")
 
-	dbConn, err := pgx.Connect(context.Background(), dsn)
+	db, err := sql.Open("pgx", dsn)
 	require.NoError(t, err)
 	defer func() {
-		err := dbConn.Close(context.Background())
+		err := db.Close()
 		if err != nil {
 			t.Error(err)
 		}
 	}()
 
 	// migrate database schema to the latest version
-	err = MigrateUp(dbConn)
+	err = MigrateUp(db)
 	require.NoError(t, err)
 }
 
 func TestMigrate(t *testing.T) {
 	var dsn = os.Getenv("UBIRCH_TEST_DB_DSN")
 
-	dbConn, err := pgx.Connect(context.Background(), dsn)
+	db, err := sql.Open("pgx", dsn)
 	require.NoError(t, err)
 	defer func() {
-		err := dbConn.Close(context.Background())
+		err := db.Close()
 		if err != nil {
 			t.Error(err)
 		}
 	}()
 
-	err = Migrate(dbConn, 1)
+	err = Migrate(db, 1)
 	require.NoError(t, err)
 }
 
 func TestMigrate_Down(t *testing.T) {
 	var dsn = os.Getenv("UBIRCH_TEST_DB_DSN")
 
-	dbConn, err := pgx.Connect(context.Background(), dsn)
+	db, err := sql.Open("pgx", dsn)
 	require.NoError(t, err)
 	defer func() {
-		err := dbConn.Close(context.Background())
+		err := db.Close()
 		if err != nil {
 			t.Error(err)
 		}
 	}()
 
-	err = MigrateDown(dbConn)
+	err = MigrateDown(db)
 	require.NoError(t, err)
 }

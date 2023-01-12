@@ -15,7 +15,7 @@ FROM external_identity
 `
 
 func (q *Queries) GetExternalIdentityUUIDs(ctx context.Context) ([]string, error) {
-	rows, err := q.db.Query(ctx, getExternalIdentityUUIDs)
+	rows, err := q.db.QueryContext(ctx, getExternalIdentityUUIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -27,6 +27,9 @@ func (q *Queries) GetExternalIdentityUUIDs(ctx context.Context) ([]string, error
 			return nil, err
 		}
 		items = append(items, uid)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -40,7 +43,7 @@ FROM identity
 `
 
 func (q *Queries) GetIdentityUUIDs(ctx context.Context) ([]string, error) {
-	rows, err := q.db.Query(ctx, getIdentityUUIDs)
+	rows, err := q.db.QueryContext(ctx, getIdentityUUIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -52,6 +55,9 @@ func (q *Queries) GetIdentityUUIDs(ctx context.Context) ([]string, error) {
 			return nil, err
 		}
 		items = append(items, uid)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -66,7 +72,7 @@ WHERE uid = $1
 `
 
 func (q *Queries) LoadActiveFlag(ctx context.Context, uid string) (bool, error) {
-	row := q.db.QueryRow(ctx, loadActiveFlag, uid)
+	row := q.db.QueryRowContext(ctx, loadActiveFlag, uid)
 	var active bool
 	err := row.Scan(&active)
 	return active, err
@@ -79,7 +85,7 @@ WHERE uid = $1 FOR UPDATE
 `
 
 func (q *Queries) LoadActiveFlagForUpdate(ctx context.Context, uid string) (bool, error) {
-	row := q.db.QueryRow(ctx, loadActiveFlagForUpdate, uid)
+	row := q.db.QueryRowContext(ctx, loadActiveFlagForUpdate, uid)
 	var active bool
 	err := row.Scan(&active)
 	return active, err
@@ -92,7 +98,7 @@ WHERE uid = $1 FOR UPDATE
 `
 
 func (q *Queries) LoadAuthForUpdate(ctx context.Context, uid string) (string, error) {
-	row := q.db.QueryRow(ctx, loadAuthForUpdate, uid)
+	row := q.db.QueryRowContext(ctx, loadAuthForUpdate, uid)
 	var auth_token string
 	err := row.Scan(&auth_token)
 	return auth_token, err
@@ -105,7 +111,7 @@ WHERE uid = $1
 `
 
 func (q *Queries) LoadExternalIdentity(ctx context.Context, uid string) (ExternalIdentity, error) {
-	row := q.db.QueryRow(ctx, loadExternalIdentity, uid)
+	row := q.db.QueryRowContext(ctx, loadExternalIdentity, uid)
 	var i ExternalIdentity
 	err := row.Scan(&i.Uid, &i.PublicKey)
 	return i, err
@@ -118,7 +124,7 @@ WHERE uid = $1
 `
 
 func (q *Queries) LoadIdentity(ctx context.Context, uid string) (Identity, error) {
-	row := q.db.QueryRow(ctx, loadIdentity, uid)
+	row := q.db.QueryRowContext(ctx, loadIdentity, uid)
 	var i Identity
 	err := row.Scan(
 		&i.Uid,
@@ -138,7 +144,7 @@ WHERE uid = $1 FOR UPDATE
 `
 
 func (q *Queries) LoadSignatureForUpdate(ctx context.Context, uid string) ([]byte, error) {
-	row := q.db.QueryRow(ctx, loadSignatureForUpdate, uid)
+	row := q.db.QueryRowContext(ctx, loadSignatureForUpdate, uid)
 	var signature []byte
 	err := row.Scan(&signature)
 	return signature, err
@@ -156,7 +162,7 @@ type StoreActiveFlagParams struct {
 }
 
 func (q *Queries) StoreActiveFlag(ctx context.Context, arg StoreActiveFlagParams) error {
-	_, err := q.db.Exec(ctx, storeActiveFlag, arg.Active, arg.Uid)
+	_, err := q.db.ExecContext(ctx, storeActiveFlag, arg.Active, arg.Uid)
 	return err
 }
 
@@ -172,7 +178,7 @@ type StoreAuthParams struct {
 }
 
 func (q *Queries) StoreAuth(ctx context.Context, arg StoreAuthParams) error {
-	_, err := q.db.Exec(ctx, storeAuth, arg.AuthToken, arg.Uid)
+	_, err := q.db.ExecContext(ctx, storeAuth, arg.AuthToken, arg.Uid)
 	return err
 }
 
@@ -187,7 +193,7 @@ type StoreExternalIdentityParams struct {
 }
 
 func (q *Queries) StoreExternalIdentity(ctx context.Context, arg StoreExternalIdentityParams) error {
-	_, err := q.db.Exec(ctx, storeExternalIdentity, arg.Uid, arg.PublicKey)
+	_, err := q.db.ExecContext(ctx, storeExternalIdentity, arg.Uid, arg.PublicKey)
 	return err
 }
 
@@ -206,7 +212,7 @@ type StoreIdentityParams struct {
 }
 
 func (q *Queries) StoreIdentity(ctx context.Context, arg StoreIdentityParams) error {
-	_, err := q.db.Exec(ctx, storeIdentity,
+	_, err := q.db.ExecContext(ctx, storeIdentity,
 		arg.Uid,
 		arg.PrivateKey,
 		arg.PublicKey,
@@ -229,6 +235,6 @@ type StoreSignatureParams struct {
 }
 
 func (q *Queries) StoreSignature(ctx context.Context, arg StoreSignatureParams) error {
-	_, err := q.db.Exec(ctx, storeSignature, arg.Signature, arg.Uid)
+	_, err := q.db.ExecContext(ctx, storeSignature, arg.Signature, arg.Uid)
 	return err
 }

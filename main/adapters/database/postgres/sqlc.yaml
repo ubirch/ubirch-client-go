@@ -3,6 +3,6 @@ packages:
   - name: postgres
     path: ./
     engine: postgresql
-    sql_package: pgx/v4
+    sql_package: pgx/v5
     schema: migrations
     queries: queries
