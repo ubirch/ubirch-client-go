@@ -31,30 +31,33 @@ func (l *Log) Verbose() bool {
 	return log.IsLevelEnabled(log.DebugLevel) || l.verbose
 }
 
-func getMigrator(db *sql.DB) *migrate.Migrate {
+func getMigrator(db *sql.DB) (*migrate.Migrate, error) {
 	sourceInstance, err := httpfs.New(http.FS(migrations), "migrations")
 	if err != nil {
-		log.Fatalf("could not create new migrate source driver: %v", err)
+		return nil, fmt.Errorf("could not create new migrate source driver: %v", err)
 	}
 
 	driverInstance, err := postgres.WithInstance(db, &postgres.Config{})
 	if err != nil {
-		log.Fatalf("could not create new migrate database driver: %v", err)
+		return nil, fmt.Errorf("could not create new migrate database driver: %v", err)
 	}
 
 	migrator, err := migrate.NewWithInstance("httpfs", sourceInstance, "postgres", driverInstance)
 	if err != nil {
-		log.Fatalf("could not create migrator: %v", err)
+		return nil, fmt.Errorf("could not create migrator: %v", err)
 	}
 
 	migrator.Log = &Log{}
-	return migrator
+	return migrator, nil
 }
 
 func MigrateUp(db *sql.DB) error {
-	migrator := getMigrator(db)
+	migrator, err := getMigrator(db)
+	if err != nil {
+		return err
+	}
 
-	err := migrator.Up()
+	err = migrator.Up()
 	if err == migrate.ErrNoChange {
 		version, dirty, err := migrator.Version()
 		if dirty {
@@ -94,9 +97,12 @@ func MigrateUp(db *sql.DB) error {
 }
 
 func MigrateDown(db *sql.DB) error {
-	migrator := getMigrator(db)
+	migrator, err := getMigrator(db)
+	if err != nil {
+		return err
+	}
 
-	err := migrator.Down()
+	err = migrator.Down()
 	if err == migrate.ErrNoChange {
 		version, dirty, err := migrator.Version()
 		if dirty {
@@ -118,9 +124,12 @@ func MigrateDown(db *sql.DB) error {
 }
 
 func Migrate(db *sql.DB, targetVersion uint) error {
-	migrator := getMigrator(db)
+	migrator, err := getMigrator(db)
+	if err != nil {
+		return err
+	}
 
-	err := migrator.Migrate(targetVersion)
+	err = migrator.Migrate(targetVersion)
 	if err == migrate.ErrNoChange {
 		version, dirty, err := migrator.Version()
 		if dirty {
