@@ -31,112 +31,73 @@ func (l *Log) Verbose() bool {
 	return log.IsLevelEnabled(log.DebugLevel) || l.verbose
 }
 
-func getMigrator(db *sql.DB) *migrate.Migrate {
+func getMigrator(db *sql.DB) (*migrate.Migrate, error) {
 	sourceInstance, err := httpfs.New(http.FS(migrations), "migrations")
 	if err != nil {
-		log.Fatalf("could not create new migrate source driver: %v", err)
+		return nil, fmt.Errorf("could not create new migrate source driver: %v", err)
 	}
 
 	driverInstance, err := postgres.WithInstance(db, &postgres.Config{})
 	if err != nil {
-		log.Fatalf("could not create new migrate database driver: %v", err)
+		return nil, fmt.Errorf("could not create new migrate database driver: %v", err)
 	}
 
 	migrator, err := migrate.NewWithInstance("httpfs", sourceInstance, "postgres", driverInstance)
 	if err != nil {
-		log.Fatalf("could not create migrator: %v", err)
+		return nil, fmt.Errorf("could not create migrator: %v", err)
 	}
 
 	migrator.Log = &Log{}
-	return migrator
+	return migrator, nil
+}
+
+func checkMigrationError(migrator *migrate.Migrate, err error) error {
+	if err == migrate.ErrNoChange {
+		version, dirty, err := migrator.Version()
+		if dirty {
+			return fmt.Errorf("database schema is dirty, needs to be manually fixed. Schema version: %d", version)
+		}
+		if err != nil {
+			return fmt.Errorf("database is migrated, but could not fetch schema version information. Error: %s", err)
+		}
+		// this is fine.
+		log.Infof("nothing to migrate. Schema is already at version: %d", version)
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("could not migrate database. Error: %s", err)
+	}
+	version, _, _ := migrator.Version()
+	log.Infof("database schema was migrated. New schema version: %d", version)
+
+	return nil
 }
 
 func MigrateUp(db *sql.DB) error {
-	migrator := getMigrator(db)
-
-	err := migrator.Up()
-	if err == migrate.ErrNoChange {
-		version, dirty, err := migrator.Version()
-		if dirty {
-			return fmt.Errorf("database schema is dirty, needs to be manually fixed. Schema version: %d", version)
-		}
-		if err != nil {
-			return fmt.Errorf("database is migrated, but could not fetch schema version information. Error: %s", err)
-		}
-		// this is fine.
-		log.Infof("nothing to migrate. Schema is already at version: %d", version)
-		return nil
-	} else if err != nil {
-		log.Errorf("could not migrate database. Error: %s", err)
-
-		// since every migration step is executed within a transaction, changes will be rolled back
-		// if something goes wrong. We can then safely set the schema version to the last clean version
-		// and remove the dirty flag, which is set automatically if a migration step failed.
-		version, dirty, errVersion := migrator.Version()
-		if dirty && version > 0 {
-			lastCleanVersion := int(version) - 1
-			log.Infof("forcing from dirty schema version %d down to %d", version, lastCleanVersion)
-
-			err := migrator.Force(lastCleanVersion)
-			if err != nil {
-				return fmt.Errorf("forcing schema version to %d failed: %v", lastCleanVersion, err)
-			}
-		} else {
-			return fmt.Errorf("unable to fix schema version after failed migration. Version: %d, Dirty: %v, Error: %v", version, dirty, errVersion)
-		}
-
-		return fmt.Errorf("database migration failed for version %d", version)
+	migrator, err := getMigrator(db)
+	if err != nil {
+		return err
 	}
-	version, _, _ := migrator.Version()
-	log.Infof("database schema was migrated. New schema version: %d", version)
 
-	return nil
+	err = migrator.Up()
+	return checkMigrationError(migrator, err)
 }
 
 func MigrateDown(db *sql.DB) error {
-	migrator := getMigrator(db)
-
-	err := migrator.Down()
-	if err == migrate.ErrNoChange {
-		version, dirty, err := migrator.Version()
-		if dirty {
-			return fmt.Errorf("database schema is dirty, needs to be manually fixed. Schema version: %d", version)
-		}
-		if err != nil {
-			return fmt.Errorf("database is migrated, but could not fetch schema version information. Error: %s", err)
-		}
-		// this is fine.
-		log.Infof("nothing to migrate. Schema is already at version: %d", version)
-		return nil
-	} else if err != nil {
-		return fmt.Errorf("could not migrate database. Error: %s", err)
+	migrator, err := getMigrator(db)
+	if err != nil {
+		return err
 	}
-	version, _, _ := migrator.Version()
-	log.Infof("database schema was migrated. New schema version: %d", version)
 
-	return nil
+	err = migrator.Down()
+	return checkMigrationError(migrator, err)
 }
 
 func Migrate(db *sql.DB, targetVersion uint) error {
-	migrator := getMigrator(db)
-
-	err := migrator.Migrate(targetVersion)
-	if err == migrate.ErrNoChange {
-		version, dirty, err := migrator.Version()
-		if dirty {
-			return fmt.Errorf("database schema is dirty, needs to be manually fixed. Schema version: %d", version)
-		}
-		if err != nil {
-			return fmt.Errorf("database is migrated, but could not fetch schema version information. Error: %s", err)
-		}
-		// this is fine.
-		log.Infof("nothing to migrate. Schema is already at version: %d", version)
-		return nil
-	} else if err != nil {
-		return fmt.Errorf("could not migrate database. Error: %s", err)
+	migrator, err := getMigrator(db)
+	if err != nil {
+		return err
 	}
-	version, _, _ := migrator.Version()
-	log.Infof("database schema was migrated. New schema version: %d", version)
 
-	return nil
+	err = migrator.Migrate(targetVersion)
+	return checkMigrationError(migrator, err)
 }
