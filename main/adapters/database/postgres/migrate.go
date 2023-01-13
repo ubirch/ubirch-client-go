@@ -1,14 +1,14 @@
 package postgres
 
 import (
+	"database/sql"
 	"embed"
 	"fmt"
 	"net/http"
 
 	"github.com/golang-migrate/migrate/v4"
-	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/httpfs"
-	"github.com/jackc/pgx/v4"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -31,17 +31,18 @@ func (l *Log) Verbose() bool {
 	return log.IsLevelEnabled(log.DebugLevel) || l.verbose
 }
 
-func getMigrator(pgxConn *pgx.Conn) *migrate.Migrate {
+func getMigrator(db *sql.DB) *migrate.Migrate {
 	sourceInstance, err := httpfs.New(http.FS(migrations), "migrations")
 	if err != nil {
 		log.Fatalf("could not create new migrate source driver: %v", err)
 	}
 
-	// FIXME: extract connection info from existing connection,
-	//  instead of re-using the connection.
-	dsn := pgxConn.Config().ConnString()
+	driverInstance, err := postgres.WithInstance(db, &postgres.Config{})
+	if err != nil {
+		log.Fatalf("could not create new migrate database driver: %v", err)
+	}
 
-	migrator, err := migrate.NewWithSourceInstance("httpfs", sourceInstance, dsn)
+	migrator, err := migrate.NewWithInstance("httpfs", sourceInstance, "postgres", driverInstance)
 	if err != nil {
 		log.Fatalf("could not create migrator: %v", err)
 	}
@@ -50,8 +51,8 @@ func getMigrator(pgxConn *pgx.Conn) *migrate.Migrate {
 	return migrator
 }
 
-func MigrateUp(pgxConn *pgx.Conn) error {
-	migrator := getMigrator(pgxConn)
+func MigrateUp(db *sql.DB) error {
+	migrator := getMigrator(db)
 
 	err := migrator.Up()
 	if err == migrate.ErrNoChange {
@@ -92,8 +93,8 @@ func MigrateUp(pgxConn *pgx.Conn) error {
 	return nil
 }
 
-func MigrateDown(pgxConn *pgx.Conn) error {
-	migrator := getMigrator(pgxConn)
+func MigrateDown(db *sql.DB) error {
+	migrator := getMigrator(db)
 
 	err := migrator.Down()
 	if err == migrate.ErrNoChange {
@@ -116,8 +117,8 @@ func MigrateDown(pgxConn *pgx.Conn) error {
 	return nil
 }
 
-func Migrate(pgxConn *pgx.Conn, targetVersion uint) error {
-	migrator := getMigrator(pgxConn)
+func Migrate(db *sql.DB, targetVersion uint) error {
+	migrator := getMigrator(db)
 
 	err := migrator.Migrate(targetVersion)
 	if err == migrate.ErrNoChange {
