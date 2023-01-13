@@ -1,0 +1,24 @@
+version: "2"
+sql:
+  - schema: "postgres/migrations/"
+    queries: "postgres/queries/"
+    engine: postgresql
+    gen:
+      go:
+        package: postgres
+        out: "./postgres/"
+        sql_package: pgx/v5
+        emit_interface: true
+  - schema: "sqlite/migrations/"
+    queries: "sqlite/queries/"
+    engine: sqlite
+    gen:
+      go:
+        package: sqlite
+        out: "./sqlite/"
+        emit_interface: true
+        overrides:
+          - column: "identity.uid"
+            go_type: "github.com/google/uuid.UUID"
+          - column: "external_identity.uid"
+            go_type: "github.com/google/uuid.UUID"

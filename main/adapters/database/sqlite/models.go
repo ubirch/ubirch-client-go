@@ -2,22 +2,20 @@
 // versions:
 //   sqlc v1.16.0
 
-package postgres
+package sqlite
 
-import (
-	"github.com/google/uuid"
-)
+import ()
 
 type ExternalIdentity struct {
-	Uid       uuid.UUID
+	Uid       string
 	PublicKey []byte
 }
 
 type Identity struct {
-	Uid        uuid.UUID
+	Uid        string
 	PrivateKey []byte
 	PublicKey  []byte
 	Signature  []byte
 	AuthToken  string
-	Active     bool
+	Active     int64
 }

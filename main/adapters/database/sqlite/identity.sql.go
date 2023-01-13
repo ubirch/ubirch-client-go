@@ -3,12 +3,10 @@
 //   sqlc v1.16.0
 // source: identity.sql
 
-package postgres
+package sqlite
 
 import (
 	"context"
-
-	"github.com/google/uuid"
 )
 
 const getExternalIdentityUUIDs = `-- name: GetExternalIdentityUUIDs :many
@@ -16,15 +14,15 @@ SELECT uid
 FROM external_identity
 `
 
-func (q *Queries) GetExternalIdentityUUIDs(ctx context.Context) ([]uuid.UUID, error) {
+func (q *Queries) GetExternalIdentityUUIDs(ctx context.Context) ([]string, error) {
 	rows, err := q.db.QueryContext(ctx, getExternalIdentityUUIDs)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []uuid.UUID
+	var items []string
 	for rows.Next() {
-		var uid uuid.UUID
+		var uid string
 		if err := rows.Scan(&uid); err != nil {
 			return nil, err
 		}
@@ -44,15 +42,15 @@ SELECT uid
 FROM identity
 `
 
-func (q *Queries) GetIdentityUUIDs(ctx context.Context) ([]uuid.UUID, error) {
+func (q *Queries) GetIdentityUUIDs(ctx context.Context) ([]string, error) {
 	rows, err := q.db.QueryContext(ctx, getIdentityUUIDs)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []uuid.UUID
+	var items []string
 	for rows.Next() {
-		var uid uuid.UUID
+		var uid string
 		if err := rows.Scan(&uid); err != nil {
 			return nil, err
 		}
@@ -70,12 +68,12 @@ func (q *Queries) GetIdentityUUIDs(ctx context.Context) ([]uuid.UUID, error) {
 const loadActiveFlag = `-- name: LoadActiveFlag :one
 SELECT active
 FROM identity
-WHERE uid = $1
+WHERE uid = ?
 `
 
-func (q *Queries) LoadActiveFlag(ctx context.Context, uid uuid.UUID) (bool, error) {
+func (q *Queries) LoadActiveFlag(ctx context.Context, uid string) (int64, error) {
 	row := q.db.QueryRowContext(ctx, loadActiveFlag, uid)
-	var active bool
+	var active int64
 	err := row.Scan(&active)
 	return active, err
 }
@@ -83,12 +81,12 @@ func (q *Queries) LoadActiveFlag(ctx context.Context, uid uuid.UUID) (bool, erro
 const loadActiveFlagForUpdate = `-- name: LoadActiveFlagForUpdate :one
 SELECT active
 FROM identity
-WHERE uid = $1 FOR UPDATE
+WHERE uid = ?
 `
 
-func (q *Queries) LoadActiveFlagForUpdate(ctx context.Context, uid uuid.UUID) (bool, error) {
+func (q *Queries) LoadActiveFlagForUpdate(ctx context.Context, uid string) (int64, error) {
 	row := q.db.QueryRowContext(ctx, loadActiveFlagForUpdate, uid)
-	var active bool
+	var active int64
 	err := row.Scan(&active)
 	return active, err
 }
@@ -96,10 +94,10 @@ func (q *Queries) LoadActiveFlagForUpdate(ctx context.Context, uid uuid.UUID) (b
 const loadAuthForUpdate = `-- name: LoadAuthForUpdate :one
 SELECT auth_token
 FROM identity
-WHERE uid = $1 FOR UPDATE
+WHERE uid = ?
 `
 
-func (q *Queries) LoadAuthForUpdate(ctx context.Context, uid uuid.UUID) (string, error) {
+func (q *Queries) LoadAuthForUpdate(ctx context.Context, uid string) (string, error) {
 	row := q.db.QueryRowContext(ctx, loadAuthForUpdate, uid)
 	var auth_token string
 	err := row.Scan(&auth_token)
@@ -109,10 +107,10 @@ func (q *Queries) LoadAuthForUpdate(ctx context.Context, uid uuid.UUID) (string,
 const loadExternalIdentity = `-- name: LoadExternalIdentity :one
 SELECT uid, public_key
 FROM external_identity
-WHERE uid = $1
+WHERE uid = ?
 `
 
-func (q *Queries) LoadExternalIdentity(ctx context.Context, uid uuid.UUID) (ExternalIdentity, error) {
+func (q *Queries) LoadExternalIdentity(ctx context.Context, uid string) (ExternalIdentity, error) {
 	row := q.db.QueryRowContext(ctx, loadExternalIdentity, uid)
 	var i ExternalIdentity
 	err := row.Scan(&i.Uid, &i.PublicKey)
@@ -122,10 +120,10 @@ func (q *Queries) LoadExternalIdentity(ctx context.Context, uid uuid.UUID) (Exte
 const loadIdentity = `-- name: LoadIdentity :one
 SELECT uid, private_key, public_key, signature, auth_token, active
 FROM identity
-WHERE uid = $1
+WHERE uid = ?
 `
 
-func (q *Queries) LoadIdentity(ctx context.Context, uid uuid.UUID) (Identity, error) {
+func (q *Queries) LoadIdentity(ctx context.Context, uid string) (Identity, error) {
 	row := q.db.QueryRowContext(ctx, loadIdentity, uid)
 	var i Identity
 	err := row.Scan(
@@ -142,10 +140,10 @@ func (q *Queries) LoadIdentity(ctx context.Context, uid uuid.UUID) (Identity, er
 const loadSignatureForUpdate = `-- name: LoadSignatureForUpdate :one
 SELECT signature
 FROM identity
-WHERE uid = $1 FOR UPDATE
+WHERE uid = ?
 `
 
-func (q *Queries) LoadSignatureForUpdate(ctx context.Context, uid uuid.UUID) ([]byte, error) {
+func (q *Queries) LoadSignatureForUpdate(ctx context.Context, uid string) ([]byte, error) {
 	row := q.db.QueryRowContext(ctx, loadSignatureForUpdate, uid)
 	var signature []byte
 	err := row.Scan(&signature)
@@ -154,13 +152,13 @@ func (q *Queries) LoadSignatureForUpdate(ctx context.Context, uid uuid.UUID) ([]
 
 const storeActiveFlag = `-- name: StoreActiveFlag :exec
 UPDATE identity
-SET active = $1
-WHERE uid = $2
+SET active = ?
+WHERE uid = ?
 `
 
 type StoreActiveFlagParams struct {
-	Active bool
-	Uid    uuid.UUID
+	Active int64
+	Uid    string
 }
 
 func (q *Queries) StoreActiveFlag(ctx context.Context, arg StoreActiveFlagParams) error {
@@ -170,13 +168,13 @@ func (q *Queries) StoreActiveFlag(ctx context.Context, arg StoreActiveFlagParams
 
 const storeAuth = `-- name: StoreAuth :exec
 UPDATE identity
-SET auth_token = $1
-WHERE uid = $2
+SET auth_token = ?
+WHERE uid = ?
 `
 
 type StoreAuthParams struct {
 	AuthToken string
-	Uid       uuid.UUID
+	Uid       string
 }
 
 func (q *Queries) StoreAuth(ctx context.Context, arg StoreAuthParams) error {
@@ -186,11 +184,11 @@ func (q *Queries) StoreAuth(ctx context.Context, arg StoreAuthParams) error {
 
 const storeExternalIdentity = `-- name: StoreExternalIdentity :exec
 INSERT INTO external_identity (uid, public_key)
-VALUES ($1, $2)
+VALUES (?, ?)
 `
 
 type StoreExternalIdentityParams struct {
-	Uid       uuid.UUID
+	Uid       string
 	PublicKey []byte
 }
 
@@ -201,16 +199,16 @@ func (q *Queries) StoreExternalIdentity(ctx context.Context, arg StoreExternalId
 
 const storeIdentity = `-- name: StoreIdentity :exec
 INSERT INTO identity (uid, private_key, public_key, signature, auth_token, active)
-VALUES ($1, $2, $3, $4, $5, $6)
+VALUES (?, ?, ?, ?, ?, ?)
 `
 
 type StoreIdentityParams struct {
-	Uid        uuid.UUID
+	Uid        string
 	PrivateKey []byte
 	PublicKey  []byte
 	Signature  []byte
 	AuthToken  string
-	Active     bool
+	Active     int64
 }
 
 func (q *Queries) StoreIdentity(ctx context.Context, arg StoreIdentityParams) error {
@@ -227,13 +225,13 @@ func (q *Queries) StoreIdentity(ctx context.Context, arg StoreIdentityParams) er
 
 const storeSignature = `-- name: StoreSignature :exec
 UPDATE identity
-SET signature = $1
-WHERE uid = $2
+SET signature = ?
+WHERE uid = ?
 `
 
 type StoreSignatureParams struct {
 	Signature []byte
-	Uid       uuid.UUID
+	Uid       string
 }
 
 func (q *Queries) StoreSignature(ctx context.Context, arg StoreSignatureParams) error {
