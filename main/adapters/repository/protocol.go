@@ -85,7 +85,7 @@ func NewExtendedProtocol(ctxManager ContextManager, conf *config.Config) (*Exten
 
 func (p *ExtendedProtocol) StoreIdentity(tx TransactionCtx, i ent.Identity) error {
 	// check validity of identity attributes
-	err := p.checkIdentityAttributes(&i)
+	err := p.checkIdentityAttributes(i)
 	if err != nil {
 		return err
 	}
@@ -115,37 +115,37 @@ func (p *ExtendedProtocol) ClearKeysFromCache(uid uuid.UUID) {
 	p.keyCache.ClearKeypair(uid)
 }
 
-func (p *ExtendedProtocol) LoadIdentity(uid uuid.UUID) (*ent.Identity, error) {
+func (p *ExtendedProtocol) LoadIdentity(uid uuid.UUID) (ent.Identity, error) {
 	i, err := p.ContextManager.LoadIdentity(uid)
 	if err != nil {
-		return nil, err
+		return ent.Identity{}, err
 	}
 
 	// check validity of identity attributes
 	err = p.checkIdentityAttributes(i)
 	if err != nil {
-		return nil, err
+		return ent.Identity{}, err
 	}
 
 	// load caches
 	i.PrivateKey, err = p.keyEncrypter.Decrypt(i.PrivateKey)
 	if err != nil {
-		return nil, err
+		return ent.Identity{}, err
 	}
 
 	err = p.keyCache.SetPrivateKey(uid, i.PrivateKey)
 	if err != nil {
-		return nil, err
+		return ent.Identity{}, err
 	}
 
 	i.PublicKey, err = p.PublicKeyBytesToPEM(i.PublicKey)
 	if err != nil {
-		return nil, err
+		return ent.Identity{}, err
 	}
 
 	err = p.keyCache.SetPublicKey(uid, i.PublicKey)
 	if err != nil {
-		return nil, err
+		return ent.Identity{}, err
 	}
 
 	return i, nil
@@ -175,21 +175,21 @@ func (p *ExtendedProtocol) StoreExternalIdentity(ctx context.Context, extId ent.
 	return p.ContextManager.StoreExternalIdentity(ctx, extId)
 }
 
-func (p *ExtendedProtocol) LoadExternalIdentity(ctx context.Context, uid uuid.UUID) (*ent.ExternalIdentity, error) {
+func (p *ExtendedProtocol) LoadExternalIdentity(ctx context.Context, uid uuid.UUID) (ent.ExternalIdentity, error) {
 	extId, err := p.ContextManager.LoadExternalIdentity(ctx, uid)
 	if err != nil {
-		return nil, err
+		return ent.ExternalIdentity{}, err
 	}
 
 	extId.PublicKey, err = p.PublicKeyBytesToPEM(extId.PublicKey)
 	if err != nil {
-		return nil, err
+		return ent.ExternalIdentity{}, err
 	}
 
 	// load public key to cache
 	err = p.keyCache.SetPublicKey(uid, extId.PublicKey)
 	if err != nil {
-		return nil, err
+		return ent.ExternalIdentity{}, err
 	}
 
 	return extId, nil
@@ -317,7 +317,7 @@ func (p *ExtendedProtocol) updatePwHash(uid uuid.UUID, authToCheck string) error
 	return nil
 }
 
-func (p *ExtendedProtocol) checkIdentityAttributes(i *ent.Identity) error {
+func (p *ExtendedProtocol) checkIdentityAttributes(i ent.Identity) error {
 	if i.Uid == uuid.Nil {
 		return fmt.Errorf("uuid has Nil value: %s", i.Uid)
 	}

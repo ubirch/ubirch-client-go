@@ -8,6 +8,7 @@ type Identity struct {
 	PublicKey  []byte
 	Signature  []byte
 	AuthToken  string
+	Active     bool
 }
 
 type ExternalIdentity struct {

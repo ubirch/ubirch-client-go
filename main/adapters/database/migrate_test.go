@@ -59,10 +59,8 @@ func TestMigrate_Down_Postgres(t *testing.T) {
 	require.NoError(t, err)
 }
 
-const testSQLiteDSN = "test.db" + sqliteConfig
-
 func TestMigrateUp_Sqlite(t *testing.T) {
-	var dsn = filepath.Join(t.TempDir(), testSQLiteDSN)
+	var dsn = filepath.Join(t.TempDir(), testSQLiteDSN+sqliteConfig)
 
 	db, err := sql.Open(string(sqliteDriver), dsn)
 	require.NoError(t, err)
@@ -79,7 +77,7 @@ func TestMigrateUp_Sqlite(t *testing.T) {
 }
 
 func TestMigrate_Sqlite(t *testing.T) {
-	var dsn = filepath.Join(t.TempDir(), testSQLiteDSN)
+	var dsn = filepath.Join(t.TempDir(), testSQLiteDSN+sqliteConfig)
 
 	db, err := sql.Open(string(sqliteDriver), dsn)
 	require.NoError(t, err)
@@ -95,7 +93,7 @@ func TestMigrate_Sqlite(t *testing.T) {
 }
 
 func TestMigrate_Down_Sqlite(t *testing.T) {
-	var dsn = filepath.Join(t.TempDir(), testSQLiteDSN)
+	var dsn = filepath.Join(t.TempDir(), testSQLiteDSN+sqliteConfig)
 
 	db, err := sql.Open(string(sqliteDriver), dsn)
 	require.NoError(t, err)

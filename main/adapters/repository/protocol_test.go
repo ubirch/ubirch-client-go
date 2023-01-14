@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/ubirch/ubirch-client-go/main/config"
 	"github.com/ubirch/ubirch-client-go/main/ent"
+	"github.com/ubirch/ubirch-protocol-go/ubirch/v2"
 
 	pw "github.com/ubirch/ubirch-client-go/main/adapters/password-hashing"
 )
@@ -29,7 +31,7 @@ var (
 )
 
 func TestProtocol(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
+	p, err := NewExtendedProtocol(&mockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
 	testIdentity := getTestIdentity()
@@ -78,7 +80,7 @@ func TestProtocol(t *testing.T) {
 }
 
 func TestExtendedProtocol_LoadPrivateKey(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
+	p, err := NewExtendedProtocol(&mockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
 	i := getTestIdentity()
@@ -101,7 +103,7 @@ func TestExtendedProtocol_LoadPrivateKey(t *testing.T) {
 }
 
 func TestExtendedProtocol_LoadPublicKey(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
+	p, err := NewExtendedProtocol(&mockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
 	i := getTestIdentity()
@@ -126,7 +128,7 @@ func TestExtendedProtocol_LoadPublicKey(t *testing.T) {
 func TestExtendedProtocol_LoadPublicKeyFromExternalIdentity(t *testing.T) {
 	extId := ent.ExternalIdentity{Uid: testUid, PublicKey: testPubKeyBytes}
 
-	p, err := NewExtendedProtocol(&MockCtxMngr{
+	p, err := NewExtendedProtocol(&mockCtxMngr{
 		extId: extId,
 	}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
@@ -144,12 +146,12 @@ func TestNewExtendedProtocol_BadSecret(t *testing.T) {
 		SecretBytes32: badSecret,
 	}
 
-	_, err := NewExtendedProtocol(&MockCtxMngr{}, conf)
+	_, err := NewExtendedProtocol(&mockCtxMngr{}, conf)
 	require.Error(t, err)
 }
 
 func TestExtendedProtocol_StoreSignature(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
+	p, err := NewExtendedProtocol(&mockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
 	testIdentity := getTestIdentity()
@@ -190,7 +192,7 @@ func TestExtendedProtocol_StoreSignature(t *testing.T) {
 }
 
 func TestExtendedProtocol_BadStoreSignature(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
+	p, err := NewExtendedProtocol(&mockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
 	testIdentity := getTestIdentity()
@@ -219,7 +221,7 @@ func TestExtendedProtocol_BadStoreSignature(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_BadUUID(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
+	p, err := NewExtendedProtocol(&mockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
 	i := getTestIdentity()
@@ -236,7 +238,7 @@ func Test_StoreNewIdentity_BadUUID(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_NilPrivateKey(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
+	p, err := NewExtendedProtocol(&mockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
 	i := getTestIdentity()
@@ -253,7 +255,7 @@ func Test_StoreNewIdentity_NilPrivateKey(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_BadPrivateKey(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
+	p, err := NewExtendedProtocol(&mockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
 	i := getTestIdentity()
@@ -270,7 +272,7 @@ func Test_StoreNewIdentity_BadPrivateKey(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_NilPublicKey(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
+	p, err := NewExtendedProtocol(&mockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
 	i := getTestIdentity()
@@ -287,7 +289,7 @@ func Test_StoreNewIdentity_NilPublicKey(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_BadPublicKey(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
+	p, err := NewExtendedProtocol(&mockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
 	i := getTestIdentity()
@@ -304,7 +306,7 @@ func Test_StoreNewIdentity_BadPublicKey(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_BadSignature(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
+	p, err := NewExtendedProtocol(&mockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
 	i := getTestIdentity()
@@ -321,7 +323,7 @@ func Test_StoreNewIdentity_BadSignature(t *testing.T) {
 }
 
 func Test_StoreNewIdentity_BadAuth(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
+	p, err := NewExtendedProtocol(&mockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
 	i := getTestIdentity()
@@ -338,7 +340,7 @@ func Test_StoreNewIdentity_BadAuth(t *testing.T) {
 }
 
 func TestExtendedProtocol_StoreExternalIdentity(t *testing.T) {
-	ctxMngr := &MockCtxMngr{}
+	ctxMngr := &mockCtxMngr{}
 	p, err := NewExtendedProtocol(ctxMngr, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
@@ -349,7 +351,7 @@ func TestExtendedProtocol_StoreExternalIdentity(t *testing.T) {
 }
 
 func TestExtendedProtocol_LoadExternalIdentity(t *testing.T) {
-	ctxMngr := &MockCtxMngr{extId: ent.ExternalIdentity{Uid: testUid, PublicKey: testPubKeyBytes}}
+	ctxMngr := &mockCtxMngr{extId: ent.ExternalIdentity{Uid: testUid, PublicKey: testPubKeyBytes}}
 	p, err := NewExtendedProtocol(ctxMngr, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
@@ -364,7 +366,7 @@ func TestExtendedProtocol_LoadExternalIdentity(t *testing.T) {
 }
 
 func TestExtendedProtocol_CheckAuth(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
+	p, err := NewExtendedProtocol(&mockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
 	i := getTestIdentity()
@@ -389,7 +391,7 @@ func TestExtendedProtocol_CheckAuth(t *testing.T) {
 }
 
 func TestExtendedProtocol_CheckAuth_Invalid(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
+	p, err := NewExtendedProtocol(&mockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
 	i := getTestIdentity()
@@ -414,7 +416,7 @@ func TestExtendedProtocol_CheckAuth_Invalid(t *testing.T) {
 }
 
 func TestExtendedProtocol_CheckAuth_Invalid_Cached(t *testing.T) {
-	ctxMngr := &MockCtxMngr{}
+	ctxMngr := &mockCtxMngr{}
 	p, err := NewExtendedProtocol(ctxMngr, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
@@ -442,7 +444,7 @@ func TestExtendedProtocol_CheckAuth_Invalid_Cached(t *testing.T) {
 }
 
 func TestExtendedProtocol_CheckAuth_NotFound(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
+	p, err := NewExtendedProtocol(&mockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
 	ok, found, err := p.CheckAuth(context.Background(), uuid.New(), "auth")
@@ -452,7 +454,7 @@ func TestExtendedProtocol_CheckAuth_NotFound(t *testing.T) {
 }
 
 func TestExtendedProtocol_CheckAuth_Update(t *testing.T) {
-	ctxMngr := &MockCtxMngr{}
+	ctxMngr := &mockCtxMngr{}
 	testConf := &config.Config{
 		SecretBytes32:  testSecret,
 		KdUpdateParams: true,
@@ -494,7 +496,7 @@ func TestExtendedProtocol_CheckAuth_Update(t *testing.T) {
 }
 
 func TestExtendedProtocol_CheckAuth_AuthCache(t *testing.T) {
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
+	p, err := NewExtendedProtocol(&mockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
 	i := getTestIdentity()
@@ -525,7 +527,7 @@ func TestExtendedProtocol_CheckAuth_AuthCache(t *testing.T) {
 func TestProtocol_Cache(t *testing.T) {
 	wg := &sync.WaitGroup{}
 
-	p, err := NewExtendedProtocol(&MockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
+	p, err := NewExtendedProtocol(&mockCtxMngr{}, &config.Config{SecretBytes32: testSecret})
 	require.NoError(t, err)
 
 	testIdentity := getTestIdentity()
@@ -546,60 +548,9 @@ func TestProtocol_Cache(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func() {
-			err := checkIdentity(p, testIdentity, protocolCheckAuth, wg)
+			err := checkIdentity(p, testIdentity, wg)
 			assert.NoError(t, err)
 		}()
-	}
-	wg.Wait()
-}
-
-func TestProtocolLoad(t *testing.T) {
-	// this test communicates with the actual postgres database
-	if testing.Short() {
-		t.Skipf("skipping integration test %s in short mode", t.Name())
-	}
-
-	wg := &sync.WaitGroup{}
-
-	dm, err := initDB(0)
-	require.NoError(t, err)
-	defer cleanUpDB(t, dm)
-
-	p, err := NewExtendedProtocol(dm, &config.Config{SecretBytes32: testSecret})
-	require.NoError(t, err)
-
-	// generate identities
-	var testIdentities []ent.Identity
-	for i := 0; i < testLoad/10; i++ {
-		testId := getTestIdentity()
-		testId.Uid = uuid.New()
-
-		testIdentities = append(testIdentities, testId)
-	}
-
-	// store identities
-	for _, testId := range testIdentities {
-		wg.Add(1)
-		go func(id ent.Identity) {
-			defer wg.Done()
-
-			err := storeIdentity(p, id)
-			if err != nil {
-				t.Errorf("%s: identity could not be stored: %v", id.Uid, err)
-			}
-		}(testId)
-	}
-	wg.Wait()
-
-	// check identities
-	for _, testId := range testIdentities {
-		wg.Add(1)
-		go func(id ent.Identity) {
-			err := checkIdentity(p, id, protocolCheckAuth, wg)
-			if err != nil {
-				t.Errorf("%s: %v", id.Uid, err)
-			}
-		}(testId)
 	}
 	wg.Wait()
 }
@@ -614,7 +565,29 @@ func getTestIdentity() ent.Identity {
 	}
 }
 
-func protocolCheckAuth(auth, authToCheck string) error {
+func storeIdentity(ctxManager ContextManager, id ent.Identity) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := ctxManager.StartTransaction(ctx)
+	if err != nil {
+		return fmt.Errorf("StartTransaction: %v", err)
+	}
+
+	err = ctxManager.StoreIdentity(tx, id)
+	if err != nil {
+		return fmt.Errorf("StoreIdentity: %v", err)
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("Commit: %v", err)
+	}
+
+	return nil
+}
+
+func checkAuth(auth, authToCheck string) error {
 	pwHasher := &pw.Argon2idKeyDerivator{}
 
 	_, ok, err := pwHasher.CheckPassword(context.Background(), auth, authToCheck)
@@ -624,5 +597,281 @@ func protocolCheckAuth(auth, authToCheck string) error {
 	if !ok {
 		return fmt.Errorf("LoadAuth returned unexpected value")
 	}
+	return nil
+}
+
+func checkIdentity(ctxManager ContextManager, id ent.Identity, wg *sync.WaitGroup) error {
+	defer wg.Done()
+
+	fetchedId, err := ctxManager.LoadIdentity(id.Uid)
+	if err != nil {
+		return fmt.Errorf("LoadIdentity: %v", err)
+	}
+
+	if fetchedId.Uid != id.Uid {
+		return fmt.Errorf("unexpected uuid")
+	}
+
+	if !bytes.Equal(fetchedId.PrivateKey, id.PrivateKey) {
+		return fmt.Errorf("unexpected private key")
+	}
+
+	if !bytes.Equal(fetchedId.PublicKey, id.PublicKey) {
+		return fmt.Errorf("unexpected public key")
+	}
+
+	if !bytes.Equal(fetchedId.Signature, id.Signature) {
+		return fmt.Errorf("unexpected signature")
+	}
+
+	err = checkAuth(fetchedId.AuthToken, id.AuthToken)
+	if err != nil {
+		return fmt.Errorf("checkAuth: %v", err)
+	}
+
+	if fetchedId.Active != id.Active {
+		return fmt.Errorf("unexpected active flag")
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := ctxManager.StartTransaction(ctx)
+	if err != nil {
+		return fmt.Errorf("StartTransaction: %v", err)
+	}
+
+	sig, err := ctxManager.LoadSignatureForUpdate(tx, id.Uid)
+	if err != nil {
+		return fmt.Errorf("LoadSignatureForUpdate: %v", err)
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("Commit: %v", err)
+	}
+
+	if !bytes.Equal(sig, id.Signature) {
+		return fmt.Errorf("LoadSignatureForUpdate returned unexpected value")
+	}
+
+	return nil
+}
+
+type mockCtxMngr struct {
+	id    ent.Identity
+	extId ent.ExternalIdentity
+}
+
+var _ ContextManager = (*mockCtxMngr)(nil)
+
+func (m *mockCtxMngr) StartTransaction(ctx context.Context) (TransactionCtx, error) {
+	return &mockTx{
+		idBuf: ent.Identity{},
+		id:    &m.id,
+	}, nil
+}
+
+func (m *mockCtxMngr) StoreIdentity(t TransactionCtx, id ent.Identity) error {
+	tx, ok := t.(*mockTx)
+	if !ok {
+		return fmt.Errorf("transactionCtx for mockCtxMngr is not of expected type *mockTx")
+	}
+	tx.idBuf = id
+
+	return nil
+}
+
+func (m *mockCtxMngr) LoadIdentity(u uuid.UUID) (ent.Identity, error) {
+	if m.id.Uid == uuid.Nil || m.id.Uid != u {
+		return ent.Identity{}, ErrNotExist
+	}
+	id := m.id
+	return id, nil
+}
+
+func (m *mockCtxMngr) StoreActiveFlag(t TransactionCtx, u uuid.UUID, a bool) error {
+	tx, ok := t.(*mockTx)
+	if !ok {
+		return fmt.Errorf("transactionCtx for mockCtxMngr is not of expected type *mockTx")
+	}
+
+	if tx.idBuf.Uid == uuid.Nil || tx.idBuf.Uid != u {
+		return fmt.Errorf("tx invalid")
+	}
+
+	tx.idBuf.Active = a
+	return nil
+}
+
+func (m *mockCtxMngr) LoadActiveFlagForUpdate(t TransactionCtx, u uuid.UUID) (bool, error) {
+	tx, ok := t.(*mockTx)
+	if !ok {
+		return false, fmt.Errorf("transactionCtx for mockCtxMngr is not of expected type *mockTx")
+	}
+
+	if m.id.Uid == uuid.Nil || m.id.Uid != u {
+		return false, ErrNotExist
+	}
+
+	tx.idBuf = m.id
+
+	return m.id.Active, nil
+}
+
+func (m *mockCtxMngr) LoadActiveFlag(u uuid.UUID) (bool, error) {
+	return m.id.Active, nil
+}
+
+func (m *mockCtxMngr) StoreSignature(t TransactionCtx, u uuid.UUID, s []byte) error {
+	tx, ok := t.(*mockTx)
+	if !ok {
+		return fmt.Errorf("transactionCtx for mockCtxMngr is not of expected type *mockTx")
+	}
+
+	if tx.idBuf.Uid == uuid.Nil || tx.idBuf.Uid != u {
+		return fmt.Errorf("tx invalid")
+	}
+
+	tx.idBuf.Signature = s
+	return nil
+}
+
+func (m *mockCtxMngr) LoadSignatureForUpdate(t TransactionCtx, u uuid.UUID) ([]byte, error) {
+	tx, ok := t.(*mockTx)
+	if !ok {
+		return nil, fmt.Errorf("transactionCtx for mockCtxMngr is not of expected type *mockTx")
+	}
+
+	if m.id.Uid == uuid.Nil || m.id.Uid != u {
+		return nil, ErrNotExist
+	}
+
+	tx.idBuf = m.id
+
+	return m.id.Signature, nil
+}
+
+func (m *mockCtxMngr) StoreAuth(t TransactionCtx, u uuid.UUID, a string) error {
+	tx, ok := t.(*mockTx)
+	if !ok {
+		return fmt.Errorf("transactionCtx for mockCtxMngr is not of expected type *mockTx")
+	}
+
+	if tx.idBuf.Uid == uuid.Nil || tx.idBuf.Uid != u {
+		return fmt.Errorf("tx invalid")
+	}
+
+	tx.idBuf.AuthToken = a
+	return nil
+}
+
+func (m *mockCtxMngr) LoadAuthForUpdate(t TransactionCtx, u uuid.UUID) (string, error) {
+	tx, ok := t.(*mockTx)
+	if !ok {
+		return "", fmt.Errorf("transactionCtx for mockCtxMngr is not of expected type *mockTx")
+	}
+
+	if m.id.Uid == uuid.Nil || m.id.Uid != u {
+		return "", ErrNotExist
+	}
+
+	tx.idBuf = m.id
+
+	return m.id.AuthToken, nil
+}
+
+func (m *mockCtxMngr) StoreExternalIdentity(ctx context.Context, externalId ent.ExternalIdentity) error {
+	m.extId = externalId
+	return nil
+}
+
+func (m *mockCtxMngr) LoadExternalIdentity(ctx context.Context, u uuid.UUID) (ent.ExternalIdentity, error) {
+	if m.extId.Uid == uuid.Nil || m.extId.Uid != u {
+		return ent.ExternalIdentity{}, ErrNotExist
+	}
+	return m.extId, nil
+}
+
+func (m *mockCtxMngr) GetIdentityUUIDs() ([]uuid.UUID, error) {
+	return []uuid.UUID{m.id.Uid}, nil
+}
+
+func (m *mockCtxMngr) GetExternalIdentityUUIDs() ([]uuid.UUID, error) {
+	return []uuid.UUID{m.extId.Uid}, nil
+}
+
+func (m *mockCtxMngr) IsReady() error {
+	return nil
+}
+
+func (m *mockCtxMngr) Close() error {
+	return nil
+}
+
+type mockTx struct {
+	idBuf ent.Identity
+	id    *ent.Identity
+}
+
+var _ TransactionCtx = (*mockTx)(nil)
+
+func (m *mockTx) Commit() error {
+	*m.id = m.idBuf
+	*m = mockTx{}
+	return nil
+}
+
+func (m *mockTx) Rollback() error {
+	*m = mockTx{}
+	return nil
+}
+
+type MockKeystorer struct {
+	priv []byte
+	pub  []byte
+}
+
+var _ ubirch.Keystorer = (*MockKeystorer)(nil)
+
+func (m *MockKeystorer) GetIDs() ([]uuid.UUID, error) {
+	panic("implement me")
+}
+
+func (m *MockKeystorer) PrivateKeyExists(id uuid.UUID) (bool, error) {
+	if len(m.priv) == 0 {
+		return false, nil
+	}
+	return true, nil
+}
+
+func (m *MockKeystorer) GetPrivateKey(id uuid.UUID) ([]byte, error) {
+	if len(m.priv) == 0 {
+		return nil, fmt.Errorf("key not found")
+	}
+	return m.priv, nil
+}
+
+func (m *MockKeystorer) SetPrivateKey(id uuid.UUID, key []byte) error {
+	m.priv = key
+	return nil
+}
+
+func (m *MockKeystorer) PublicKeyExists(id uuid.UUID) (bool, error) {
+	if len(m.pub) == 0 {
+		return false, nil
+	}
+	return true, nil
+}
+
+func (m *MockKeystorer) GetPublicKey(id uuid.UUID) ([]byte, error) {
+	if len(m.pub) == 0 {
+		return nil, fmt.Errorf("key not found")
+	}
+	return m.pub, nil
+}
+
+func (m *MockKeystorer) SetPublicKey(id uuid.UUID, key []byte) error {
+	m.pub = key
 	return nil
 }

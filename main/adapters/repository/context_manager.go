@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-client-go/main/config"
 	"github.com/ubirch/ubirch-client-go/main/ent"
 )
 
@@ -17,7 +16,7 @@ type ContextManager interface {
 	StartTransaction(context.Context) (TransactionCtx, error)
 
 	StoreIdentity(TransactionCtx, ent.Identity) error
-	LoadIdentity(uuid.UUID) (*ent.Identity, error)
+	LoadIdentity(uuid.UUID) (ent.Identity, error)
 
 	StoreActiveFlag(TransactionCtx, uuid.UUID, bool) error
 	LoadActiveFlagForUpdate(TransactionCtx, uuid.UUID) (bool, error)
@@ -30,7 +29,7 @@ type ContextManager interface {
 	LoadAuthForUpdate(TransactionCtx, uuid.UUID) (string, error)
 
 	StoreExternalIdentity(context.Context, ent.ExternalIdentity) error
-	LoadExternalIdentity(context.Context, uuid.UUID) (*ent.ExternalIdentity, error)
+	LoadExternalIdentity(context.Context, uuid.UUID) (ent.ExternalIdentity, error)
 
 	GetIdentityUUIDs() ([]uuid.UUID, error)
 	GetExternalIdentityUUIDs() ([]uuid.UUID, error)
@@ -42,8 +41,4 @@ type ContextManager interface {
 type TransactionCtx interface {
 	Commit() error
 	Rollback() error
-}
-
-func GetContextManager(c *config.Config) (ContextManager, error) {
-	return NewDatabaseManager(c.DbDriver, c.DbDSN, c.DbMaxConns)
 }
