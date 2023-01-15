@@ -106,6 +106,9 @@ func TestMigrate_Down_Sqlite(t *testing.T) {
 		}
 	}()
 
+	err = MigrateUp(db, sqliteDriver)
+	require.NoError(t, err)
+
 	err = MigrateDown(db, sqliteDriver)
 	require.NoError(t, err)
 }
