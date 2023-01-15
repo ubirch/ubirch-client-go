@@ -2,7 +2,6 @@ package database
 
 import (
 	"database/sql"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -11,9 +10,10 @@ import (
 )
 
 func TestMigrateUp_Postgres(t *testing.T) {
-	var dsn = os.Getenv("UBIRCH_TEST_DB_DSN")
+	c, err := getConfig()
+	require.NoError(t, err)
 
-	db, err := sql.Open(string(postgresDriver), dsn)
+	db, err := sql.Open(string(postgresDriver), c.DbDSN)
 	require.NoError(t, err)
 	defer func() {
 		err := db.Close()
@@ -28,9 +28,10 @@ func TestMigrateUp_Postgres(t *testing.T) {
 }
 
 func TestMigrate_Postgres(t *testing.T) {
-	var dsn = os.Getenv("UBIRCH_TEST_DB_DSN")
+	c, err := getConfig()
+	require.NoError(t, err)
 
-	db, err := sql.Open(string(postgresDriver), dsn)
+	db, err := sql.Open(string(postgresDriver), c.DbDSN)
 	require.NoError(t, err)
 	defer func() {
 		err := db.Close()
@@ -44,9 +45,10 @@ func TestMigrate_Postgres(t *testing.T) {
 }
 
 func TestMigrate_Down_Postgres(t *testing.T) {
-	var dsn = os.Getenv("UBIRCH_TEST_DB_DSN")
+	c, err := getConfig()
+	require.NoError(t, err)
 
-	db, err := sql.Open(string(postgresDriver), dsn)
+	db, err := sql.Open(string(postgresDriver), c.DbDSN)
 	require.NoError(t, err)
 	defer func() {
 		err := db.Close()
