@@ -18,8 +18,9 @@ import (
 )
 
 const (
-	sqliteName    = "sqlite"
-	testSQLiteDSN = "test.db"
+	sqliteName     = "sqlite"
+	testSQLiteDSN  = "test.db"
+	sqliteTestLoad = 10
 )
 
 func TestDatabaseManager_sqlite(t *testing.T) {
@@ -270,7 +271,7 @@ func TestDatabaseManager_Ready_sqlite(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	err = dm.IsReady()
+	err = dm.IsReady(context.Background())
 	require.NoError(t, err)
 }
 
@@ -443,7 +444,7 @@ func TestDatabaseLoad_sqlite(t *testing.T) {
 
 	// generate identities
 	var testIdentities []ent.Identity
-	for i := 0; i < testLoad/10; i++ {
+	for i := 0; i < sqliteTestLoad; i++ {
 		id := getTestIdentity()
 		id.Uid = uuid.New()
 		testIdentities = append(testIdentities, id)

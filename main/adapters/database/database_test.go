@@ -312,26 +312,30 @@ func TestDatabaseManager_Ready(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	err = dm.IsReady()
+	err = dm.IsReady(context.Background())
 	require.NoError(t, err)
 }
 
 func TestDatabaseManager_NotReady(t *testing.T) {
 	// use DSN that is valid, but not reachable
-	unreachableDSN := "postgres://nousr:nopwd@localhost:0000/nodatabase"
+	unreachableDSN := "postgres://nousr:nopwd@128.0.0.1:5432/nodatabase"
 
 	// we expect no error here
-	dm, err := NewDatabaseManager(postgresName, unreachableDSN, 0, true)
+	dm, err := NewDatabaseManager(postgresName, unreachableDSN, 0, false)
 	require.NoError(t, err)
-	defer func(dm *DatabaseManager) {
+	defer func() {
 		err := dm.Close()
 		if err != nil {
 			t.Error(err)
 		}
-	}(dm)
+	}()
 
-	err = dm.IsReady()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	err = dm.IsReady(ctx)
 	require.Error(t, err)
+	require.EqualError(t, err, "failed to connect to `host=128.0.0.1 user=nousr database=nodatabase`: dial error (timeout: context deadline exceeded)")
 }
 
 func TestDatabaseManager_StoreExisting(t *testing.T) {

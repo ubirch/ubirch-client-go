@@ -15,6 +15,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"time"
@@ -48,7 +49,7 @@ func main() {
 		configDir       string
 		migrate         bool
 		serverID        = fmt.Sprintf("%s/%s", serviceName, Version)
-		readinessChecks []func() error
+		readinessChecks []func(ctx context.Context) error
 	)
 
 	log.SetFormatter(&log.JSONFormatter{

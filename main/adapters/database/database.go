@@ -119,8 +119,11 @@ func NewDatabaseManager(driverName, dataSourceName string, maxConns int, migrate
 		return nil, fmt.Errorf("unsupported database driver: %s", dm.driver)
 	}
 
-	if err = dm.db.Ping(); err != nil {
-		if dm.driver == postgresDriver && strings.Contains(err.Error(), "connection refused") {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	if err = dm.IsReady(ctx); err != nil {
+		if dm.driver == postgresDriver && pgconn.Timeout(err) {
 			// if there is no connection to the database yet, continue anyway.
 			log.Warnf("connection to the database could not yet be established: %v", err)
 		} else {
@@ -130,15 +133,7 @@ func NewDatabaseManager(driverName, dataSourceName string, maxConns int, migrate
 
 	// migrate database schema to the latest version
 	if migrate {
-		for i := 0; i < 10; i++ {
-			err = dm.db.Ping()
-			if err != nil {
-				log.Warn(err)
-				time.Sleep(time.Second)
-				continue
-			}
-			break
-		}
+		err = dm.db.Ping()
 		if err != nil {
 			return nil, err
 		}
@@ -160,11 +155,8 @@ func (dm *DatabaseManager) Close() error {
 	return nil
 }
 
-func (dm *DatabaseManager) IsReady() error {
-	if err := dm.db.Ping(); err != nil {
-		return fmt.Errorf("database not ready: %v", err)
-	}
-	return nil
+func (dm *DatabaseManager) IsReady(ctx context.Context) error {
+	return dm.db.PingContext(ctx)
 }
 
 func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx repository.TransactionCtx, err error) {
