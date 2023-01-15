@@ -14,11 +14,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
 	"github.com/ubirch/ubirch-client-go/main/config"
 	"github.com/ubirch/ubirch-client-go/main/ent"
+	"golang.org/x/xerrors"
 )
 
 const (
@@ -517,6 +519,44 @@ func TestDatabaseLoad(t *testing.T) {
 	//}
 }
 
+func TestDatabaseManager_Retry(t *testing.T) {
+	// this test communicates with the actual postgres database
+	if testing.Short() {
+		t.Skipf("skipping integration test %s in short mode", t.Name())
+	}
+
+	c, err := getConfig()
+	require.NoError(t, err)
+
+	dm, err := NewDatabaseManager(postgresName, c.DbDSN, 101, true)
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	wg := &sync.WaitGroup{}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			_, err := dm.StartTransaction(ctx)
+			if err != nil {
+				if pgErr, ok := xerrors.Unwrap(err).(*pgconn.PgError); ok {
+					if pgErr.Code == "55P03" || // lock_not_available
+						pgErr.Code == "53300" || // too_many_connections
+						pgErr.Code == "53400" { // configuration_limit_exceeded
+						return
+					}
+				}
+				t.Error(err)
+			}
+		}()
+	}
+	wg.Wait()
+}
+
 func TestDatabaseManager_StoreExternalIdentity(t *testing.T) {
 	// this test communicates with the actual postgres database
 	if testing.Short() {
@@ -666,10 +706,9 @@ func initDB(maxConns int) (*DatabaseManager, error) {
 }
 
 func cleanUpDB(t assert.TestingT, dm *DatabaseManager) {
-	_, err := dm.db.Exec("DROP TABLE identity;")
-	assert.NoError(t, err)
+	time.Sleep(time.Second)
 
-	_, err = dm.db.Exec("DROP TABLE external_identity;")
+	err := MigrateDown(dm.db, dm.driver)
 	assert.NoError(t, err)
 
 	err = dm.Close()
@@ -677,8 +716,6 @@ func cleanUpDB(t assert.TestingT, dm *DatabaseManager) {
 }
 
 var (
-	testSecret, _ = base64.StdEncoding.DecodeString("ZQJt1OC9+4OZtgZLLT9mX25BbrZdxtOQBjK4GyRF2fQ=")
-
 	testUid          = uuid.MustParse("b8869002-9d19-418a-94b0-83664843396f")
 	testPrivKey      = []byte("-----BEGIN PRIVATE KEY-----\nMHcCAQEEILagfFV70hVPpY1L5pIkWu3mTZisQ1yCmfhKL5vrGQfOoAoGCCqGSM49\nAwEHoUQDQgAEoEOfFKZ2U+r7L3CqCArZ63IyB83zqByp8chT07MeXLBx9WMYsaqn\nb38qXThsEnH7WwSwA/eRKjm9SbR6cve4Mg==\n-----END PRIVATE KEY-----\n")
 	testPubKey       = []byte("-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEoEOfFKZ2U+r7L3CqCArZ63IyB83z\nqByp8chT07MeXLBx9WMYsaqnb38qXThsEnH7WwSwA/eRKjm9SbR6cve4Mg==\n-----END PUBLIC KEY-----\n")

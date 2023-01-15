@@ -22,13 +22,15 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/ubirch/ubirch-client-go/main/adapters/database/postgres"
 	"github.com/ubirch/ubirch-client-go/main/adapters/database/sqlite"
 	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
 	"github.com/ubirch/ubirch-client-go/main/ent"
+	"golang.org/x/xerrors"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
-	_ "modernc.org/sqlite"
+	sqliteLib "modernc.org/sqlite"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -46,6 +48,8 @@ const (
 		"&_pragma=wal_checkpoint(PASSIVE)" + // https://www.sqlite.org/pragma.html#pragma_wal_checkpoint
 		"&_pragma=journal_size_limit(32000)" + // max WAL file size in bytes https://www.sqlite.org/pragma.html#pragma_journal_size_limit
 		"&_pragma=busy_timeout(100)" // https://www.sqlite.org/pragma.html#pragma_busy_timeout
+
+	maxRetries = 2
 )
 
 // DatabaseManager contains the database connection, and offers methods
@@ -163,8 +167,12 @@ func (dm *DatabaseManager) IsReady() error {
 	return nil
 }
 
-func (dm *DatabaseManager) StartTransaction(ctx context.Context) (repository.TransactionCtx, error) {
-	return dm.db.BeginTx(ctx, dm.options)
+func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx repository.TransactionCtx, err error) {
+	err = dm.retry(func() error {
+		transactionCtx, err = dm.db.BeginTx(ctx, dm.options)
+		return err
+	})
+	return transactionCtx, err
 }
 
 func (dm *DatabaseManager) StoreIdentity(transactionCtx repository.TransactionCtx, i ent.Identity) error {
@@ -190,7 +198,15 @@ func (dm *DatabaseManager) StoreIdentity(transactionCtx repository.TransactionCt
 	}
 }
 
-func (dm *DatabaseManager) LoadIdentity(uid uuid.UUID) (ent.Identity, error) {
+func (dm *DatabaseManager) LoadIdentity(uid uuid.UUID) (identity ent.Identity, err error) {
+	err = dm.retry(func() error {
+		identity, err = dm.loadIdentity(uid)
+		return err
+	})
+	return identity, err
+}
+
+func (dm *DatabaseManager) loadIdentity(uid uuid.UUID) (ent.Identity, error) {
 	switch dm.driver {
 	case postgresDriver:
 		i, err := dm.postgres.LoadIdentity(context.Background(), uid)
@@ -265,7 +281,15 @@ func (dm *DatabaseManager) LoadActiveFlagForUpdate(transactionCtx repository.Tra
 	}
 }
 
-func (dm *DatabaseManager) LoadActiveFlag(uid uuid.UUID) (bool, error) {
+func (dm *DatabaseManager) LoadActiveFlag(uid uuid.UUID) (active bool, err error) {
+	err = dm.retry(func() error {
+		active, err = dm.loadActiveFlag(uid)
+		return err
+	})
+	return active, err
+}
+
+func (dm *DatabaseManager) loadActiveFlag(uid uuid.UUID) (bool, error) {
 	switch dm.driver {
 	case postgresDriver:
 		active, err := dm.postgres.LoadActiveFlag(context.Background(), uid)
@@ -371,20 +395,33 @@ func (dm *DatabaseManager) LoadAuthForUpdate(transactionCtx repository.Transacti
 }
 
 func (dm *DatabaseManager) StoreExternalIdentity(ctx context.Context, extId ent.ExternalIdentity) error {
-	switch dm.driver {
-	case postgresDriver:
-		return dm.postgres.StoreExternalIdentity(ctx, postgres.StoreExternalIdentityParams(extId))
-	case sqliteDriver:
-		return dm.sqlite.StoreExternalIdentity(ctx, sqlite.StoreExternalIdentityParams{
-			Uid:       extId.Uid.String(),
-			PublicKey: extId.PublicKey,
-		})
-	default:
-		return fmt.Errorf("unsupported database driver: %s", dm.driver)
-	}
+	err := dm.retry(func() error {
+		switch dm.driver {
+		case postgresDriver:
+			return dm.postgres.StoreExternalIdentity(ctx, postgres.StoreExternalIdentityParams(extId))
+		case sqliteDriver:
+			return dm.sqlite.StoreExternalIdentity(ctx, sqlite.StoreExternalIdentityParams{
+				Uid:       extId.Uid.String(),
+				PublicKey: extId.PublicKey,
+			})
+		default:
+			return fmt.Errorf("unsupported database driver: %s", dm.driver)
+		}
+	})
+
+	return err
 }
 
-func (dm *DatabaseManager) LoadExternalIdentity(ctx context.Context, uid uuid.UUID) (ent.ExternalIdentity, error) {
+func (dm *DatabaseManager) LoadExternalIdentity(ctx context.Context, uid uuid.UUID) (extIdentity ent.ExternalIdentity, err error) {
+	err = dm.retry(func() error {
+		extIdentity, err = dm.loadExternalIdentity(ctx, uid)
+		return err
+	})
+
+	return extIdentity, err
+}
+
+func (dm *DatabaseManager) loadExternalIdentity(ctx context.Context, uid uuid.UUID) (ent.ExternalIdentity, error) {
 	switch dm.driver {
 	case postgresDriver:
 		i, err := dm.postgres.LoadExternalIdentity(ctx, uid)
@@ -471,6 +508,44 @@ func (dm *DatabaseManager) GetExternalIdentityUUIDs() ([]uuid.UUID, error) {
 	default:
 		return nil, fmt.Errorf("unsupported database driver: %s", dm.driver)
 	}
+}
+
+func (dm *DatabaseManager) retry(f func() error) (err error) {
+	for retries := 0; retries <= maxRetries; retries++ {
+		err = f()
+		if err == nil || !dm.isRecoverable(err) {
+			break
+		}
+		log.Warnf("database recoverable error: %v (%d / %d)", err, retries+1, maxRetries+1)
+	}
+
+	return err
+}
+
+func (dm *DatabaseManager) isRecoverable(err error) bool {
+	switch dm.driver {
+	case postgresDriver:
+		if pgErr, ok := xerrors.Unwrap(err).(*pgconn.PgError); ok {
+			if pgErr.Code == "55P03" || // lock_not_available
+				pgErr.Code == "53300" || // too_many_connections
+				pgErr.Code == "53400" { // configuration_limit_exceeded
+				time.Sleep(10 * time.Millisecond)
+				return true
+			}
+			log.Errorf("unexpected postgres database error: %v", pgErr)
+		}
+	case sqliteDriver:
+		if liteErr, ok := err.(*sqliteLib.Error); ok {
+			if liteErr.Code() == 5 || // SQLITE_BUSY
+				liteErr.Code() == 6 || // SQLITE_LOCKED
+				liteErr.Code() == 261 { // SQLITE_BUSY_RECOVERY
+				time.Sleep(10 * time.Millisecond)
+				return true
+			}
+			log.Errorf("unexpected sqlite database error: %v", liteErr)
+		}
+	}
+	return false
 }
 
 // this is a helper function to convert booleans to integers representing booleans in sqlite
