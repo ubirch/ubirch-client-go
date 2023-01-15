@@ -194,9 +194,18 @@ func (dm *DatabaseManager) LoadIdentity(uid uuid.UUID) (ent.Identity, error) {
 	switch dm.driver {
 	case postgresDriver:
 		i, err := dm.postgres.LoadIdentity(context.Background(), uid)
+		if err == sql.ErrNoRows {
+			return ent.Identity{}, repository.ErrNotExist
+		}
 		return ent.Identity(i), err
 	case sqliteDriver:
 		i, err := dm.sqlite.LoadIdentity(context.Background(), uid.String())
+		if err == sql.ErrNoRows {
+			return ent.Identity{}, repository.ErrNotExist
+		}
+		if err != nil {
+			return ent.Identity{}, err
+		}
 		return ent.Identity{
 			Uid:        uuid.MustParse(i.Uid), // todo use Parse and handle error
 			PrivateKey: i.PrivateKey,
@@ -240,9 +249,16 @@ func (dm *DatabaseManager) LoadActiveFlagForUpdate(transactionCtx repository.Tra
 
 	switch dm.driver {
 	case postgresDriver:
-		return dm.postgres.WithTx(tx).LoadActiveFlagForUpdate(context.Background(), uid)
+		active, err := dm.postgres.WithTx(tx).LoadActiveFlagForUpdate(context.Background(), uid)
+		if err == sql.ErrNoRows {
+			return false, repository.ErrNotExist
+		}
+		return active, err
 	case sqliteDriver:
 		active, err := dm.sqlite.WithTx(tx).LoadActiveFlagForUpdate(context.Background(), uid.String())
+		if err == sql.ErrNoRows {
+			return false, repository.ErrNotExist
+		}
 		return sqliteInt64ToBool(active), err
 	default:
 		return false, fmt.Errorf("unsupported database driver: %s", dm.driver)
@@ -252,9 +268,16 @@ func (dm *DatabaseManager) LoadActiveFlagForUpdate(transactionCtx repository.Tra
 func (dm *DatabaseManager) LoadActiveFlag(uid uuid.UUID) (bool, error) {
 	switch dm.driver {
 	case postgresDriver:
-		return dm.postgres.LoadActiveFlag(context.Background(), uid)
+		active, err := dm.postgres.LoadActiveFlag(context.Background(), uid)
+		if err == sql.ErrNoRows {
+			return false, repository.ErrNotExist
+		}
+		return active, err
 	case sqliteDriver:
 		active, err := dm.sqlite.LoadActiveFlag(context.Background(), uid.String())
+		if err == sql.ErrNoRows {
+			return false, repository.ErrNotExist
+		}
 		return sqliteInt64ToBool(active), err
 	default:
 		return false, fmt.Errorf("unsupported database driver: %s", dm.driver)
@@ -283,7 +306,7 @@ func (dm *DatabaseManager) StoreSignature(transactionCtx repository.TransactionC
 	}
 }
 
-func (dm *DatabaseManager) LoadSignatureForUpdate(transactionCtx repository.TransactionCtx, uid uuid.UUID) ([]byte, error) {
+func (dm *DatabaseManager) LoadSignatureForUpdate(transactionCtx repository.TransactionCtx, uid uuid.UUID) (signature []byte, err error) {
 	tx, ok := transactionCtx.(*sql.Tx)
 	if !ok {
 		return nil, fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
@@ -291,12 +314,17 @@ func (dm *DatabaseManager) LoadSignatureForUpdate(transactionCtx repository.Tran
 
 	switch dm.driver {
 	case postgresDriver:
-		return dm.postgres.WithTx(tx).LoadSignatureForUpdate(context.Background(), uid)
+		signature, err = dm.postgres.WithTx(tx).LoadSignatureForUpdate(context.Background(), uid)
 	case sqliteDriver:
-		return dm.sqlite.WithTx(tx).LoadSignatureForUpdate(context.Background(), uid.String())
+		signature, err = dm.sqlite.WithTx(tx).LoadSignatureForUpdate(context.Background(), uid.String())
 	default:
 		return nil, fmt.Errorf("unsupported database driver: %s", dm.driver)
 	}
+
+	if err == sql.ErrNoRows {
+		return nil, repository.ErrNotExist
+	}
+	return signature, err
 }
 
 func (dm *DatabaseManager) StoreAuth(transactionCtx repository.TransactionCtx, uid uuid.UUID, auth string) error {
@@ -321,7 +349,7 @@ func (dm *DatabaseManager) StoreAuth(transactionCtx repository.TransactionCtx, u
 	}
 }
 
-func (dm *DatabaseManager) LoadAuthForUpdate(transactionCtx repository.TransactionCtx, uid uuid.UUID) (string, error) {
+func (dm *DatabaseManager) LoadAuthForUpdate(transactionCtx repository.TransactionCtx, uid uuid.UUID) (auth string, err error) {
 	tx, ok := transactionCtx.(*sql.Tx)
 	if !ok {
 		return "", fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
@@ -329,12 +357,17 @@ func (dm *DatabaseManager) LoadAuthForUpdate(transactionCtx repository.Transacti
 
 	switch dm.driver {
 	case postgresDriver:
-		return dm.postgres.WithTx(tx).LoadAuthForUpdate(context.Background(), uid)
+		auth, err = dm.postgres.WithTx(tx).LoadAuthForUpdate(context.Background(), uid)
 	case sqliteDriver:
-		return dm.sqlite.WithTx(tx).LoadAuthForUpdate(context.Background(), uid.String())
+		auth, err = dm.sqlite.WithTx(tx).LoadAuthForUpdate(context.Background(), uid.String())
 	default:
 		return "", fmt.Errorf("unsupported database driver: %s", dm.driver)
 	}
+
+	if err == sql.ErrNoRows {
+		return "", repository.ErrNotExist
+	}
+	return auth, err
 }
 
 func (dm *DatabaseManager) StoreExternalIdentity(ctx context.Context, extId ent.ExternalIdentity) error {
@@ -355,9 +388,18 @@ func (dm *DatabaseManager) LoadExternalIdentity(ctx context.Context, uid uuid.UU
 	switch dm.driver {
 	case postgresDriver:
 		i, err := dm.postgres.LoadExternalIdentity(ctx, uid)
+		if err == sql.ErrNoRows {
+			return ent.ExternalIdentity{}, repository.ErrNotExist
+		}
 		return ent.ExternalIdentity(i), err
 	case sqliteDriver:
 		i, err := dm.sqlite.LoadExternalIdentity(ctx, uid.String())
+		if err == sql.ErrNoRows {
+			return ent.ExternalIdentity{}, repository.ErrNotExist
+		}
+		if err != nil {
+			return ent.ExternalIdentity{}, err
+		}
 		return ent.ExternalIdentity{
 			Uid:       uuid.MustParse(i.Uid), // todo use Parse and handle error
 			PublicKey: i.PublicKey,
