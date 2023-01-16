@@ -514,11 +514,6 @@ func TestDatabaseLoad(t *testing.T) {
 		}(testId)
 	}
 	wg.Wait()
-
-	// FIXME
-	//if dm.db.Stats().OpenConnections > dm.db.Stats().Idle {
-	//	t.Errorf("%d open connections, %d idle", dm.db.Stats().OpenConnections, dm.db.Stats().Idle)
-	//}
 }
 
 func TestDatabaseManager_Retry(t *testing.T) {
@@ -707,11 +702,11 @@ func initDB(maxConns int) (*DatabaseManager, error) {
 }
 
 func cleanUpDB(t assert.TestingT, dm *DatabaseManager) {
-	if dm.driverName == SQLite {
+	if dm.driver == sqliteDriver {
 		time.Sleep(time.Millisecond) // this is here because we are getting SQLITE_BUSY error otherwise
 	}
 
-	err := MigrateDown(dm.db, dm.driverName)
+	err := MigrateDown(dm.dbConn, dm.driver)
 	assert.NoError(t, err)
 
 	err = dm.Close()
