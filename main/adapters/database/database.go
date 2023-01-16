@@ -18,18 +18,17 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/ubirch/ubirch-client-go/main/adapters/database/postgres"
 	"github.com/ubirch/ubirch-client-go/main/adapters/database/sqlite"
 	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
 	"github.com/ubirch/ubirch-client-go/main/ent"
-	"golang.org/x/xerrors"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
+	postgresLib "github.com/lib/pq"
 	sqliteLib "modernc.org/sqlite"
 
 	log "github.com/sirupsen/logrus"
@@ -38,7 +37,7 @@ import (
 type driverName string
 
 const (
-	postgresDriver driverName = "pgx"
+	postgresDriver driverName = "postgres"
 	sqliteDriver   driverName = "sqlite"
 
 	sqliteConfig = "?_txlock=EXCLUSIVE" + // https://www.sqlite.org/lang_transaction.html
@@ -126,7 +125,7 @@ func NewDatabaseManager(driverName, dataSourceName string, maxConns int, establi
 	defer cancel()
 
 	if err = dm.IsReady(ctx); err != nil {
-		if dm.driver == postgresDriver && pgconn.Timeout(err) {
+		if dm.driver == postgresDriver && os.IsTimeout(err) {
 			// if there is no connection to the database yet, continue anyway.
 			log.Warnf("connection to the database could not yet be established: %v", err)
 		} else {
@@ -520,7 +519,7 @@ func (dm *DatabaseManager) retry(f func() error) (err error) {
 func (dm *DatabaseManager) isRecoverable(err error) bool {
 	switch dm.driver {
 	case postgresDriver:
-		if pgErr, ok := xerrors.Unwrap(err).(*pgconn.PgError); ok {
+		if pgErr, ok := err.(*postgresLib.Error); ok {
 			if pgErr.Code == "55P03" || // lock_not_available
 				pgErr.Code == "53300" || // too_many_connections
 				pgErr.Code == "53400" { // configuration_limit_exceeded

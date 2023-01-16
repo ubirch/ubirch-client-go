@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
+	_ "github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 )
 

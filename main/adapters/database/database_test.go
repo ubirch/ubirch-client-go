@@ -14,13 +14,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
 	"github.com/ubirch/ubirch-client-go/main/config"
 	"github.com/ubirch/ubirch-client-go/main/ent"
-	"golang.org/x/xerrors"
+
+	postgresLib "github.com/lib/pq"
 )
 
 const (
@@ -335,7 +335,7 @@ func TestDatabaseManager_NotReady(t *testing.T) {
 
 	err = dm.IsReady(ctx)
 	require.Error(t, err)
-	require.EqualError(t, err, "failed to connect to `host=198.51.100.1 user=nousr database=nodatabase`: dial error (timeout: context deadline exceeded)")
+	require.EqualError(t, err, "dial tcp 198.51.100.1:5432: connect: connection timed out")
 }
 
 func TestDatabaseManager_StoreExisting(t *testing.T) {
@@ -547,7 +547,7 @@ func TestDatabaseManager_Retry(t *testing.T) {
 
 			_, err := dm.StartTransaction(ctx)
 			if err != nil {
-				if pgErr, ok := xerrors.Unwrap(err).(*pgconn.PgError); ok {
+				if pgErr, ok := err.(*postgresLib.Error); ok {
 					if pgErr.Code == "55P03" || // lock_not_available
 						pgErr.Code == "53300" || // too_many_connections
 						pgErr.Code == "53400" { // configuration_limit_exceeded
