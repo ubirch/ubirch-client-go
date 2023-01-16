@@ -66,9 +66,12 @@ var _ repository.ContextManager = (*DatabaseManager)(nil)
 
 // NewDatabaseManager takes a database connection string, returns a new initialized
 // SQL database manager.
-func NewDatabaseManager(driverName, dataSourceName string, maxConns int, migrate bool) (*DatabaseManager, error) {
+func NewDatabaseManager(driverName, dataSourceName string, maxConns int, establishConnTimeoutSec uint, migrate bool) (*DatabaseManager, error) {
 	if driverName == "" || dataSourceName == "" {
 		return nil, fmt.Errorf("empty database driverName or dataSourceName")
+	}
+	if establishConnTimeoutSec == 0 {
+		establishConnTimeoutSec = 1
 	}
 
 	dm := &DatabaseManager{}
@@ -117,7 +120,10 @@ func NewDatabaseManager(driverName, dataSourceName string, maxConns int, migrate
 		return nil, fmt.Errorf("unsupported database driver: %s", dm.driver)
 	}
 
-	if err = dm.IsReady(); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(establishConnTimeoutSec)*time.Second)
+	defer cancel()
+
+	if err = dm.IsReady(ctx); err != nil {
 		return nil, err
 	}
 
@@ -140,8 +146,8 @@ func (dm *DatabaseManager) Close() error {
 	return nil
 }
 
-func (dm *DatabaseManager) IsReady() error {
-	return dm.db.Ping()
+func (dm *DatabaseManager) IsReady(ctx context.Context) error {
+	return dm.db.PingContext(ctx)
 }
 
 func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx repository.TransactionCtx, err error) {

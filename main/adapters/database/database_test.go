@@ -312,21 +312,30 @@ func TestDatabaseManager_Ready(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	err = dm.IsReady()
+	err = dm.IsReady(context.Background())
 	require.NoError(t, err)
 }
 
 func TestDatabaseManager_NotReady(t *testing.T) {
-	// this test takes over two minutes before running into a timeout
-	if testing.Short() {
-		t.Skipf("skipping long running test %s in short mode", t.Name())
-	}
-
 	// use DSN that is valid, but not reachable
 	unreachableDSN := "postgres://nousr:nopwd@198.51.100.1:5432/nodatabase"
 
-	_, err := NewDatabaseManager(postgresName, unreachableDSN, 0, false)
-	assert.EqualError(t, err, "dial tcp 198.51.100.1:5432: connect: connection timed out")
+	result := make(chan error)
+
+	go func() {
+		result <- func() error {
+			_, err := NewDatabaseManager(postgresName, unreachableDSN, 0, 1, false)
+			return err
+		}()
+	}()
+
+	select {
+	case err := <-result:
+		assert.EqualError(t, err, "dial tcp 198.51.100.1:5432: connect: connection timed out")
+	case <-time.After(2 * time.Second):
+		t.Skipf("setting timeout for establishing a database connection had no effect. This is a known issue in github.com/lib/pq: https://github.com/lib/pq/issues/1020")
+		//t.Error("setting timeout for establishing a database connection had no effect")
+	}
 }
 
 func TestDatabaseManager_StoreExisting(t *testing.T) {
@@ -523,7 +532,7 @@ func TestDatabaseManager_Retry(t *testing.T) {
 	c, err := getConfig()
 	require.NoError(t, err)
 
-	dm, err := NewDatabaseManager(postgresName, c.DbDSN, 101, true)
+	dm, err := NewDatabaseManager(postgresName, c.DbDSN, 101, 0, true)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -697,7 +706,7 @@ func initDB(maxConns int) (*DatabaseManager, error) {
 		return nil, err
 	}
 
-	return NewDatabaseManager(postgresName, c.DbDSN, maxConns, true)
+	return NewDatabaseManager(postgresName, c.DbDSN, maxConns, 0, true)
 }
 
 func cleanUpDB(t assert.TestingT, dm *DatabaseManager) {

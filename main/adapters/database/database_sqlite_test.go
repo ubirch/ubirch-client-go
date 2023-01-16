@@ -271,7 +271,7 @@ func TestDatabaseManager_Ready_sqlite(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	err = dm.IsReady()
+	err = dm.IsReady(context.Background())
 	require.NoError(t, err)
 }
 
@@ -597,5 +597,5 @@ func TestDatabaseManager_GetExternalIdentityUUIDs_sqlite(t *testing.T) {
 }
 
 func initSQLiteDB(t *testing.T, maxConns int) (*DatabaseManager, error) {
-	return NewDatabaseManager(sqliteName, filepath.Join(t.TempDir(), testSQLiteDSN), maxConns, true)
+	return NewDatabaseManager(sqliteName, filepath.Join(t.TempDir(), testSQLiteDSN), maxConns, 0, true)
 }
