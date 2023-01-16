@@ -1,4 +1,4 @@
-package postgres
+package database
 
 import (
 	"database/sql"
@@ -7,14 +7,20 @@ import (
 	"net/http"
 
 	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/golang-migrate/migrate/v4/database/sqlite"
+	"github.com/golang-migrate/migrate/v4/source"
 	"github.com/golang-migrate/migrate/v4/source/httpfs"
 
 	log "github.com/sirupsen/logrus"
 )
 
-//go:embed migrations/*
-var migrations embed.FS
+//go:embed postgres/migrations/*
+var postgresMigrations embed.FS
+
+//go:embed sqlite/migrations/*
+var sqliteMigrations embed.FS
 
 // Log represents the logger for migrations
 type Log struct {
@@ -31,18 +37,50 @@ func (l *Log) Verbose() bool {
 	return log.IsLevelEnabled(log.DebugLevel) || l.verbose
 }
 
-func getMigrator(db *sql.DB) (*migrate.Migrate, error) {
-	sourceInstance, err := httpfs.New(http.FS(migrations), "migrations")
+type driverName string
+
+const (
+	postgresDriver driverName = "postgres"
+	sqliteDriver   driverName = "sqlite"
+)
+
+func getMigrator(db *sql.DB, driver driverName) (*migrate.Migrate, error) {
+	var (
+		sourceInstance source.Driver
+		driverInstance database.Driver
+		databaseName   string
+		err            error
+	)
+
+	switch driver {
+	case postgresDriver:
+		sourceInstance, err = httpfs.New(http.FS(postgresMigrations), "postgres/migrations")
+	case sqliteDriver:
+		sourceInstance, err = httpfs.New(http.FS(sqliteMigrations), "sqlite/migrations")
+	default:
+		return nil, fmt.Errorf("unsupported database driver: %s", driver)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("could not create new migrate source driver: %v", err)
 	}
 
-	driverInstance, err := postgres.WithInstance(db, &postgres.Config{})
+	switch driver {
+	case postgresDriver:
+		databaseName = "postgres"
+		driverInstance, err = postgres.WithInstance(db, &postgres.Config{})
+	case sqliteDriver:
+		databaseName = "sqlite"
+		driverInstance, err = sqlite.WithInstance(db, &sqlite.Config{NoTxWrap: true})
+	default:
+		return nil, fmt.Errorf("unsupported database driver: %s", driver)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("could not create new migrate database driver: %v", err)
 	}
 
-	migrator, err := migrate.NewWithInstance("httpfs", sourceInstance, "postgres", driverInstance)
+	migrator, err := migrate.NewWithInstance("httpfs", sourceInstance, databaseName, driverInstance)
 	if err != nil {
 		return nil, fmt.Errorf("could not create migrator: %v", err)
 	}
@@ -72,8 +110,8 @@ func checkMigrationError(migrator *migrate.Migrate, err error) error {
 	return nil
 }
 
-func MigrateUp(db *sql.DB) error {
-	migrator, err := getMigrator(db)
+func MigrateUp(db *sql.DB, driver driverName) error {
+	migrator, err := getMigrator(db, driver)
 	if err != nil {
 		return err
 	}
@@ -82,8 +120,8 @@ func MigrateUp(db *sql.DB) error {
 	return checkMigrationError(migrator, err)
 }
 
-func MigrateDown(db *sql.DB) error {
-	migrator, err := getMigrator(db)
+func MigrateDown(db *sql.DB, driver driverName) error {
+	migrator, err := getMigrator(db, driver)
 	if err != nil {
 		return err
 	}
@@ -92,8 +130,8 @@ func MigrateDown(db *sql.DB) error {
 	return checkMigrationError(migrator, err)
 }
 
-func Migrate(db *sql.DB, targetVersion uint) error {
-	migrator, err := getMigrator(db)
+func Migrate(db *sql.DB, driver driverName, targetVersion uint) error {
+	migrator, err := getMigrator(db, driver)
 	if err != nil {
 		return err
 	}
