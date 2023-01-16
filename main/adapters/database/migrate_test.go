@@ -11,6 +11,11 @@ import (
 )
 
 func TestMigrateUp_Postgres(t *testing.T) {
+	// this test communicates with the actual postgres database
+	if testing.Short() {
+		t.Skipf("skipping integration test %s in short mode", t.Name())
+	}
+
 	var dsn = os.Getenv("UBIRCH_TEST_DB_DSN")
 
 	db, err := sql.Open(string(postgresDriver), dsn)
@@ -28,6 +33,11 @@ func TestMigrateUp_Postgres(t *testing.T) {
 }
 
 func TestMigrate_Postgres(t *testing.T) {
+	// this test communicates with the actual postgres database
+	if testing.Short() {
+		t.Skipf("skipping integration test %s in short mode", t.Name())
+	}
+
 	var dsn = os.Getenv("UBIRCH_TEST_DB_DSN")
 
 	db, err := sql.Open(string(postgresDriver), dsn)
@@ -44,6 +54,11 @@ func TestMigrate_Postgres(t *testing.T) {
 }
 
 func TestMigrate_Down_Postgres(t *testing.T) {
+	// this test communicates with the actual postgres database
+	if testing.Short() {
+		t.Skipf("skipping integration test %s in short mode", t.Name())
+	}
+
 	var dsn = os.Getenv("UBIRCH_TEST_DB_DSN")
 
 	db, err := sql.Open(string(postgresDriver), dsn)
