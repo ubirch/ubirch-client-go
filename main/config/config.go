@@ -79,7 +79,6 @@ type Config struct {
 	DbDriver                      string            `json:"dbDriver" envconfig:"DB_DRIVER"`                                              // database driver name
 	DbDSN                         string            `json:"dbDSN" envconfig:"DB_DSN"`                                                    // data source name for database, path to the sqlite db file
 	DbMaxConns                    int               `json:"dbMaxConns" envconfig:"DB_MAX_CONNS"`                                         // maximum number of open connections to the database
-	DbEstablishConnTimeoutSec     uint              `json:"dbEstablishConnTimeoutSec" envconfig:"DB_ESTABLISH_CONN_TIMEOUT_SEC"`         // timeout for trying to establish a database connection
 	TCP_addr                      string            `json:"TCP_addr"`                                                                    // the TCP address for the server to listen on, in the form "host:port", defaults to ":8080"
 	TLS                           bool              `json:"TLS"`                                                                         // enable serving HTTPS endpoints, defaults to 'false'
 	TLS_CertFile                  string            `json:"TLSCertFile"`                                                                 // filename of TLS certificate file name, defaults to "cert.pem"

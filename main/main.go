@@ -79,7 +79,7 @@ func main() {
 	}
 
 	// initialize ubirch protocol
-	ctxManager, err := database.NewDatabaseManager(conf.DbDriver, conf.DbDSN, conf.DbMaxConns, conf.DbEstablishConnTimeoutSec, migrate)
+	ctxManager, err := database.NewDatabaseManager(conf.DbDriver, conf.DbDSN, conf.DbMaxConns, migrate)
 	if err != nil {
 		log.Fatal(err)
 	}
