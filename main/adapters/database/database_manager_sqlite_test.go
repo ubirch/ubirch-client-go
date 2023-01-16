@@ -474,11 +474,6 @@ func TestDatabaseLoad_sqlite(t *testing.T) {
 		}(testId)
 	}
 	wg.Wait()
-
-	// FIXME
-	//if dm.db.Stats().OpenConnections > dm.db.Stats().Idle {
-	//	t.Errorf("%d open connections, %d idle", dm.db.Stats().OpenConnections, dm.db.Stats().Idle)
-	//}
 }
 
 func TestDatabaseManager_Retry_sqlite(t *testing.T) {
