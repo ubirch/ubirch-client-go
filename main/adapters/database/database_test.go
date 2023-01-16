@@ -789,6 +789,7 @@ func getTestIdentity() ent.Identity {
 		PublicKey:  testPubKey,
 		Signature:  testSignature,
 		AuthToken:  testAuth,
+		Active:     true,
 	}
 }
 
@@ -840,6 +841,10 @@ func checkIdentity(ctxManager repository.ContextManager, id ent.Identity, wg *sy
 
 	if fetchedId.AuthToken != id.AuthToken {
 		return fmt.Errorf("unexpected auth token")
+	}
+
+	if fetchedId.Active != id.Active {
+		return fmt.Errorf("unexpected active flag")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
