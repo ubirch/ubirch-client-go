@@ -2,7 +2,6 @@ package database
 
 import (
 	"database/sql"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -16,9 +15,10 @@ func TestMigrateUp_Postgres(t *testing.T) {
 		t.Skipf("skipping integration test %s in short mode", t.Name())
 	}
 
-	var dsn = os.Getenv("UBIRCH_TEST_DB_DSN")
+	c, err := getConfig()
+	require.NoError(t, err)
 
-	db, err := sql.Open(string(postgresDriver), dsn)
+	db, err := sql.Open(PostgreSQL, c.DbDSN)
 	require.NoError(t, err)
 	defer func() {
 		err := db.Close()
@@ -28,7 +28,7 @@ func TestMigrateUp_Postgres(t *testing.T) {
 	}()
 
 	// migrate database schema to the latest version
-	err = MigrateUp(db, postgresDriver)
+	err = MigrateUp(db, PostgreSQL)
 	require.NoError(t, err)
 }
 
@@ -38,9 +38,10 @@ func TestMigrate_Postgres(t *testing.T) {
 		t.Skipf("skipping integration test %s in short mode", t.Name())
 	}
 
-	var dsn = os.Getenv("UBIRCH_TEST_DB_DSN")
+	c, err := getConfig()
+	require.NoError(t, err)
 
-	db, err := sql.Open(string(postgresDriver), dsn)
+	db, err := sql.Open(PostgreSQL, c.DbDSN)
 	require.NoError(t, err)
 	defer func() {
 		err := db.Close()
@@ -49,7 +50,7 @@ func TestMigrate_Postgres(t *testing.T) {
 		}
 	}()
 
-	err = Migrate(db, postgresDriver, 1)
+	err = Migrate(db, PostgreSQL, 1)
 	require.NoError(t, err)
 }
 
@@ -59,9 +60,10 @@ func TestMigrate_Down_Postgres(t *testing.T) {
 		t.Skipf("skipping integration test %s in short mode", t.Name())
 	}
 
-	var dsn = os.Getenv("UBIRCH_TEST_DB_DSN")
+	c, err := getConfig()
+	require.NoError(t, err)
 
-	db, err := sql.Open(string(postgresDriver), dsn)
+	db, err := sql.Open(PostgreSQL, c.DbDSN)
 	require.NoError(t, err)
 	defer func() {
 		err := db.Close()
@@ -70,16 +72,14 @@ func TestMigrate_Down_Postgres(t *testing.T) {
 		}
 	}()
 
-	err = MigrateDown(db, postgresDriver)
+	err = MigrateDown(db, PostgreSQL)
 	require.NoError(t, err)
 }
 
-const testSQLiteDSN = "test.db"
-
 func TestMigrateUp_Sqlite(t *testing.T) {
-	var dsn = filepath.Join(t.TempDir(), testSQLiteDSN)
+	var dsn = filepath.Join(t.TempDir(), testSQLiteDSN+sqliteConfig)
 
-	db, err := sql.Open(string(sqliteDriver), dsn)
+	db, err := sql.Open(SQLite, dsn)
 	require.NoError(t, err)
 	defer func() {
 		err := db.Close()
@@ -89,14 +89,14 @@ func TestMigrateUp_Sqlite(t *testing.T) {
 	}()
 
 	// migrate database schema to the latest version
-	err = MigrateUp(db, sqliteDriver)
+	err = MigrateUp(db, SQLite)
 	require.NoError(t, err)
 }
 
 func TestMigrate_Sqlite(t *testing.T) {
-	var dsn = filepath.Join(t.TempDir(), testSQLiteDSN)
+	var dsn = filepath.Join(t.TempDir(), testSQLiteDSN+sqliteConfig)
 
-	db, err := sql.Open(string(sqliteDriver), dsn)
+	db, err := sql.Open(SQLite, dsn)
 	require.NoError(t, err)
 	defer func() {
 		err := db.Close()
@@ -105,14 +105,14 @@ func TestMigrate_Sqlite(t *testing.T) {
 		}
 	}()
 
-	err = Migrate(db, sqliteDriver, 1)
+	err = Migrate(db, SQLite, 1)
 	require.NoError(t, err)
 }
 
 func TestMigrate_Down_Sqlite(t *testing.T) {
-	var dsn = filepath.Join(t.TempDir(), testSQLiteDSN)
+	var dsn = filepath.Join(t.TempDir(), testSQLiteDSN+sqliteConfig)
 
-	db, err := sql.Open(string(sqliteDriver), dsn)
+	db, err := sql.Open(SQLite, dsn)
 	require.NoError(t, err)
 	defer func() {
 		err := db.Close()
@@ -121,9 +121,10 @@ func TestMigrate_Down_Sqlite(t *testing.T) {
 		}
 	}()
 
-	err = MigrateUp(db, sqliteDriver)
+	// migrate up first so we can migrate down from there
+	err = MigrateUp(db, SQLite)
 	require.NoError(t, err)
 
-	err = MigrateDown(db, sqliteDriver)
+	err = MigrateDown(db, SQLite)
 	require.NoError(t, err)
 }

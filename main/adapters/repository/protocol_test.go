@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -546,60 +547,9 @@ func TestProtocol_Cache(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func() {
-			err := checkIdentity(p, testIdentity, protocolCheckAuth, wg)
+			err := checkIdentity(p, testIdentity, wg)
 			assert.NoError(t, err)
 		}()
-	}
-	wg.Wait()
-}
-
-func TestProtocolLoad(t *testing.T) {
-	// this test communicates with the actual postgres database
-	if testing.Short() {
-		t.Skipf("skipping integration test %s in short mode", t.Name())
-	}
-
-	wg := &sync.WaitGroup{}
-
-	dm, err := initDB(0)
-	require.NoError(t, err)
-	defer cleanUpDB(t, dm)
-
-	p, err := NewExtendedProtocol(dm, &config.Config{SecretBytes32: testSecret})
-	require.NoError(t, err)
-
-	// generate identities
-	var testIdentities []ent.Identity
-	for i := 0; i < testLoad/10; i++ {
-		testId := getTestIdentity()
-		testId.Uid = uuid.New()
-
-		testIdentities = append(testIdentities, testId)
-	}
-
-	// store identities
-	for _, testId := range testIdentities {
-		wg.Add(1)
-		go func(id ent.Identity) {
-			defer wg.Done()
-
-			err := storeIdentity(p, id)
-			if err != nil {
-				t.Errorf("%s: identity could not be stored: %v", id.Uid, err)
-			}
-		}(testId)
-	}
-	wg.Wait()
-
-	// check identities
-	for _, testId := range testIdentities {
-		wg.Add(1)
-		go func(id ent.Identity) {
-			err := checkIdentity(p, id, protocolCheckAuth, wg)
-			if err != nil {
-				t.Errorf("%s: %v", id.Uid, err)
-			}
-		}(testId)
 	}
 	wg.Wait()
 }
@@ -614,7 +564,7 @@ func getTestIdentity() ent.Identity {
 	}
 }
 
-func protocolCheckAuth(auth, authToCheck string) error {
+func checkAuth(auth, authToCheck string) error {
 	pwHasher := &pw.Argon2idKeyDerivator{}
 
 	_, ok, err := pwHasher.CheckPassword(context.Background(), auth, authToCheck)
@@ -624,5 +574,59 @@ func protocolCheckAuth(auth, authToCheck string) error {
 	if !ok {
 		return fmt.Errorf("LoadAuth returned unexpected value")
 	}
+	return nil
+}
+
+func checkIdentity(ctxManager ContextManager, id ent.Identity, wg *sync.WaitGroup) error {
+	defer wg.Done()
+
+	fetchedId, err := ctxManager.LoadIdentity(id.Uid)
+	if err != nil {
+		return fmt.Errorf("LoadIdentity: %v", err)
+	}
+
+	if fetchedId.Uid != id.Uid {
+		return fmt.Errorf("unexpected uuid")
+	}
+
+	if !bytes.Equal(fetchedId.PrivateKey, id.PrivateKey) {
+		return fmt.Errorf("unexpected private key")
+	}
+
+	if !bytes.Equal(fetchedId.PublicKey, id.PublicKey) {
+		return fmt.Errorf("unexpected public key")
+	}
+
+	if !bytes.Equal(fetchedId.Signature, id.Signature) {
+		return fmt.Errorf("unexpected signature")
+	}
+
+	err = checkAuth(fetchedId.AuthToken, id.AuthToken)
+	if err != nil {
+		return fmt.Errorf("checkAuth: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := ctxManager.StartTransaction(ctx)
+	if err != nil {
+		return fmt.Errorf("StartTransaction: %v", err)
+	}
+
+	sig, err := ctxManager.LoadSignatureForUpdate(tx, id.Uid)
+	if err != nil {
+		return fmt.Errorf("LoadSignatureForUpdate: %v", err)
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("Commit: %v", err)
+	}
+
+	if !bytes.Equal(sig, id.Signature) {
+		return fmt.Errorf("LoadSignatureForUpdate returned unexpected value")
+	}
+
 	return nil
 }

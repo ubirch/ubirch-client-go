@@ -1,4 +1,4 @@
-package repository
+package database
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
 )
 
 func BenchmarkPostgres(b *testing.B) {
@@ -24,7 +25,7 @@ func BenchmarkPostgres(b *testing.B) {
 }
 
 func BenchmarkSQLite(b *testing.B) {
-	dm, err := NewDatabaseManager(SQLite, filepath.Join(b.TempDir(), testSQLiteDSN), 0)
+	dm, err := NewDatabaseManager(SQLite, filepath.Join(b.TempDir(), testSQLiteDSN), 0, true)
 	require.NoError(b, err)
 	defer cleanUpDB(b, dm)
 
@@ -58,7 +59,7 @@ func BenchmarkPostgres_async(b *testing.B) {
 }
 
 func BenchmarkSQLite_async(b *testing.B) {
-	dm, err := NewDatabaseManager(SQLite, filepath.Join(b.TempDir(), testSQLiteDSN), 0)
+	dm, err := NewDatabaseManager(SQLite, filepath.Join(b.TempDir(), testSQLiteDSN), 0, true)
 	require.NoError(b, err)
 	defer cleanUpDB(b, dm)
 
@@ -87,7 +88,7 @@ func BenchmarkSQLite_config(b *testing.B) {
 		"&_pragma=journal_size_limit(1000)" + // max WAL file size in bytes https://www.sqlite.org/pragma.html#pragma_journal_size_limit
 		"&_pragma=busy_timeout(100)" // https://www.sqlite.org/pragma.html#pragma_busy_timeout
 
-	dm, err := NewDatabaseManager(SQLite, filepath.Join(b.TempDir(), sqliteWithNonDefaultConfig), 0)
+	dm, err := NewDatabaseManager(SQLite, filepath.Join(b.TempDir(), sqliteWithNonDefaultConfig), 0, true)
 	require.NoError(b, err)
 	defer cleanUpDB(b, dm)
 
@@ -107,7 +108,7 @@ func BenchmarkSQLite_config(b *testing.B) {
 	}
 }
 
-func storeTestIdentity(t require.TestingT, ctxManager ContextManager) {
+func storeTestIdentity(t require.TestingT, ctxManager repository.ContextManager) {
 	testId := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -123,7 +124,7 @@ func storeTestIdentity(t require.TestingT, ctxManager ContextManager) {
 	require.NoError(t, err)
 }
 
-func updateSignature(t require.TestingT, ctxManager ContextManager) {
+func updateSignature(t require.TestingT, ctxManager repository.ContextManager) {
 	testId := getTestIdentity()
 
 	_, err := ctxManager.LoadActiveFlag(testId.Uid)

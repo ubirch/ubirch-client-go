@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
+	"github.com/ubirch/ubirch-client-go/main/adapters/database"
 	"github.com/ubirch/ubirch-client-go/main/adapters/handlers"
 	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
 	"github.com/ubirch/ubirch-client-go/main/auditlogger"
@@ -76,16 +77,8 @@ func main() {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
 
-	if migrate {
-		err := repository.Migrate(conf, configDir)
-		if err != nil {
-			log.Fatalf("migration failed: %v", err)
-		}
-		os.Exit(0)
-	}
-
 	// initialize ubirch protocol
-	ctxManager, err := repository.GetContextManager(conf)
+	ctxManager, err := database.NewDatabaseManager(conf.DbDriver, conf.DbDSN, conf.DbMaxConns, migrate)
 	if err != nil {
 		log.Fatal(err)
 	}

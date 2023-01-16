@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package repository
+package database
 
 import (
 	"context"
@@ -23,6 +23,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
 	"github.com/ubirch/ubirch-client-go/main/ent"
 	"modernc.org/sqlite"
 
@@ -53,25 +54,28 @@ type DatabaseManager struct {
 }
 
 // Ensure Database implements the ContextManager interface
-var _ ContextManager = (*DatabaseManager)(nil)
+var _ repository.ContextManager = (*DatabaseManager)(nil)
 
 // NewDatabaseManager takes a database connection string, returns a new initialized
 // SQL database manager.
-func NewDatabaseManager(driverName, dataSourceName string, maxConns int) (*DatabaseManager, error) {
+func NewDatabaseManager(driverName, dataSourceName string, maxConns int, migrate bool) (*DatabaseManager, error) {
 	if driverName == "" || dataSourceName == "" {
 		return nil, fmt.Errorf("empty database driverName or dataSourceName")
 	}
 
-	var isolationLvl sql.IsolationLevel
-	var createStatements []string
+	dm := &DatabaseManager{}
 
 	switch driverName {
 	case PostgreSQL:
-		isolationLvl = sql.LevelReadCommitted
-		createStatements = createPostgres
+		dm.driverName = PostgreSQL
+		dm.options = &sql.TxOptions{
+			Isolation: sql.LevelReadCommitted,
+		}
 	case SQLite:
-		isolationLvl = sql.LevelSerializable
-		createStatements = createSQLite
+		dm.driverName = SQLite
+		dm.options = &sql.TxOptions{
+			Isolation: sql.LevelSerializable,
+		}
 		if !strings.Contains(dataSourceName, "?") {
 			dataSourceName += sqliteConfig
 		}
@@ -82,36 +86,27 @@ func NewDatabaseManager(driverName, dataSourceName string, maxConns int) (*Datab
 
 	log.Infof("initializing %s database connection", driverName)
 
-	db, err := sql.Open(driverName, dataSourceName)
+	var err error
+
+	dm.db, err = sql.Open(driverName, dataSourceName)
 	if err != nil {
 		return nil, err
 	}
 
-	db.SetMaxOpenConns(maxConns)
-	db.SetMaxIdleConns(maxConns)
-	db.SetConnMaxLifetime(10 * time.Minute)
-	db.SetConnMaxIdleTime(1 * time.Minute)
+	dm.db.SetMaxOpenConns(maxConns)
+	dm.db.SetMaxIdleConns(maxConns)
+	dm.db.SetConnMaxLifetime(10 * time.Minute)
+	dm.db.SetConnMaxIdleTime(1 * time.Minute)
 
-	dm := &DatabaseManager{
-		options: &sql.TxOptions{
-			Isolation: isolationLvl,
-			ReadOnly:  false,
-		},
-		db:         db,
-		driverName: driverName,
+	if err = dm.db.Ping(); err != nil {
+		return nil, err
 	}
 
-	if err = db.Ping(); err != nil {
-		if driverName == PostgreSQL && strings.Contains(err.Error(), "connection refused") {
-			// if there is no connection to the database yet, continue anyway.
-			log.Warnf("connection to the database could not yet be established: %v", err)
-		} else {
-			return nil, err
-		}
-	} else {
-		err = dm.CreateTables(createStatements)
+	// migrate database schema to the latest version
+	if migrate {
+		err = MigrateUp(dm.db, dm.driverName)
 		if err != nil {
-			return nil, fmt.Errorf("creating DB table failed: %v", err)
+			return nil, err
 		}
 	}
 
@@ -133,7 +128,7 @@ func (dm *DatabaseManager) IsReady() error {
 	return nil
 }
 
-func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx TransactionCtx, err error) {
+func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx repository.TransactionCtx, err error) {
 	err = dm.retry(func() error {
 		transactionCtx, err = dm.db.BeginTx(ctx, dm.options)
 		return err
@@ -141,7 +136,7 @@ func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx
 	return transactionCtx, err
 }
 
-func (dm *DatabaseManager) StoreIdentity(transactionCtx TransactionCtx, i ent.Identity) error {
+func (dm *DatabaseManager) StoreIdentity(transactionCtx repository.TransactionCtx, i ent.Identity) error {
 	tx, ok := transactionCtx.(*sql.Tx)
 	if !ok {
 		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
@@ -163,7 +158,7 @@ func (dm *DatabaseManager) LoadIdentity(uid uuid.UUID) (*ent.Identity, error) {
 	err := dm.retry(func() error {
 		err := dm.db.QueryRow(query, uid).Scan(&i.PrivateKey, &i.PublicKey, &i.Signature, &i.AuthToken)
 		if err == sql.ErrNoRows {
-			return ErrNotExist
+			return repository.ErrNotExist
 		}
 		return err
 	})
@@ -171,7 +166,7 @@ func (dm *DatabaseManager) LoadIdentity(uid uuid.UUID) (*ent.Identity, error) {
 	return &i, err
 }
 
-func (dm *DatabaseManager) StoreActiveFlag(transactionCtx TransactionCtx, uid uuid.UUID, active bool) error {
+func (dm *DatabaseManager) StoreActiveFlag(transactionCtx repository.TransactionCtx, uid uuid.UUID, active bool) error {
 	tx, ok := transactionCtx.(*sql.Tx)
 	if !ok {
 		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
@@ -184,7 +179,7 @@ func (dm *DatabaseManager) StoreActiveFlag(transactionCtx TransactionCtx, uid uu
 	return err
 }
 
-func (dm *DatabaseManager) LoadActiveFlagForUpdate(transactionCtx TransactionCtx, uid uuid.UUID) (active bool, err error) {
+func (dm *DatabaseManager) LoadActiveFlagForUpdate(transactionCtx repository.TransactionCtx, uid uuid.UUID) (active bool, err error) {
 	tx, ok := transactionCtx.(*sql.Tx)
 	if !ok {
 		return false, fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
@@ -199,7 +194,7 @@ func (dm *DatabaseManager) LoadActiveFlagForUpdate(transactionCtx TransactionCtx
 
 	err = tx.QueryRow(query, uid).Scan(&active)
 	if err == sql.ErrNoRows {
-		return false, ErrNotExist
+		return false, repository.ErrNotExist
 	}
 
 	return active, err
@@ -211,7 +206,7 @@ func (dm *DatabaseManager) LoadActiveFlag(uid uuid.UUID) (active bool, err error
 	err = dm.retry(func() error {
 		err := dm.db.QueryRow(query, uid).Scan(&active)
 		if err == sql.ErrNoRows {
-			return ErrNotExist
+			return repository.ErrNotExist
 		}
 		return err
 	})
@@ -219,7 +214,7 @@ func (dm *DatabaseManager) LoadActiveFlag(uid uuid.UUID) (active bool, err error
 	return active, err
 }
 
-func (dm *DatabaseManager) StoreSignature(transactionCtx TransactionCtx, uid uuid.UUID, signature []byte) error {
+func (dm *DatabaseManager) StoreSignature(transactionCtx repository.TransactionCtx, uid uuid.UUID, signature []byte) error {
 	tx, ok := transactionCtx.(*sql.Tx)
 	if !ok {
 		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
@@ -232,7 +227,7 @@ func (dm *DatabaseManager) StoreSignature(transactionCtx TransactionCtx, uid uui
 	return err
 }
 
-func (dm *DatabaseManager) LoadSignatureForUpdate(transactionCtx TransactionCtx, uid uuid.UUID) (signature []byte, err error) {
+func (dm *DatabaseManager) LoadSignatureForUpdate(transactionCtx repository.TransactionCtx, uid uuid.UUID) (signature []byte, err error) {
 	tx, ok := transactionCtx.(*sql.Tx)
 	if !ok {
 		return nil, fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
@@ -247,13 +242,13 @@ func (dm *DatabaseManager) LoadSignatureForUpdate(transactionCtx TransactionCtx,
 
 	err = tx.QueryRow(query, uid).Scan(&signature)
 	if err == sql.ErrNoRows {
-		return nil, ErrNotExist
+		return nil, repository.ErrNotExist
 	}
 
 	return signature, err
 }
 
-func (dm *DatabaseManager) StoreAuth(transactionCtx TransactionCtx, uid uuid.UUID, auth string) error {
+func (dm *DatabaseManager) StoreAuth(transactionCtx repository.TransactionCtx, uid uuid.UUID, auth string) error {
 	tx, ok := transactionCtx.(*sql.Tx)
 	if !ok {
 		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
@@ -266,7 +261,7 @@ func (dm *DatabaseManager) StoreAuth(transactionCtx TransactionCtx, uid uuid.UUI
 	return err
 }
 
-func (dm *DatabaseManager) LoadAuthForUpdate(transactionCtx TransactionCtx, uid uuid.UUID) (auth string, err error) {
+func (dm *DatabaseManager) LoadAuthForUpdate(transactionCtx repository.TransactionCtx, uid uuid.UUID) (auth string, err error) {
 	tx, ok := transactionCtx.(*sql.Tx)
 	if !ok {
 		return "", fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
@@ -281,7 +276,7 @@ func (dm *DatabaseManager) LoadAuthForUpdate(transactionCtx TransactionCtx, uid 
 
 	err = tx.QueryRow(query, uid).Scan(&auth)
 	if err == sql.ErrNoRows {
-		return "", ErrNotExist
+		return "", repository.ErrNotExist
 	}
 
 	return auth, err
@@ -306,7 +301,7 @@ func (dm *DatabaseManager) LoadExternalIdentity(ctx context.Context, uid uuid.UU
 	err := dm.retry(func() error {
 		err := dm.db.QueryRowContext(ctx, query, uid).Scan(&extId.PublicKey)
 		if err == sql.ErrNoRows {
-			return ErrNotExist
+			return repository.ErrNotExist
 		}
 		return err
 	})
@@ -368,12 +363,6 @@ func (dm *DatabaseManager) isRecoverable(err error) bool {
 			switch pqErr.Code {
 			case "55P03", "53300", "53400": // lock_not_available, too_many_connections, configuration_limit_exceeded
 				time.Sleep(10 * time.Millisecond)
-				return true
-			case "42P01": // undefined_table
-				err = dm.CreateTables(createPostgres)
-				if err != nil {
-					log.Errorf("creating DB table failed: %v", err)
-				}
 				return true
 			}
 			log.Errorf("unexpected postgres database error: %s", pqErr)
