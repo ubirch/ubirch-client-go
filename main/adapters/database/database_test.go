@@ -217,7 +217,7 @@ func TestDatabaseManager_LoadSignatureForUpdate(t *testing.T) {
 
 	testIdentity := getTestIdentity()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	// store identity
