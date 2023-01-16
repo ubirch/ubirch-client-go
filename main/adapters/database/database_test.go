@@ -420,7 +420,7 @@ func TestDatabaseManager_StartTransaction(t *testing.T) {
 		t.Skipf("skipping integration test %s in short mode", t.Name())
 	}
 
-	dm, err := initDB(1)
+	dm, err := initDB(2) // since migration is using a database connection, this test needs 2 connections
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
