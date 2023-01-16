@@ -7,7 +7,7 @@ sql:
       go:
         package: postgres
         out: "./postgres/"
-        sql_package: pgx/v5
+        sql_package: database/sql
         emit_interface: true
   - schema: "sqlite/migrations/"
     queries: "sqlite/queries/"
