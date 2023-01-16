@@ -18,7 +18,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -118,25 +117,12 @@ func NewDatabaseManager(driverName, dataSourceName string, maxConns int, migrate
 		return nil, fmt.Errorf("unsupported database driver: %s", dm.driver)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-
-	if err = dm.IsReady(ctx); err != nil {
-		if dm.driver == postgresDriver && os.IsTimeout(err) {
-			// if there is no connection to the database yet, continue anyway.
-			log.Warnf("connection to the database could not yet be established: %v", err)
-		} else {
-			return nil, err
-		}
+	if err = dm.IsReady(); err != nil {
+		return nil, err
 	}
 
 	// migrate database schema to the latest version
 	if migrate {
-		err = dm.db.Ping()
-		if err != nil {
-			return nil, err
-		}
-
 		err = MigrateUp(dm.db, dm.driver)
 		if err != nil {
 			return nil, err
@@ -154,8 +140,8 @@ func (dm *DatabaseManager) Close() error {
 	return nil
 }
 
-func (dm *DatabaseManager) IsReady(ctx context.Context) error {
-	return dm.db.PingContext(ctx)
+func (dm *DatabaseManager) IsReady() error {
+	return dm.db.Ping()
 }
 
 func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx repository.TransactionCtx, err error) {

@@ -78,7 +78,7 @@ const (
 )
 
 var (
-	readinessChecks []func(ctx context.Context) error
+	readinessChecks []func() error
 )
 
 func TestInitHTTPServer(t *testing.T) {

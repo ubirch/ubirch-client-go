@@ -271,7 +271,7 @@ func TestDatabaseManager_Ready_sqlite(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	err = dm.IsReady(context.Background())
+	err = dm.IsReady()
 	require.NoError(t, err)
 }
 

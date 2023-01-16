@@ -34,7 +34,7 @@ type ContextManager interface {
 	GetIdentityUUIDs() ([]uuid.UUID, error)
 	GetExternalIdentityUUIDs() ([]uuid.UUID, error)
 
-	IsReady(context.Context) error
+	IsReady() error
 	Close() error
 }
 

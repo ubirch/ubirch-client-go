@@ -312,30 +312,21 @@ func TestDatabaseManager_Ready(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	err = dm.IsReady(context.Background())
+	err = dm.IsReady()
 	require.NoError(t, err)
 }
 
 func TestDatabaseManager_NotReady(t *testing.T) {
+	// this test takes over two minutes before running into a timeout
+	if testing.Short() {
+		t.Skipf("skipping long running test %s in short mode", t.Name())
+	}
+
 	// use DSN that is valid, but not reachable
 	unreachableDSN := "postgres://nousr:nopwd@198.51.100.1:5432/nodatabase"
 
-	// we expect no error here
-	dm, err := NewDatabaseManager(postgresName, unreachableDSN, 0, false)
-	require.NoError(t, err)
-	defer func() {
-		err := dm.Close()
-		if err != nil {
-			t.Error(err)
-		}
-	}()
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-
-	err = dm.IsReady(ctx)
-	require.Error(t, err)
-	require.EqualError(t, err, "dial tcp 198.51.100.1:5432: connect: connection timed out")
+	_, err := NewDatabaseManager(postgresName, unreachableDSN, 0, false)
+	assert.EqualError(t, err, "dial tcp 198.51.100.1:5432: connect: connection timed out")
 }
 
 func TestDatabaseManager_StoreExisting(t *testing.T) {
