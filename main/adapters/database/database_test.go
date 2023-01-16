@@ -321,7 +321,7 @@ func TestDatabaseManager_NotReady(t *testing.T) {
 	unreachableDSN := "postgres://nousr:nopwd@198.51.100.1:5432/nodatabase"
 
 	// we expect no error here
-	dm, err := NewDatabaseManager(postgresName, unreachableDSN, 0, false)
+	dm, err := NewDatabaseManager(postgresName, unreachableDSN, 0, 0, false)
 	require.NoError(t, err)
 	defer func() {
 		err := dm.Close()
@@ -532,7 +532,7 @@ func TestDatabaseManager_Retry(t *testing.T) {
 	c, err := getConfig()
 	require.NoError(t, err)
 
-	dm, err := NewDatabaseManager(postgresName, c.DbDSN, 101, true)
+	dm, err := NewDatabaseManager(postgresName, c.DbDSN, 101, 0, true)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -706,7 +706,7 @@ func initDB(maxConns int) (*DatabaseManager, error) {
 		return nil, err
 	}
 
-	return NewDatabaseManager(postgresName, c.DbDSN, maxConns, true)
+	return NewDatabaseManager(postgresName, c.DbDSN, maxConns, 0, true)
 }
 
 func cleanUpDB(t assert.TestingT, dm *DatabaseManager) {
