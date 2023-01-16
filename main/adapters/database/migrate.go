@@ -37,14 +37,7 @@ func (l *Log) Verbose() bool {
 	return log.IsLevelEnabled(log.DebugLevel) || l.verbose
 }
 
-type driverName string
-
-const (
-	postgresDriver driverName = "postgres"
-	sqliteDriver   driverName = "sqlite"
-)
-
-func getMigrator(db *sql.DB, driver driverName) (*migrate.Migrate, error) {
+func getMigrator(db *sql.DB, driver string) (*migrate.Migrate, error) {
 	var (
 		sourceInstance source.Driver
 		driverInstance database.Driver
@@ -53,9 +46,9 @@ func getMigrator(db *sql.DB, driver driverName) (*migrate.Migrate, error) {
 	)
 
 	switch driver {
-	case postgresDriver:
+	case PostgreSQL:
 		sourceInstance, err = httpfs.New(http.FS(postgresMigrations), "postgres/migrations")
-	case sqliteDriver:
+	case SQLite:
 		sourceInstance, err = httpfs.New(http.FS(sqliteMigrations), "sqlite/migrations")
 	default:
 		return nil, fmt.Errorf("unsupported database driver: %s", driver)
@@ -66,10 +59,10 @@ func getMigrator(db *sql.DB, driver driverName) (*migrate.Migrate, error) {
 	}
 
 	switch driver {
-	case postgresDriver:
+	case PostgreSQL:
 		databaseName = "postgres"
 		driverInstance, err = postgres.WithInstance(db, &postgres.Config{})
-	case sqliteDriver:
+	case SQLite:
 		databaseName = "sqlite"
 		driverInstance, err = sqlite.WithInstance(db, &sqlite.Config{NoTxWrap: true})
 	default:
@@ -110,7 +103,7 @@ func checkMigrationError(migrator *migrate.Migrate, err error) error {
 	return nil
 }
 
-func MigrateUp(db *sql.DB, driver driverName) error {
+func MigrateUp(db *sql.DB, driver string) error {
 	migrator, err := getMigrator(db, driver)
 	if err != nil {
 		return err
@@ -120,7 +113,7 @@ func MigrateUp(db *sql.DB, driver driverName) error {
 	return checkMigrationError(migrator, err)
 }
 
-func MigrateDown(db *sql.DB, driver driverName) error {
+func MigrateDown(db *sql.DB, driver string) error {
 	migrator, err := getMigrator(db, driver)
 	if err != nil {
 		return err
@@ -130,7 +123,7 @@ func MigrateDown(db *sql.DB, driver driverName) error {
 	return checkMigrationError(migrator, err)
 }
 
-func Migrate(db *sql.DB, driver driverName, targetVersion uint) error {
+func Migrate(db *sql.DB, driver string, targetVersion uint) error {
 	migrator, err := getMigrator(db, driver)
 	if err != nil {
 		return err
