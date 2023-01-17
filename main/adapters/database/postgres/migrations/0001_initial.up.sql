@@ -16,4 +16,6 @@ CREATE TABLE IF NOT EXISTS external_identity
     public_key BYTEA        NOT NULL
 );
 
+DROP TABLE IF EXISTS version; -- remove legacy migration version table
+
 COMMIT;
