@@ -58,7 +58,7 @@ var _ repository.ContextManager = (*DatabaseManager)(nil)
 
 // NewDatabaseManager takes a database connection string, returns a new initialized
 // SQL database manager.
-func NewDatabaseManager(driverName, dataSourceName string, maxConns int, migrate bool) (*DatabaseManager, error) {
+func NewDatabaseManager(driverName, dataSourceName string, maxConns int) (*DatabaseManager, error) {
 	if driverName == "" || dataSourceName == "" {
 		return nil, fmt.Errorf("empty database driverName or dataSourceName")
 	}
@@ -103,11 +103,9 @@ func NewDatabaseManager(driverName, dataSourceName string, maxConns int, migrate
 	}
 
 	// migrate database schema to the latest version
-	if migrate {
-		err = MigrateUp(dm.db, dm.driverName)
-		if err != nil {
-			return nil, err
-		}
+	err = MigrateUp(dm.db, dm.driverName)
+	if err != nil {
+		return nil, err
 	}
 
 	return dm, nil

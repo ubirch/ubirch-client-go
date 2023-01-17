@@ -15,8 +15,8 @@
 package main
 
 import (
+	"flag"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/ubirch/ubirch-client-go/main/adapters/clients"
@@ -41,15 +41,18 @@ func main() {
 	const (
 		serviceName = "ubirch-client"
 		configFile  = "config.json"
-		MigrateArg  = "--migrate"
 	)
 
 	var (
-		configDir       string
-		migrate         bool
 		serverID        = fmt.Sprintf("%s/%s", serviceName, Version)
 		readinessChecks []func() error
+
+		// declare command-line flags
+		configDir = flag.String("configdirectory", "", "path to the configuration file")
 	)
+
+	// parse command-line flags
+	flag.Parse()
 
 	log.SetFormatter(&log.JSONFormatter{
 		FieldMap: log.FieldMap{
@@ -59,26 +62,15 @@ func main() {
 	log.Printf("UBIRCH client (version=%s, revision=%s)", Version, Revision)
 	auditlogger.SetServiceName(serviceName)
 
-	if len(os.Args) > 1 {
-		for i, arg := range os.Args[1:] {
-			log.Infof("arg #%d: %s", i+1, arg)
-			if arg == MigrateArg {
-				migrate = true
-			} else {
-				configDir = arg
-			}
-		}
-	}
-
 	// read configuration
 	conf := &config.Config{}
-	err := conf.Load(configDir, configFile)
+	err := conf.Load(*configDir, configFile)
 	if err != nil {
 		log.Fatalf("ERROR: unable to load configuration: %s", err)
 	}
 
 	// initialize ubirch protocol
-	ctxManager, err := database.NewDatabaseManager(conf.DbDriver, conf.DbDSN, conf.DbMaxConns, migrate)
+	ctxManager, err := database.NewDatabaseManager(conf.DbDriver, conf.DbDSN, conf.DbMaxConns)
 	if err != nil {
 		log.Fatal(err)
 	}

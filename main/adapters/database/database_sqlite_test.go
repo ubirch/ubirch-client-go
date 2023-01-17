@@ -596,5 +596,5 @@ func TestDatabaseManager_GetExternalIdentityUUIDs_sqlite(t *testing.T) {
 }
 
 func initSQLiteDB(t *testing.T, maxConns int) (*DatabaseManager, error) {
-	return NewDatabaseManager(SQLite, filepath.Join(t.TempDir(), testSQLiteDSN), maxConns, true)
+	return NewDatabaseManager(SQLite, filepath.Join(t.TempDir(), testSQLiteDSN), maxConns)
 }

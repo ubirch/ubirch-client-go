@@ -332,7 +332,7 @@ func TestDatabaseManager_NotReady(t *testing.T) {
 	// use DSN that is valid, but not reachable
 	unreachableDSN := "postgres://nousr:nopwd@198.51.100.1:5432/nodatabase"
 
-	_, err := NewDatabaseManager(PostgreSQL, unreachableDSN, 0, false)
+	_, err := NewDatabaseManager(PostgreSQL, unreachableDSN, 0)
 	assert.EqualError(t, err, "dial tcp 198.51.100.1:5432: connect: connection timed out")
 }
 
@@ -530,7 +530,7 @@ func TestDatabaseManager_Retry(t *testing.T) {
 	c, err := getConfig()
 	require.NoError(t, err)
 
-	dm, err := NewDatabaseManager(PostgreSQL, c.DbDSN, 101, true)
+	dm, err := NewDatabaseManager(PostgreSQL, c.DbDSN, 101)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -703,7 +703,7 @@ func initDB(maxConns int) (*DatabaseManager, error) {
 		return nil, err
 	}
 
-	return NewDatabaseManager(PostgreSQL, c.DbDSN, maxConns, true)
+	return NewDatabaseManager(PostgreSQL, c.DbDSN, maxConns)
 }
 
 func cleanUpDB(t assert.TestingT, dm *DatabaseManager) {
