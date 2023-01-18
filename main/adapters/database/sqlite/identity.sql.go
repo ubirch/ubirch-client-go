@@ -9,34 +9,6 @@ import (
 	"context"
 )
 
-const getExternalIdentityUUIDs = `-- name: GetExternalIdentityUUIDs :many
-SELECT uid
-FROM external_identity
-`
-
-func (q *Queries) GetExternalIdentityUUIDs(ctx context.Context) ([]string, error) {
-	rows, err := q.db.QueryContext(ctx, getExternalIdentityUUIDs)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []string
-	for rows.Next() {
-		var uid string
-		if err := rows.Scan(&uid); err != nil {
-			return nil, err
-		}
-		items = append(items, uid)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getIdentityUUIDs = `-- name: GetIdentityUUIDs :many
 SELECT uid
 FROM identity
@@ -104,19 +76,6 @@ func (q *Queries) LoadAuthForUpdate(ctx context.Context, uid string) (string, er
 	return auth_token, err
 }
 
-const loadExternalIdentity = `-- name: LoadExternalIdentity :one
-SELECT uid, public_key
-FROM external_identity
-WHERE uid = ?
-`
-
-func (q *Queries) LoadExternalIdentity(ctx context.Context, uid string) (ExternalIdentity, error) {
-	row := q.db.QueryRowContext(ctx, loadExternalIdentity, uid)
-	var i ExternalIdentity
-	err := row.Scan(&i.Uid, &i.PublicKey)
-	return i, err
-}
-
 const loadIdentity = `-- name: LoadIdentity :one
 SELECT uid, private_key, public_key, signature, auth_token, active
 FROM identity
@@ -179,21 +138,6 @@ type StoreAuthParams struct {
 
 func (q *Queries) StoreAuth(ctx context.Context, arg StoreAuthParams) error {
 	_, err := q.db.ExecContext(ctx, storeAuth, arg.AuthToken, arg.Uid)
-	return err
-}
-
-const storeExternalIdentity = `-- name: StoreExternalIdentity :exec
-INSERT INTO external_identity (uid, public_key)
-VALUES (?, ?)
-`
-
-type StoreExternalIdentityParams struct {
-	Uid       string
-	PublicKey []byte
-}
-
-func (q *Queries) StoreExternalIdentity(ctx context.Context, arg StoreExternalIdentityParams) error {
-	_, err := q.db.ExecContext(ctx, storeExternalIdentity, arg.Uid, arg.PublicKey)
 	return err
 }
 
