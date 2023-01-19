@@ -28,7 +28,7 @@ func TestMigrateUp_Postgres(t *testing.T) {
 	}()
 
 	// migrate database schema to the latest version
-	err = MigrateUp(db, PostgreSQL)
+	err = migrateUp(db, PostgreSQL)
 	require.NoError(t, err)
 }
 
@@ -51,11 +51,11 @@ func TestMigrateUp_Repeat_Postgres(t *testing.T) {
 	}()
 
 	// migrate database schema to the latest version
-	err = MigrateUp(db, PostgreSQL)
+	err = migrateUp(db, PostgreSQL)
 	require.NoError(t, err)
 
 	// try to migrate database schema to the latest version again
-	err = MigrateUp(db, PostgreSQL)
+	err = migrateUp(db, PostgreSQL)
 	require.NoError(t, err)
 }
 
@@ -77,7 +77,7 @@ func TestMigrate_Postgres(t *testing.T) {
 		}
 	}()
 
-	err = Migrate(db, PostgreSQL, 1)
+	err = migrateTo(db, PostgreSQL, 1)
 	require.NoError(t, err)
 }
 
@@ -99,7 +99,7 @@ func TestMigrate_Down_Postgres(t *testing.T) {
 		}
 	}()
 
-	err = MigrateDown(db, PostgreSQL)
+	err = migrateDown(db, PostgreSQL)
 	require.NoError(t, err)
 }
 
@@ -116,7 +116,7 @@ func TestMigrateUp_Sqlite(t *testing.T) {
 	}()
 
 	// migrate database schema to the latest version
-	err = MigrateUp(db, SQLite)
+	err = migrateUp(db, SQLite)
 	require.NoError(t, err)
 }
 
@@ -133,11 +133,11 @@ func TestMigrateUp_Repeat_Sqlite(t *testing.T) {
 	}()
 
 	// migrate database schema to the latest version
-	err = MigrateUp(db, SQLite)
+	err = migrateUp(db, SQLite)
 	require.NoError(t, err)
 
 	// try to migrate database schema to the latest version again
-	err = MigrateUp(db, SQLite)
+	err = migrateUp(db, SQLite)
 	require.NoError(t, err)
 }
 
@@ -153,7 +153,7 @@ func TestMigrate_Sqlite(t *testing.T) {
 		}
 	}()
 
-	err = Migrate(db, SQLite, 1)
+	err = migrateTo(db, SQLite, 1)
 	require.NoError(t, err)
 }
 
@@ -170,10 +170,10 @@ func TestMigrate_Down_Sqlite(t *testing.T) {
 	}()
 
 	// migrate up first so we can migrate down from there
-	err = MigrateUp(db, SQLite)
+	err = migrateUp(db, SQLite)
 	require.NoError(t, err)
 
-	err = MigrateDown(db, SQLite)
+	err = migrateDown(db, SQLite)
 	require.NoError(t, err)
 }
 
@@ -195,7 +195,7 @@ func TestMigrate_WrongDriver_Postgres(t *testing.T) {
 		}
 	}()
 
-	err = MigrateUp(db, SQLite)
+	err = migrateUp(db, SQLite)
 	require.Error(t, err)
 }
 
@@ -212,6 +212,6 @@ func TestMigrate_WrongDriver_Sqlite(t *testing.T) {
 	}()
 
 	// migrate database schema to the latest version
-	err = MigrateUp(db, PostgreSQL)
+	err = migrateUp(db, PostgreSQL)
 	require.Error(t, err)
 }

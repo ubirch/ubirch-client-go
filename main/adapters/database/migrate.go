@@ -103,7 +103,7 @@ func checkMigrationError(migrator *migrate.Migrate, err error) error {
 	return nil
 }
 
-func MigrateUp(db *sql.DB, driver string) error {
+func migrateUp(db *sql.DB, driver string) error {
 	migrator, err := getMigrator(db, driver)
 	if err != nil {
 		return err
@@ -113,7 +113,7 @@ func MigrateUp(db *sql.DB, driver string) error {
 	return checkMigrationError(migrator, err)
 }
 
-func MigrateDown(db *sql.DB, driver string) error {
+func migrateDown(db *sql.DB, driver string) error {
 	migrator, err := getMigrator(db, driver)
 	if err != nil {
 		return err
@@ -123,7 +123,7 @@ func MigrateDown(db *sql.DB, driver string) error {
 	return checkMigrationError(migrator, err)
 }
 
-func Migrate(db *sql.DB, driver string, targetVersion uint) error {
+func migrateTo(db *sql.DB, driver string, targetVersion uint) error {
 	migrator, err := getMigrator(db, driver)
 	if err != nil {
 		return err

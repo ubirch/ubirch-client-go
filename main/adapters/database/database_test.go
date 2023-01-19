@@ -711,7 +711,7 @@ func cleanUpDB(t assert.TestingT, dm *DatabaseManager) {
 		time.Sleep(time.Millisecond) // this is here because we are getting SQLITE_BUSY error otherwise
 	}
 
-	err := MigrateDown(dm.db, dm.driverName)
+	err := migrateDown(dm.db, dm.driverName)
 	assert.NoError(t, err)
 
 	err = dm.Close()

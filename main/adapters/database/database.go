@@ -103,7 +103,7 @@ func NewDatabaseManager(driverName, dataSourceName string, maxConns int) (*Datab
 	}
 
 	// migrate database schema to the latest version
-	err = MigrateUp(dm.db, dm.driverName)
+	err = migrateUp(dm.db, dm.driverName)
 	if err != nil {
 		return nil, err
 	}
