@@ -1,4 +1,4 @@
-package repository
+package database
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
 )
 
 func BenchmarkPostgres(b *testing.B) {
@@ -107,7 +108,7 @@ func BenchmarkSQLite_config(b *testing.B) {
 	}
 }
 
-func storeTestIdentity(t require.TestingT, ctxManager ContextManager) {
+func storeTestIdentity(t require.TestingT, ctxManager repository.ContextManager) {
 	testId := getTestIdentity()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -123,7 +124,7 @@ func storeTestIdentity(t require.TestingT, ctxManager ContextManager) {
 	require.NoError(t, err)
 }
 
-func updateSignature(t require.TestingT, ctxManager ContextManager) {
+func updateSignature(t require.TestingT, ctxManager repository.ContextManager) {
 	testId := getTestIdentity()
 
 	_, err := ctxManager.LoadActiveFlag(testId.Uid)

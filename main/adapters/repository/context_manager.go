@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
-	"github.com/ubirch/ubirch-client-go/main/config"
 	"github.com/ubirch/ubirch-client-go/main/ent"
 )
 
@@ -42,8 +41,4 @@ type ContextManager interface {
 type TransactionCtx interface {
 	Commit() error
 	Rollback() error
-}
-
-func GetContextManager(c *config.Config) (ContextManager, error) {
-	return NewDatabaseManager(c.DbDriver, c.DbDSN, c.DbMaxConns)
 }

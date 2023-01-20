@@ -22,16 +22,16 @@ type MockCtxMngr struct {
 var _ ContextManager = (*MockCtxMngr)(nil)
 
 func (m *MockCtxMngr) StartTransaction(ctx context.Context) (TransactionCtx, error) {
-	return &mockTx{
+	return &MockTx{
 		idBuf: extendedId{},
 		id:    &m.id,
 	}, nil
 }
 
 func (m *MockCtxMngr) StoreIdentity(t TransactionCtx, id ent.Identity) error {
-	tx, ok := t.(*mockTx)
+	tx, ok := t.(*MockTx)
 	if !ok {
-		return fmt.Errorf("transactionCtx for MockCtxMngr is not of expected type *mockTx")
+		return fmt.Errorf("transactionCtx for MockCtxMngr is not of expected type *MockTx")
 	}
 	tx.idBuf = extendedId{Identity: id, active: true}
 
@@ -47,9 +47,9 @@ func (m *MockCtxMngr) LoadIdentity(u uuid.UUID) (*ent.Identity, error) {
 }
 
 func (m *MockCtxMngr) StoreActiveFlag(t TransactionCtx, u uuid.UUID, a bool) error {
-	tx, ok := t.(*mockTx)
+	tx, ok := t.(*MockTx)
 	if !ok {
-		return fmt.Errorf("transactionCtx for MockCtxMngr is not of expected type *mockTx")
+		return fmt.Errorf("transactionCtx for MockCtxMngr is not of expected type *MockTx")
 	}
 
 	if tx.idBuf.Uid == uuid.Nil || tx.idBuf.Uid != u {
@@ -61,9 +61,9 @@ func (m *MockCtxMngr) StoreActiveFlag(t TransactionCtx, u uuid.UUID, a bool) err
 }
 
 func (m *MockCtxMngr) LoadActiveFlagForUpdate(t TransactionCtx, u uuid.UUID) (bool, error) {
-	tx, ok := t.(*mockTx)
+	tx, ok := t.(*MockTx)
 	if !ok {
-		return false, fmt.Errorf("transactionCtx for MockCtxMngr is not of expected type *mockTx")
+		return false, fmt.Errorf("transactionCtx for MockCtxMngr is not of expected type *MockTx")
 	}
 
 	if m.id.Uid == uuid.Nil || m.id.Uid != u {
@@ -80,9 +80,9 @@ func (m *MockCtxMngr) LoadActiveFlag(u uuid.UUID) (bool, error) {
 }
 
 func (m *MockCtxMngr) StoreSignature(t TransactionCtx, u uuid.UUID, s []byte) error {
-	tx, ok := t.(*mockTx)
+	tx, ok := t.(*MockTx)
 	if !ok {
-		return fmt.Errorf("transactionCtx for MockCtxMngr is not of expected type *mockTx")
+		return fmt.Errorf("transactionCtx for MockCtxMngr is not of expected type *MockTx")
 	}
 
 	if tx.idBuf.Uid == uuid.Nil || tx.idBuf.Uid != u {
@@ -94,9 +94,9 @@ func (m *MockCtxMngr) StoreSignature(t TransactionCtx, u uuid.UUID, s []byte) er
 }
 
 func (m *MockCtxMngr) LoadSignatureForUpdate(t TransactionCtx, u uuid.UUID) ([]byte, error) {
-	tx, ok := t.(*mockTx)
+	tx, ok := t.(*MockTx)
 	if !ok {
-		return nil, fmt.Errorf("transactionCtx for MockCtxMngr is not of expected type *mockTx")
+		return nil, fmt.Errorf("transactionCtx for MockCtxMngr is not of expected type *MockTx")
 	}
 
 	if m.id.Uid == uuid.Nil || m.id.Uid != u {
@@ -109,9 +109,9 @@ func (m *MockCtxMngr) LoadSignatureForUpdate(t TransactionCtx, u uuid.UUID) ([]b
 }
 
 func (m *MockCtxMngr) StoreAuth(t TransactionCtx, u uuid.UUID, a string) error {
-	tx, ok := t.(*mockTx)
+	tx, ok := t.(*MockTx)
 	if !ok {
-		return fmt.Errorf("transactionCtx for MockCtxMngr is not of expected type *mockTx")
+		return fmt.Errorf("transactionCtx for MockCtxMngr is not of expected type *MockTx")
 	}
 
 	if tx.idBuf.Uid == uuid.Nil || tx.idBuf.Uid != u {
@@ -123,9 +123,9 @@ func (m *MockCtxMngr) StoreAuth(t TransactionCtx, u uuid.UUID, a string) error {
 }
 
 func (m *MockCtxMngr) LoadAuthForUpdate(t TransactionCtx, u uuid.UUID) (string, error) {
-	tx, ok := t.(*mockTx)
+	tx, ok := t.(*MockTx)
 	if !ok {
-		return "", fmt.Errorf("transactionCtx for MockCtxMngr is not of expected type *mockTx")
+		return "", fmt.Errorf("transactionCtx for MockCtxMngr is not of expected type *MockTx")
 	}
 
 	if m.id.Uid == uuid.Nil || m.id.Uid != u {
@@ -165,21 +165,21 @@ func (m *MockCtxMngr) Close() error {
 	return nil
 }
 
-type mockTx struct {
+type MockTx struct {
 	idBuf extendedId
 	id    *extendedId
 }
 
-var _ TransactionCtx = (*mockTx)(nil)
+var _ TransactionCtx = (*MockTx)(nil)
 
-func (m *mockTx) Commit() error {
+func (m *MockTx) Commit() error {
 	*m.id = m.idBuf
-	*m = mockTx{}
+	*m = MockTx{}
 	return nil
 }
 
-func (m *mockTx) Rollback() error {
-	*m = mockTx{}
+func (m *MockTx) Rollback() error {
+	*m = MockTx{}
 	return nil
 }
 

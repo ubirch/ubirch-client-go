@@ -1,36 +1,29 @@
-package repository
+package database
 
 import (
-	"bytes"
 	"context"
-	"database/sql"
 	"encoding/base64"
-	"encoding/json"
-	"fmt"
 	"math/rand"
-	"os"
 	"path/filepath"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/ubirch/ubirch-client-go/main/config"
+	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
 	"github.com/ubirch/ubirch-client-go/main/ent"
+	"modernc.org/sqlite"
 )
 
-const testLoad = 100
+const (
+	testSQLiteDSN  = "test.db"
+	sqliteTestLoad = 10
+)
 
-func TestDatabaseManager(t *testing.T) {
-	// this test communicates with the actual postgres database
-	if testing.Short() {
-		t.Skipf("skipping integration test %s in short mode", t.Name())
-	}
-
-	dm, err := initDB(0)
+func TestDatabaseManager_sqlite(t *testing.T) {
+	dm, err := initSQLiteDB(t, 0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -41,23 +34,23 @@ func TestDatabaseManager(t *testing.T) {
 
 	// check not exists
 	_, err = dm.LoadIdentity(testIdentity.Uid)
-	assert.Equal(t, ErrNotExist, err)
+	assert.Equal(t, repository.ErrNotExist, err)
 
 	_, err = dm.LoadActiveFlag(testIdentity.Uid)
-	assert.Equal(t, ErrNotExist, err)
+	assert.Equal(t, repository.ErrNotExist, err)
 
 	tx, err := dm.StartTransaction(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, tx)
 
 	_, err = dm.LoadActiveFlagForUpdate(tx, testIdentity.Uid)
-	assert.Equal(t, ErrNotExist, err)
+	assert.Equal(t, repository.ErrNotExist, err)
 
 	_, err = dm.LoadSignatureForUpdate(tx, testIdentity.Uid)
-	assert.Equal(t, ErrNotExist, err)
+	assert.Equal(t, repository.ErrNotExist, err)
 
 	_, err = dm.LoadAuthForUpdate(tx, testIdentity.Uid)
-	assert.Equal(t, ErrNotExist, err)
+	assert.Equal(t, repository.ErrNotExist, err)
 
 	err = tx.Rollback()
 	require.NoError(t, err)
@@ -104,13 +97,8 @@ func TestDatabaseManager(t *testing.T) {
 	assert.Equal(t, testIdentity.AuthToken, i.AuthToken)
 }
 
-func TestDatabaseManager_StoreActiveFlag(t *testing.T) {
-	// this test communicates with the actual postgres database
-	if testing.Short() {
-		t.Skipf("skipping integration test %s in short mode", t.Name())
-	}
-
-	dm, err := initDB(0)
+func TestDatabaseManager_StoreActiveFlag_sqlite(t *testing.T) {
+	dm, err := initSQLiteDB(t, 0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -149,13 +137,8 @@ func TestDatabaseManager_StoreActiveFlag(t *testing.T) {
 	assert.False(t, active)
 }
 
-func TestDatabaseManager_SetSignature(t *testing.T) {
-	// this test communicates with the actual postgres database
-	if testing.Short() {
-		t.Skipf("skipping integration test %s in short mode", t.Name())
-	}
-
-	dm, err := initDB(0)
+func TestDatabaseManager_SetSignature_sqlite(t *testing.T) {
+	dm, err := initSQLiteDB(t, 0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -201,13 +184,8 @@ func TestDatabaseManager_SetSignature(t *testing.T) {
 	assert.Equal(t, newSignature, sig)
 }
 
-func TestDatabaseManager_LoadSignatureForUpdate(t *testing.T) {
-	// this test communicates with the actual postgres database
-	if testing.Short() {
-		t.Skipf("skipping integration test %s in short mode", t.Name())
-	}
-
-	dm, err := initDB(0)
+func TestDatabaseManager_LoadSignatureForUpdate_sqlite(t *testing.T) {
+	dm, err := initSQLiteDB(t, 0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -232,27 +210,16 @@ func TestDatabaseManager_LoadSignatureForUpdate(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tx)
 
-	_, err = dm.LoadSignatureForUpdate(tx, testIdentity.Uid)
-	require.NoError(t, err)
-
-	// try to get lock on signature again and wait a second for the lock before context gets canceled
-	ctxWithTimeout, cancelWithTimeout := context.WithTimeout(context.Background(), time.Second)
+	// try to get lock on database again and wait a second for the lock before context gets canceled
+	ctxWithTimeout, cancelWithTimeout := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancelWithTimeout()
 
-	tx2, err := dm.StartTransaction(ctxWithTimeout)
-	require.NoError(t, err)
-
-	_, err = dm.LoadSignatureForUpdate(tx2, testIdentity.Uid)
-	assert.EqualError(t, err, "pq: canceling statement due to user request")
+	_, err = dm.StartTransaction(ctxWithTimeout)
+	assert.EqualError(t, err, "context deadline exceeded")
 }
 
-func TestDatabaseManager_StoreAuth(t *testing.T) {
-	// this test communicates with the actual postgres database
-	if testing.Short() {
-		t.Skipf("skipping integration test %s in short mode", t.Name())
-	}
-
-	dm, err := initDB(0)
+func TestDatabaseManager_StoreAuth_sqlite(t *testing.T) {
+	dm, err := initSQLiteDB(t, 0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -298,13 +265,8 @@ func TestDatabaseManager_StoreAuth(t *testing.T) {
 	assert.Equal(t, base64.StdEncoding.EncodeToString(newAuth), auth)
 }
 
-func TestDatabaseManager_Ready(t *testing.T) {
-	// this test communicates with the actual postgres database
-	if testing.Short() {
-		t.Skipf("skipping integration test %s in short mode", t.Name())
-	}
-
-	dm, err := initDB(0)
+func TestDatabaseManager_Ready_sqlite(t *testing.T) {
+	dm, err := initSQLiteDB(t, 0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -312,31 +274,8 @@ func TestDatabaseManager_Ready(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestDatabaseManager_NotReady(t *testing.T) {
-	// use DSN that is valid, but not reachable
-	unreachableDSN := "postgres://nousr:nopwd@localhost:0000/nodatabase"
-
-	// we expect no error here
-	dm, err := NewDatabaseManager(PostgreSQL, unreachableDSN, 0)
-	require.NoError(t, err)
-	defer func(dm *DatabaseManager) {
-		err := dm.Close()
-		if err != nil {
-			t.Error(err)
-		}
-	}(dm)
-
-	err = dm.IsReady()
-	require.Error(t, err)
-}
-
-func TestDatabaseManager_StoreExisting(t *testing.T) {
-	// this test communicates with the actual postgres database
-	if testing.Short() {
-		t.Skipf("skipping integration test %s in short mode", t.Name())
-	}
-
-	dm, err := initDB(0)
+func TestDatabaseManager_StoreExisting_sqlite(t *testing.T) {
+	dm, err := initSQLiteDB(t, 0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -365,13 +304,8 @@ func TestDatabaseManager_StoreExisting(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestDatabaseManager_CancelTransaction(t *testing.T) {
-	// this test communicates with the actual postgres database
-	if testing.Short() {
-		t.Skipf("skipping integration test %s in short mode", t.Name())
-	}
-
-	dm, err := initDB(0)
+func TestDatabaseManager_CancelTransaction_sqlite(t *testing.T) {
+	dm, err := initSQLiteDB(t, 0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -392,7 +326,7 @@ func TestDatabaseManager_CancelTransaction(t *testing.T) {
 
 	// check transaction was rolled back
 	_, err = dm.LoadIdentity(testIdentity.Uid)
-	assert.Equal(t, ErrNotExist, err)
+	assert.Equal(t, repository.ErrNotExist, err)
 
 	// make sure identity can be stored now
 	ctx, cancel = context.WithCancel(context.Background())
@@ -406,13 +340,8 @@ func TestDatabaseManager_CancelTransaction(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestDatabaseManager_StartTransaction(t *testing.T) {
-	// this test communicates with the actual postgres database
-	if testing.Short() {
-		t.Skipf("skipping integration test %s in short mode", t.Name())
-	}
-
-	dm, err := initDB(1)
+func TestDatabaseManager_StartTransaction_sqlite(t *testing.T) {
+	dm, err := initSQLiteDB(t, 1)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -428,18 +357,60 @@ func TestDatabaseManager_StartTransaction(t *testing.T) {
 	assert.Nil(t, tx2)
 }
 
-func TestDatabaseManager_InvalidTransactionCtx(t *testing.T) {
-	// this test communicates with the actual postgres database
-	if testing.Short() {
-		t.Skipf("skipping integration test %s in short mode", t.Name())
-	}
+func TestDatabaseManager_StartTransaction2_sqlite(t *testing.T) {
+	dm, err := initSQLiteDB(t, 0)
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
 
-	dm, err := initDB(0)
+	testIdentity := getTestIdentity()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tx, err := dm.StartTransaction(ctx)
+	require.NoError(t, err)
+	assert.NotNil(t, tx)
+
+	err = dm.StoreIdentity(tx, testIdentity)
+	require.NoError(t, err)
+
+	err = tx.Commit()
+	require.NoError(t, err)
+
+	tx, err = dm.StartTransaction(ctx)
+	require.NoError(t, err)
+	assert.NotNil(t, tx)
+
+	sig1, err := dm.LoadSignatureForUpdate(tx, testIdentity.Uid)
+	require.NoError(t, err)
+
+	newSig := make([]byte, 64)
+	rand.Read(newSig)
+
+	err = dm.StoreSignature(tx, testIdentity.Uid, newSig)
+	require.NoError(t, err)
+
+	cancel()
+
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	defer cancel2()
+
+	tx2, err := dm.StartTransaction(ctx2)
+	require.NoError(t, err)
+	assert.NotNil(t, tx2)
+
+	sig2, err := dm.LoadSignatureForUpdate(tx2, testIdentity.Uid)
+	require.NoError(t, err)
+	assert.Equal(t, sig1, sig2)
+}
+
+func TestDatabaseManager_InvalidTransactionCtx_sqlite(t *testing.T) {
+	dm, err := initSQLiteDB(t, 0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
 	i := ent.Identity{}
-	mockCtx := &mockTx{}
+	mockCtx := &repository.MockTx{}
 
 	err = dm.StoreIdentity(mockCtx, i)
 	assert.EqualError(t, err, "transactionCtx for database manager is not of expected type *sql.Tx")
@@ -463,21 +434,16 @@ func TestDatabaseManager_InvalidTransactionCtx(t *testing.T) {
 	assert.EqualError(t, err, "transactionCtx for database manager is not of expected type *sql.Tx")
 }
 
-func TestDatabaseLoad(t *testing.T) {
-	// this test communicates with the actual postgres database
-	if testing.Short() {
-		t.Skipf("skipping integration test %s in short mode", t.Name())
-	}
-
+func TestDatabaseLoad_sqlite(t *testing.T) {
 	wg := &sync.WaitGroup{}
 
-	dm, err := initDB(0)
+	dm, err := initSQLiteDB(t, 0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
 	// generate identities
 	var testIdentities []ent.Identity
-	for i := 0; i < testLoad; i++ {
+	for i := 0; i < sqliteTestLoad; i++ {
 		id := getTestIdentity()
 		id.Uid = uuid.New()
 		testIdentities = append(testIdentities, id)
@@ -501,7 +467,7 @@ func TestDatabaseLoad(t *testing.T) {
 	for _, testId := range testIdentities {
 		wg.Add(1)
 		go func(id ent.Identity) {
-			err := checkIdentity(dm, id, dbCheckAuth, wg)
+			err := checkIdentity(dm, id, wg)
 			if err != nil {
 				t.Errorf("%s: %v", id.Uid, err)
 			}
@@ -515,72 +481,29 @@ func TestDatabaseLoad(t *testing.T) {
 	//}
 }
 
-func TestDatabaseManager_RecoverUndefinedTable(t *testing.T) {
-	// this test communicates with the actual postgres database
-	if testing.Short() {
-		t.Skipf("skipping integration test %s in short mode", t.Name())
-	}
-
-	c, err := getConfig()
-	require.NoError(t, err)
-
-	pg, err := sql.Open(PostgreSQL, c.DbDSN)
-	require.NoError(t, err)
-
-	dm := &DatabaseManager{
-		options:    &sql.TxOptions{},
-		db:         pg,
-		driverName: PostgreSQL,
-	}
-
-	_, err = dm.LoadIdentity(uuid.New())
-	assert.Equal(t, ErrNotExist, err)
-}
-
-func TestDatabaseManager_Retry(t *testing.T) {
-	// this test communicates with the actual postgres database
-	if testing.Short() {
-		t.Skipf("skipping integration test %s in short mode", t.Name())
-	}
-
-	c, err := getConfig()
-	require.NoError(t, err)
-
-	dm, err := NewDatabaseManager(PostgreSQL, c.DbDSN, 101)
+func TestDatabaseManager_Retry_sqlite(t *testing.T) {
+	dm, err := initSQLiteDB(t, 0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	wg := &sync.WaitGroup{}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	for i := 0; i < 101; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	tx, err := dm.StartTransaction(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, tx)
 
-			_, err := dm.StartTransaction(ctx)
-			if err != nil {
-				if pqErr, ok := err.(*pq.Error); ok {
-					switch pqErr.Code {
-					case "55P03", "53300", "53400":
-						return
-					}
-				}
-				t.Error(err)
-			}
-		}()
-	}
-	wg.Wait()
+	tx2, err := dm.StartTransaction(ctx)
+	require.Error(t, err)
+	require.Nil(t, tx2)
+
+	liteErr, ok := err.(*sqlite.Error)
+	require.True(t, ok)
+	require.Equal(t, 5, liteErr.Code())
 }
 
-func TestDatabaseManager_StoreExternalIdentity(t *testing.T) {
-	// this test communicates with the actual postgres database
-	if testing.Short() {
-		t.Skipf("skipping integration test %s in short mode", t.Name())
-	}
-
-	dm, err := initDB(0)
+func TestDatabaseManager_StoreExternalIdentity_sqlite(t *testing.T) {
+	dm, err := initSQLiteDB(t, 0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -594,7 +517,7 @@ func TestDatabaseManager_StoreExternalIdentity(t *testing.T) {
 	defer cancel()
 
 	_, err = dm.LoadExternalIdentity(ctx, testExtId.Uid)
-	assert.Equal(t, ErrNotExist, err)
+	assert.Equal(t, repository.ErrNotExist, err)
 
 	err = dm.StoreExternalIdentity(ctx, testExtId)
 	require.NoError(t, err)
@@ -616,13 +539,8 @@ func TestDatabaseManager_StoreExternalIdentity(t *testing.T) {
 	assert.EqualError(t, err, "context canceled")
 }
 
-func TestDatabaseManager_GetIdentityUUIDs(t *testing.T) {
-	// this test communicates with the actual postgres database
-	if testing.Short() {
-		t.Skipf("skipping integration test %s in short mode", t.Name())
-	}
-
-	dm, err := initDB(0)
+func TestDatabaseManager_GetIdentityUUIDs_sqlite(t *testing.T) {
+	dm, err := initSQLiteDB(t, 0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -648,13 +566,8 @@ func TestDatabaseManager_GetIdentityUUIDs(t *testing.T) {
 	}
 }
 
-func TestDatabaseManager_GetExternalIdentityUUIDs(t *testing.T) {
-	// this test communicates with the actual postgres database
-	if testing.Short() {
-		t.Skipf("skipping integration test %s in short mode", t.Name())
-	}
-
-	dm, err := initDB(0)
+func TestDatabaseManager_GetExternalIdentityUUIDs_sqlite(t *testing.T) {
+	dm, err := initSQLiteDB(t, 0)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -682,137 +595,6 @@ func TestDatabaseManager_GetExternalIdentityUUIDs(t *testing.T) {
 	}
 }
 
-func getConfig() (*config.Config, error) {
-	configFileName := "config_test.json"
-	fileHandle, err := os.Open(filepath.Join("../../", configFileName))
-	if os.IsNotExist(err) {
-		return nil, fmt.Errorf("%v \n"+
-			"--------------------------------------------------------------------------------\n"+
-			"Please provide a configuration file \"%s\" in the main directory which contains\n"+
-			"a DSN for a postgres database in order to test the database context management.\n\n"+
-			"!!! THIS MUST BE DIFFERENT FROM THE DSN USED FOR THE ACTUAL CONTEXT !!!\n\n"+
-			"{\n\t\"dbDSN\": \"postgres://<username>:<password>@<hostname>:5432/<TEST-database>\"\n}\n"+
-			"--------------------------------------------------------------------------------",
-			err, configFileName)
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer fileHandle.Close()
-
-	c := &config.Config{}
-	err = json.NewDecoder(fileHandle).Decode(c)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(c.DbDSN) == 0 {
-		return nil, fmt.Errorf("missing DSN for test postgres database ('dbDSN') in configuration %s", configFileName)
-	}
-
-	return c, nil
-}
-
-func initDB(maxConns int) (*DatabaseManager, error) {
-	c, err := getConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	return NewDatabaseManager(PostgreSQL, c.DbDSN, maxConns)
-}
-
-func cleanUpDB(t assert.TestingT, dm *DatabaseManager) {
-	dropTableQuery := "DROP TABLE identity;"
-	err := dm.retry(func() error {
-		_, err := dm.db.Exec(dropTableQuery)
-		return err
-	})
-	assert.NoError(t, err)
-
-	dropTableQuery = "DROP TABLE external_identity;"
-	err = dm.retry(func() error {
-		_, err := dm.db.Exec(dropTableQuery)
-		return err
-	})
-	assert.NoError(t, err)
-
-	err = dm.Close()
-	assert.NoError(t, err)
-}
-
-func storeIdentity(ctxManager ContextManager, id ent.Identity) error {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	tx, err := ctxManager.StartTransaction(ctx)
-	if err != nil {
-		return fmt.Errorf("StartTransaction: %v", err)
-	}
-
-	err = ctxManager.StoreIdentity(tx, id)
-	if err != nil {
-		return fmt.Errorf("StoreIdentity: %v", err)
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return fmt.Errorf("Commit: %v", err)
-	}
-
-	return nil
-}
-
-func dbCheckAuth(auth, authToCheck string) error {
-	if auth != authToCheck {
-		return fmt.Errorf("auth check failed")
-	}
-
-	return nil
-}
-
-func checkIdentity(ctxManager ContextManager, id ent.Identity, checkAuth func(string, string) error, wg *sync.WaitGroup) error {
-	defer wg.Done()
-
-	fetchedId, err := ctxManager.LoadIdentity(id.Uid)
-	if err != nil {
-		return fmt.Errorf("LoadIdentity: %v", err)
-	}
-
-	if !bytes.Equal(fetchedId.PrivateKey, id.PrivateKey) {
-		return fmt.Errorf("unexpected private key")
-	}
-
-	if !bytes.Equal(fetchedId.PublicKey, id.PublicKey) {
-		return fmt.Errorf("unexpected public key")
-	}
-
-	err = checkAuth(fetchedId.AuthToken, id.AuthToken)
-	if err != nil {
-		return fmt.Errorf("checkAuth: %v", err)
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	tx, err := ctxManager.StartTransaction(ctx)
-	if err != nil {
-		return fmt.Errorf("StartTransaction: %v", err)
-	}
-
-	sig, err := ctxManager.LoadSignatureForUpdate(tx, id.Uid)
-	if err != nil {
-		return fmt.Errorf("LoadSignatureForUpdate: %v", err)
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return fmt.Errorf("Commit: %v", err)
-	}
-
-	if !bytes.Equal(sig, id.Signature) {
-		return fmt.Errorf("LoadSignatureForUpdate returned unexpected value")
-	}
-
-	return nil
+func initSQLiteDB(t *testing.T, maxConns int) (*DatabaseManager, error) {
+	return NewDatabaseManager(SQLite, filepath.Join(t.TempDir(), testSQLiteDSN), maxConns)
 }
