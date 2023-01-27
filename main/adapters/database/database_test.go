@@ -663,6 +663,50 @@ func TestDatabaseManager_GetExternalIdentityUUIDs(t *testing.T) {
 	}
 }
 
+func TestDatabaseManager_NewDatabaseManager_DatabaseAlreadyOnLatestVersion(t *testing.T) {
+	// this test communicates with the actual postgres database
+	if testing.Short() {
+		t.Skipf("skipping integration test %s in short mode", t.Name())
+	}
+
+	c, err := getConfig()
+	require.NoError(t, err)
+
+	// migrate database schema to the latest version
+	err = migrateUp(PostgreSQL, c.DbDSN)
+	require.NoError(t, err)
+
+	dm, err := NewDatabaseManager(PostgreSQL, c.DbDSN, 0)
+	assert.NoError(t, err)
+
+	cleanUpDB(t, &extendedDatabaseManager{
+		DatabaseManager: dm,
+		dsn:             c.DbDSN,
+	})
+}
+
+func TestDatabaseManager_NewDatabaseManager_DatabaseAlreadyExists(t *testing.T) {
+	// this test communicates with the actual postgres database
+	if testing.Short() {
+		t.Skipf("skipping integration test %s in short mode", t.Name())
+	}
+
+	c, err := getConfig()
+	require.NoError(t, err)
+
+	// migrate database schema to the latest version
+	err = migrateTo(PostgreSQL, c.DbDSN, 1)
+	require.NoError(t, err)
+
+	dm, err := NewDatabaseManager(PostgreSQL, c.DbDSN, 0)
+	assert.NoError(t, err)
+
+	cleanUpDB(t, &extendedDatabaseManager{
+		DatabaseManager: dm,
+		dsn:             c.DbDSN,
+	})
+}
+
 func getConfig() (*config.Config, error) {
 	configFileName := "config_test.json"
 	fileHandle, err := os.Open(filepath.Join("../../", configFileName))

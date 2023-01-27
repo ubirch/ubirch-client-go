@@ -595,12 +595,44 @@ func TestDatabaseManager_GetExternalIdentityUUIDs_sqlite(t *testing.T) {
 	}
 }
 
+func TestDatabaseManager_NewDatabaseManager_DatabaseAlreadyOnLatestVersion_sqlite(t *testing.T) {
+	dsn := filepath.Join(t.TempDir(), testSQLiteDSN+sqliteConfig)
+
+	// migrate database schema to the latest version
+	err := migrateUp(SQLite, dsn)
+	require.NoError(t, err)
+
+	dm, err := NewDatabaseManager(SQLite, dsn, 0)
+	assert.NoError(t, err)
+
+	cleanUpDB(t, &extendedDatabaseManager{
+		DatabaseManager: dm,
+		dsn:             dsn,
+	})
+}
+
+func TestDatabaseManager_NewDatabaseManager_DatabaseAlreadyExists_sqlite(t *testing.T) {
+	dsn := filepath.Join(t.TempDir(), testSQLiteDSN+sqliteConfig)
+
+	// migrate database schema to the latest version
+	err := migrateTo(SQLite, dsn, 1)
+	require.NoError(t, err)
+
+	dm, err := NewDatabaseManager(SQLite, dsn, 0)
+	assert.NoError(t, err)
+
+	cleanUpDB(t, &extendedDatabaseManager{
+		DatabaseManager: dm,
+		dsn:             dsn,
+	})
+}
+
 type T interface {
 	TempDir() string
 }
 
 func initSQLiteDB(t T, maxConns int) (*extendedDatabaseManager, error) {
-	dsn := filepath.Join(t.TempDir(), testSQLiteDSN)
+	dsn := filepath.Join(t.TempDir(), testSQLiteDSN+sqliteConfig)
 
 	dm, err := NewDatabaseManager(SQLite, dsn, maxConns)
 	if err != nil {
