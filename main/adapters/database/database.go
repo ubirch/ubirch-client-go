@@ -63,6 +63,12 @@ func NewDatabaseManager(driverName, dataSourceName string, maxConns int) (*Datab
 		return nil, fmt.Errorf("empty database driverName or dataSourceName")
 	}
 
+	// migrate database schema to the latest version
+	err := migrateUp(driverName, dataSourceName)
+	if err != nil {
+		return nil, err
+	}
+
 	dm := &DatabaseManager{}
 
 	switch driverName {
@@ -86,8 +92,6 @@ func NewDatabaseManager(driverName, dataSourceName string, maxConns int) (*Datab
 
 	log.Infof("initializing %s database connection", driverName)
 
-	var err error
-
 	dm.db, err = sql.Open(driverName, dataSourceName)
 	if err != nil {
 		return nil, err
@@ -99,12 +103,6 @@ func NewDatabaseManager(driverName, dataSourceName string, maxConns int) (*Datab
 	dm.db.SetConnMaxIdleTime(1 * time.Minute)
 
 	if err = dm.db.Ping(); err != nil {
-		return nil, err
-	}
-
-	// migrate database schema to the latest version
-	err = migrateUp(dm.db, dm.driverName)
-	if err != nil {
 		return nil, err
 	}
 

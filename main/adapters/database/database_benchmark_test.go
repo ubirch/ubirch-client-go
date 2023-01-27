@@ -25,7 +25,7 @@ func BenchmarkPostgres(b *testing.B) {
 }
 
 func BenchmarkSQLite(b *testing.B) {
-	dm, err := NewDatabaseManager(SQLite, filepath.Join(b.TempDir(), testSQLiteDSN), 0)
+	dm, err := initSQLiteDB(b, 0)
 	require.NoError(b, err)
 	defer cleanUpDB(b, dm)
 
@@ -59,7 +59,7 @@ func BenchmarkPostgres_async(b *testing.B) {
 }
 
 func BenchmarkSQLite_async(b *testing.B) {
-	dm, err := NewDatabaseManager(SQLite, filepath.Join(b.TempDir(), testSQLiteDSN), 0)
+	dm, err := initSQLiteDB(b, 0)
 	require.NoError(b, err)
 	defer cleanUpDB(b, dm)
 
@@ -88,9 +88,13 @@ func BenchmarkSQLite_config(b *testing.B) {
 		"&_pragma=journal_size_limit(1000)" + // max WAL file size in bytes https://www.sqlite.org/pragma.html#pragma_journal_size_limit
 		"&_pragma=busy_timeout(100)" // https://www.sqlite.org/pragma.html#pragma_busy_timeout
 
-	dm, err := NewDatabaseManager(SQLite, filepath.Join(b.TempDir(), sqliteWithNonDefaultConfig), 0)
+	dsn := filepath.Join(b.TempDir(), sqliteWithNonDefaultConfig)
+	dm, err := NewDatabaseManager(SQLite, dsn, 0)
 	require.NoError(b, err)
-	defer cleanUpDB(b, dm)
+	defer cleanUpDB(b, &extendedDatabaseManager{
+		DatabaseManager: dm,
+		dsn:             dsn,
+	})
 
 	storeTestIdentity(b, dm)
 

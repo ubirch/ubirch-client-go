@@ -595,6 +595,20 @@ func TestDatabaseManager_GetExternalIdentityUUIDs_sqlite(t *testing.T) {
 	}
 }
 
-func initSQLiteDB(t *testing.T, maxConns int) (*DatabaseManager, error) {
-	return NewDatabaseManager(SQLite, filepath.Join(t.TempDir(), testSQLiteDSN), maxConns)
+type T interface {
+	TempDir() string
+}
+
+func initSQLiteDB(t T, maxConns int) (*extendedDatabaseManager, error) {
+	dsn := filepath.Join(t.TempDir(), testSQLiteDSN)
+
+	dm, err := NewDatabaseManager(SQLite, dsn, maxConns)
+	if err != nil {
+		return nil, err
+	}
+
+	return &extendedDatabaseManager{
+		DatabaseManager: dm,
+		dsn:             dsn,
+	}, nil
 }

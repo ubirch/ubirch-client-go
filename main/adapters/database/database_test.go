@@ -418,7 +418,7 @@ func TestDatabaseManager_StartTransaction(t *testing.T) {
 		t.Skipf("skipping integration test %s in short mode", t.Name())
 	}
 
-	dm, err := initDB(2) // since migration is using a database connection, this test needs 2 connections
+	dm, err := initDB(1)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -527,10 +527,7 @@ func TestDatabaseManager_Retry(t *testing.T) {
 		t.Skipf("skipping integration test %s in short mode", t.Name())
 	}
 
-	c, err := getConfig()
-	require.NoError(t, err)
-
-	dm, err := NewDatabaseManager(PostgreSQL, c.DbDSN, 101)
+	dm, err := initDB(101)
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
@@ -697,25 +694,48 @@ func getConfig() (*config.Config, error) {
 	return c, nil
 }
 
-func initDB(maxConns int) (*DatabaseManager, error) {
+type extendedDatabaseManager struct {
+	*DatabaseManager
+	dsn string
+}
+
+func initDB(maxConns int) (*extendedDatabaseManager, error) {
 	c, err := getConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	return NewDatabaseManager(PostgreSQL, c.DbDSN, maxConns)
+	dm, err := NewDatabaseManager(PostgreSQL, c.DbDSN, maxConns)
+	if err != nil {
+		return nil, err
+	}
+
+	return &extendedDatabaseManager{
+		DatabaseManager: dm,
+		dsn:             c.DbDSN,
+	}, nil
 }
 
-func cleanUpDB(t assert.TestingT, dm *DatabaseManager) {
+func cleanUpDB(t assert.TestingT, dm *extendedDatabaseManager) {
+	err := dm.Close()
+	assert.NoError(t, err)
+
 	if dm.driverName == SQLite {
 		time.Sleep(time.Millisecond) // this is here because we are getting SQLITE_BUSY error otherwise
 	}
 
-	err := migrateDown(dm.db, dm.driverName)
+	err = dropDB(dm.driverName, dm.dsn)
 	assert.NoError(t, err)
+}
 
-	err = dm.Close()
-	assert.NoError(t, err)
+func dropDB(driver, dsn string) error {
+	migrator, err := getMigrator(driver, dsn)
+	if err != nil {
+		return err
+	}
+	defer closeMigrator(migrator)
+
+	return migrator.Drop()
 }
 
 func getTestIdentity() ent.Identity {
