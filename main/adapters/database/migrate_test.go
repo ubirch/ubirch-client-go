@@ -1,9 +1,11 @@
 package database
 
 import (
+	"sync"
 	"testing"
 
 	_ "github.com/lib/pq"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -76,4 +78,32 @@ func TestMigrate_WrongDriver_Postgres(t *testing.T) {
 
 	err = migrateUp(SQLite, c.DbDSN)
 	require.Error(t, err)
+}
+
+func TestMigrate_ConcurrencySafety_Postgres(t *testing.T) {
+	// this test communicates with the actual postgres database
+	if testing.Short() {
+		t.Skipf("skipping integration test %s in short mode", t.Name())
+	}
+
+	c, err := getConfig()
+	require.NoError(t, err)
+
+	n := 4
+	wg := sync.WaitGroup{}
+	wg.Add(n)
+
+	for i := 0; i < n; i++ {
+		go func() {
+			defer wg.Done()
+
+			err := migrateUp(PostgreSQL, c.DbDSN)
+			assert.NoError(t, err)
+		}()
+	}
+
+	wg.Wait()
+
+	err = dropDB(PostgreSQL, c.DbDSN)
+	assert.NoError(t, err)
 }
