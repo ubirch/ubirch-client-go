@@ -24,14 +24,14 @@ type Database struct {
 	sqlite   *sqlite.Queries
 }
 
-func NewDatabase(dbConn *sql.DB, driver driverName) (*Database, error) {
+func NewDatabase(dbConn *sql.DB, driverName string) (*Database, error) {
 	db := &Database{}
 
-	switch driver {
-	case postgresDriver:
+	switch driverName {
+	case PostgreSQL:
 		db.driver = postgresDriver
 		db.postgres = postgres.New(dbConn)
-	case sqliteDriver:
+	case SQLite:
 		db.driver = sqliteDriver
 		db.sqlite = sqlite.New(dbConn)
 	default:
