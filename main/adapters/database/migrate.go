@@ -37,12 +37,20 @@ func (l *Log) Verbose() bool {
 	return log.IsLevelEnabled(log.DebugLevel) || l.verbose
 }
 
-func getMigrator(db *sql.DB, driver string) (*migrate.Migrate, error) {
+func getMigrator(driver, dsn string) (*migrate.Migrate, error) {
+	db, err := sql.Open(driver, dsn)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = db.Ping(); err != nil {
+		return nil, err
+	}
+
 	var (
 		sourceInstance source.Driver
 		driverInstance database.Driver
 		databaseName   string
-		err            error
 	)
 
 	switch driver {
@@ -82,14 +90,18 @@ func getMigrator(db *sql.DB, driver string) (*migrate.Migrate, error) {
 	return migrator, nil
 }
 
+func closeMigrator(migrator *migrate.Migrate) {
+	sourceErr, databaseErr := migrator.Close()
+	if sourceErr != nil || databaseErr != nil {
+		log.Errorf("Error closing drivers: source: %v, database: %v", sourceErr, databaseErr)
+	}
+}
+
 func checkMigrationError(migrator *migrate.Migrate, err error) error {
 	if err == migrate.ErrNoChange {
-		version, dirty, err := migrator.Version()
-		if dirty {
-			return fmt.Errorf("database schema is dirty, needs to be manually fixed. Schema version: %d", version)
-		}
+		version, err := getVersion(migrator)
 		if err != nil {
-			return fmt.Errorf("database is migrated, but could not fetch schema version information. Error: %s", err)
+			return err
 		}
 		// this is fine.
 		log.Infof("nothing to migrate. Schema is already at version: %d", version)
@@ -103,31 +115,50 @@ func checkMigrationError(migrator *migrate.Migrate, err error) error {
 	return nil
 }
 
-func migrateUp(db *sql.DB, driver string) error {
-	migrator, err := getMigrator(db, driver)
+func getVersion(migrator *migrate.Migrate) (uint, error) {
+	version, dirty, err := migrator.Version()
+	if err == migrate.ErrNilVersion {
+		return 0, err
+	}
+	if err != nil {
+		return 0, fmt.Errorf("could not fetch database schema version information. Error: %s", err)
+	}
+
+	if dirty {
+		return 0, fmt.Errorf("database schema is dirty, needs to be manually fixed. Schema version: %d", version)
+	}
+
+	return version, nil
+}
+
+func migrateUp(driver, dsn string) error {
+	migrator, err := getMigrator(driver, dsn)
 	if err != nil {
 		return err
 	}
+	defer closeMigrator(migrator)
 
 	err = migrator.Up()
 	return checkMigrationError(migrator, err)
 }
 
-func migrateDown(db *sql.DB, driver string) error {
-	migrator, err := getMigrator(db, driver)
+func migrateDown(driver, dsn string) error {
+	migrator, err := getMigrator(driver, dsn)
 	if err != nil {
 		return err
 	}
+	defer closeMigrator(migrator)
 
 	err = migrator.Down()
 	return checkMigrationError(migrator, err)
 }
 
-func migrateTo(db *sql.DB, driver string, targetVersion uint) error {
-	migrator, err := getMigrator(db, driver)
+func migrateTo(driver, dsn string, targetVersion uint) error {
+	migrator, err := getMigrator(driver, dsn)
 	if err != nil {
 		return err
 	}
+	defer closeMigrator(migrator)
 
 	err = migrator.Migrate(targetVersion)
 	return checkMigrationError(migrator, err)

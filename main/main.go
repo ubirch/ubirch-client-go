@@ -48,7 +48,7 @@ func main() {
 		readinessChecks []func() error
 
 		// declare command-line flags
-		configDir = flag.String("configdirectory", "", "path to the configuration file")
+		configDir = flag.String("config-directory", "", "path to the configuration file")
 	)
 
 	// parse command-line flags

@@ -991,6 +991,8 @@ Lastly, the legacy context files can be deleted.
 rm -rf keys.json keys.json.bck signatures
 ```
 
+> The support for migration from file-based context into a database was dropped after version `v3.0.0`.
+
 ## Quick Start
 
 1. Configuration
