@@ -11,4 +11,15 @@ To update the database schema to a new version, create schema migration files fo
   to [main/adapters/database/sqlite/migrations](main/adapters/database/sqlite/migrations)
 
 The migration will be executed automatically on application startup or can be triggered independently using a
-[CLI](https://github.com/golang-migrate/migrate/tree/master/cmd/migrate). 
+[CLI](https://github.com/golang-migrate/migrate/tree/master/cmd/migrate).
+
+## Database Abstraction Layer
+
+Steps to generate functions for database access:
+
+- Prerequisite: [install sqlc](https://docs.sqlc.dev/en/latest/overview/install.html)
+
+1. add postgreSQL queries to `main/adapters/database/postgres/queries` and SQLite queries
+   to `main/adapters/database/sqlite/queries`
+2. run `cd main/adapters/database && go generate`
+3. extend `main/adapters/database/db.go` with new function wrapping generated postgres and sqlite functions
