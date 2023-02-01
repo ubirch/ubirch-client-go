@@ -57,7 +57,7 @@ type DatabaseManager struct {
 	dbConn     *sql.DB
 	driverName string
 
-	db *Database
+	db Querier
 }
 
 // Ensure Database implements the ContextManager interface
@@ -113,10 +113,7 @@ func NewDatabaseManager(driverName, dataSourceName string, params *ConnectionPar
 
 	dm.SetConnectionParams(params)
 
-	dm.db, err = NewDatabase(dm.dbConn, dm.driverName)
-	if err != nil {
-		return nil, err
-	}
+	dm.db = NewQuerier(dm.dbConn, driverName)
 
 	if err = dm.IsReady(); err != nil {
 		return nil, err

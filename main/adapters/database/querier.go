@@ -24,9 +24,6 @@ type Querier interface {
 	StoreSignature(tx *sql.Tx, arg StoreSignatureParams) error
 }
 
-// Database needs to implement Querier.
-var _ Querier = &Database{}
-
 type StoreActiveFlagParams struct {
 	Active bool
 	Uid    uuid.UUID
