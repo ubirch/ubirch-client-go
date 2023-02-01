@@ -603,6 +603,7 @@ func TestDatabaseManager_NewDatabaseManager_DatabaseAlreadyOnLatestVersion_sqlit
 	cleanUpDB(t, &extendedDatabaseManager{
 		DatabaseManager: dm,
 		dsn:             dsn,
+		driver:          SQLite,
 	})
 }
 
@@ -619,6 +620,7 @@ func TestDatabaseManager_NewDatabaseManager_DatabaseAlreadyExists_sqlite(t *test
 	cleanUpDB(t, &extendedDatabaseManager{
 		DatabaseManager: dm,
 		dsn:             dsn,
+		driver:          SQLite,
 	})
 }
 
@@ -637,5 +639,6 @@ func initSQLiteDB(t T, maxConns int) (*extendedDatabaseManager, error) {
 	return &extendedDatabaseManager{
 		DatabaseManager: dm,
 		dsn:             dsn,
+		driver:          SQLite,
 	}, nil
 }

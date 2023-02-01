@@ -22,10 +22,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/lib/pq"
 	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
 	"github.com/ubirch/ubirch-client-go/main/ent"
-	"modernc.org/sqlite"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -53,11 +51,9 @@ const (
 // DatabaseManager contains the database connection, and offers methods
 // for interacting with the database.
 type DatabaseManager struct {
-	options    *sql.TxOptions
-	dbConn     *sql.DB
-	driverName string
-
-	db Querier
+	options *sql.TxOptions
+	dbConn  *sql.DB
+	db      Querier
 }
 
 // Ensure Database implements the ContextManager interface
@@ -87,12 +83,10 @@ func NewDatabaseManager(driverName, dataSourceName string, params *ConnectionPar
 
 	switch driverName {
 	case PostgreSQL:
-		dm.driverName = PostgreSQL
 		dm.options = &sql.TxOptions{
 			Isolation: sql.LevelReadCommitted,
 		}
 	case SQLite:
-		dm.driverName = SQLite
 		dm.options = &sql.TxOptions{
 			Isolation: sql.LevelSerializable,
 		}
@@ -311,37 +305,11 @@ func (dm *DatabaseManager) GetExternalIdentityUUIDs() ([]uuid.UUID, error) {
 func (dm *DatabaseManager) retry(f func() error) (err error) {
 	for retries := 0; retries <= maxRetries; retries++ {
 		err = f()
-		if err == nil || !dm.isRecoverable(err) {
+		if err == nil || !dm.db.isRecoverable(err) {
 			break
 		}
 		log.Warnf("database recoverable error: %v (%d / %d)", err, retries+1, maxRetries+1)
 	}
 
 	return err
-}
-
-func (dm *DatabaseManager) isRecoverable(err error) bool {
-	switch dm.driverName {
-	case PostgreSQL:
-		if pqErr, ok := err.(*pq.Error); ok {
-			if pqErr.Code == "55P03" || // lock_not_available
-				pqErr.Code == "53300" || // too_many_connections
-				pqErr.Code == "53400" { // configuration_limit_exceeded
-				time.Sleep(10 * time.Millisecond)
-				return true
-			}
-			log.Errorf("unexpected postgres database error: %v", pqErr)
-		}
-	case SQLite:
-		if liteErr, ok := err.(*sqlite.Error); ok {
-			if liteErr.Code() == 5 || // SQLITE_BUSY
-				liteErr.Code() == 6 || // SQLITE_LOCKED
-				liteErr.Code() == 261 { // SQLITE_BUSY_RECOVERY
-				time.Sleep(10 * time.Millisecond)
-				return true
-			}
-			log.Errorf("unexpected sqlite database error: %v", liteErr)
-		}
-	}
-	return false
 }

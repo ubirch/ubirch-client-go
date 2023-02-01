@@ -677,6 +677,7 @@ func TestDatabaseManager_NewDatabaseManager_DatabaseAlreadyOnLatestVersion(t *te
 	cleanUpDB(t, &extendedDatabaseManager{
 		DatabaseManager: dm,
 		dsn:             c.DbDSN,
+		driver:          PostgreSQL,
 	})
 }
 
@@ -699,6 +700,7 @@ func TestDatabaseManager_NewDatabaseManager_DatabaseAlreadyExists(t *testing.T) 
 	cleanUpDB(t, &extendedDatabaseManager{
 		DatabaseManager: dm,
 		dsn:             c.DbDSN,
+		driver:          PostgreSQL,
 	})
 }
 
@@ -735,7 +737,8 @@ func getConfig() (*config.Config, error) {
 
 type extendedDatabaseManager struct {
 	*DatabaseManager
-	dsn string
+	dsn    string
+	driver string
 }
 
 func initDB(maxConns int) (*extendedDatabaseManager, error) {
@@ -752,6 +755,7 @@ func initDB(maxConns int) (*extendedDatabaseManager, error) {
 	return &extendedDatabaseManager{
 		DatabaseManager: dm,
 		dsn:             c.DbDSN,
+		driver:          PostgreSQL,
 	}, nil
 }
 
@@ -759,11 +763,11 @@ func cleanUpDB(t assert.TestingT, dm *extendedDatabaseManager) {
 	err := dm.Close()
 	assert.NoError(t, err)
 
-	if dm.driverName == SQLite {
+	if dm.driver == SQLite {
 		time.Sleep(5 * time.Millisecond) // this is here because we are getting SQLITE_BUSY error otherwise
 	}
 
-	err = dropDB(dm.driverName, dm.dsn)
+	err = dropDB(dm.driver, dm.dsn)
 	assert.NoError(t, err)
 }
 

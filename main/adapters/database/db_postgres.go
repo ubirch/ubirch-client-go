@@ -3,10 +3,14 @@ package database
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/ubirch/ubirch-client-go/main/adapters/database/postgres"
 	"github.com/ubirch/ubirch-client-go/main/ent"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type PostgresDatabase struct {
@@ -72,4 +76,17 @@ func (db *PostgresDatabase) StoreIdentity(tx *sql.Tx, arg StoreIdentityParams) e
 
 func (db *PostgresDatabase) StoreSignature(tx *sql.Tx, arg StoreSignatureParams) error {
 	return db.postgres.WithTx(tx).StoreSignature(context.Background(), postgres.StoreSignatureParams(arg))
+}
+
+func (db *PostgresDatabase) isRecoverable(err error) bool {
+	if pqErr, ok := err.(*pq.Error); ok {
+		if pqErr.Code == "55P03" || // lock_not_available
+			pqErr.Code == "53300" || // too_many_connections
+			pqErr.Code == "53400" { // configuration_limit_exceeded
+			time.Sleep(10 * time.Millisecond)
+			return true
+		}
+		log.Errorf("unexpected postgres database error: %v", pqErr)
+	}
+	return false
 }

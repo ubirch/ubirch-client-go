@@ -22,6 +22,8 @@ type Querier interface {
 	StoreExternalIdentity(ctx context.Context, arg StoreExternalIdentityParams) error
 	StoreIdentity(tx *sql.Tx, arg StoreIdentityParams) error
 	StoreSignature(tx *sql.Tx, arg StoreSignatureParams) error
+
+	isRecoverable(err error) bool
 }
 
 type StoreActiveFlagParams struct {

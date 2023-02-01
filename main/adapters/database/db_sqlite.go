@@ -3,10 +3,14 @@ package database
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/adapters/database/sqlite"
 	"github.com/ubirch/ubirch-client-go/main/ent"
+
+	log "github.com/sirupsen/logrus"
+	sqliteLib "modernc.org/sqlite"
 )
 
 type SqliteDatabase struct {
@@ -143,6 +147,19 @@ func (db *SqliteDatabase) StoreSignature(tx *sql.Tx, arg StoreSignatureParams) e
 		Uid:       arg.Uid.String(),
 		Signature: arg.Signature,
 	})
+}
+
+func (db *SqliteDatabase) isRecoverable(err error) bool {
+	if liteErr, ok := err.(*sqliteLib.Error); ok {
+		if liteErr.Code() == 5 || // SQLITE_BUSY
+			liteErr.Code() == 6 || // SQLITE_LOCKED
+			liteErr.Code() == 261 { // SQLITE_BUSY_RECOVERY
+			time.Sleep(10 * time.Millisecond)
+			return true
+		}
+		log.Errorf("unexpected sqlite database error: %v", liteErr)
+	}
+	return false
 }
 
 // this is a helper function to convert booleans to integers representing booleans in sqlite
