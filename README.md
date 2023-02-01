@@ -130,9 +130,6 @@ In order to connect the client to a postgres database, the DSN must be set in th
     UBIRCH_DB_DSN=postgres://<username>:<password>@<hostname>:5432/<database>
     ```
 
-The maximum number of open connections to the database can be limited with `dbMaxConns` (json)
-or `UBIRCH_DB_MAX_CONNS` (env). The default is `0` (unlimited).
-
 ### SQLite
 
 If the driver is set to `sqlite`, the client will by default create a SQLite database file `sqlite.db` in the mounted
@@ -156,6 +153,15 @@ embedded devices, and only one or very few identities need to be managed.
 
 When compared to postgreSQL, a drawback of SQLite is the performance while handling a high load of chaining
 requests for multiple identities at the same time.
+
+### Database Connection Configuration
+
+| JSON                   | env                         | description                                                                                                                              | default value   |
+|------------------------|-----------------------------|------------------------------------------------------------------------------------------------------------------------------------------|-----------------|
+| `dbMaxOpenConns`       | `UBIRCH_DB_MAX_OPEN_CONNS`  | maximum number of open connections to the database                                                                                       | `0` (unlimited) |
+| `dbMaxIdleConns`       | `UBIRCH_DB_MAX_IDLE_CONNS`  | maximum number of connections in the idle connection pool <br/>To disable idle connections, set to `-1`                                  | `10`            |
+| `dbConnMaxLifetimeSec` | `DB_CONN_MAX_LIFETIME_SEC`  | maximum amount of seconds a connection may be reused <br/>To disable connections being closed due to a connection's age, set to `-1`     | `600`           |
+| `dbConnMaxIdleTimeSec` | `DB_CONN_MAX_IDLE_TIME_SEC` | maximum amount of seconds a connection may be idle <br/>To disable connections being closed due to a connection's idle time, set to `-1` | `60`            |
 
 ## Identity Registration / Initialization
 
@@ -182,7 +188,7 @@ This token is then used to authenticate requests against the identity registrati
 
 ```json
   "staticAuth": "<static auth token>",
-  "enableRegistrationEndpoint": true,
+"enableRegistrationEndpoint": true,
 ```
 
 - env:
@@ -305,7 +311,7 @@ This token is then used to authenticate requests against the CSR creation endpoi
 
 ```json
   "staticAuth": "<static auth token>",
-  "enableCSRCreationEndpoint": true,
+"enableCSRCreationEndpoint": true,
 ```
 
 - env:
@@ -616,7 +622,7 @@ This token is then used to authenticate requests against the deactivation endpoi
 
 ```json
   "staticAuth": "<static auth token>",
-  "enableDeactivationEndpoint": true,
+"enableDeactivationEndpoint": true,
 ```
 
 - env:

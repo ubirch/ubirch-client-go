@@ -89,7 +89,7 @@ func BenchmarkSQLite_config(b *testing.B) {
 		"&_pragma=busy_timeout(100)" // https://www.sqlite.org/pragma.html#pragma_busy_timeout
 
 	dsn := filepath.Join(b.TempDir(), sqliteWithNonDefaultConfig)
-	dm, err := NewDatabaseManager(SQLite, dsn, 0)
+	dm, err := NewDatabaseManager(SQLite, dsn, &ConnectionParams{})
 	require.NoError(b, err)
 	defer cleanUpDB(b, &extendedDatabaseManager{
 		DatabaseManager: dm,

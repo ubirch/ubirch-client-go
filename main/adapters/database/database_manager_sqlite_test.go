@@ -597,7 +597,7 @@ func TestDatabaseManager_NewDatabaseManager_DatabaseAlreadyOnLatestVersion_sqlit
 	err := migrateUp(SQLite, dsn)
 	require.NoError(t, err)
 
-	dm, err := NewDatabaseManager(SQLite, dsn, 0)
+	dm, err := NewDatabaseManager(SQLite, dsn, &ConnectionParams{})
 	assert.NoError(t, err)
 
 	cleanUpDB(t, &extendedDatabaseManager{
@@ -613,7 +613,7 @@ func TestDatabaseManager_NewDatabaseManager_DatabaseAlreadyExists_sqlite(t *test
 	err := migrateTo(SQLite, dsn, 1)
 	require.NoError(t, err)
 
-	dm, err := NewDatabaseManager(SQLite, dsn, 0)
+	dm, err := NewDatabaseManager(SQLite, dsn, &ConnectionParams{})
 	assert.NoError(t, err)
 
 	cleanUpDB(t, &extendedDatabaseManager{
@@ -629,7 +629,7 @@ type T interface {
 func initSQLiteDB(t T, maxConns int) (*extendedDatabaseManager, error) {
 	dsn := filepath.Join(t.TempDir(), testSQLiteDSN+sqliteConfig)
 
-	dm, err := NewDatabaseManager(SQLite, dsn, maxConns)
+	dm, err := NewDatabaseManager(SQLite, dsn, &ConnectionParams{MaxOpenConns: maxConns})
 	if err != nil {
 		return nil, err
 	}

@@ -70,7 +70,12 @@ func main() {
 	}
 
 	// initialize ubirch protocol
-	ctxManager, err := database.NewDatabaseManager(conf.DbDriver, conf.DbDSN, conf.DbMaxConns)
+	ctxManager, err := database.NewDatabaseManager(conf.DbDriver, conf.DbDSN, &database.ConnectionParams{
+		MaxOpenConns:    conf.DbMaxOpenConns,
+		MaxIdleConns:    conf.DbMaxIdleConns,
+		ConnMaxLifetime: time.Duration(conf.DbConnMaxLifetimeSec) * time.Second,
+		ConnMaxIdleTime: time.Duration(conf.DbConnMaxIdleTimeSec) * time.Second,
+	})
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -78,7 +78,10 @@ type Config struct {
 	Env                           string            `json:"env"`                                                                         // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
 	DbDriver                      string            `json:"dbDriver" envconfig:"DB_DRIVER"`                                              // database driver name
 	DbDSN                         string            `json:"dbDSN" envconfig:"DB_DSN"`                                                    // data source name for database, path to the sqlite db file
-	DbMaxConns                    int               `json:"dbMaxConns" envconfig:"DB_MAX_CONNS"`                                         // maximum number of open connections to the database
+	DbMaxOpenConns                int               `json:"dbMaxOpenConns" envconfig:"DB_MAX_OPEN_CONNS"`                                // maximum number of open connections to the database
+	DbMaxIdleConns                int               `json:"dbMaxIdleConns" envconfig:"DB_MAX_IDLE_CONNS"`                                // maximum number of connections in the idle connection pool
+	DbConnMaxLifetimeSec          int64             `json:"dbConnMaxLifetimeSec" envconfig:"DB_CONN_MAX_LIFETIME_SEC"`                   // maximum amount of time in seconds a connection may be reused
+	DbConnMaxIdleTimeSec          int64             `json:"dbConnMaxIdleTimeSec" envconfig:"DB_CONN_MAX_IDLE_TIME_SEC"`                  // maximum amount of time in seconds a connection may be idle
 	TCP_addr                      string            `json:"TCP_addr"`                                                                    // the TCP address for the server to listen on, in the form "host:port", defaults to ":8080"
 	TLS                           bool              `json:"TLS"`                                                                         // enable serving HTTPS endpoints, defaults to 'false'
 	TLS_CertFile                  string            `json:"TLSCertFile"`                                                                 // filename of TLS certificate file name, defaults to "cert.pem"

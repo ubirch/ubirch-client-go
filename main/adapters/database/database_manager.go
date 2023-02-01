@@ -43,6 +43,11 @@ const (
 		"&_pragma=busy_timeout(100)" // https://www.sqlite.org/pragma.html#pragma_busy_timeout
 
 	maxRetries = 2
+
+	defaultDbMaxOpenConns       = 0 // unlimited
+	defaultDbMaxIdleConns       = 10
+	defaultDbConnMaxLifetimeSec = 10 * 60
+	defaultDbConnMaxIdleTimeSec = 1 * 60
 )
 
 // DatabaseManager contains the database connection, and offers methods
@@ -58,9 +63,16 @@ type DatabaseManager struct {
 // Ensure Database implements the ContextManager interface
 var _ repository.ContextManager = (*DatabaseManager)(nil)
 
+type ConnectionParams struct {
+	MaxOpenConns    int
+	MaxIdleConns    int
+	ConnMaxLifetime time.Duration
+	ConnMaxIdleTime time.Duration
+}
+
 // NewDatabaseManager takes a database connection string, returns a new initialized
 // SQL database manager.
-func NewDatabaseManager(driverName, dataSourceName string, maxConns int) (*DatabaseManager, error) {
+func NewDatabaseManager(driverName, dataSourceName string, params *ConnectionParams) (*DatabaseManager, error) {
 	if driverName == "" || dataSourceName == "" {
 		return nil, fmt.Errorf("empty database driverName or dataSourceName")
 	}
@@ -99,10 +111,7 @@ func NewDatabaseManager(driverName, dataSourceName string, maxConns int) (*Datab
 		return nil, err
 	}
 
-	dm.dbConn.SetMaxOpenConns(maxConns)
-	dm.dbConn.SetMaxIdleConns(maxConns)
-	dm.dbConn.SetConnMaxLifetime(10 * time.Minute)
-	dm.dbConn.SetConnMaxIdleTime(1 * time.Minute)
+	dm.SetConnectionParams(params)
 
 	dm.db, err = NewDatabase(dm.dbConn, dm.driverName)
 	if err != nil {
@@ -114,6 +123,28 @@ func NewDatabaseManager(driverName, dataSourceName string, maxConns int) (*Datab
 	}
 
 	return dm, nil
+}
+
+func (dm *DatabaseManager) SetConnectionParams(params *ConnectionParams) {
+	if params.MaxOpenConns == 0 {
+		params.MaxOpenConns = defaultDbMaxOpenConns
+	}
+	dm.dbConn.SetMaxOpenConns(params.MaxOpenConns)
+
+	if params.MaxIdleConns == 0 {
+		params.MaxIdleConns = defaultDbMaxIdleConns
+	}
+	dm.dbConn.SetMaxIdleConns(params.MaxIdleConns)
+
+	if params.ConnMaxLifetime == 0 {
+		params.ConnMaxLifetime = defaultDbConnMaxLifetimeSec * time.Second
+	}
+	dm.dbConn.SetConnMaxLifetime(params.ConnMaxLifetime)
+
+	if params.ConnMaxIdleTime == 0 {
+		params.ConnMaxIdleTime = defaultDbConnMaxIdleTimeSec * time.Second
+	}
+	dm.dbConn.SetConnMaxIdleTime(params.ConnMaxIdleTime)
 }
 
 func (dm *DatabaseManager) Close() error {

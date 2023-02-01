@@ -332,7 +332,7 @@ func TestDatabaseManager_NotReady(t *testing.T) {
 	// use DSN that is valid, but not reachable
 	unreachableDSN := "postgres://nousr:nopwd@198.51.100.1:5432/nodatabase"
 
-	_, err := NewDatabaseManager(PostgreSQL, unreachableDSN, 0)
+	_, err := NewDatabaseManager(PostgreSQL, unreachableDSN, &ConnectionParams{})
 	assert.EqualError(t, err, "dial tcp 198.51.100.1:5432: connect: connection timed out")
 }
 
@@ -671,7 +671,7 @@ func TestDatabaseManager_NewDatabaseManager_DatabaseAlreadyOnLatestVersion(t *te
 	err = migrateUp(PostgreSQL, c.DbDSN)
 	require.NoError(t, err)
 
-	dm, err := NewDatabaseManager(PostgreSQL, c.DbDSN, 0)
+	dm, err := NewDatabaseManager(PostgreSQL, c.DbDSN, &ConnectionParams{})
 	assert.NoError(t, err)
 
 	cleanUpDB(t, &extendedDatabaseManager{
@@ -693,7 +693,7 @@ func TestDatabaseManager_NewDatabaseManager_DatabaseAlreadyExists(t *testing.T) 
 	err = migrateTo(PostgreSQL, c.DbDSN, 1)
 	require.NoError(t, err)
 
-	dm, err := NewDatabaseManager(PostgreSQL, c.DbDSN, 0)
+	dm, err := NewDatabaseManager(PostgreSQL, c.DbDSN, &ConnectionParams{})
 	assert.NoError(t, err)
 
 	cleanUpDB(t, &extendedDatabaseManager{
@@ -744,7 +744,7 @@ func initDB(maxConns int) (*extendedDatabaseManager, error) {
 		return nil, err
 	}
 
-	dm, err := NewDatabaseManager(PostgreSQL, c.DbDSN, maxConns)
+	dm, err := NewDatabaseManager(PostgreSQL, c.DbDSN, &ConnectionParams{MaxOpenConns: maxConns})
 	if err != nil {
 		return nil, err
 	}
@@ -760,7 +760,7 @@ func cleanUpDB(t assert.TestingT, dm *extendedDatabaseManager) {
 	assert.NoError(t, err)
 
 	if dm.driverName == SQLite {
-		time.Sleep(time.Millisecond) // this is here because we are getting SQLITE_BUSY error otherwise
+		time.Sleep(5 * time.Millisecond) // this is here because we are getting SQLITE_BUSY error otherwise
 	}
 
 	err = dropDB(dm.driverName, dm.dsn)
