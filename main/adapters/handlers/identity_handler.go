@@ -95,6 +95,7 @@ func (i *IdentityHandler) InitIdentity(uid uuid.UUID, auth string) (csrPEM []byt
 		PublicKey:  pubKeyPEM,
 		Signature:  make([]byte, i.Protocol.SignatureLength()),
 		AuthToken:  auth,
+		Active:     true,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

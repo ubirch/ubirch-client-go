@@ -606,6 +606,10 @@ func checkIdentity(ctxManager ContextManager, id ent.Identity, wg *sync.WaitGrou
 		return fmt.Errorf("checkAuth: %v", err)
 	}
 
+	if fetchedId.Active != id.Active {
+		return fmt.Errorf("unexpected active flag")
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

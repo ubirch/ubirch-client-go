@@ -68,10 +68,10 @@ func getMigrator(driver, dsn string) (*migrate.Migrate, error) {
 
 	switch driver {
 	case PostgreSQL:
-		databaseName = "postgres"
+		databaseName = PostgreSQL
 		driverInstance, err = postgres.WithInstance(db, &postgres.Config{})
 	case SQLite:
-		databaseName = "sqlite"
+		databaseName = SQLite
 		driverInstance, err = sqlite.WithInstance(db, &sqlite.Config{NoTxWrap: true})
 	default:
 		return nil, fmt.Errorf("unsupported database driver: %s", driver)
