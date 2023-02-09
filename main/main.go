@@ -116,8 +116,9 @@ func main() {
 	}
 
 	signer := handlers.Signer{
-		SignerProtocol:    protocol,
-		SendToAuthService: client.SendToAuthService,
+		SignerProtocol:                 protocol,
+		VerifyBackendResponseSignature: protocol.VerifyBackendResponseSignature(conf.ServerIdentity.UUID, conf.ServerIdentity.PubKey),
+		SendToAuthService:              client.SendToAuthService,
 	}
 
 	verifier := handlers.Verifier{

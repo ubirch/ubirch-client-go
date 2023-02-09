@@ -247,6 +247,27 @@ func (p *ExtendedProtocol) IsInitialized(uid uuid.UUID) (initialized bool, err e
 	return true, nil
 }
 
+func (p *ExtendedProtocol) VerifyBackendResponseSignature(id uuid.UUID, pubKeyBytes []byte) func(upp []byte) error {
+	pubKeyPEM, err := p.PublicKeyBytesToPEM(pubKeyBytes)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if err = p.keyCache.SetPublicKey(id, pubKeyPEM); err != nil {
+		log.Fatal(err)
+	}
+
+	return func(upp []byte) error {
+		if verified, err := p.Verify(id, upp); !verified {
+			if err != nil {
+				log.Errorf("could not verify backend response signature: %v", err)
+			}
+			return fmt.Errorf("backend response signature verification failed")
+		}
+		return nil
+	}
+}
+
 func (p *ExtendedProtocol) CheckAuth(ctx context.Context, uid uuid.UUID, authToCheck string) (ok, found bool, err error) {
 	_auth, found := p.authCache.Load(uid)
 

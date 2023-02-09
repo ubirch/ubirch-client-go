@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/kelseyhightower/envconfig"
 
 	log "github.com/sirupsen/logrus"
@@ -30,9 +31,17 @@ import (
 const (
 	secretLength32 = 32
 
-	DEV_STAGE  = "dev"
-	DEMO_STAGE = "demo"
-	PROD_STAGE = "prod"
+	DEV_STAGE        = "dev"
+	DEV_UUID         = "9d3c78ff-22f3-4441-a5d1-85c636d486ff"
+	DEV_PUBKEY_ECDSA = "LnU8BkvGcZQPy5gWVUL+PHA0DP9dU61H8DBO8hZvTyI7lXIlG1/oruVMT7gS2nlZDK9QG+ugkRt/zTrdLrAYDA=="
+
+	DEMO_STAGE        = "demo"
+	DEMO_UUID         = "07104235-1892-4020-9042-00003c94b60b"
+	DEMO_PUBKEY_ECDSA = "xm+iIomBRjR3QdvLJrGE1OBs3bAf8EI49FfgBriRk36n4RUYX+0smrYK8tZkl6Lhrt9lzjiUGrXGijRoVE+UjA=="
+
+	PROD_STAGE        = "prod"
+	PROD_UUID         = "10b2e1a4-56b3-4fff-9ada-cc8c20f93016"
+	PROD_PUBKEY_ECDSA = "pJdYoJN0N3QTFMBVjZVQie1hhgumQVTy2kX9I7kXjSyoIl40EOa9MX24SBAABBV7xV2IFi1KWMnC1aLOIvOQjQ=="
 
 	defaultKeyURL      = "https://identity.%s.ubirch.com/api/keyService/v1/pubkey"
 	defaultIdentityURL = "https://identity.%s.ubirch.com/api/certs/v1/csr/register"
@@ -105,11 +114,23 @@ type Config struct {
 	VerifyServiceTimeoutMs        int64             `json:"verifyServiceTimeoutMs" envconfig:"VERIFY_SERVICE_TIMEOUT_MS"`                // time limit for requests to the ubirch verification service in milliseconds
 	VerificationTimeoutMs         int64             `json:"verificationTimeoutMs" envconfig:"VERIFICATION_TIMEOUT_MS"`                   // time limit for repeated attempts to verify a hash at the ubirch verification service in milliseconds
 	VerifyFromKnownIdentitiesOnly bool              `json:"verifyFromKnownIdentitiesOnly" envconfig:"VERIFY_FROM_KNOWN_IDENTITIES_ONLY"` // flag to determine if a public key should be retrieved from the ubirch identity service in case of incoming verification request for UPP from unknown identity
+	ServerIdentity                *identity         `json:"serverIdentity"`                                                              // UUID and public keys of the backend for response signature verification
 	KeyService                    string            // key service URL (set automatically)
 	IdentityService               string            // identity service URL (set automatically)
 	Niomon                        string            // authentication service URL (set automatically)
 	VerifyService                 string            // verification service URL (set automatically)
 	SecretBytes32                 []byte            // the decoded 32 byte key store secret for database (set automatically)
+}
+
+type identity struct {
+	UUID   uuid.UUID
+	PubKey []byte
+}
+
+var defaultServerIdentities = map[string]map[string]string{
+	DEV_STAGE:  {"UUID": DEV_UUID, "PubKey": DEV_PUBKEY_ECDSA},
+	DEMO_STAGE: {"UUID": DEMO_UUID, "PubKey": DEMO_PUBKEY_ECDSA},
+	PROD_STAGE: {"UUID": PROD_UUID, "PubKey": PROD_PUBKEY_ECDSA},
 }
 
 func (c *Config) Load(configDir, filename string) error {
@@ -356,6 +377,21 @@ func (c *Config) setDefaultURLs() error {
 	log.Debugf(" - Identity Service:       %s", c.IdentityService)
 	log.Debugf(" - Authentication Service: %s", c.Niomon)
 	log.Debugf(" - Verification Service:   %s", c.VerifyService)
+
+	if c.ServerIdentity == nil {
+		defaultServerIdentityJSON, err := json.Marshal(defaultServerIdentities[c.Env])
+		if err != nil {
+			return err
+		}
+
+		c.ServerIdentity = &identity{}
+		if err := json.Unmarshal(defaultServerIdentityJSON, c.ServerIdentity); err != nil {
+			return err
+		}
+	}
+
+	log.Infof("set backend verification key for %s environment: %s: %s",
+		c.Env, c.ServerIdentity.UUID, base64.StdEncoding.EncodeToString(c.ServerIdentity.PubKey))
 
 	return nil
 }
