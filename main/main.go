@@ -117,7 +117,7 @@ func main() {
 
 	signer := handlers.Signer{
 		SignerProtocol:                 protocol,
-		VerifyBackendResponseSignature: protocol.VerifyBackendResponseSignature(conf.ServerIdentity.UUID, conf.ServerIdentity.PubKey),
+		VerifyBackendResponseSignature: protocol.VerifyBackendResponseSignature(conf.NiomonIdentity.UUID, conf.NiomonIdentity.PublicKey),
 		SendToAuthService:              client.SendToAuthService,
 	}
 
