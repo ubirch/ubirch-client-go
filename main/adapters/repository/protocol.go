@@ -82,6 +82,9 @@ func NewExtendedProtocol(ctxManager ContextManager, conf *config.Config) (*Exten
 		authCache: &sync.Map{},
 	}
 
+	if conf.NiomonIdentity == nil {
+		return nil, fmt.Errorf("config field NiomonIdentity is nil pointer")
+	}
 	err = p.setBackendVerificationKey(conf.NiomonIdentity.UUID, conf.NiomonIdentity.PublicKey)
 	if err != nil {
 		return nil, err
