@@ -67,10 +67,14 @@ type SignerProtocol interface {
 	Sign(ubirch.UPP) ([]byte, error)
 }
 
+type ResponseVerifier interface {
+	VerifyBackendResponseSignature(upp []byte) error
+}
+
 type Signer struct {
 	SignerProtocol
-	VerifyBackendResponseSignature func(upp []byte) error
-	SendToAuthService              func(uid uuid.UUID, auth string, upp []byte) (h.HTTPResponse, error)
+	ResponseVerifier
+	SendToAuthService func(uid uuid.UUID, auth string, upp []byte) (h.HTTPResponse, error)
 }
 
 func (s *Signer) Sign(msg h.HTTPRequest) h.HTTPResponse {

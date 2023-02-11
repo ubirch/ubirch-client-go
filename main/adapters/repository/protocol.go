@@ -38,6 +38,8 @@ type ExtendedProtocol struct {
 
 	pwHasher  *pw.Argon2idKeyDerivator
 	authCache *sync.Map // {<uuid>: <auth token>}
+
+	backendUUID uuid.UUID
 }
 
 func NewExtendedProtocol(ctxManager ContextManager, conf *config.Config) (*ExtendedProtocol, error) {
@@ -80,7 +82,27 @@ func NewExtendedProtocol(ctxManager ContextManager, conf *config.Config) (*Exten
 		authCache: &sync.Map{},
 	}
 
+	err = p.setBackendVerificationKey(conf.NiomonIdentity.UUID, conf.NiomonIdentity.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+
 	return p, nil
+}
+
+func (p *ExtendedProtocol) setBackendVerificationKey(id uuid.UUID, pubKeyBytes []byte) error {
+	pubKeyPEM, err := p.PublicKeyBytesToPEM(pubKeyBytes)
+	if err != nil {
+		return fmt.Errorf("invalid backend response verification key [bytes]: %v", err)
+	}
+
+	if err = p.keyCache.SetPublicKey(id, pubKeyPEM); err != nil {
+		return fmt.Errorf("couldn't set backend response verification key in key cache: %v", err)
+	}
+
+	p.backendUUID = id
+
+	return nil
 }
 
 func (p *ExtendedProtocol) StoreIdentity(tx TransactionCtx, i ent.Identity) error {
@@ -247,25 +269,14 @@ func (p *ExtendedProtocol) IsInitialized(uid uuid.UUID) (initialized bool, err e
 	return true, nil
 }
 
-func (p *ExtendedProtocol) VerifyBackendResponseSignature(id uuid.UUID, pubKeyBytes []byte) func(upp []byte) error {
-	pubKeyPEM, err := p.PublicKeyBytesToPEM(pubKeyBytes)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if err = p.keyCache.SetPublicKey(id, pubKeyPEM); err != nil {
-		log.Fatal(err)
-	}
-
-	return func(upp []byte) error {
-		if verified, err := p.Verify(id, upp); !verified {
-			if err != nil {
-				log.Errorf("could not verify backend response signature: %v", err)
-			}
-			return fmt.Errorf("backend response signature verification failed")
+func (p *ExtendedProtocol) VerifyBackendResponseSignature(upp []byte) error {
+	if verified, err := p.Verify(p.backendUUID, upp); !verified {
+		if err != nil {
+			log.Errorf("could not verify backend response signature: %v", err)
 		}
-		return nil
+		return fmt.Errorf("backend response signature verification failed")
 	}
+	return nil
 }
 
 func (p *ExtendedProtocol) CheckAuth(ctx context.Context, uid uuid.UUID, authToCheck string) (ok, found bool, err error) {
