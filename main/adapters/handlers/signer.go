@@ -50,11 +50,13 @@ var hintLookup = map[h.Operation]ubirch.Hint{
 }
 
 type signingResponse struct {
-	Hash      []byte          `json:"hash"`
-	UPP       []byte          `json:"upp"`
-	PublicKey []byte          `json:"publicKey"`
-	Response  *h.HTTPResponse `json:"response,omitempty"`
-	RequestID string          `json:"requestID,omitempty"`
+	Hash                      []byte          `json:"hash"`
+	UPP                       []byte          `json:"upp"`
+	PublicKey                 []byte          `json:"publicKey"`
+	Response                  *h.HTTPResponse `json:"response,omitempty"`
+	RequestID                 string          `json:"requestID,omitempty"`
+	ResponseSignatureVerified bool            `json:"responseSignatureVerified"`
+	ResponseChainVerified     bool            `json:"responseChainVerified"`
 }
 
 type SignerProtocol interface {
@@ -68,7 +70,7 @@ type SignerProtocol interface {
 }
 
 type ResponseVerifier interface {
-	VerifyBackendResponseSignature(upp []byte) error
+	VerifyBackendResponseSignature(upp []byte) (bool, error)
 }
 
 type Signer struct {
@@ -128,11 +130,21 @@ func (s *Signer) Sign(msg h.HTTPRequest) h.HTTPResponse {
 		log.Warnf("%s: could not get public key: %v", msg.ID, err)
 	}
 
+	signingResp := &signingResponse{
+		Hash:                      msg.Hash[:],
+		UPP:                       uppBytes,
+		PublicKey:                 pub,
+		Response:                  nil,
+		RequestID:                 "",
+		ResponseSignatureVerified: false,
+		ResponseChainVerified:     false,
+	}
+
 	var resp h.HTTPResponse
 	if msg.Offline {
-		resp = getSigningResponse(http.StatusOK, msg.Hash[:], uppBytes, pub, nil, "")
+		resp = getHTTPResponse(http.StatusOK, signingResp)
 	} else {
-		resp = s.sendUPP(msg, uppBytes, pub)
+		resp = s.sendUPP(msg, uppBytes, signingResp)
 	}
 
 	// persist last signature only if UPP was successfully received by ubirch backend
@@ -186,7 +198,7 @@ func (s *Signer) getSignedUPP(id uuid.UUID, hash [32]byte, op h.Operation) ([]by
 		})
 }
 
-func (s *Signer) sendUPP(msg h.HTTPRequest, upp []byte, pub []byte) h.HTTPResponse {
+func (s *Signer) sendUPP(msg h.HTTPRequest, upp []byte, signingResp *signingResponse) h.HTTPResponse {
 	// send UPP to ubirch backend
 	backendResp, err := s.SendToAuthService(msg.ID, msg.Auth, upp)
 	if err != nil {
@@ -200,29 +212,30 @@ func (s *Signer) sendUPP(msg h.HTTPRequest, upp []byte, pub []byte) h.HTTPRespon
 	}
 	log.Debugf("%s: backend response: (%d) %x", msg.ID, backendResp.StatusCode, backendResp.Content)
 
+	signingResp.Response = &backendResp
+
 	// verify validity of the backend response UPP
-	err = s.verifyResponse(upp, backendResp)
+	err = s.verifyResponse(upp, backendResp, signingResp)
 	if err != nil {
 		log.Error(err)
 		return errorResponse(http.StatusBadGateway, "")
 	}
 
 	// decode the backend response UPP and get request ID
-	var requestID string
 	responseUPPStruct, err := ubirch.Decode(backendResp.Content)
 	if err != nil {
 		log.Warnf("decoding backend response failed: %v, backend response: (%d) %q",
 			err, backendResp.StatusCode, backendResp.Content)
 	} else {
-		requestID, err = getRequestID(responseUPPStruct)
+		signingResp.RequestID, err = getRequestID(responseUPPStruct)
 		if err != nil {
 			log.Warnf("could not get request ID from backend response: %v", err)
 		} else {
-			log.Infof("%s: request ID: %s", msg.ID, requestID)
+			log.Infof("%s: request ID: %s", msg.ID, signingResp.RequestID)
 		}
 	}
 
-	resp := getSigningResponse(backendResp.StatusCode, msg.Hash[:], upp, pub, &backendResp, requestID)
+	resp := getHTTPResponse(backendResp.StatusCode, signingResp)
 
 	if h.HttpFailed(backendResp.StatusCode) {
 		log.Errorf("%s: request to ubirch authentication service (niomon) failed: (%d) %s", msg.ID, backendResp.StatusCode, string(resp.Content))
@@ -231,20 +244,23 @@ func (s *Signer) sendUPP(msg h.HTTPRequest, upp []byte, pub []byte) h.HTTPRespon
 	return resp
 }
 
-func (s *Signer) verifyResponse(requestUPPBytes []byte, backendResp h.HTTPResponse) error {
+func (s *Signer) verifyResponse(requestUPPBytes []byte, backendResp h.HTTPResponse, signingResp *signingResponse) error {
 	// check if backend response is a UPP or something else, like an error message string, for example "Timeout"
 	if !hasUPPHeaders(backendResp.Content) {
 		return fmt.Errorf("unexpected response from UBIRCH Authentication Service: (%d) %q",
 			backendResp.StatusCode, backendResp.Content)
 	}
 
-	err := s.VerifyBackendResponseSignature(backendResp.Content)
+	var err error
+
+	// verify the signature of the backend response UPP
+	signingResp.ResponseSignatureVerified, err = s.VerifyBackendResponseSignature(backendResp.Content)
 	if err != nil {
 		return err
 	}
 
 	// verify that backend response previous signature matches signature of request UPP
-	err = verifyChain(requestUPPBytes, backendResp.Content)
+	signingResp.ResponseChainVerified, err = verifyChain(requestUPPBytes, backendResp.Content)
 	if err != nil {
 		return err
 	}
@@ -256,32 +272,32 @@ func hasUPPHeaders(data []byte) bool {
 	return bytes.HasPrefix(data, signedUPPHeader) || bytes.HasPrefix(data, chainedUPPHeader)
 }
 
-func verifyChain(requestUPPBytes, responseUPPBytes []byte) error {
+func verifyChain(requestUPPBytes, responseUPPBytes []byte) (bool, error) {
 	requestUPP, err := ubirch.Decode(requestUPPBytes)
 	if err != nil {
 		// this shouldn't happen
-		return fmt.Errorf("decoding request UPP failed: %v: %x", err, requestUPPBytes)
+		return false, fmt.Errorf("decoding request UPP failed: %v: %x", err, requestUPPBytes)
 	}
 
 	responseUPP, err := ubirch.Decode(responseUPPBytes)
 	if err != nil {
-		return fmt.Errorf("decoding response UPP failed: %v: %x", err, responseUPPBytes)
+		return false, fmt.Errorf("decoding response UPP failed: %v: %x", err, responseUPPBytes)
 	}
 
 	if responseUPP.GetVersion() != ubirch.Chained {
 		log.Warnf("backend response UPP is not chained! request UPP: %x, response UPP: %x",
 			requestUPPBytes, responseUPPBytes)
-		return nil
+		return false, nil
 	}
 
 	if chainOK, err := ubirch.CheckChainLink(requestUPP, responseUPP); !chainOK {
 		if err != nil {
 			log.Errorf("could not verify backend response chain: %v", err)
 		}
-		return fmt.Errorf("backend response chain check failed")
+		return false, fmt.Errorf("backend response chain check failed")
 	}
 
-	return nil
+	return true, nil
 }
 
 func getRequestID(respUPP ubirch.UPP) (string, error) {
@@ -307,14 +323,8 @@ func errorResponse(code int, message string) h.HTTPResponse {
 	}
 }
 
-func getSigningResponse(statusCode int, hash, upp, pub []byte, backendResp *h.HTTPResponse, requestID string) h.HTTPResponse {
-	signingResp, err := json.Marshal(signingResponse{
-		Hash:      hash,
-		UPP:       upp,
-		PublicKey: pub,
-		Response:  backendResp,
-		RequestID: requestID,
-	})
+func getHTTPResponse(statusCode int, signingResp *signingResponse) h.HTTPResponse {
+	respContent, err := json.Marshal(signingResp)
 	if err != nil {
 		log.Warnf("error serializing signing response: %v", err)
 	}
@@ -322,6 +332,6 @@ func getSigningResponse(statusCode int, hash, upp, pub []byte, backendResp *h.HT
 	return h.HTTPResponse{
 		StatusCode: statusCode,
 		Header:     http.Header{"Content-Type": {"application/json"}},
-		Content:    signingResp,
+		Content:    respContent,
 	}
 }

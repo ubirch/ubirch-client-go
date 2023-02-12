@@ -276,18 +276,18 @@ func (p *ExtendedProtocol) IsInitialized(uid uuid.UUID) (initialized bool, err e
 	return true, nil
 }
 
-func (p *ExtendedProtocol) VerifyBackendResponseSignature(upp []byte) error {
+func (p *ExtendedProtocol) VerifyBackendResponseSignature(upp []byte) (bool, error) {
 	if !p.verifyNiomonResponse {
-		return nil
+		return false, nil
 	}
 
 	if verified, err := p.Verify(p.backendUUID, upp); !verified {
 		if err != nil {
 			log.Errorf("could not verify backend response signature: %v", err)
 		}
-		return fmt.Errorf("backend response signature verification failed")
+		return false, fmt.Errorf("backend response signature verification failed")
 	}
-	return nil
+	return true, nil
 }
 
 func (p *ExtendedProtocol) CheckAuth(ctx context.Context, uid uuid.UUID, authToCheck string) (ok, found bool, err error) {
