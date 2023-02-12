@@ -244,11 +244,9 @@ func (s *Signer) verifyResponse(requestUPPBytes []byte, backendResp h.HTTPRespon
 	}
 
 	// verify that backend response previous signature matches signature of request UPP
-	if h.HttpSuccess(backendResp.StatusCode) {
-		err = verifyChain(requestUPPBytes, backendResp.Content)
-		if err != nil {
-			return err
-		}
+	err = verifyChain(requestUPPBytes, backendResp.Content)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -268,6 +266,12 @@ func verifyChain(requestUPPBytes, responseUPPBytes []byte) error {
 	responseUPP, err := ubirch.Decode(responseUPPBytes)
 	if err != nil {
 		return fmt.Errorf("decoding response UPP failed: %v: %x", err, responseUPPBytes)
+	}
+
+	if responseUPP.GetVersion() != ubirch.Chained {
+		log.Warnf("backend response UPP is not chained! request UPP: %x, response UPP: %x",
+			requestUPPBytes, responseUPPBytes)
+		return nil
 	}
 
 	if chainOK, err := ubirch.CheckChainLink(requestUPP, responseUPP); !chainOK {
