@@ -108,6 +108,7 @@ type Config struct {
 	VerifyServiceTimeoutMs        int64             `json:"verifyServiceTimeoutMs" envconfig:"VERIFY_SERVICE_TIMEOUT_MS"`                // time limit for requests to the ubirch verification service in milliseconds
 	VerificationTimeoutMs         int64             `json:"verificationTimeoutMs" envconfig:"VERIFICATION_TIMEOUT_MS"`                   // time limit for repeated attempts to verify a hash at the ubirch verification service in milliseconds
 	VerifyFromKnownIdentitiesOnly bool              `json:"verifyFromKnownIdentitiesOnly" envconfig:"VERIFY_FROM_KNOWN_IDENTITIES_ONLY"` // flag to determine if a public key should be retrieved from the ubirch identity service in case of incoming verification request for UPP from unknown identity
+	VerifyNiomonResponse          bool              `json:"verifyNiomonResponse" envconfig:"VERIFY_NIOMON_RESPONSE"`                     // flag to enable backend response verification
 	NiomonIdentity                *identity         `json:"niomonIdentity" envconfig:"NIOMON_IDENTITY"`                                  // niomon's UUID and public key for response signature verification
 	KeyService                    string            // key service URL (set automatically)
 	IdentityService               string            // identity service URL (set automatically)
@@ -366,15 +367,17 @@ func (c *Config) setDefaultURLs() error {
 	log.Debugf(" - Authentication Service: %s", c.Niomon)
 	log.Debugf(" - Verification Service:   %s", c.VerifyService)
 
-	if c.NiomonIdentity == nil {
-		err := c.loadDefaultNiomonIdentity()
-		if err != nil {
-			return fmt.Errorf("couldn't load default niomon identity: %v", err)
+	if c.VerifyNiomonResponse {
+		if c.NiomonIdentity == nil {
+			err := c.loadDefaultNiomonIdentity()
+			if err != nil {
+				return fmt.Errorf("couldn't load default niomon identity: %v", err)
+			}
 		}
-	}
 
-	log.Infof("set backend verification key for %s environment: %s: %s",
-		c.Env, c.NiomonIdentity.UUID, base64.StdEncoding.EncodeToString(c.NiomonIdentity.PublicKey))
+		log.Infof("backend response verification enabled with verification key for %s environment: %s: %s",
+			c.Env, c.NiomonIdentity.UUID, base64.StdEncoding.EncodeToString(c.NiomonIdentity.PublicKey))
+	}
 
 	return nil
 }

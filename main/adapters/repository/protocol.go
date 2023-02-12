@@ -39,7 +39,8 @@ type ExtendedProtocol struct {
 	pwHasher  *pw.Argon2idKeyDerivator
 	authCache *sync.Map // {<uuid>: <auth token>}
 
-	backendUUID uuid.UUID
+	verifyNiomonResponse bool
+	backendUUID          uuid.UUID
 }
 
 func NewExtendedProtocol(ctxManager ContextManager, conf *config.Config) (*ExtendedProtocol, error) {
@@ -82,12 +83,14 @@ func NewExtendedProtocol(ctxManager ContextManager, conf *config.Config) (*Exten
 		authCache: &sync.Map{},
 	}
 
-	if conf.NiomonIdentity == nil {
-		return nil, fmt.Errorf("config field NiomonIdentity is nil pointer")
-	}
-	err = p.setBackendVerificationKey(conf.NiomonIdentity.UUID, conf.NiomonIdentity.PublicKey)
-	if err != nil {
-		return nil, err
+	if conf.VerifyNiomonResponse {
+		if conf.NiomonIdentity == nil {
+			return nil, fmt.Errorf("config field NiomonIdentity is nil pointer")
+		}
+		err = p.setBackendVerificationKey(conf.NiomonIdentity.UUID, conf.NiomonIdentity.PublicKey)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return p, nil
@@ -103,6 +106,7 @@ func (p *ExtendedProtocol) setBackendVerificationKey(id uuid.UUID, pubKeyBytes [
 		return fmt.Errorf("couldn't set backend response verification key in key cache: %v", err)
 	}
 
+	p.verifyNiomonResponse = true
 	p.backendUUID = id
 
 	return nil
@@ -273,6 +277,10 @@ func (p *ExtendedProtocol) IsInitialized(uid uuid.UUID) (initialized bool, err e
 }
 
 func (p *ExtendedProtocol) VerifyBackendResponseSignature(upp []byte) error {
+	if !p.verifyNiomonResponse {
+		return nil
+	}
+
 	if verified, err := p.Verify(p.backendUUID, upp); !verified {
 		if err != nil {
 			log.Errorf("could not verify backend response signature: %v", err)
