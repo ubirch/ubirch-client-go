@@ -77,11 +77,11 @@ func TestVerifier_Verify(t *testing.T) {
 					}, nil)
 				m.On("LoadPublicKey", testUuid).Return(testPublicKeyPEM, nil)
 				m.On("PublicKeyPEMToBytes", testPublicKeyPEM).Return(testPublicKey, nil)
-				m.On("Verify", testUuid, testVerificationUPP).Return(true, nil)
+				m.On("Verify", testUuid, testSignedUPP).Return(true, nil)
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mockProto) {
 				m.mock.AssertExpectations(t)
-				assert.Equal(t, getVerificationResponse(http.StatusOK, testHash[:], testVerificationUPP, testUuid, testPublicKey, ""), resp)
+				assert.Equal(t, getVerificationResponse(http.StatusOK, testHash[:], testSignedUPP, testUuid, testPublicKey, ""), resp)
 			},
 		},
 		{
@@ -102,12 +102,12 @@ func TestVerifier_Verify(t *testing.T) {
 					PublicKey: testPublicKeyPEM,
 				}).Return(nil)
 				m.On("PublicKeyPEMToBytes", testPublicKeyPEM).Return(testPublicKey, nil)
-				m.On("Verify", testUuid, testVerificationUPP).Return(true, nil)
+				m.On("Verify", testUuid, testSignedUPP).Return(true, nil)
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mockProto) {
 				<-m.done
 				m.mock.AssertExpectations(t)
-				assert.Equal(t, getVerificationResponse(http.StatusOK, testHash[:], testVerificationUPP, testUuid, testPublicKey, ""), resp)
+				assert.Equal(t, getVerificationResponse(http.StatusOK, testHash[:], testSignedUPP, testUuid, testPublicKey, ""), resp)
 			},
 		},
 		{
@@ -135,7 +135,7 @@ func TestVerifier_Verify(t *testing.T) {
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mockProto) {
 				m.mock.AssertExpectations(t)
-				assert.Equal(t, getVerificationResponse(http.StatusForbidden, testHash[:], testVerificationUPP, testUuid, nil, ErrUnknownIdentity.Error()), resp)
+				assert.Equal(t, getVerificationResponse(http.StatusForbidden, testHash[:], testSignedUPP, testUuid, nil, ErrUnknownIdentity.Error()), resp)
 			},
 		},
 		{
@@ -151,7 +151,7 @@ func TestVerifier_Verify(t *testing.T) {
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mockProto) {
 				m.mock.AssertExpectations(t)
-				assert.Equal(t, getVerificationResponse(http.StatusInternalServerError, testHash[:], testVerificationUPP, testUuid, nil, "some error"), resp)
+				assert.Equal(t, getVerificationResponse(http.StatusInternalServerError, testHash[:], testSignedUPP, testUuid, nil, "some error"), resp)
 			},
 		},
 		{
@@ -165,11 +165,11 @@ func TestVerifier_Verify(t *testing.T) {
 					}, nil)
 				m.On("LoadPublicKey", testUuid).Return(testPublicKeyPEM, nil)
 				m.On("PublicKeyPEMToBytes", testPublicKeyPEM).Return(testPublicKey, nil)
-				m.On("Verify", testUuid, testVerificationUPP).Return(false, nil)
+				m.On("Verify", testUuid, testSignedUPP).Return(false, nil)
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mockProto) {
 				m.mock.AssertExpectations(t)
-				assert.Equal(t, getVerificationResponse(http.StatusForbidden, testHash[:], testVerificationUPP, testUuid, testPublicKey, "invalid UPP signature"), resp)
+				assert.Equal(t, getVerificationResponse(http.StatusForbidden, testHash[:], testSignedUPP, testUuid, testPublicKey, "invalid UPP signature"), resp)
 			},
 		},
 	}
@@ -204,70 +204,70 @@ func TestVerifier_VerifyOffline(t *testing.T) {
 	}{
 		{
 			name: "verification success",
-			upp:  testVerificationUPP,
-			setMockBehavior: func(m *mock.Mock) {
-				m.On("LoadPublicKey", testUuid).Return(testPublicKeyPEM, nil)
-				m.On("PublicKeyPEMToBytes", testPublicKeyPEM).Return(testPublicKey, nil)
-				m.On("Verify", testUuid, testVerificationUPP).Return(true, nil)
-			},
-			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
-				m.AssertExpectations(t)
-				assert.Equal(t, getVerificationResponse(http.StatusOK, testHash[:], testVerificationUPP, testUuid, testPublicKey, ""), resp)
-			},
-		},
-		{
-			name: "UPP from unknown identity",
-			upp:  testVerificationUPP,
-			setMockBehavior: func(m *mock.Mock) {
-				m.On("LoadPublicKey", testUuid).Return([]byte{}, r.ErrNotExist)
-			},
-			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
-				m.AssertExpectations(t)
-				assert.Equal(t, getVerificationResponse(http.StatusNotFound, testHash[:], testVerificationUPP, testUuid, nil, ErrUnknownIdentity.Error()), resp)
-			},
-		},
-		{
-			name:            "invalid UPP",
-			upp:             testVerificationUPP[1:],
-			setMockBehavior: func(m *mock.Mock) {},
-			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
-				m.AssertExpectations(t)
-				assert.Equal(t, getVerificationResponse(http.StatusBadRequest, testHash[:], testVerificationUPP[1:], uuid.Nil, nil, ErrInvalidUPP.Error()), resp)
-			},
-		},
-		{
-			name: "internal server error",
-			upp:  testVerificationUPP,
-			setMockBehavior: func(m *mock.Mock) {
-				m.On("LoadPublicKey", testUuid).Return(testPublicKeyPEM, nil)
-				m.On("PublicKeyPEMToBytes", testPublicKeyPEM).Return(testPublicKey, nil)
-				m.On("Verify", testUuid, testVerificationUPP).Return(false, fmt.Errorf("some error"))
-			},
-			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
-				m.AssertExpectations(t)
-				assert.Equal(t, getVerificationResponse(http.StatusInternalServerError, testHash[:], testVerificationUPP, testUuid, testPublicKey, "unable to verify UPP: some error"), resp)
-			},
-		},
-		{
-			name: "invalid signature",
-			upp:  testVerificationUPP,
-			setMockBehavior: func(m *mock.Mock) {
-				m.On("LoadPublicKey", testUuid).Return(testPublicKeyPEM, nil)
-				m.On("PublicKeyPEMToBytes", testPublicKeyPEM).Return(testPublicKey, nil)
-				m.On("Verify", testUuid, testVerificationUPP).Return(false, nil)
-			},
-			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
-				m.AssertExpectations(t)
-				assert.Equal(t, getVerificationResponse(http.StatusForbidden, testHash[:], testVerificationUPP, testUuid, testPublicKey, "invalid UPP signature"), resp)
-			},
-		},
-		{
-			name: "hash mismatch",
 			upp:  testSignedUPP,
 			setMockBehavior: func(m *mock.Mock) {
 				m.On("LoadPublicKey", testUuid).Return(testPublicKeyPEM, nil)
 				m.On("PublicKeyPEMToBytes", testPublicKeyPEM).Return(testPublicKey, nil)
 				m.On("Verify", testUuid, testSignedUPP).Return(true, nil)
+			},
+			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
+				m.AssertExpectations(t)
+				assert.Equal(t, getVerificationResponse(http.StatusOK, testHash[:], testSignedUPP, testUuid, testPublicKey, ""), resp)
+			},
+		},
+		{
+			name: "UPP from unknown identity",
+			upp:  testSignedUPP,
+			setMockBehavior: func(m *mock.Mock) {
+				m.On("LoadPublicKey", testUuid).Return([]byte{}, r.ErrNotExist)
+			},
+			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
+				m.AssertExpectations(t)
+				assert.Equal(t, getVerificationResponse(http.StatusNotFound, testHash[:], testSignedUPP, testUuid, nil, ErrUnknownIdentity.Error()), resp)
+			},
+		},
+		{
+			name:            "invalid UPP",
+			upp:             testSignedUPP[1:],
+			setMockBehavior: func(m *mock.Mock) {},
+			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
+				m.AssertExpectations(t)
+				assert.Equal(t, getVerificationResponse(http.StatusBadRequest, testHash[:], testSignedUPP[1:], uuid.Nil, nil, ErrInvalidUPP.Error()), resp)
+			},
+		},
+		{
+			name: "internal server error",
+			upp:  testSignedUPP,
+			setMockBehavior: func(m *mock.Mock) {
+				m.On("LoadPublicKey", testUuid).Return(testPublicKeyPEM, nil)
+				m.On("PublicKeyPEMToBytes", testPublicKeyPEM).Return(testPublicKey, nil)
+				m.On("Verify", testUuid, testSignedUPP).Return(false, fmt.Errorf("some error"))
+			},
+			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
+				m.AssertExpectations(t)
+				assert.Equal(t, getVerificationResponse(http.StatusInternalServerError, testHash[:], testSignedUPP, testUuid, testPublicKey, "unable to verify UPP: some error"), resp)
+			},
+		},
+		{
+			name: "invalid signature",
+			upp:  testSignedUPP,
+			setMockBehavior: func(m *mock.Mock) {
+				m.On("LoadPublicKey", testUuid).Return(testPublicKeyPEM, nil)
+				m.On("PublicKeyPEMToBytes", testPublicKeyPEM).Return(testPublicKey, nil)
+				m.On("Verify", testUuid, testSignedUPP).Return(false, nil)
+			},
+			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
+				m.AssertExpectations(t)
+				assert.Equal(t, getVerificationResponse(http.StatusForbidden, testHash[:], testSignedUPP, testUuid, testPublicKey, "invalid UPP signature"), resp)
+			},
+		},
+		{
+			name: "hash mismatch",
+			upp:  testSignedUPP_2,
+			setMockBehavior: func(m *mock.Mock) {
+				m.On("LoadPublicKey", testUuid).Return(testPublicKeyPEM, nil)
+				m.On("PublicKeyPEMToBytes", testPublicKeyPEM).Return(testPublicKey, nil)
+				m.On("Verify", testUuid, testSignedUPP_2).Return(true, nil)
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
 				m.AssertExpectations(t)

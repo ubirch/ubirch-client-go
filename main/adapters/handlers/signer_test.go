@@ -54,6 +54,11 @@ func (m *mockProto) Sign(upp ubirch.UPP) ([]byte, error) {
 	return args.Get(0).([]byte), args.Error(1)
 }
 
+func (m *mockProto) VerifyBackendResponseSignature(upp []byte) (bool, error) {
+	args := m.mock.MethodCalled("VerifyBackendResponseSignature", upp)
+	return args.Bool(0), args.Error(1)
+}
+
 type mockTx struct{}
 
 func (m *mockTx) Commit() error   { return nil }
@@ -87,22 +92,31 @@ func TestSigner_Sign(t *testing.T) {
 			setMockBehavior: func(m *mock.Mock) {
 				m.On("LoadActiveFlag", testUuid).Return(true, nil)
 				m.On("StartTransaction", mock.AnythingOfType("*context.emptyCtx")).Return(&mockTx{}, nil)
-				m.On("LoadSignatureForUpdate", &mockTx{}, testUuid).Return(testSignature, nil)
+				m.On("LoadSignatureForUpdate", &mockTx{}, testUuid).Return(testPrevSignature, nil)
 				m.On("Sign", &ubirch.ChainedUPP{
 					Version:       ubirch.Chained,
 					Uuid:          testUuid,
-					PrevSignature: testSignature,
+					PrevSignature: testPrevSignature,
 					Hint:          ubirch.Binary,
 					Payload:       testHash[:],
 				}).Return(testChainedUPP, nil)
 				m.On("GetPublicKeyBytes", testUuid).Return(testPublicKey, nil)
 				m.On("sendToAuthService", testUuid, testAuth, testChainedUPP).Return(testBckndResp, nil)
+				m.On("VerifyBackendResponseSignature", testBckndResp.Content).Return(true, nil)
 				m.On("SignatureLength").Return(64)
 				m.On("StoreSignature", &mockTx{}, testUuid, testChainedUPP[len(testChainedUPP)-64:]).Return(nil)
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
 				m.AssertExpectations(t)
-				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testChainedUPP, testPublicKey, &testBckndResp, testRequestID), resp)
+				assert.Equal(t, getHTTPResponse(http.StatusOK, &signingResponse{
+					Hash:                      testHash[:],
+					UPP:                       testChainedUPP,
+					PublicKey:                 testPublicKey,
+					Response:                  &testBckndResp,
+					RequestID:                 testRequestID,
+					ResponseSignatureVerified: true,
+					ResponseChainVerified:     true,
+				}), resp)
 			},
 		},
 		{
@@ -118,11 +132,11 @@ func TestSigner_Sign(t *testing.T) {
 			setMockBehavior: func(m *mock.Mock) {
 				m.On("LoadActiveFlag", testUuid).Return(true, nil)
 				m.On("StartTransaction", mock.AnythingOfType("*context.emptyCtx")).Return(&mockTx{}, nil)
-				m.On("LoadSignatureForUpdate", &mockTx{}, testUuid).Return(testSignature, nil)
+				m.On("LoadSignatureForUpdate", &mockTx{}, testUuid).Return(testPrevSignature, nil)
 				m.On("Sign", &ubirch.ChainedUPP{
 					Version:       ubirch.Chained,
 					Uuid:          testUuid,
-					PrevSignature: testSignature,
+					PrevSignature: testPrevSignature,
 					Hint:          ubirch.Binary,
 					Payload:       testHash[:],
 				}).Return(testChainedUPP, nil)
@@ -132,7 +146,15 @@ func TestSigner_Sign(t *testing.T) {
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
 				m.AssertExpectations(t)
-				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testChainedUPP, testPublicKey, nil, ""), resp)
+				assert.Equal(t, getHTTPResponse(http.StatusOK, &signingResponse{
+					Hash:                      testHash[:],
+					UPP:                       testChainedUPP,
+					PublicKey:                 testPublicKey,
+					Response:                  nil,
+					RequestID:                 "",
+					ResponseSignatureVerified: false,
+					ResponseChainVerified:     false,
+				}), resp)
 			},
 		},
 		{
@@ -155,10 +177,19 @@ func TestSigner_Sign(t *testing.T) {
 				}).Return(testSignedUPP, nil)
 				m.On("GetPublicKeyBytes", testUuid).Return(testPublicKey, nil)
 				m.On("sendToAuthService", testUuid, testAuth, testSignedUPP).Return(testBckndResp, nil)
+				m.On("VerifyBackendResponseSignature", testBckndResp.Content).Return(true, nil)
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
 				m.AssertExpectations(t)
-				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testSignedUPP, testPublicKey, &testBckndResp, testRequestID), resp)
+				assert.Equal(t, getHTTPResponse(http.StatusOK, &signingResponse{
+					Hash:                      testHash[:],
+					UPP:                       testSignedUPP,
+					PublicKey:                 testPublicKey,
+					Response:                  &testBckndResp,
+					RequestID:                 testRequestID,
+					ResponseSignatureVerified: true,
+					ResponseChainVerified:     true,
+				}), resp)
 			},
 		},
 		{
@@ -183,7 +214,15 @@ func TestSigner_Sign(t *testing.T) {
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
 				m.AssertExpectations(t)
-				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testSignedUPP, testPublicKey, nil, ""), resp)
+				assert.Equal(t, getHTTPResponse(http.StatusOK, &signingResponse{
+					Hash:                      testHash[:],
+					UPP:                       testSignedUPP,
+					PublicKey:                 testPublicKey,
+					Response:                  nil,
+					RequestID:                 "",
+					ResponseSignatureVerified: false,
+					ResponseChainVerified:     false,
+				}), resp)
 			},
 		},
 		{
@@ -205,10 +244,19 @@ func TestSigner_Sign(t *testing.T) {
 				}).Return(testSignedUPP, nil)
 				m.On("GetPublicKeyBytes", testUuid).Return(testPublicKey, nil)
 				m.On("sendToAuthService", testUuid, testAuth, testSignedUPP).Return(testBckndResp, nil)
+				m.On("VerifyBackendResponseSignature", testBckndResp.Content).Return(true, nil)
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
 				m.AssertExpectations(t)
-				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testSignedUPP, testPublicKey, &testBckndResp, testRequestID), resp)
+				assert.Equal(t, getHTTPResponse(http.StatusOK, &signingResponse{
+					Hash:                      testHash[:],
+					UPP:                       testSignedUPP,
+					PublicKey:                 testPublicKey,
+					Response:                  &testBckndResp,
+					RequestID:                 testRequestID,
+					ResponseSignatureVerified: true,
+					ResponseChainVerified:     true,
+				}), resp)
 			},
 		},
 		{
@@ -230,10 +278,19 @@ func TestSigner_Sign(t *testing.T) {
 				}).Return(testSignedUPP, nil)
 				m.On("GetPublicKeyBytes", testUuid).Return(testPublicKey, nil)
 				m.On("sendToAuthService", testUuid, testAuth, testSignedUPP).Return(testBckndResp, nil)
+				m.On("VerifyBackendResponseSignature", testBckndResp.Content).Return(true, nil)
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
 				m.AssertExpectations(t)
-				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testSignedUPP, testPublicKey, &testBckndResp, testRequestID), resp)
+				assert.Equal(t, getHTTPResponse(http.StatusOK, &signingResponse{
+					Hash:                      testHash[:],
+					UPP:                       testSignedUPP,
+					PublicKey:                 testPublicKey,
+					Response:                  &testBckndResp,
+					RequestID:                 testRequestID,
+					ResponseSignatureVerified: true,
+					ResponseChainVerified:     true,
+				}), resp)
 			},
 		},
 		{
@@ -255,10 +312,19 @@ func TestSigner_Sign(t *testing.T) {
 				}).Return(testSignedUPP, nil)
 				m.On("GetPublicKeyBytes", testUuid).Return(testPublicKey, nil)
 				m.On("sendToAuthService", testUuid, testAuth, testSignedUPP).Return(testBckndResp, nil)
+				m.On("VerifyBackendResponseSignature", testBckndResp.Content).Return(true, nil)
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
 				m.AssertExpectations(t)
-				assert.Equal(t, getSigningResponse(http.StatusOK, testHash[:], testSignedUPP, testPublicKey, &testBckndResp, testRequestID), resp)
+				assert.Equal(t, getHTTPResponse(http.StatusOK, &signingResponse{
+					Hash:                      testHash[:],
+					UPP:                       testSignedUPP,
+					PublicKey:                 testPublicKey,
+					Response:                  &testBckndResp,
+					RequestID:                 testRequestID,
+					ResponseSignatureVerified: true,
+					ResponseChainVerified:     true,
+				}), resp)
 			},
 		},
 	}
@@ -270,6 +336,7 @@ func TestSigner_Sign(t *testing.T) {
 
 			s := Signer{
 				SignerProtocol:    &mockProto{mock: m},
+				ResponseVerifier:  &mockProto{mock: m},
 				SendToAuthService: sendToAuthService(m),
 			}
 
