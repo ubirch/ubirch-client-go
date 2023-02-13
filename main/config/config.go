@@ -377,6 +377,8 @@ func (c *Config) setDefaultURLs() error {
 
 		log.Infof("backend response verification enabled with verification key for %s environment: %s: %s",
 			c.Env, c.NiomonIdentity.UUID, base64.StdEncoding.EncodeToString(c.NiomonIdentity.PublicKey))
+	} else {
+		log.Info("backend response verification disabled")
 	}
 
 	return nil
