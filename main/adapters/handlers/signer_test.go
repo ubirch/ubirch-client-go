@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"testing"
 
@@ -332,6 +333,32 @@ func TestSigner_Sign(t *testing.T) {
 					ResponseSignatureVerified: true,
 					ResponseChainVerified:     true,
 				}), resp)
+			},
+		},
+		{
+			name: "response signature verification fails",
+			msg: h.HTTPRequest{
+				Ctx:       context.Background(),
+				ID:        testUuid,
+				Auth:      testAuth,
+				Hash:      testHash,
+				Operation: h.AnchorHash,
+			},
+			setMockBehavior: func(m *mock.Mock) {
+				m.On("LoadActiveFlag", testUuid).Return(true, nil)
+				m.On("Sign", &ubirch.SignedUPP{
+					Version: ubirch.Signed,
+					Uuid:    testUuid,
+					Hint:    ubirch.Binary,
+					Payload: testHash[:],
+				}).Return(testSignedUPP, nil)
+				m.On("GetPublicKeyBytes", testUuid).Return(testPublicKey, nil)
+				m.On("sendToAuthService", testUuid, testAuth, testSignedUPP).Return(testBckndResp, nil)
+				m.On("VerifyBackendResponseSignature", testBckndResp.Content).Return(false, fmt.Errorf("error"))
+			},
+			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
+				m.AssertExpectations(t)
+				assert.Equal(t, errorResponse(http.StatusBadGateway, ""), resp)
 			},
 		},
 	}
