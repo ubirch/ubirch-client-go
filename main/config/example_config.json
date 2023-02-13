@@ -38,6 +38,7 @@
   "verifyServiceTimeoutMs": 600,
   "verificationTimeoutMs": 2000,
   "verifyFromKnownIdentitiesOnly": true,
+  "verifyNiomonResponse": true,
   "niomonIdentity": {
     "uuid": "10b2e1a4-56b3-4fff-9ada-cc8c20f93016",
     "publicKey": "pJdYoJN0N3QTFMBVjZVQie1hhgumQVTy2kX9I7kXjSyoIl40EOa9MX24SBAABBV7xV2IFi1KWMnC1aLOIvOQjQ=="
