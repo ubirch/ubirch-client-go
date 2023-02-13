@@ -51,6 +51,7 @@ var hintLookup = map[h.Operation]ubirch.Hint{
 
 type signingResponse struct {
 	Hash                      []byte          `json:"hash"`
+	Operation                 string          `json:"operation"`
 	UPP                       []byte          `json:"upp"`
 	PublicKey                 []byte          `json:"publicKey"`
 	Response                  *h.HTTPResponse `json:"response,omitempty"`
@@ -132,6 +133,7 @@ func (s *Signer) Sign(msg h.HTTPRequest) h.HTTPResponse {
 
 	signingResp := &signingResponse{
 		Hash:                      msg.Hash[:],
+		Operation:                 string(msg.Operation),
 		UPP:                       uppBytes,
 		PublicKey:                 pub,
 		Response:                  nil,

@@ -110,6 +110,7 @@ func TestSigner_Sign(t *testing.T) {
 				m.AssertExpectations(t)
 				assert.Equal(t, getHTTPResponse(http.StatusOK, &signingResponse{
 					Hash:                      testHash[:],
+					Operation:                 string(h.ChainHash),
 					UPP:                       testChainedUPP,
 					PublicKey:                 testPublicKey,
 					Response:                  &testBckndResp,
@@ -148,6 +149,7 @@ func TestSigner_Sign(t *testing.T) {
 				m.AssertExpectations(t)
 				assert.Equal(t, getHTTPResponse(http.StatusOK, &signingResponse{
 					Hash:                      testHash[:],
+					Operation:                 string(h.ChainHash),
 					UPP:                       testChainedUPP,
 					PublicKey:                 testPublicKey,
 					Response:                  nil,
@@ -183,6 +185,7 @@ func TestSigner_Sign(t *testing.T) {
 				m.AssertExpectations(t)
 				assert.Equal(t, getHTTPResponse(http.StatusOK, &signingResponse{
 					Hash:                      testHash[:],
+					Operation:                 string(h.AnchorHash),
 					UPP:                       testSignedUPP,
 					PublicKey:                 testPublicKey,
 					Response:                  &testBckndResp,
@@ -216,6 +219,7 @@ func TestSigner_Sign(t *testing.T) {
 				m.AssertExpectations(t)
 				assert.Equal(t, getHTTPResponse(http.StatusOK, &signingResponse{
 					Hash:                      testHash[:],
+					Operation:                 string(h.AnchorHash),
 					UPP:                       testSignedUPP,
 					PublicKey:                 testPublicKey,
 					Response:                  nil,
@@ -250,6 +254,7 @@ func TestSigner_Sign(t *testing.T) {
 				m.AssertExpectations(t)
 				assert.Equal(t, getHTTPResponse(http.StatusOK, &signingResponse{
 					Hash:                      testHash[:],
+					Operation:                 string(h.DisableHash),
 					UPP:                       testSignedUPP,
 					PublicKey:                 testPublicKey,
 					Response:                  &testBckndResp,
@@ -284,6 +289,7 @@ func TestSigner_Sign(t *testing.T) {
 				m.AssertExpectations(t)
 				assert.Equal(t, getHTTPResponse(http.StatusOK, &signingResponse{
 					Hash:                      testHash[:],
+					Operation:                 string(h.EnableHash),
 					UPP:                       testSignedUPP,
 					PublicKey:                 testPublicKey,
 					Response:                  &testBckndResp,
@@ -318,6 +324,7 @@ func TestSigner_Sign(t *testing.T) {
 				m.AssertExpectations(t)
 				assert.Equal(t, getHTTPResponse(http.StatusOK, &signingResponse{
 					Hash:                      testHash[:],
+					Operation:                 string(h.DeleteHash),
 					UPP:                       testSignedUPP,
 					PublicKey:                 testPublicKey,
 					Response:                  &testBckndResp,
