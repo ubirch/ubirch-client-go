@@ -283,7 +283,7 @@ func (p *ExtendedProtocol) VerifyBackendResponseSignature(upp []byte) (bool, err
 
 	if verified, err := p.Verify(p.backendUUID, upp); !verified {
 		if err != nil {
-			log.Errorf("could not verify backend response signature: %v", err)
+			return false, fmt.Errorf("could not verify backend response signature: %v", err)
 		}
 		return false, fmt.Errorf("backend response signature verification failed")
 	}

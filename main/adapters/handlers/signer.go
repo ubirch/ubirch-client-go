@@ -294,7 +294,7 @@ func verifyChain(requestUPPBytes, responseUPPBytes []byte) (bool, error) {
 
 	if chainOK, err := ubirch.CheckChainLink(requestUPP, responseUPP); !chainOK {
 		if err != nil {
-			log.Errorf("could not verify backend response chain: %v", err)
+			return false, fmt.Errorf("could not verify backend response chain: %v", err)
 		}
 		return false, fmt.Errorf("backend response chain check failed")
 	}
