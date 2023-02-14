@@ -354,11 +354,20 @@ func TestSigner_Sign(t *testing.T) {
 				}).Return(testSignedUPP, nil)
 				m.On("GetPublicKeyBytes", testUuid).Return(testPublicKey, nil)
 				m.On("sendToAuthService", testUuid, testAuth, testSignedUPP).Return(testBckndResp, nil)
-				m.On("VerifyBackendResponseSignature", testBckndResp.Content).Return(false, fmt.Errorf("error"))
+				m.On("VerifyBackendResponseSignature", testBckndResp.Content).Return(false, fmt.Errorf("backend response signature verification failed"))
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
 				m.AssertExpectations(t)
-				assert.Equal(t, errorResponse(http.StatusBadGateway, ""), resp)
+				assert.Equal(t, getHTTPResponse(http.StatusBadGateway, &signingResponse{
+					Hash:                      testHash[:],
+					Operation:                 string(h.AnchorHash),
+					UPP:                       testSignedUPP,
+					PublicKey:                 testPublicKey,
+					Response:                  &testBckndResp,
+					RequestID:                 "",
+					ResponseSignatureVerified: false,
+					ResponseChainVerified:     false,
+				}), resp)
 			},
 		},
 	}

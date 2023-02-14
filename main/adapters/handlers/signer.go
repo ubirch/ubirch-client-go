@@ -219,8 +219,10 @@ func (s *Signer) sendUPP(msg h.HTTPRequest, upp []byte, signingResp *signingResp
 	// verify validity of the backend response UPP
 	err = s.verifyResponse(upp, backendResp, signingResp)
 	if err != nil {
-		log.Error(err)
-		return errorResponse(http.StatusBadGateway, "")
+		resp := getHTTPResponse(http.StatusBadGateway, signingResp)
+		log.Errorf("%s: invalid response from UBIRCH Trust Service (niomon): %v, request: %s",
+			msg.ID, err, string(resp.Content))
+		return resp
 	}
 
 	// decode the backend response UPP and get request ID
@@ -240,7 +242,8 @@ func (s *Signer) sendUPP(msg h.HTTPRequest, upp []byte, signingResp *signingResp
 	resp := getHTTPResponse(backendResp.StatusCode, signingResp)
 
 	if h.HttpFailed(backendResp.StatusCode) {
-		log.Errorf("%s: request to UBIRCH Trust Service (niomon) failed: (%d) %s", msg.ID, backendResp.StatusCode, string(resp.Content))
+		log.Errorf("%s: request to UBIRCH Trust Service (niomon) failed: (%d) %s",
+			msg.ID, backendResp.StatusCode, string(resp.Content))
 	}
 
 	return resp
