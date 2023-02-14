@@ -205,10 +205,10 @@ func (s *Signer) sendUPP(msg h.HTTPRequest, upp []byte, signingResp *signingResp
 	backendResp, err := s.SendToAuthService(msg.ID, msg.Auth, upp)
 	if err != nil {
 		if os.IsTimeout(err) {
-			log.Errorf("%s: request to UBIRCH Authentication Service timed out: %v", msg.ID, err)
+			log.Errorf("%s: request to UBIRCH Trust Service timed out: %v", msg.ID, err)
 			return errorResponse(http.StatusGatewayTimeout, "")
 		} else {
-			log.Errorf("%s: sending request to UBIRCH Authentication Service failed: %v", msg.ID, err)
+			log.Errorf("%s: sending request to UBIRCH Trust Service failed: %v", msg.ID, err)
 			return errorResponse(http.StatusBadGateway, "")
 		}
 	}
@@ -240,7 +240,7 @@ func (s *Signer) sendUPP(msg h.HTTPRequest, upp []byte, signingResp *signingResp
 	resp := getHTTPResponse(backendResp.StatusCode, signingResp)
 
 	if h.HttpFailed(backendResp.StatusCode) {
-		log.Errorf("%s: request to ubirch authentication service (niomon) failed: (%d) %s", msg.ID, backendResp.StatusCode, string(resp.Content))
+		log.Errorf("%s: request to UBIRCH Trust Service (niomon) failed: (%d) %s", msg.ID, backendResp.StatusCode, string(resp.Content))
 	}
 
 	return resp
@@ -249,7 +249,7 @@ func (s *Signer) sendUPP(msg h.HTTPRequest, upp []byte, signingResp *signingResp
 func (s *Signer) verifyResponse(requestUPPBytes []byte, backendResp h.HTTPResponse, signingResp *signingResponse) error {
 	// check if backend response is a UPP or something else, like an error message string, for example "Timeout"
 	if !hasUPPHeaders(backendResp.Content) {
-		return fmt.Errorf("unexpected response from UBIRCH Authentication Service: (%d) %q",
+		return fmt.Errorf("unexpected response from UBIRCH Trust Service: (%d) %q",
 			backendResp.StatusCode, backendResp.Content)
 	}
 

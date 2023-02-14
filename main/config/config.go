@@ -112,7 +112,7 @@ type Config struct {
 	NiomonIdentity                *identity         `json:"niomonIdentity" envconfig:"NIOMON_IDENTITY"`                                  // niomon's UUID and public key for response signature verification
 	KeyService                    string            // key service URL (set automatically)
 	IdentityService               string            // identity service URL (set automatically)
-	Niomon                        string            // authentication service URL (set automatically)
+	Niomon                        string            // trust service URL (set automatically)
 	VerifyService                 string            // verification service URL (set automatically)
 	SecretBytes32                 []byte            // the decoded 32 byte key store secret for database (set automatically)
 }
@@ -364,7 +364,7 @@ func (c *Config) setDefaultURLs() error {
 	log.Infof("UBIRCH backend environment: %s", c.Env)
 	log.Debugf(" - Key Service:            %s", c.KeyService)
 	log.Debugf(" - Identity Service:       %s", c.IdentityService)
-	log.Debugf(" - Authentication Service: %s", c.Niomon)
+	log.Debugf(" - Trust Service: %s", c.Niomon)
 	log.Debugf(" - Verification Service:   %s", c.VerifyService)
 
 	if c.VerifyNiomonResponse {

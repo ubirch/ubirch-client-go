@@ -460,7 +460,7 @@ The response body consists of either an error message, or a JSON map with
 | 503 - Service Temporarily Unavailable | x | x | service busy |
 | 504 - Gateway Timeout | x | x | service was unable to produce a timely response |
 
-Internally, the client sends a request to the UBIRCH authentication service (*Niomon*) and forwards its response back to
+Internally, the client sends a request to the UBIRCH trust service (*Niomon*) and forwards its response back to
 the sender (i.e. the `"response"`-filed in the JSON response body of the client). If no errors occurred before sending
 the request to Niomon, the client will simply forward the HTTP response status code that Niomon returned.
 
