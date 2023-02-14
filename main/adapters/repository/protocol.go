@@ -16,6 +16,7 @@ package repository
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -285,7 +286,9 @@ func (p *ExtendedProtocol) VerifyBackendResponseSignature(upp []byte) (bool, err
 		if err != nil {
 			return false, fmt.Errorf("could not verify backend response signature: %v", err)
 		}
-		return false, fmt.Errorf("backend response signature verification failed")
+		pub, _ := p.Crypto.GetPublicKeyBytes(p.backendUUID)
+		return false, fmt.Errorf("backend response signature verification failed with public key: %s",
+			base64.StdEncoding.EncodeToString(pub))
 	}
 	return true, nil
 }
