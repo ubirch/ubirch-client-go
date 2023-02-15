@@ -69,8 +69,8 @@ The configuration can be set via a configuration file (`config.json`) or environ
 
 There are two mandatory configurations:
 
-1. the desired database driver and DSN (see [Context Management](#Context-Management))
-2. a 32 byte base64 encoded secret, which will be used to encrypt the signing keys in the database
+1. a 32 byte base64 encoded secret, which will be used to encrypt the signing keys in the database
+2. the desired database driver and DSN (see [Context Management](#Context-Management))
 
 > You can generate a random 32 byte base64 encoded secret in a Linux/macOS terminal
 > with `head -c 32 /dev/urandom | base64`
@@ -421,9 +421,11 @@ The response body consists of either an error message, or a JSON map with
 - the public key, that corresponds to the private key with which the UPP was signed
 - the response from the UBIRCH backend
 - the unique request ID
-- a flag indicating if the backend response signature has been verified
+- a flag indicating if the backend response signature has been verified (
+  see [Enable Backend Response Verification](#Enable-Backend-Response-Verification))
 - a flag indicating if the backend response chain has been verified, i.e. if the niomon response UPP contains the
-  signature of the sent UPP in the `previous signature` field
+  signature of the sent UPP in the `previous signature` field (
+  see [Enable Backend Response Verification](#Enable-Backend-Response-Verification))
 
 ```fundamental
 {
@@ -795,6 +797,36 @@ To switch to the `demo` backend environment
 - or set the following environment variable:
     ```console
     UBIRCH_ENV=demo
+    ```
+
+### Enable Backend Response Verification
+
+The UBIRCH Trust Service (niomon), when receiving a request, responds with a UPP, that is signed with the service's key
+and contains the signature of the received UPP in the `previous signature` field. The verification of the response UPP
+on client side, i.e. signature verification and chain check, can be enabled by setting the following flag.
+
+| JSON                   | env                             | description                            | default value |
+|------------------------|---------------------------------|----------------------------------------|---------------|
+| `verifyNiomonResponse` | `UBIRCH_VERIFY_NIOMON_RESPONSE` | `true` to enable response verification | `false`       |
+
+#### Set Backend Response Verification Key
+
+The default identities, i.e. UUID and public key, for the `dev`, `demo` and `prod` environment are stored in files in
+the [server-identities directory](server-identities) and automatically loaded at application startup. The files are also
+part of the docker image, so the user does not have to do anything if the default identities are valid.
+
+However, the default identities can be overwritten by setting the niomon identity in the configuration.
+
+- `config.json`:
+    ```json
+      "niomonIdentity": {
+        "uuid": "<niomon UUID>",
+        "publicKey": "<niomon public key bytes [base64]>"
+      }
+    ```
+- environment variable:
+    ```console
+    UBIRCH_NIOMON_IDENTITY=uuid:<niomon UUID>,publicKey:<niomon public key bytes [base64]>
     ```
 
 ### Set TCP address
