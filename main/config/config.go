@@ -109,7 +109,7 @@ type Config struct {
 	VerificationTimeoutMs         int64             `json:"verificationTimeoutMs" envconfig:"VERIFICATION_TIMEOUT_MS"`                   // time limit for repeated attempts to verify a hash at the ubirch verification service in milliseconds
 	VerifyFromKnownIdentitiesOnly bool              `json:"verifyFromKnownIdentitiesOnly" envconfig:"VERIFY_FROM_KNOWN_IDENTITIES_ONLY"` // flag to determine if a public key should be retrieved from the ubirch identity service in case of incoming verification request for UPP from unknown identity
 	VerifyNiomonResponse          bool              `json:"verifyNiomonResponse" envconfig:"VERIFY_NIOMON_RESPONSE"`                     // flag to enable backend response verification
-	NiomonIdentity                *identity         `json:"niomonIdentity" envconfig:"NIOMON_IDENTITY"`                                  // niomon's UUID and public key for response signature verification
+	NiomonIdentity                *Identity         `json:"niomonIdentity" envconfig:"NIOMON_IDENTITY"`                                  // niomon's UUID and public key for response signature verification
 	KeyService                    string            // key service URL (set automatically)
 	IdentityService               string            // identity service URL (set automatically)
 	Niomon                        string            // trust service URL (set automatically)
@@ -117,7 +117,7 @@ type Config struct {
 	SecretBytes32                 []byte            // the decoded 32 byte key store secret for database (set automatically)
 }
 
-type identity struct {
+type Identity struct {
 	UUID      uuid.UUID
 	PublicKey []byte
 }
@@ -392,7 +392,7 @@ func (c *Config) loadDefaultNiomonIdentity() error {
 		return err
 	}
 
-	c.NiomonIdentity = &identity{}
+	c.NiomonIdentity = &Identity{}
 
 	err = json.NewDecoder(fileHandle).Decode(&c.NiomonIdentity)
 	if err != nil {
