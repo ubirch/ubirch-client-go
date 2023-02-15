@@ -241,13 +241,13 @@ the [releases](https://github.com/ubirch/ubirch-client-go/releases/latest)
 and pull the latest release from Docker Hub using the release tag, e.g.:
 
 ```shell
-docker pull ubirch/ubirch-client:v2.2.3
+docker pull ubirch/ubirch-client:v3.x.x
 ```
 
 To start the multi-arch Docker image on any system, run:
 
 ```shell
-docker run -v $(pwd):/data --network host ubirch/ubirch-client:v2.2.3
+docker run -v $(pwd):/data --network host ubirch/ubirch-client:v3.x.x
 ```
 
 The configuration directory inside the docker container is `/data`. The docker image mounts the current
@@ -1025,7 +1025,7 @@ First, add the new mandatory [configurations](#Configuration) to your existing c
 To start the migration process, run the client with the command-line flag `--migrate`.
 
 ```shell
-docker run -v $(pwd):/data --network host ubirch/ubirch-client:v2.x.x /data --migrate
+docker run -v $(pwd):/data --network host ubirch/ubirch-client:v3.0.0 /data --migrate
 ```
 
 After successful migration, the process will exit with status `0`. In case of failed migration, the exit status is `1`.
