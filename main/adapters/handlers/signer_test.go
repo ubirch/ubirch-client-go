@@ -55,9 +55,9 @@ func (m *mockProto) Sign(upp ubirch.UPP) ([]byte, error) {
 	return args.Get(0).([]byte), args.Error(1)
 }
 
-func (m *mockProto) VerifyBackendResponseSignature(upp []byte) (bool, error) {
-	args := m.mock.MethodCalled("VerifyBackendResponseSignature", upp)
-	return args.Bool(0), args.Error(1)
+func (m *mockProto) VerifyBackendResponse(requestUPP, responseUPP []byte) (signatureOk bool, chainOk bool, err error) {
+	args := m.mock.MethodCalled("VerifyBackendResponse", requestUPP, responseUPP)
+	return args.Bool(0), args.Bool(1), args.Error(2)
 }
 
 type mockTx struct{}
@@ -103,7 +103,7 @@ func TestSigner_Sign(t *testing.T) {
 				}).Return(testChainedUPP, nil)
 				m.On("GetPublicKeyBytes", testUuid).Return(testPublicKey, nil)
 				m.On("sendToAuthService", testUuid, testAuth, testChainedUPP).Return(testBckndResp, nil)
-				m.On("VerifyBackendResponseSignature", testBckndResp.Content).Return(true, nil)
+				m.On("VerifyBackendResponse", testChainedUPP, testBckndResp.Content).Return(true, true, nil)
 				m.On("SignatureLength").Return(64)
 				m.On("StoreSignature", &mockTx{}, testUuid, testChainedUPP[len(testChainedUPP)-64:]).Return(nil)
 			},
@@ -180,7 +180,7 @@ func TestSigner_Sign(t *testing.T) {
 				}).Return(testSignedUPP, nil)
 				m.On("GetPublicKeyBytes", testUuid).Return(testPublicKey, nil)
 				m.On("sendToAuthService", testUuid, testAuth, testSignedUPP).Return(testBckndResp, nil)
-				m.On("VerifyBackendResponseSignature", testBckndResp.Content).Return(true, nil)
+				m.On("VerifyBackendResponse", testSignedUPP, testBckndResp.Content).Return(true, true, nil)
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
 				m.AssertExpectations(t)
@@ -249,7 +249,7 @@ func TestSigner_Sign(t *testing.T) {
 				}).Return(testSignedUPP, nil)
 				m.On("GetPublicKeyBytes", testUuid).Return(testPublicKey, nil)
 				m.On("sendToAuthService", testUuid, testAuth, testSignedUPP).Return(testBckndResp, nil)
-				m.On("VerifyBackendResponseSignature", testBckndResp.Content).Return(true, nil)
+				m.On("VerifyBackendResponse", testSignedUPP, testBckndResp.Content).Return(true, true, nil)
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
 				m.AssertExpectations(t)
@@ -284,7 +284,7 @@ func TestSigner_Sign(t *testing.T) {
 				}).Return(testSignedUPP, nil)
 				m.On("GetPublicKeyBytes", testUuid).Return(testPublicKey, nil)
 				m.On("sendToAuthService", testUuid, testAuth, testSignedUPP).Return(testBckndResp, nil)
-				m.On("VerifyBackendResponseSignature", testBckndResp.Content).Return(true, nil)
+				m.On("VerifyBackendResponse", testSignedUPP, testBckndResp.Content).Return(true, true, nil)
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
 				m.AssertExpectations(t)
@@ -319,7 +319,7 @@ func TestSigner_Sign(t *testing.T) {
 				}).Return(testSignedUPP, nil)
 				m.On("GetPublicKeyBytes", testUuid).Return(testPublicKey, nil)
 				m.On("sendToAuthService", testUuid, testAuth, testSignedUPP).Return(testBckndResp, nil)
-				m.On("VerifyBackendResponseSignature", testBckndResp.Content).Return(true, nil)
+				m.On("VerifyBackendResponse", testSignedUPP, testBckndResp.Content).Return(true, true, nil)
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
 				m.AssertExpectations(t)
@@ -354,7 +354,7 @@ func TestSigner_Sign(t *testing.T) {
 				}).Return(testSignedUPP, nil)
 				m.On("GetPublicKeyBytes", testUuid).Return(testPublicKey, nil)
 				m.On("sendToAuthService", testUuid, testAuth, testSignedUPP).Return(testBckndResp, nil)
-				m.On("VerifyBackendResponseSignature", testBckndResp.Content).Return(false, fmt.Errorf("backend response signature verification failed"))
+				m.On("VerifyBackendResponse", testSignedUPP, testBckndResp.Content).Return(false, false, fmt.Errorf("backend response signature verification failed"))
 			},
 			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
 				m.AssertExpectations(t)

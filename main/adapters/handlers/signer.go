@@ -15,7 +15,6 @@
 package handlers
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -35,11 +34,6 @@ import (
 
 const (
 	lenRequestID = 16
-)
-
-var (
-	signedUPPHeader  = []byte{0x95, 0x22}
-	chainedUPPHeader = []byte{0x96, 0x23}
 )
 
 var hintLookup = map[h.Operation]ubirch.Hint{
@@ -71,7 +65,7 @@ type SignerProtocol interface {
 }
 
 type ResponseVerifier interface {
-	VerifyBackendResponseSignature(upp []byte) (bool, error)
+	VerifyBackendResponse(requestUPP, responseUPP []byte) (signatureOk bool, chainOk bool, err error)
 }
 
 type Signer struct {
@@ -217,10 +211,10 @@ func (s *Signer) sendUPP(msg h.HTTPRequest, upp []byte, signingResp *signingResp
 	signingResp.Response = &backendResp
 
 	// verify validity of the backend response UPP
-	err = s.verifyResponse(upp, backendResp, signingResp)
+	signingResp.ResponseSignatureVerified, signingResp.ResponseChainVerified, err = s.VerifyBackendResponse(upp, backendResp.Content)
 	if err != nil {
 		resp := getHTTPResponse(http.StatusBadGateway, signingResp)
-		log.Errorf("%s: invalid response from UBIRCH Trust Service (niomon): %v, request: %s",
+		log.Errorf("%s: unverifiable response from UBIRCH Trust Service (niomon): %v, request: %s",
 			msg.ID, err, string(resp.Content))
 		return resp
 	}
@@ -247,62 +241,6 @@ func (s *Signer) sendUPP(msg h.HTTPRequest, upp []byte, signingResp *signingResp
 	}
 
 	return resp
-}
-
-func (s *Signer) verifyResponse(requestUPPBytes []byte, backendResp h.HTTPResponse, signingResp *signingResponse) error {
-	// check if backend response is a UPP or something else, like an error message string, for example "Timeout"
-	if !hasUPPHeaders(backendResp.Content) {
-		return fmt.Errorf("unexpected response from UBIRCH Trust Service: (%d) %q",
-			backendResp.StatusCode, backendResp.Content)
-	}
-
-	var err error
-
-	// verify the signature of the backend response UPP
-	signingResp.ResponseSignatureVerified, err = s.VerifyBackendResponseSignature(backendResp.Content)
-	if err != nil {
-		return err
-	}
-
-	// verify that backend response previous signature matches signature of request UPP
-	signingResp.ResponseChainVerified, err = verifyChain(requestUPPBytes, backendResp.Content)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func hasUPPHeaders(data []byte) bool {
-	return bytes.HasPrefix(data, signedUPPHeader) || bytes.HasPrefix(data, chainedUPPHeader)
-}
-
-func verifyChain(requestUPPBytes, responseUPPBytes []byte) (bool, error) {
-	requestUPP, err := ubirch.Decode(requestUPPBytes)
-	if err != nil {
-		// this shouldn't happen
-		return false, fmt.Errorf("decoding request UPP failed: %v: %x", err, requestUPPBytes)
-	}
-
-	responseUPP, err := ubirch.Decode(responseUPPBytes)
-	if err != nil {
-		return false, fmt.Errorf("decoding response UPP failed: %v: %x", err, responseUPPBytes)
-	}
-
-	if responseUPP.GetVersion() != ubirch.Chained {
-		log.Warnf("backend response UPP is not chained! request UPP: %x, response UPP: %x",
-			requestUPPBytes, responseUPPBytes)
-		return false, nil
-	}
-
-	if chainOK, err := ubirch.CheckChainLink(requestUPP, responseUPP); !chainOK {
-		if err != nil {
-			return false, fmt.Errorf("could not verify backend response chain: %v", err)
-		}
-		return false, fmt.Errorf("backend response chain check failed")
-	}
-
-	return true, nil
 }
 
 func getRequestID(respUPP ubirch.UPP) (string, error) {
