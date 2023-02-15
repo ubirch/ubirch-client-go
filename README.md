@@ -188,7 +188,7 @@ This token is then used to authenticate requests against the identity registrati
 
 ```json
   "staticAuth": "<static auth token>",
-"enableRegistrationEndpoint": true,
+  "enableRegistrationEndpoint": true,
 ```
 
 - env:
@@ -311,7 +311,7 @@ This token is then used to authenticate requests against the CSR creation endpoi
 
 ```json
   "staticAuth": "<static auth token>",
-"enableCSRCreationEndpoint": true,
+  "enableCSRCreationEndpoint": true,
 ```
 
 - env:
@@ -415,15 +415,20 @@ if necessary.
 
 The response body consists of either an error message, or a JSON map with
 
-- the data hash,
-- the UPP, which contains that data hash and was sent to the UBIRCH backend by the client,
-- the public key, that corresponds to the private key with which the UPP was signed,
-- the response from the UBIRCH backend,
+- the data hash
+- the executed operation, i.e. chain, anchor, disable, enable or delete
+- the UPP, which contains that data hash and was sent to the UBIRCH backend by the client
+- the public key, that corresponds to the private key with which the UPP was signed
+- the response from the UBIRCH backend
 - the unique request ID
+- a flag indicating if the backend response signature has been verified
+- a flag indicating if the backend response chain has been verified, i.e. if the niomon response UPP contains the
+  signature of the sent UPP in the `previous signature` field
 
 ```fundamental
 {
   "hash": "<base64 encoded data hash>",
+  "operation": "<chain | anchor | disable | enable | delete>",
   "upp": "<base64 encoded UPP containing the data hash>",
   "publicKey": "<base64 encoded raw public key>",
   "response": {
@@ -432,6 +437,8 @@ The response body consists of either an error message, or a JSON map with
     "content": "<base64 encoded backend response content>"
   },
   "requestID": "<request ID (standard hex string representation)>",
+  "responseSignatureVerified": <true | false>,
+  "responseChainVerified": <true | false>
 }
 ```
 
@@ -622,7 +629,7 @@ This token is then used to authenticate requests against the deactivation endpoi
 
 ```json
   "staticAuth": "<static auth token>",
-"enableDeactivationEndpoint": true,
+  "enableDeactivationEndpoint": true,
 ```
 
 - env:
@@ -1024,6 +1031,7 @@ rm -rf keys.json keys.json.bck signatures
       },
       "secret32": "<YOUR_32_BYTE_SECRET(base64 encoded)>",
       "dbDriver": "sqlite",
+      "verifyNiomonResponse": true,
       "logTextFormat": true, 
       "logKnownIdentities": true
     }
@@ -1040,6 +1048,7 @@ rm -rf keys.json keys.json.bck signatures
       },
       "secret32": "kwNWDv1K8z/T4Muk8La4uzoUl2Q1G923rmm7kA5NrIE=",
       "dbDriver": "sqlite",
+      "verifyNiomonResponse": true,
       "logTextFormat": true, 
       "logKnownIdentities": true
     }
@@ -1140,6 +1149,7 @@ rm -rf keys.json keys.json.bck signatures
     ```json
     {
       "hash": "5snVjoqWbqLbhABMD1L5OguJyvcsxbJOECQSurDqs5k=",
+      "operation": "chain",
       "upp": "liPEEOUIWomogUOXkC6mMPAhr9jEQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAxCDmydWOipZuotuEAEwPUvk6C4nK9yzFsk4QJBK6sOqzmcRA0fYMXgkdjoAOPE9jXV/gfBxb9kl9WierPozz+usi+WLUNTD98al0QX6TWB3i1pg43XDL0/lHf8E+4AhWfFFlCQ==",
       "publicKey": "//3eUKJOrGaYCoPBOMMUquX3cn+EXHMqCKu7IJWu/Xs1x7oJ4HU6LLWksf8toG0ir1VreFo8A5tJEGvxmQbe0w==",
       "response": {
@@ -1163,7 +1173,9 @@ rm -rf keys.json keys.json.bck signatures
         },
         "content": "liPEEBCy4aRWs0//mtrMjCD5MBbEQNH2DF4JHY6ADjxPY11f4HwcW/ZJfVonqz6M8/rrIvli1DUw/fGpdEF+k1gd4taYON1wy9P5R3/BPuAIVnxRZQkAxCA8bg4ZY7ZNQrMWP0ZIHxTMAAAAAAAAAAAAAAAAAAAAAMRAtCx79HokXAELQRbiEoE9YVPLfx4Zdh9fC93QO4X4e60HXseQUdVFtbuQBQiz2yqHBuoQyMQVsu2fBPreNihifA=="
       },
-      "requestID": "3c6e0e19-63b6-4d42-b316-3f46481f14cc"
+      "requestID": "3c6e0e19-63b6-4d42-b316-3f46481f14cc",
+      "responseSignatureVerified": true,
+      "responseChainVerified": true
     }
     ```
    If you get a response code other than `200`, it means that something went wrong. In this case the client will respond
