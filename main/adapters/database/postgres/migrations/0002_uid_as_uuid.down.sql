@@ -1,8 +1,0 @@
-BEGIN;
-
-ALTER TABLE identity
-    ALTER uid TYPE VARCHAR(255);
-ALTER TABLE external_identity
-    ALTER uid TYPE VARCHAR(255);
-
-COMMIT;

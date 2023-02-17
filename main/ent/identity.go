@@ -3,7 +3,7 @@ package ent
 import "github.com/google/uuid"
 
 type Identity struct {
-	Uid        uuid.UUID
+	Uid        uuid.UUID `gorm:"primaryKey"`
 	PrivateKey []byte
 	PublicKey  []byte
 	Signature  []byte
@@ -12,6 +12,6 @@ type Identity struct {
 }
 
 type ExternalIdentity struct {
-	Uid       uuid.UUID
+	Uid       uuid.UUID `gorm:"primaryKey"`
 	PublicKey []byte
 }

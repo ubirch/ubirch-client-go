@@ -16,7 +16,7 @@ package database
 
 import (
 	"context"
-	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -24,6 +24,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
 	"github.com/ubirch/ubirch-client-go/main/ent"
+
+	"github.com/glebarez/sqlite"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -51,9 +55,7 @@ const (
 // DatabaseManager contains the database connection, and offers methods
 // for interacting with the database.
 type DatabaseManager struct {
-	options *sql.TxOptions
-	dbConn  *sql.DB
-	db      Querier
+	db *gorm.DB
 }
 
 // Ensure Database implements the ContextManager interface
@@ -73,41 +75,41 @@ func NewDatabaseManager(driverName, dataSourceName string, params *ConnectionPar
 		return nil, fmt.Errorf("empty database driverName or dataSourceName")
 	}
 
-	// migrate database schema to the latest version
-	err := migrateUp(driverName, dataSourceName)
-	if err != nil {
-		return nil, err
-	}
+	log.Infof("initializing %s database connection", driverName)
 
-	dm := &DatabaseManager{}
+	var gormDialector gorm.Dialector
 
 	switch driverName {
 	case PostgreSQL:
-		dm.options = &sql.TxOptions{
-			Isolation: sql.LevelReadCommitted,
-		}
+		gormDialector = postgres.Open(dataSourceName)
 	case SQLite:
-		dm.options = &sql.TxOptions{
-			Isolation: sql.LevelSerializable,
-		}
 		if !strings.Contains(dataSourceName, "?") {
 			dataSourceName += sqliteConfig
 		}
+		gormDialector = sqlite.Open(dataSourceName)
 	default:
 		return nil, fmt.Errorf("unsupported SQL database driver: %s, supported drivers: %s, %s",
 			driverName, PostgreSQL, SQLite)
 	}
 
-	log.Infof("initializing %s database connection", driverName)
-
-	dm.dbConn, err = sql.Open(driverName, dataSourceName)
+	db, err := gorm.Open(gormDialector, &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	dm.SetConnectionParams(params)
+	dm := &DatabaseManager{
+		db: db,
+	}
 
-	dm.db = NewQuerier(dm.dbConn, driverName)
+	if err = dm.Setup(); err != nil {
+		return nil, err
+	}
+
+	if err = dm.SetConnectionParams(params); err != nil {
+		return nil, err
+	}
 
 	if err = dm.IsReady(); err != nil {
 		return nil, err
@@ -116,30 +118,56 @@ func NewDatabaseManager(driverName, dataSourceName string, params *ConnectionPar
 	return dm, nil
 }
 
-func (dm *DatabaseManager) SetConnectionParams(params *ConnectionParams) {
+func (dm *DatabaseManager) Setup() error {
+	err := dm.db.AutoMigrate(&ent.Identity{})
+	if err != nil {
+		return err
+	}
+
+	err = dm.db.AutoMigrate(&ent.ExternalIdentity{})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (dm *DatabaseManager) SetConnectionParams(params *ConnectionParams) error {
+	db, err := dm.db.DB()
+	if err != nil {
+		return err
+	}
+
 	if params.MaxOpenConns == 0 {
 		params.MaxOpenConns = defaultDbMaxOpenConns
 	}
-	dm.dbConn.SetMaxOpenConns(params.MaxOpenConns)
+	db.SetMaxOpenConns(params.MaxOpenConns)
 
 	if params.MaxIdleConns == 0 {
 		params.MaxIdleConns = defaultDbMaxIdleConns
 	}
-	dm.dbConn.SetMaxIdleConns(params.MaxIdleConns)
+	db.SetMaxIdleConns(params.MaxIdleConns)
 
 	if params.ConnMaxLifetime == 0 {
 		params.ConnMaxLifetime = defaultDbConnMaxLifetimeSec * time.Second
 	}
-	dm.dbConn.SetConnMaxLifetime(params.ConnMaxLifetime)
+	db.SetConnMaxLifetime(params.ConnMaxLifetime)
 
 	if params.ConnMaxIdleTime == 0 {
 		params.ConnMaxIdleTime = defaultDbConnMaxIdleTimeSec * time.Second
 	}
-	dm.dbConn.SetConnMaxIdleTime(params.ConnMaxIdleTime)
+	db.SetConnMaxIdleTime(params.ConnMaxIdleTime)
+
+	return nil
 }
 
 func (dm *DatabaseManager) Close() error {
-	err := dm.dbConn.Close()
+	db, err := dm.db.DB()
+	if err != nil {
+		return err
+	}
+
+	err = db.Close()
 	if err != nil {
 		return fmt.Errorf("failed to close database: %v", err)
 	}
@@ -147,35 +175,51 @@ func (dm *DatabaseManager) Close() error {
 }
 
 func (dm *DatabaseManager) IsReady() error {
-	return dm.dbConn.Ping()
+	db, err := dm.db.DB()
+	if err != nil {
+		return err
+	}
+
+	return db.Ping()
+}
+
+type TX struct {
+	db *gorm.DB
+}
+
+func (tx *TX) Rollback() error {
+	return tx.db.Rollback().Error
+}
+
+func (tx *TX) Commit() error {
+	return tx.db.Commit().Error
 }
 
 func (dm *DatabaseManager) StartTransaction(ctx context.Context) (transactionCtx repository.TransactionCtx, err error) {
+	var tx *gorm.DB
 	err = dm.retry(func() error {
-		transactionCtx, err = dm.dbConn.BeginTx(ctx, dm.options)
-		return err
+		tx = dm.db.WithContext(ctx).Begin()
+		return tx.Error
 	})
-	return transactionCtx, err
+
+	return &TX{tx}, err
 }
 
 func (dm *DatabaseManager) StoreIdentity(transactionCtx repository.TransactionCtx, i ent.Identity) error {
-	tx, ok := transactionCtx.(*sql.Tx)
+	tx, ok := transactionCtx.(*TX)
 	if !ok {
-		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
+		return fmt.Errorf("transactionCtx for database manager is not of expected type *TX")
 	}
 
-	return dm.db.StoreIdentity(tx, StoreIdentityParams(i))
+	return tx.db.Create(&i).Error
 }
 
 func (dm *DatabaseManager) LoadIdentity(uid uuid.UUID) (*ent.Identity, error) {
-	var (
-		identity ent.Identity
-		err      error
-	)
+	var identity ent.Identity
 
-	err = dm.retry(func() error {
-		identity, err = dm.db.LoadIdentity(context.Background(), uid)
-		if err == sql.ErrNoRows {
+	err := dm.retry(func() error {
+		err := dm.db.Model(&ent.Identity{}).Where("uid = ?", uid).Take(&identity).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return repository.ErrNotExist
 		}
 		return err
@@ -184,25 +228,22 @@ func (dm *DatabaseManager) LoadIdentity(uid uuid.UUID) (*ent.Identity, error) {
 }
 
 func (dm *DatabaseManager) StoreActiveFlag(transactionCtx repository.TransactionCtx, uid uuid.UUID, active bool) error {
-	tx, ok := transactionCtx.(*sql.Tx)
+	tx, ok := transactionCtx.(*TX)
 	if !ok {
-		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
+		return fmt.Errorf("transactionCtx for database manager is not of expected type *TX")
 	}
 
-	return dm.db.StoreActiveFlag(tx, StoreActiveFlagParams{
-		Uid:    uid,
-		Active: active,
-	})
+	return tx.db.Model(&ent.Identity{}).Where("uid = ?", uid).Update("active", active).Error
 }
 
-func (dm *DatabaseManager) LoadActiveFlagForUpdate(transactionCtx repository.TransactionCtx, uid uuid.UUID) (bool, error) {
-	tx, ok := transactionCtx.(*sql.Tx)
+func (dm *DatabaseManager) LoadActiveFlagForUpdate(transactionCtx repository.TransactionCtx, uid uuid.UUID) (active bool, err error) {
+	tx, ok := transactionCtx.(*TX)
 	if !ok {
-		return false, fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
+		return false, fmt.Errorf("transactionCtx for database manager is not of expected type *TX")
 	}
 
-	active, err := dm.db.LoadActiveFlagForUpdate(tx, uid)
-	if err == sql.ErrNoRows {
+	err = tx.db.Model(&ent.Identity{}).Where("uid = ?", uid).Select("active").Take(&active).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return false, repository.ErrNotExist
 	}
 	return active, err
@@ -210,8 +251,8 @@ func (dm *DatabaseManager) LoadActiveFlagForUpdate(transactionCtx repository.Tra
 
 func (dm *DatabaseManager) LoadActiveFlag(uid uuid.UUID) (active bool, err error) {
 	err = dm.retry(func() error {
-		active, err = dm.db.LoadActiveFlag(context.Background(), uid)
-		if err == sql.ErrNoRows {
+		err := dm.db.Model(&ent.Identity{}).Where("uid = ?", uid).Select("active").Take(&active).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return repository.ErrNotExist
 		}
 		return err
@@ -220,50 +261,46 @@ func (dm *DatabaseManager) LoadActiveFlag(uid uuid.UUID) (active bool, err error
 }
 
 func (dm *DatabaseManager) StoreSignature(transactionCtx repository.TransactionCtx, uid uuid.UUID, signature []byte) error {
-	tx, ok := transactionCtx.(*sql.Tx)
+	tx, ok := transactionCtx.(*TX)
 	if !ok {
-		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
+		return fmt.Errorf("transactionCtx for database manager is not of expected type *TX")
 	}
 
-	return dm.db.StoreSignature(tx, StoreSignatureParams{
-		Uid:       uid,
-		Signature: signature,
-	})
+	return tx.db.Model(&ent.Identity{}).Where("uid = ?", uid).Update("signature", signature).Error
 }
 
 func (dm *DatabaseManager) LoadSignatureForUpdate(transactionCtx repository.TransactionCtx, uid uuid.UUID) ([]byte, error) {
-	tx, ok := transactionCtx.(*sql.Tx)
+	tx, ok := transactionCtx.(*TX)
 	if !ok {
-		return nil, fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
+		return nil, fmt.Errorf("transactionCtx for database manager is not of expected type *TX")
 	}
 
-	signature, err := dm.db.LoadSignatureForUpdate(tx, uid)
-	if err == sql.ErrNoRows {
+	var identity ent.Identity
+
+	err := tx.db.Model(&ent.Identity{}).Where("uid = ?", uid).Select("signature").Take(&identity).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, repository.ErrNotExist
 	}
-	return signature, err
+	return identity.Signature, err
 }
 
 func (dm *DatabaseManager) StoreAuth(transactionCtx repository.TransactionCtx, uid uuid.UUID, auth string) error {
-	tx, ok := transactionCtx.(*sql.Tx)
+	tx, ok := transactionCtx.(*TX)
 	if !ok {
-		return fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
+		return fmt.Errorf("transactionCtx for database manager is not of expected type *TX")
 	}
 
-	return dm.db.StoreAuth(tx, StoreAuthParams{
-		Uid:       uid,
-		AuthToken: auth,
-	})
+	return tx.db.Model(&ent.Identity{}).Where("uid = ?", uid).Update("auth_token", auth).Error
 }
 
-func (dm *DatabaseManager) LoadAuthForUpdate(transactionCtx repository.TransactionCtx, uid uuid.UUID) (string, error) {
-	tx, ok := transactionCtx.(*sql.Tx)
+func (dm *DatabaseManager) LoadAuthForUpdate(transactionCtx repository.TransactionCtx, uid uuid.UUID) (auth string, err error) {
+	tx, ok := transactionCtx.(*TX)
 	if !ok {
-		return "", fmt.Errorf("transactionCtx for database manager is not of expected type *sql.Tx")
+		return "", fmt.Errorf("transactionCtx for database manager is not of expected type *TX")
 	}
 
-	auth, err := dm.db.LoadAuthForUpdate(tx, uid)
-	if err == sql.ErrNoRows {
+	err = tx.db.Model(&ent.Identity{}).Where("uid = ?", uid).Select("auth_token").Take(&auth).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return "", repository.ErrNotExist
 	}
 	return auth, err
@@ -271,21 +308,18 @@ func (dm *DatabaseManager) LoadAuthForUpdate(transactionCtx repository.Transacti
 
 func (dm *DatabaseManager) StoreExternalIdentity(ctx context.Context, extId ent.ExternalIdentity) error {
 	err := dm.retry(func() error {
-		return dm.db.StoreExternalIdentity(ctx, StoreExternalIdentityParams(extId))
+		return dm.db.WithContext(ctx).Create(&extId).Error
 	})
 
 	return err
 }
 
 func (dm *DatabaseManager) LoadExternalIdentity(ctx context.Context, uid uuid.UUID) (*ent.ExternalIdentity, error) {
-	var (
-		extIdentity ent.ExternalIdentity
-		err         error
-	)
+	var extIdentity ent.ExternalIdentity
 
-	err = dm.retry(func() error {
-		extIdentity, err = dm.db.LoadExternalIdentity(ctx, uid)
-		if err == sql.ErrNoRows {
+	err := dm.retry(func() error {
+		err := dm.db.WithContext(ctx).Model(&ent.ExternalIdentity{}).Where("uid = ?", uid).Take(&extIdentity).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return repository.ErrNotExist
 		}
 		return err
@@ -294,22 +328,31 @@ func (dm *DatabaseManager) LoadExternalIdentity(ctx context.Context, uid uuid.UU
 	return &extIdentity, err
 }
 
-func (dm *DatabaseManager) GetIdentityUUIDs() ([]uuid.UUID, error) {
-	return dm.db.GetIdentityUUIDs(context.Background())
+func (dm *DatabaseManager) GetIdentityUUIDs() (uids []uuid.UUID, err error) {
+	err = dm.db.Model(&ent.Identity{}).Select("uid").Find(&uids).Error
+	return uids, err
 }
 
-func (dm *DatabaseManager) GetExternalIdentityUUIDs() ([]uuid.UUID, error) {
-	return dm.db.GetExternalIdentityUUIDs(context.Background())
+func (dm *DatabaseManager) GetExternalIdentityUUIDs() (uids []uuid.UUID, err error) {
+	err = dm.db.Model(&ent.ExternalIdentity{}).Select("uid").Find(&uids).Error
+	return uids, err
 }
 
 func (dm *DatabaseManager) retry(f func() error) (err error) {
 	for retries := 0; retries <= maxRetries; retries++ {
 		err = f()
-		if err == nil || !dm.db.isRecoverable(err) {
+		if err == nil || !dm.isRecoverable(err) {
 			break
 		}
 		log.Warnf("database recoverable error: %v (%d / %d)", err, retries+1, maxRetries+1)
 	}
 
 	return err
+}
+
+func (dm *DatabaseManager) isRecoverable(err error) bool {
+	log.Errorf("%#v", err) // fixme
+
+	time.Sleep(10 * time.Millisecond)
+	return true
 }

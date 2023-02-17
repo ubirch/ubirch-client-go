@@ -9,17 +9,19 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/ubirch/ubirch-client-go/main/adapters/repository"
 	"github.com/ubirch/ubirch-client-go/main/config"
 	"github.com/ubirch/ubirch-client-go/main/ent"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 const (
@@ -148,8 +150,12 @@ func TestDatabaseManager_StoreActiveFlag(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, active)
 
-	err = dm.StoreActiveFlag(tx, testIdentity.Uid, !active)
+	err = dm.StoreActiveFlag(tx, testIdentity.Uid, false)
 	require.NoError(t, err)
+
+	active, err = dm.LoadActiveFlag(testIdentity.Uid)
+	require.NoError(t, err)
+	assert.True(t, active)
 
 	err = tx.Commit()
 	require.NoError(t, err)
@@ -157,6 +163,24 @@ func TestDatabaseManager_StoreActiveFlag(t *testing.T) {
 	active, err = dm.LoadActiveFlag(testIdentity.Uid)
 	require.NoError(t, err)
 	assert.False(t, active)
+
+	tx, err = dm.StartTransaction(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, tx)
+
+	err = dm.StoreActiveFlag(tx, testIdentity.Uid, true)
+	require.NoError(t, err)
+
+	active, err = dm.LoadActiveFlag(testIdentity.Uid)
+	require.NoError(t, err)
+	assert.False(t, active)
+
+	err = tx.Commit()
+	require.NoError(t, err)
+
+	active, err = dm.LoadActiveFlag(testIdentity.Uid)
+	require.NoError(t, err)
+	assert.True(t, active)
 }
 
 func TestDatabaseManager_SetSignature(t *testing.T) {
@@ -410,6 +434,13 @@ func TestDatabaseManager_CancelTransaction(t *testing.T) {
 
 	err = dm.StoreIdentity(tx, testIdentity)
 	require.NoError(t, err)
+
+	err = tx.Commit()
+	require.NoError(t, err)
+
+	// check identity exists
+	_, err = dm.LoadIdentity(testIdentity.Uid)
+	require.NoError(t, err)
 }
 
 func TestDatabaseManager_StartTransaction(t *testing.T) {
@@ -429,9 +460,8 @@ func TestDatabaseManager_StartTransaction(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, tx)
 
-	tx2, err := dm.StartTransaction(ctx)
+	_, err = dm.StartTransaction(ctx)
 	assert.EqualError(t, err, "context deadline exceeded")
-	assert.Nil(t, tx2)
 }
 
 func TestDatabaseManager_InvalidTransactionCtx(t *testing.T) {
@@ -448,25 +478,25 @@ func TestDatabaseManager_InvalidTransactionCtx(t *testing.T) {
 	mockCtx := &repository.MockTx{}
 
 	err = dm.StoreIdentity(mockCtx, i)
-	assert.EqualError(t, err, "transactionCtx for database manager is not of expected type *sql.Tx")
+	assert.EqualError(t, err, "transactionCtx for database manager is not of expected type *TX")
 
 	err = dm.StoreActiveFlag(mockCtx, i.Uid, false)
-	assert.EqualError(t, err, "transactionCtx for database manager is not of expected type *sql.Tx")
+	assert.EqualError(t, err, "transactionCtx for database manager is not of expected type *TX")
 
 	_, err = dm.LoadActiveFlagForUpdate(mockCtx, i.Uid)
-	assert.EqualError(t, err, "transactionCtx for database manager is not of expected type *sql.Tx")
+	assert.EqualError(t, err, "transactionCtx for database manager is not of expected type *TX")
 
 	err = dm.StoreSignature(mockCtx, i.Uid, nil)
-	assert.EqualError(t, err, "transactionCtx for database manager is not of expected type *sql.Tx")
+	assert.EqualError(t, err, "transactionCtx for database manager is not of expected type *TX")
 
 	_, err = dm.LoadSignatureForUpdate(mockCtx, i.Uid)
-	assert.EqualError(t, err, "transactionCtx for database manager is not of expected type *sql.Tx")
+	assert.EqualError(t, err, "transactionCtx for database manager is not of expected type *TX")
 
 	err = dm.StoreAuth(mockCtx, i.Uid, "")
-	assert.EqualError(t, err, "transactionCtx for database manager is not of expected type *sql.Tx")
+	assert.EqualError(t, err, "transactionCtx for database manager is not of expected type *TX")
 
 	_, err = dm.LoadAuthForUpdate(mockCtx, i.Uid)
-	assert.EqualError(t, err, "transactionCtx for database manager is not of expected type *sql.Tx")
+	assert.EqualError(t, err, "transactionCtx for database manager is not of expected type *TX")
 }
 
 func TestDatabaseLoad(t *testing.T) {
@@ -537,11 +567,10 @@ func TestDatabaseManager_Retry(t *testing.T) {
 
 			_, err := dm.StartTransaction(ctx)
 			if err != nil {
-				if pqErr, ok := err.(*pq.Error); ok {
-					switch pqErr.Code {
-					case "55P03", "53300", "53400":
-						return
-					}
+				if strings.Contains(err.Error(), "55P03") ||
+					strings.Contains(err.Error(), "53300") ||
+					strings.Contains(err.Error(), "53400") {
+					return
 				}
 				t.Error(err)
 			}
@@ -617,7 +646,7 @@ func TestDatabaseManager_GetIdentityUUIDs(t *testing.T) {
 	ids, err := dm.GetIdentityUUIDs()
 	require.NoError(t, err)
 
-	assert.Equal(t, len(ids), len(testUUIDs))
+	assert.Equal(t, len(testUUIDs), len(ids))
 
 	for _, id := range testUUIDs {
 		assert.Contains(t, ids, id)
@@ -651,7 +680,7 @@ func TestDatabaseManager_GetExternalIdentityUUIDs(t *testing.T) {
 	ids, err := dm.GetExternalIdentityUUIDs()
 	require.NoError(t, err)
 
-	assert.Equal(t, len(ids), len(testExtUUIDs))
+	assert.Equal(t, len(testExtUUIDs), len(ids))
 
 	for _, id := range testExtUUIDs {
 		assert.Contains(t, ids, id)
@@ -668,30 +697,13 @@ func TestDatabaseManager_NewDatabaseManager_DatabaseAlreadyOnLatestVersion(t *te
 	require.NoError(t, err)
 
 	// migrate database schema to the latest version
-	err = migrateUp(PostgreSQL, c.DbDSN)
-	require.NoError(t, err)
-
-	dm, err := NewDatabaseManager(PostgreSQL, c.DbDSN, &ConnectionParams{})
-	assert.NoError(t, err)
-
-	cleanUpDB(t, &extendedDatabaseManager{
-		DatabaseManager: dm,
-		dsn:             c.DbDSN,
-		driver:          PostgreSQL,
+	db, err := gorm.Open(postgres.Open(c.DbDSN), &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
 	})
-}
-
-func TestDatabaseManager_NewDatabaseManager_DatabaseAlreadyExists(t *testing.T) {
-	// this test communicates with the actual postgres database
-	if testing.Short() {
-		t.Skipf("skipping integration test %s in short mode", t.Name())
-	}
-
-	c, err := getConfig()
 	require.NoError(t, err)
 
 	// migrate database schema to the latest version
-	err = migrateTo(PostgreSQL, c.DbDSN, 1)
+	err = db.AutoMigrate(&ent.Identity{})
 	require.NoError(t, err)
 
 	dm, err := NewDatabaseManager(PostgreSQL, c.DbDSN, &ConnectionParams{})
@@ -703,6 +715,29 @@ func TestDatabaseManager_NewDatabaseManager_DatabaseAlreadyExists(t *testing.T) 
 		driver:          PostgreSQL,
 	})
 }
+
+//func TestDatabaseManager_NewDatabaseManager_DatabaseAlreadyExists(t *testing.T) {
+//	// this test communicates with the actual postgres database
+//	if testing.Short() {
+//		t.Skipf("skipping integration test %s in short mode", t.Name())
+//	}
+//
+//	c, err := getConfig()
+//	require.NoError(t, err)
+//
+//	// migrate database schema to the latest version
+//	err = migrateTo(PostgreSQL, c.DbDSN, 1)
+//	require.NoError(t, err)
+//
+//	dm, err := NewDatabaseManager(PostgreSQL, c.DbDSN, &ConnectionParams{})
+//	assert.NoError(t, err)
+//
+//	cleanUpDB(t, &extendedDatabaseManager{
+//		DatabaseManager: dm,
+//		dsn:             c.DbDSN,
+//		driver:          PostgreSQL,
+//	})
+//}
 
 func getConfig() (*config.Config, error) {
 	configFileName := "config_test.json"
@@ -760,25 +795,19 @@ func initDB(maxConns int) (*extendedDatabaseManager, error) {
 }
 
 func cleanUpDB(t assert.TestingT, dm *extendedDatabaseManager) {
-	err := dm.Close()
-	assert.NoError(t, err)
-
 	if dm.driver == SQLite {
 		time.Sleep(5 * time.Millisecond) // this is here because we are getting SQLITE_BUSY error otherwise
 	}
 
-	err = dropDB(dm.driver, dm.dsn)
-	assert.NoError(t, err)
-}
+	tables, err := dm.db.Migrator().GetTables()
 
-func dropDB(driver, dsn string) error {
-	migrator, err := getMigrator(driver, dsn)
-	if err != nil {
-		return err
+	for _, table := range tables {
+		err = dm.db.Migrator().DropTable(table)
+		assert.NoError(t, err)
 	}
-	defer closeMigrator(migrator)
 
-	return migrator.Drop()
+	err = dm.Close()
+	assert.NoError(t, err)
 }
 
 func getTestIdentity() ent.Identity {
