@@ -16,7 +16,7 @@ require (
 	github.com/youmark/pkcs8 v0.0.0-20201027041543-1326539a0a0a
 	golang.org/x/crypto v0.6.0
 	golang.org/x/sync v0.1.0
-	gorm.io/driver/postgres v1.4.7
+	gorm.io/driver/postgres v1.4.8
 	gorm.io/gorm v1.24.5
 )
 
