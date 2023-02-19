@@ -1,6 +1,7 @@
 package http_server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -76,13 +77,15 @@ func Health(server string) http.HandlerFunc {
 	}
 }
 
+type ReadinessCheck func(context.Context) error
+
 // Ready is a readiness probe.
-func Ready(server string, readinessChecks []func() error) http.HandlerFunc {
-	return func(w http.ResponseWriter, _ *http.Request) {
+func Ready(server string, readinessChecks []ReadinessCheck) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		status := http.StatusOK
 
 		for _, isReady := range readinessChecks {
-			if err := isReady(); err != nil {
+			if err := isReady(r.Context()); err != nil {
 				log.Warnf("readiness probe failed: %v", err)
 				status = http.StatusServiceUnavailable
 				break

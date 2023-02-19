@@ -293,8 +293,20 @@ func TestDatabaseManager_Ready_sqlite(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanUpDB(t, dm)
 
-	err = dm.IsReady()
+	err = dm.IsReady(context.Background())
 	require.NoError(t, err)
+}
+
+func TestDatabaseManager_Ready_canceledContext_sqlite(t *testing.T) {
+	dm, err := initSQLiteDB(t, 0)
+	require.NoError(t, err)
+	defer cleanUpDB(t, dm)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err = dm.IsReady(ctx)
+	require.EqualError(t, err, "context canceled")
 }
 
 func TestDatabaseManager_StoreExisting_sqlite(t *testing.T) {

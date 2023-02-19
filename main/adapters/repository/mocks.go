@@ -157,7 +157,7 @@ func (m *MockCtxMngr) GetExternalIdentityUUIDs() ([]uuid.UUID, error) {
 	return []uuid.UUID{m.extId.Uid}, nil
 }
 
-func (m *MockCtxMngr) IsReady() error {
+func (m *MockCtxMngr) IsReady(ctx context.Context) error {
 	return nil
 }
 

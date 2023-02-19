@@ -45,7 +45,7 @@ func main() {
 
 	var (
 		serverID        = fmt.Sprintf("%s/%s", serviceName, Version)
-		readinessChecks []func() error
+		readinessChecks []h.ReadinessCheck
 
 		// declare command-line flags
 		configDir = flag.String("config-directory", "", "path to the configuration file")

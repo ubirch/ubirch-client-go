@@ -47,7 +47,7 @@ func InitHTTPServer(conf *config.Config,
 	checkAuth CheckAuth, sign Sign,
 	verify Verify, verifyOffline VerifyOffline,
 	deactivate UpdateActivateStatus, reactivate UpdateActivateStatus,
-	serverID string, readinessChecks []func() error) *HTTPServer {
+	serverID string, readinessChecks []ReadinessCheck) *HTTPServer {
 
 	httpServer := &HTTPServer{
 		Router:   NewRouter(),

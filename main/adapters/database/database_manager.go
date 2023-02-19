@@ -95,6 +95,7 @@ func NewDatabaseManager(driverName, dataSourceName string, params *ConnectionPar
 
 	db, err := gorm.Open(gormDialector, &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
+		DisableAutomaticPing:                     true,
 	})
 	if err != nil {
 		return nil, err
@@ -104,15 +105,18 @@ func NewDatabaseManager(driverName, dataSourceName string, params *ConnectionPar
 		db: db,
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second) // todo externalize timeout for initial establishing of database connection
+	defer cancel()
+
+	if err = dm.IsReady(ctx); err != nil {
+		return nil, err
+	}
+
 	if err = dm.Setup(); err != nil {
 		return nil, err
 	}
 
 	if err = dm.SetConnectionParams(params); err != nil {
-		return nil, err
-	}
-
-	if err = dm.IsReady(); err != nil {
 		return nil, err
 	}
 
@@ -175,13 +179,13 @@ func (dm *DatabaseManager) Close() error {
 	return nil
 }
 
-func (dm *DatabaseManager) IsReady() error {
+func (dm *DatabaseManager) IsReady(ctx context.Context) error {
 	db, err := dm.db.DB()
 	if err != nil {
 		return err
 	}
 
-	return db.Ping()
+	return db.PingContext(ctx)
 }
 
 type TX struct {
