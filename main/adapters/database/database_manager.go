@@ -28,6 +28,7 @@ import (
 	"github.com/glebarez/sqlite"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -242,7 +243,7 @@ func (dm *DatabaseManager) LoadActiveFlagForUpdate(transactionCtx repository.Tra
 		return false, fmt.Errorf("transactionCtx for database manager is not of expected type *TX")
 	}
 
-	err = tx.db.Model(&ent.Identity{}).Where("uid = ?", uid).Select("active").Take(&active).Error
+	err = tx.db.Model(&ent.Identity{}).Clauses(clause.Locking{Strength: "UPDATE"}).Where("uid = ?", uid).Select("active").Take(&active).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return false, repository.ErrNotExist
 	}
@@ -277,7 +278,7 @@ func (dm *DatabaseManager) LoadSignatureForUpdate(transactionCtx repository.Tran
 
 	var identity ent.Identity
 
-	err := tx.db.Model(&ent.Identity{}).Where("uid = ?", uid).Select("signature").Take(&identity).Error
+	err := tx.db.Model(&ent.Identity{}).Where("uid = ?", uid).Clauses(clause.Locking{Strength: "UPDATE"}).Select("signature").Take(&identity).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, repository.ErrNotExist
 	}
@@ -299,7 +300,7 @@ func (dm *DatabaseManager) LoadAuthForUpdate(transactionCtx repository.Transacti
 		return "", fmt.Errorf("transactionCtx for database manager is not of expected type *TX")
 	}
 
-	err = tx.db.Model(&ent.Identity{}).Where("uid = ?", uid).Select("auth_token").Take(&auth).Error
+	err = tx.db.Model(&ent.Identity{}).Where("uid = ?", uid).Clauses(clause.Locking{Strength: "UPDATE"}).Select("auth_token").Take(&auth).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return "", repository.ErrNotExist
 	}

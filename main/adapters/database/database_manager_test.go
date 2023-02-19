@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand"
 	"os"
@@ -277,7 +278,7 @@ func TestDatabaseManager_LoadSignatureForUpdate(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = dm.LoadSignatureForUpdate(tx2, testIdentity.Uid)
-	assert.EqualError(t, err, "pq: canceling statement due to user request")
+	assert.Equal(t, context.DeadlineExceeded, errors.Unwrap(err))
 }
 
 func TestDatabaseManager_StoreAuth(t *testing.T) {
