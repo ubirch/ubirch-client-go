@@ -112,7 +112,7 @@ func NewDatabaseManager(driverName, dataSourceName string, params *ConnectionPar
 		return nil, err
 	}
 
-	if err = dm.Setup(); err != nil {
+	if err = dm.Setup(driverName); err != nil {
 		return nil, err
 	}
 
@@ -123,18 +123,14 @@ func NewDatabaseManager(driverName, dataSourceName string, params *ConnectionPar
 	return dm, nil
 }
 
-func (dm *DatabaseManager) Setup() error {
-	err := dm.db.AutoMigrate(&ent.Identity{})
+func (dm *DatabaseManager) Setup(driverName string) error {
+	db, err := dm.db.DB()
 	if err != nil {
 		return err
 	}
 
-	err = dm.db.AutoMigrate(&ent.ExternalIdentity{})
-	if err != nil {
-		return err
-	}
-
-	return nil
+	// migrate database schema to the latest version
+	return migrateUp(driverName, db)
 }
 
 func (dm *DatabaseManager) SetConnectionParams(params *ConnectionParams) error {

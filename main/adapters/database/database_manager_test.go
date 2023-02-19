@@ -713,14 +713,16 @@ func TestDatabaseManager_NewDatabaseManager_DatabaseAlreadyOnLatestVersion(t *te
 	c, err := getConfig()
 	require.NoError(t, err)
 
-	// migrate database schema to the latest version
 	db, err := gorm.Open(postgres.Open(c.DbDSN), &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
 	})
 	require.NoError(t, err)
 
+	dbConn, err := db.DB()
+	require.NoError(t, err)
+
 	// migrate database schema to the latest version
-	err = db.AutoMigrate(&ent.Identity{})
+	err = migrateUp(PostgreSQL, dbConn)
 	require.NoError(t, err)
 
 	dm, err := NewDatabaseManager(PostgreSQL, c.DbDSN, &ConnectionParams{})
@@ -733,28 +735,36 @@ func TestDatabaseManager_NewDatabaseManager_DatabaseAlreadyOnLatestVersion(t *te
 	})
 }
 
-//func TestDatabaseManager_NewDatabaseManager_DatabaseAlreadyExists(t *testing.T) {
-//	// this test communicates with the actual postgres database
-//	if testing.Short() {
-//		t.Skipf("skipping integration test %s in short mode", t.Name())
-//	}
-//
-//	c, err := getConfig()
-//	require.NoError(t, err)
-//
-//	// migrate database schema to the latest version
-//	err = migrateTo(PostgreSQL, c.DbDSN, 1)
-//	require.NoError(t, err)
-//
-//	dm, err := NewDatabaseManager(PostgreSQL, c.DbDSN, &ConnectionParams{})
-//	assert.NoError(t, err)
-//
-//	cleanUpDB(t, &extendedDatabaseManager{
-//		DatabaseManager: dm,
-//		dsn:             c.DbDSN,
-//		driver:          PostgreSQL,
-//	})
-//}
+func TestDatabaseManager_NewDatabaseManager_DatabaseAlreadyExists(t *testing.T) {
+	// this test communicates with the actual postgres database
+	if testing.Short() {
+		t.Skipf("skipping integration test %s in short mode", t.Name())
+	}
+
+	c, err := getConfig()
+	require.NoError(t, err)
+
+	db, err := gorm.Open(postgres.Open(c.DbDSN), &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+	})
+	require.NoError(t, err)
+
+	dbConn, err := db.DB()
+	require.NoError(t, err)
+
+	// migrate database schema to the latest version
+	err = migrateTo(PostgreSQL, dbConn, 1)
+	require.NoError(t, err)
+
+	dm, err := NewDatabaseManager(PostgreSQL, c.DbDSN, &ConnectionParams{})
+	assert.NoError(t, err)
+
+	cleanUpDB(t, &extendedDatabaseManager{
+		DatabaseManager: dm,
+		dsn:             c.DbDSN,
+		driver:          PostgreSQL,
+	})
+}
 
 func getConfig() (*config.Config, error) {
 	configFileName := "config_test.json"

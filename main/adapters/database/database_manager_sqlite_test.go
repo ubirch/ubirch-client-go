@@ -627,8 +627,11 @@ func TestDatabaseManager_NewDatabaseManager_DatabaseAlreadyOnLatestVersion_sqlit
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	require.NoError(t, err)
 
+	dbConn, err := db.DB()
+	require.NoError(t, err)
+
 	// migrate database schema to the latest version
-	err = db.AutoMigrate(&ent.Identity{})
+	err = migrateUp(SQLite, dbConn)
 	require.NoError(t, err)
 
 	dm, err := NewDatabaseManager(SQLite, dsn, &ConnectionParams{})
@@ -641,22 +644,28 @@ func TestDatabaseManager_NewDatabaseManager_DatabaseAlreadyOnLatestVersion_sqlit
 	})
 }
 
-//func TestDatabaseManager_NewDatabaseManager_DatabaseAlreadyExists_sqlite(t *testing.T) {
-//	dsn := filepath.Join(t.TempDir(), testSQLiteDSN)
-//
-//	// migrate database schema to the latest version
-//	err := migrateTo(SQLite, dsn, 1)
-//	require.NoError(t, err)
-//
-//	dm, err := NewDatabaseManager(SQLite, dsn, &ConnectionParams{})
-//	assert.NoError(t, err)
-//
-//	cleanUpDB(t, &extendedDatabaseManager{
-//		DatabaseManager: dm,
-//		dsn:             dsn,
-//		driver:          SQLite,
-//	})
-//}
+func TestDatabaseManager_NewDatabaseManager_DatabaseAlreadyExists_sqlite(t *testing.T) {
+	dsn := filepath.Join(t.TempDir(), testSQLiteDSN)
+
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
+	require.NoError(t, err)
+
+	dbConn, err := db.DB()
+	require.NoError(t, err)
+
+	// migrate database schema to the latest version
+	err = migrateTo(SQLite, dbConn, 1)
+	require.NoError(t, err)
+
+	dm, err := NewDatabaseManager(SQLite, dsn, &ConnectionParams{})
+	assert.NoError(t, err)
+
+	cleanUpDB(t, &extendedDatabaseManager{
+		DatabaseManager: dm,
+		dsn:             dsn,
+		driver:          SQLite,
+	})
+}
 
 type T interface {
 	TempDir() string
