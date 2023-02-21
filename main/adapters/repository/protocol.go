@@ -324,7 +324,6 @@ func (p *ExtendedProtocol) verifyBackendResponseSignature(upp []byte) (bool, err
 func (p *ExtendedProtocol) verifyBackendResponseChain(requestUPPBytes, responseUPPBytes []byte) (bool, error) {
 	requestUPP, err := ubirch.Decode(requestUPPBytes)
 	if err != nil {
-		// this shouldn't happen
 		return false, fmt.Errorf("decoding request UPP failed: %v: %x", err, requestUPPBytes)
 	}
 
