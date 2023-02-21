@@ -197,6 +197,43 @@ func TestSigner_Sign(t *testing.T) {
 			},
 		},
 		{
+			name: "anchor online conflict",
+			msg: h.HTTPRequest{
+				Ctx:       context.Background(),
+				ID:        testUuid,
+				Auth:      testAuth,
+				Hash:      testHash,
+				Operation: h.AnchorHash,
+				Offline:   false,
+			},
+			setMockBehavior: func(m *mock.Mock) {
+				m.On("LoadActiveFlag", testUuid).Return(true, nil)
+				m.On("Sign", &ubirch.SignedUPP{
+					Version: ubirch.Signed,
+					Uuid:    testUuid,
+					Hint:    ubirch.Binary,
+					Payload: testHash[:],
+				}).Return(testSignedUPP, nil)
+				m.On("GetPublicKeyBytes", testUuid).Return(testPublicKey, nil)
+				m.On("sendToAuthService", testUuid, testAuth, testSignedUPP).Return(testBckndConflictResp, nil)
+				m.On("VerifyBackendResponse", testSignedUPP, testBckndConflictResp.Content).Return(true, true, nil)
+			},
+			tcChecks: func(t *testing.T, resp h.HTTPResponse, m *mock.Mock) {
+				m.AssertExpectations(t)
+				assert.Equal(t, resp.Header.Get("X-Err"), "NF409-0000")
+				assert.Equal(t, getHTTPResponse(http.StatusConflict, &signingResponse{
+					Hash:                      testHash[:],
+					Operation:                 string(h.AnchorHash),
+					UPP:                       testSignedUPP,
+					PublicKey:                 testPublicKey,
+					Response:                  &testBckndConflictResp,
+					RequestID:                 testRequestID,
+					ResponseSignatureVerified: true,
+					ResponseChainVerified:     true,
+				}), resp)
+			},
+		},
+		{
 			name: "anchor offline",
 			msg: h.HTTPRequest{
 				Ctx:       context.Background(),

@@ -31,6 +31,11 @@ var (
 		Header:     http.Header{"test": []string{"header"}},
 		Content:    testBckndRespUPP,
 	}
+	testBckndConflictResp = h.HTTPResponse{
+		StatusCode: http.StatusConflict,
+		Header:     http.Header{"X-Err": []string{"NF409-0000"}},
+		Content:    testBckndRespUPP,
+	}
 	testVerificationResp = []byte(fmt.Sprintf("{\"upp\":\"%s\",\"prev\":null,\"anchors\":null}", base64.StdEncoding.EncodeToString(testSignedUPP)))
 	testKeyRegs          = []ubirch.SignedKeyRegistration{{PubKeyInfo: ubirch.KeyRegistration{PubKey: base64.StdEncoding.EncodeToString(testPublicKey)}}}
 )

@@ -272,9 +272,17 @@ func getHTTPResponse(statusCode int, signingResp *signingResponse) h.HTTPRespons
 		log.Warnf("error serializing signing response: %v", err)
 	}
 
+	headers := http.Header{"Content-Type": {"application/json"}}
+	if statusCode != http.StatusOK {
+		errValues := signingResp.Response.Header.Values("X-Err")
+		for _, value := range errValues {
+			headers.Add("X-Err", value)
+		}
+	}
+
 	return h.HTTPResponse{
 		StatusCode: statusCode,
-		Header:     http.Header{"Content-Type": {"application/json"}},
+		Header:     headers,
 		Content:    respContent,
 	}
 }
