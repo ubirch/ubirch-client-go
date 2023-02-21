@@ -801,7 +801,7 @@ To switch to the `demo` backend environment
 
 ### Enable Backend Response Verification
 
-The UBIRCH Trust Service (niomon), when receiving a request, responds with a UPP, that is signed with the service's key
+The UBIRCH Trust Service (niomon) when receiving a request responds with a UPP that is signed with the service's key
 and contains the signature of the received UPP in the `previous signature` field. The verification of the response UPP
 on client side, i.e. signature verification and chain check, can be enabled by setting the following flag.
 
