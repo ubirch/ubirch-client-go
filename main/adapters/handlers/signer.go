@@ -273,7 +273,7 @@ func getHTTPResponse(statusCode int, signingResp *signingResponse) h.HTTPRespons
 	}
 
 	headers := http.Header{"Content-Type": {h.JSONType}}
-	if statusCode != http.StatusOK {
+	if signingResp.Response != nil && statusCode != http.StatusOK {
 		errValues := signingResp.Response.Header.Values(h.XErrorHeader)
 		for _, value := range errValues {
 			headers.Add(h.XErrorHeader, value)
