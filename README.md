@@ -809,6 +809,24 @@ on client side, i.e. signature verification and chain check, can be enabled by s
 |------------------------|---------------------------------|----------------------------------------|---------------|
 | `verifyNiomonResponse` | `UBIRCH_VERIFY_NIOMON_RESPONSE` | `true` to enable response verification | `false`       |
 
+If this flag is set, a request to the UBIRCH client will fail (`502` - Bad Gateway) if the backend response can not be
+verified. The JSON response body contains two fields `responseSignatureVerified` and `responseChainVerified` indicating
+if the backend response signature verification and chain verification have been successful.
+
+If backend response verification is disabled, these flags will always be `false`.
+
+Note that the signature will be verified first. If the signature verification fails, chain verification will not be
+executed.
+
+In some cases it is possible that the response UPP has a valid signature, but is not a chained UPP and therefore does
+not contain the signature of the request UPP in the `previous signature` field. In those cases the response would
+contain:
+
+```fundamental
+  "responseSignatureVerified": true,
+  "responseChainVerified": false
+```
+
 #### Set Backend Response Verification Key
 
 The default identities, i.e. UUID and public key, for the `dev`, `demo` and `prod` environment are stored in files in
