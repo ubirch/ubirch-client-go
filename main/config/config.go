@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/kelseyhightower/envconfig"
 
 	log "github.com/sirupsen/logrus"
@@ -33,6 +34,8 @@ const (
 	DEV_STAGE  = "dev"
 	DEMO_STAGE = "demo"
 	PROD_STAGE = "prod"
+
+	defaultNiomonIdentityFileName = "niomon_identity_%s.json" // { "uuid": "<uuid>", "publicKey": "<publicKey>" }
 
 	defaultKeyURL      = "https://identity.%s.ubirch.com/api/keyService/v1/pubkey"
 	defaultIdentityURL = "https://identity.%s.ubirch.com/api/certs/v1/csr/register"
@@ -68,30 +71,30 @@ const (
 var IsDevelopment bool
 
 type Config struct {
-	Devices                       map[string]string `json:"devices"`                                                                     // maps UUIDs to backend auth tokens
-	Secret16Base64                string            `json:"secret" envconfig:"secret"`                                                   // LEGACY: 16 bytes secret used to encrypt the key store (mandatory only for migration)
-	Secret32Base64                string            `json:"secret32" envconfig:"secret32"`                                               // 32 byte secret used to encrypt the key store (mandatory)
+	Devices                       map[string]string `json:"devices" envconfig:"DEVICES"`                                                 // maps UUIDs to backend auth tokens
+	Secret16Base64                string            `json:"secret" envconfig:"SECRET"`                                                   // LEGACY: 16 bytes secret used to encrypt the key store (mandatory only for migration)
+	Secret32Base64                string            `json:"secret32" envconfig:"SECRET32"`                                               // 32 byte secret used to encrypt the key store (mandatory)
 	StaticAuth                    string            `json:"staticAuth" envconfig:"STATIC_AUTH"`                                          // static auth token needed for identity registration, csr creation or key deactivation
 	EnableRegistrationEndpoint    bool              `json:"enableRegistrationEndpoint" envconfig:"ENABLE_REGISTRATION_ENDPOINT"`         // expose endpoint for identity registration
 	EnableCSRCreationEndpoint     bool              `json:"enableCSRCreationEndpoint" envconfig:"ENABLE_CSR_CREATION_ENDPOINT"`          // expose endpoint for CSR creation
 	EnableDeactivationEndpoint    bool              `json:"enableDeactivationEndpoint" envconfig:"ENABLE_DEACTIVATION_ENDPOINT"`         // expose endpoint for key status updates (de-/re-activation)
-	Env                           string            `json:"env"`                                                                         // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
+	Env                           string            `json:"env" envconfig:"ENV"`                                                         // the ubirch backend environment [dev, demo, prod], defaults to 'prod'
 	DbDriver                      string            `json:"dbDriver" envconfig:"DB_DRIVER"`                                              // database driver name
 	DbDSN                         string            `json:"dbDSN" envconfig:"DB_DSN"`                                                    // data source name for database, path to the sqlite db file
 	DbMaxOpenConns                int               `json:"dbMaxOpenConns" envconfig:"DB_MAX_OPEN_CONNS"`                                // maximum number of open connections to the database
 	DbMaxIdleConns                int               `json:"dbMaxIdleConns" envconfig:"DB_MAX_IDLE_CONNS"`                                // maximum number of connections in the idle connection pool
 	DbConnMaxLifetimeSec          int64             `json:"dbConnMaxLifetimeSec" envconfig:"DB_CONN_MAX_LIFETIME_SEC"`                   // maximum amount of time in seconds a connection may be reused
 	DbConnMaxIdleTimeSec          int64             `json:"dbConnMaxIdleTimeSec" envconfig:"DB_CONN_MAX_IDLE_TIME_SEC"`                  // maximum amount of time in seconds a connection may be idle
-	TCP_addr                      string            `json:"TCP_addr"`                                                                    // the TCP address for the server to listen on, in the form "host:port", defaults to ":8080"
-	TLS                           bool              `json:"TLS"`                                                                         // enable serving HTTPS endpoints, defaults to 'false'
-	TLS_CertFile                  string            `json:"TLSCertFile"`                                                                 // filename of TLS certificate file name, defaults to "cert.pem"
-	TLS_KeyFile                   string            `json:"TLSKeyFile"`                                                                  // filename of TLS key file name, defaults to "key.pem"
-	CORS                          bool              `json:"CORS"`                                                                        // enable CORS, defaults to 'false'
-	CORS_Origins                  []string          `json:"CORS_origins"`                                                                // list of allowed origin hosts, defaults to ["*"]
-	CSR_Country                   string            `json:"CSR_country"`                                                                 // subject country for public key Certificate Signing Requests
-	CSR_Organization              string            `json:"CSR_organization"`                                                            // subject organization for public key Certificate Signing Requests
-	Debug                         bool              `json:"debug"`                                                                       // enable extended debug output, defaults to 'false'
-	LogTextFormat                 bool              `json:"logTextFormat"`                                                               // log in text format for better human readability, default format is JSON
+	TCP_addr                      string            `json:"TCP_addr" envconfig:"TCP_ADDR"`                                               // the TCP address for the server to listen on, in the form "host:port", defaults to ":8080"
+	TLS                           bool              `json:"TLS" envconfig:"TLS"`                                                         // enable serving HTTPS endpoints, defaults to 'false'
+	TLS_CertFile                  string            `json:"TLSCertFile" envconfig:"TLS_CERTFILE"`                                        // filename of TLS certificate file name, defaults to "cert.pem"
+	TLS_KeyFile                   string            `json:"TLSKeyFile" envconfig:"TLS_KEYFILE"`                                          // filename of TLS key file name, defaults to "key.pem"
+	CORS                          bool              `json:"CORS" envconfig:"CORS"`                                                       // enable CORS, defaults to 'false'
+	CORS_Origins                  []string          `json:"CORS_origins" envconfig:"CORS_ORIGINS"`                                       // list of allowed origin hosts, defaults to ["*"]
+	CSR_Country                   string            `json:"CSR_country" envconfig:"CSR_COUNTRY"`                                         // subject country for public key Certificate Signing Requests
+	CSR_Organization              string            `json:"CSR_organization" envconfig:"CSR_ORGANIZATION"`                               // subject organization for public key Certificate Signing Requests
+	Debug                         bool              `json:"debug" envconfig:"DEBUG"`                                                     // enable extended debug output, defaults to 'false'
+	LogTextFormat                 bool              `json:"logTextFormat" envconfig:"LOGTEXTFORMAT"`                                     // log in text format for better human readability, default format is JSON
 	LogKnownIdentities            bool              `json:"logKnownIdentities" envconfig:"LOG_KNOWN_IDENTITIES"`                         // log the UUIDs of all known identities at startup
 	KdMaxTotalMemMiB              uint32            `json:"kdMaxTotalMemMiB" envconfig:"KD_MAX_TOTAL_MEM_MIB"`                           // maximal total memory to use for key derivation at a time in MiB
 	KdParamMemMiB                 uint32            `json:"kdParamMemMiB" envconfig:"KD_PARAM_MEM_MIB"`                                  // memory parameter for key derivation, specifies the size of the memory in MiB
@@ -105,11 +108,18 @@ type Config struct {
 	VerifyServiceTimeoutMs        int64             `json:"verifyServiceTimeoutMs" envconfig:"VERIFY_SERVICE_TIMEOUT_MS"`                // time limit for requests to the ubirch verification service in milliseconds
 	VerificationTimeoutMs         int64             `json:"verificationTimeoutMs" envconfig:"VERIFICATION_TIMEOUT_MS"`                   // time limit for repeated attempts to verify a hash at the ubirch verification service in milliseconds
 	VerifyFromKnownIdentitiesOnly bool              `json:"verifyFromKnownIdentitiesOnly" envconfig:"VERIFY_FROM_KNOWN_IDENTITIES_ONLY"` // flag to determine if a public key should be retrieved from the ubirch identity service in case of incoming verification request for UPP from unknown identity
+	VerifyNiomonResponse          bool              `json:"verifyNiomonResponse" envconfig:"VERIFY_NIOMON_RESPONSE"`                     // flag to enable backend response verification
+	NiomonIdentity                *Identity         `json:"niomonIdentity" envconfig:"NIOMON_IDENTITY"`                                  // niomon's UUID and public key for response signature verification
 	KeyService                    string            // key service URL (set automatically)
 	IdentityService               string            // identity service URL (set automatically)
-	Niomon                        string            // authentication service URL (set automatically)
+	Niomon                        string            // trust service URL (set automatically)
 	VerifyService                 string            // verification service URL (set automatically)
 	SecretBytes32                 []byte            // the decoded 32 byte key store secret for database (set automatically)
+}
+
+type Identity struct {
+	UUID      uuid.UUID
+	PublicKey []byte
 }
 
 func (c *Config) Load(configDir, filename string) error {
@@ -354,10 +364,45 @@ func (c *Config) setDefaultURLs() error {
 	log.Infof("UBIRCH backend environment: %s", c.Env)
 	log.Debugf(" - Key Service:            %s", c.KeyService)
 	log.Debugf(" - Identity Service:       %s", c.IdentityService)
-	log.Debugf(" - Authentication Service: %s", c.Niomon)
+	log.Debugf(" - Trust Service:          %s", c.Niomon)
 	log.Debugf(" - Verification Service:   %s", c.VerifyService)
 
+	if c.VerifyNiomonResponse {
+		if c.NiomonIdentity == nil {
+			err := c.loadDefaultNiomonIdentity()
+			if err != nil {
+				return fmt.Errorf("couldn't load default niomon identity: %v", err)
+			}
+		}
+
+		log.Infof("backend response verification enabled with verification key for %s environment: %s: %s",
+			c.Env, c.NiomonIdentity.UUID, base64.StdEncoding.EncodeToString(c.NiomonIdentity.PublicKey))
+	} else {
+		log.Info("backend response verification disabled")
+	}
+
 	return nil
+}
+
+func (c *Config) loadDefaultNiomonIdentity() error {
+	niomonIdentityFile := fmt.Sprintf(defaultNiomonIdentityFileName, c.Env)
+
+	fileHandle, err := os.Open(niomonIdentityFile)
+	if err != nil {
+		return err
+	}
+
+	c.NiomonIdentity = &Identity{}
+
+	err = json.NewDecoder(fileHandle).Decode(&c.NiomonIdentity)
+	if err != nil {
+		if fileCloseErr := fileHandle.Close(); fileCloseErr != nil {
+			log.Error(fileCloseErr)
+		}
+		return err
+	}
+
+	return fileHandle.Close()
 }
 
 // loadIdentitiesFile loads device identities from the identities JSON file.

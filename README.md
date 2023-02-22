@@ -69,8 +69,8 @@ The configuration can be set via a configuration file (`config.json`) or environ
 
 There are two mandatory configurations:
 
-1. the desired database driver and DSN (see [Context Management](#Context-Management))
-2. a 32 byte base64 encoded secret, which will be used to encrypt the signing keys in the database
+1. a 32 byte base64 encoded secret, which will be used to encrypt the signing keys in the database
+2. the desired database driver and DSN (see [Context Management](#Context-Management))
 
 > You can generate a random 32 byte base64 encoded secret in a Linux/macOS terminal
 > with `head -c 32 /dev/urandom | base64`
@@ -188,7 +188,7 @@ This token is then used to authenticate requests against the identity registrati
 
 ```json
   "staticAuth": "<static auth token>",
-"enableRegistrationEndpoint": true,
+  "enableRegistrationEndpoint": true,
 ```
 
 - env:
@@ -241,13 +241,13 @@ the [releases](https://github.com/ubirch/ubirch-client-go/releases/latest)
 and pull the latest release from Docker Hub using the release tag, e.g.:
 
 ```shell
-docker pull ubirch/ubirch-client:v2.2.3
+docker pull ubirch/ubirch-client:v3.x.x
 ```
 
 To start the multi-arch Docker image on any system, run:
 
 ```shell
-docker run -v $(pwd):/data --network host ubirch/ubirch-client:v2.2.3
+docker run -v $(pwd):/data --network host ubirch/ubirch-client:v3.x.x
 ```
 
 The configuration directory inside the docker container is `/data`. The docker image mounts the current
@@ -311,7 +311,7 @@ This token is then used to authenticate requests against the CSR creation endpoi
 
 ```json
   "staticAuth": "<static auth token>",
-"enableCSRCreationEndpoint": true,
+  "enableCSRCreationEndpoint": true,
 ```
 
 - env:
@@ -415,15 +415,22 @@ if necessary.
 
 The response body consists of either an error message, or a JSON map with
 
-- the data hash,
-- the UPP, which contains that data hash and was sent to the UBIRCH backend by the client,
-- the public key, that corresponds to the private key with which the UPP was signed,
-- the response from the UBIRCH backend,
+- the data hash
+- the executed operation, i.e. chain, anchor, disable, enable or delete
+- the UPP, which contains that data hash and was sent to the UBIRCH backend by the client
+- the public key, that corresponds to the private key with which the UPP was signed
+- the response from the UBIRCH backend
 - the unique request ID
+- a flag indicating if the backend response signature has been verified (
+  see [Enable Backend Response Verification](#Enable-Backend-Response-Verification))
+- a flag indicating if the backend response chain has been verified, i.e. if the niomon response UPP contains the
+  signature of the sent UPP in the `previous signature` field (
+  see [Enable Backend Response Verification](#Enable-Backend-Response-Verification))
 
 ```fundamental
 {
   "hash": "<base64 encoded data hash>",
+  "operation": "<chain | anchor | disable | enable | delete>",
   "upp": "<base64 encoded UPP containing the data hash>",
   "publicKey": "<base64 encoded raw public key>",
   "response": {
@@ -432,6 +439,8 @@ The response body consists of either an error message, or a JSON map with
     "content": "<base64 encoded backend response content>"
   },
   "requestID": "<request ID (standard hex string representation)>",
+  "responseSignatureVerified": <true | false>,
+  "responseChainVerified": <true | false>
 }
 ```
 
@@ -460,7 +469,7 @@ The response body consists of either an error message, or a JSON map with
 | 503 - Service Temporarily Unavailable | x | x | service busy |
 | 504 - Gateway Timeout | x | x | service was unable to produce a timely response |
 
-Internally, the client sends a request to the UBIRCH authentication service (*Niomon*) and forwards its response back to
+Internally, the client sends a request to the UBIRCH Trust Service (*Niomon*) and forwards its response back to
 the sender (i.e. the `"response"`-filed in the JSON response body of the client). If no errors occurred before sending
 the request to Niomon, the client will simply forward the HTTP response status code that Niomon returned.
 
@@ -622,7 +631,7 @@ This token is then used to authenticate requests against the deactivation endpoi
 
 ```json
   "staticAuth": "<static auth token>",
-"enableDeactivationEndpoint": true,
+  "enableDeactivationEndpoint": true,
 ```
 
 - env:
@@ -788,6 +797,54 @@ To switch to the `demo` backend environment
 - or set the following environment variable:
     ```console
     UBIRCH_ENV=demo
+    ```
+
+### Enable Backend Response Verification
+
+The UBIRCH Trust Service (niomon) when receiving a request responds with a UPP that is signed with the service's key
+and contains the signature of the received UPP in the `previous signature` field. The verification of the response UPP
+on client side, i.e. signature verification and chain check, can be enabled by setting the following flag.
+
+| JSON                   | env                             | description                            | default value |
+|------------------------|---------------------------------|----------------------------------------|---------------|
+| `verifyNiomonResponse` | `UBIRCH_VERIFY_NIOMON_RESPONSE` | `true` to enable response verification | `false`       |
+
+If this flag is set, a request to the UBIRCH client will fail (`502` - Bad Gateway) if the backend response can not be
+verified. The JSON response body contains two fields `responseSignatureVerified` and `responseChainVerified` indicating
+if the backend response signature verification and chain verification have been successful.
+
+If backend response verification is disabled, these flags will always be `false`.
+
+Note that the signature will be verified first. If the signature verification fails, chain verification will not be
+executed.
+
+In some cases it is possible that the response UPP has a valid signature, but is not a chained UPP and therefore does
+not contain the signature of the request UPP in the `previous signature` field. In those cases the response would
+contain:
+
+```fundamental
+  "responseSignatureVerified": true,
+  "responseChainVerified": false
+```
+
+#### Set Backend Response Verification Key
+
+The default identities, i.e. UUID and public key, for the `dev`, `demo` and `prod` environment are stored in files in
+the [server-identities directory](server-identities) and automatically loaded at application startup. The files are also
+part of the docker image, so the user does not have to do anything if the default identities are valid.
+
+However, the default identities can be overwritten by setting the niomon identity in the configuration.
+
+- `config.json`:
+    ```json
+      "niomonIdentity": {
+        "uuid": "<niomon UUID>",
+        "publicKey": "<niomon public key bytes [base64]>"
+      }
+    ```
+- environment variable:
+    ```console
+    UBIRCH_NIOMON_IDENTITY=uuid:<niomon UUID>,publicKey:<niomon public key bytes [base64]>
     ```
 
 ### Set TCP address
@@ -986,7 +1043,7 @@ First, add the new mandatory [configurations](#Configuration) to your existing c
 To start the migration process, run the client with the command-line flag `--migrate`.
 
 ```shell
-docker run -v $(pwd):/data --network host ubirch/ubirch-client:v2.x.x /data --migrate
+docker run -v $(pwd):/data --network host ubirch/ubirch-client:v3.0.0 /data --migrate
 ```
 
 After successful migration, the process will exit with status `0`. In case of failed migration, the exit status is `1`.
@@ -1024,6 +1081,7 @@ rm -rf keys.json keys.json.bck signatures
       },
       "secret32": "<YOUR_32_BYTE_SECRET(base64 encoded)>",
       "dbDriver": "sqlite",
+      "verifyNiomonResponse": true,
       "logTextFormat": true, 
       "logKnownIdentities": true
     }
@@ -1040,6 +1098,7 @@ rm -rf keys.json keys.json.bck signatures
       },
       "secret32": "kwNWDv1K8z/T4Muk8La4uzoUl2Q1G923rmm7kA5NrIE=",
       "dbDriver": "sqlite",
+      "verifyNiomonResponse": true,
       "logTextFormat": true, 
       "logKnownIdentities": true
     }
@@ -1140,6 +1199,7 @@ rm -rf keys.json keys.json.bck signatures
     ```json
     {
       "hash": "5snVjoqWbqLbhABMD1L5OguJyvcsxbJOECQSurDqs5k=",
+      "operation": "chain",
       "upp": "liPEEOUIWomogUOXkC6mMPAhr9jEQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAxCDmydWOipZuotuEAEwPUvk6C4nK9yzFsk4QJBK6sOqzmcRA0fYMXgkdjoAOPE9jXV/gfBxb9kl9WierPozz+usi+WLUNTD98al0QX6TWB3i1pg43XDL0/lHf8E+4AhWfFFlCQ==",
       "publicKey": "//3eUKJOrGaYCoPBOMMUquX3cn+EXHMqCKu7IJWu/Xs1x7oJ4HU6LLWksf8toG0ir1VreFo8A5tJEGvxmQbe0w==",
       "response": {
@@ -1163,7 +1223,9 @@ rm -rf keys.json keys.json.bck signatures
         },
         "content": "liPEEBCy4aRWs0//mtrMjCD5MBbEQNH2DF4JHY6ADjxPY11f4HwcW/ZJfVonqz6M8/rrIvli1DUw/fGpdEF+k1gd4taYON1wy9P5R3/BPuAIVnxRZQkAxCA8bg4ZY7ZNQrMWP0ZIHxTMAAAAAAAAAAAAAAAAAAAAAMRAtCx79HokXAELQRbiEoE9YVPLfx4Zdh9fC93QO4X4e60HXseQUdVFtbuQBQiz2yqHBuoQyMQVsu2fBPreNihifA=="
       },
-      "requestID": "3c6e0e19-63b6-4d42-b316-3f46481f14cc"
+      "requestID": "3c6e0e19-63b6-4d42-b316-3f46481f14cc",
+      "responseSignatureVerified": true,
+      "responseChainVerified": true
     }
     ```
    If you get a response code other than `200`, it means that something went wrong. In this case the client will respond

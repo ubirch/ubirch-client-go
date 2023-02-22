@@ -15,7 +15,9 @@
 package repository
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -30,6 +32,11 @@ import (
 	pw "github.com/ubirch/ubirch-client-go/main/adapters/password-hashing"
 )
 
+var (
+	signedUPPHeader  = []byte{0x95, 0x22}
+	chainedUPPHeader = []byte{0x96, 0x23}
+)
+
 type ExtendedProtocol struct {
 	ubirch.Protocol
 	ContextManager
@@ -38,6 +45,9 @@ type ExtendedProtocol struct {
 
 	pwHasher  *pw.Argon2idKeyDerivator
 	authCache *sync.Map // {<uuid>: <auth token>}
+
+	verifyNiomonResponse bool
+	backendUUID          uuid.UUID
 }
 
 func NewExtendedProtocol(ctxManager ContextManager, conf *config.Config) (*ExtendedProtocol, error) {
@@ -80,7 +90,33 @@ func NewExtendedProtocol(ctxManager ContextManager, conf *config.Config) (*Exten
 		authCache: &sync.Map{},
 	}
 
+	if conf.VerifyNiomonResponse {
+		if conf.NiomonIdentity == nil {
+			return nil, fmt.Errorf("config field NiomonIdentity is nil pointer")
+		}
+		err = p.setBackendVerificationKey(conf.NiomonIdentity.UUID, conf.NiomonIdentity.PublicKey)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return p, nil
+}
+
+func (p *ExtendedProtocol) setBackendVerificationKey(id uuid.UUID, pubKeyBytes []byte) error {
+	pubKeyPEM, err := p.PublicKeyBytesToPEM(pubKeyBytes)
+	if err != nil {
+		return fmt.Errorf("invalid backend response verification key [bytes]: %v", err)
+	}
+
+	if err = p.keyCache.SetPublicKey(id, pubKeyPEM); err != nil {
+		return fmt.Errorf("couldn't set backend response verification key in key cache: %v", err)
+	}
+
+	p.verifyNiomonResponse = true
+	p.backendUUID = id
+
+	return nil
 }
 
 func (p *ExtendedProtocol) StoreIdentity(tx TransactionCtx, i ent.Identity) error {
@@ -242,6 +278,75 @@ func (p *ExtendedProtocol) IsInitialized(uid uuid.UUID) (initialized bool, err e
 	}
 	if err != nil {
 		return false, err
+	}
+
+	return true, nil
+}
+
+func (p *ExtendedProtocol) VerifyBackendResponse(requestUPP, responseUPP []byte) (signatureOk bool, chainOk bool, err error) {
+	if !p.verifyNiomonResponse {
+		return false, false, nil
+	}
+
+	if len(responseUPP) == 0 {
+		return signatureOk, chainOk, fmt.Errorf("response from UBIRCH Trust Service is empty")
+	}
+
+	// check if backend response is a UPP or something else, like an error message string, for example "Timeout"
+	if !hasUPPHeaders(responseUPP) {
+		return signatureOk, chainOk, fmt.Errorf("response from UBIRCH Trust Service is not a UPP: %q", responseUPP)
+	}
+
+	signatureOk, err = p.verifyBackendResponseSignature(responseUPP)
+	if err != nil {
+		return signatureOk, chainOk, err
+	}
+
+	chainOk, err = p.verifyBackendResponseChain(requestUPP, responseUPP)
+	return signatureOk, chainOk, err
+}
+
+// hasUPPHeaders is a helper function to check if the data starts with the expected UPP headers
+func hasUPPHeaders(data []byte) bool {
+	return bytes.HasPrefix(data, signedUPPHeader) || bytes.HasPrefix(data, chainedUPPHeader)
+}
+
+// verifyBackendResponseSignature verifies the signature of the backend response UPP
+func (p *ExtendedProtocol) verifyBackendResponseSignature(upp []byte) (bool, error) {
+	if verified, err := p.Verify(p.backendUUID, upp); !verified {
+		if err != nil {
+			return false, fmt.Errorf("could not verify backend response signature: %v", err)
+		}
+		pub, _ := p.Crypto.GetPublicKeyBytes(p.backendUUID)
+		return false, fmt.Errorf("backend response signature verification failed with public key: %s",
+			base64.StdEncoding.EncodeToString(pub))
+	}
+	return true, nil
+}
+
+// verifyBackendResponseChain verifies that backend response previous signature matches signature of request UPP
+func (p *ExtendedProtocol) verifyBackendResponseChain(requestUPPBytes, responseUPPBytes []byte) (bool, error) {
+	requestUPP, err := ubirch.Decode(requestUPPBytes)
+	if err != nil {
+		return false, fmt.Errorf("decoding request UPP failed: %v: %x", err, requestUPPBytes)
+	}
+
+	responseUPP, err := ubirch.Decode(responseUPPBytes)
+	if err != nil {
+		return false, fmt.Errorf("decoding response UPP failed: %v: %x", err, responseUPPBytes)
+	}
+
+	if responseUPP.GetVersion() != ubirch.Chained {
+		log.Warnf("backend response UPP is not chained! request UPP: %x, response UPP: %x",
+			requestUPPBytes, responseUPPBytes)
+		return false, nil
+	}
+
+	if chainOK, err := ubirch.CheckChainLink(requestUPP, responseUPP); !chainOK {
+		if err != nil {
+			return false, fmt.Errorf("could not verify backend response chain: %v", err)
+		}
+		return false, fmt.Errorf("backend response chain check failed")
 	}
 
 	return true, nil
