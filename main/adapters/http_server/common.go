@@ -33,8 +33,9 @@ const (
 	TextType = "text/plain"
 	JSONType = "application/json"
 
-	XUPPHeader  = "X-Ubirch-UPP"
-	XAuthHeader = "X-Auth-Token"
+	XUPPHeader   = "X-Ubirch-UPP"
+	XAuthHeader  = "X-Auth-Token"
+	XErrorHeader = "X-Err"
 
 	HexEncoding = "hex"
 
