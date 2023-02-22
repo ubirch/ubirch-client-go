@@ -740,6 +740,22 @@ func TestExtendedProtocol_VerifyBackendResponse(t *testing.T) {
 			},
 		},
 		{
+			name:                 "empty response",
+			verifyNiomonResponse: true,
+			niomonId:             niomonIdentity,
+			checkConstructorError: func(t *testing.T, err error) {
+				assert.NoError(t, err)
+			},
+			requestUPP:  testChainedUPP,
+			responseUPP: []byte{},
+			checkVerifyBackendResponseResults: func(t *testing.T, signatureOk, chainOk bool, err error) {
+				assert.Error(t, err)
+				assert.EqualError(t, err, "response from UBIRCH Trust Service is empty")
+				assert.False(t, chainOk)
+				assert.False(t, signatureOk)
+			},
+		},
+		{
 			name:                 "backend response not chained",
 			verifyNiomonResponse: true,
 			niomonId:             niomonIdentity,

@@ -288,6 +288,10 @@ func (p *ExtendedProtocol) VerifyBackendResponse(requestUPP, responseUPP []byte)
 		return false, false, nil
 	}
 
+	if len(responseUPP) == 0 {
+		return signatureOk, chainOk, fmt.Errorf("response from UBIRCH Trust Service is empty")
+	}
+
 	// check if backend response is a UPP or something else, like an error message string, for example "Timeout"
 	if !hasUPPHeaders(responseUPP) {
 		return signatureOk, chainOk, fmt.Errorf("response from UBIRCH Trust Service is not a UPP: %q", responseUPP)
