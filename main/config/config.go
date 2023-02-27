@@ -368,7 +368,11 @@ func (c *Config) setDefaultURLs() error {
 	log.Debugf(" - Verification Service:   %s", c.VerifyService)
 
 	if c.VerifyNiomonResponse {
-		if c.NiomonIdentity == nil {
+		// Load Niomon Identity, if not already set. It is required to check
+		// for the UUID attribute as well, since NiomonIdentity may not be
+		// nil if the configuration was loaded via `config.loadEnv()`
+		// instead of `config.loadFile()`.
+		if c.NiomonIdentity == nil || c.NiomonIdentity.UUID == uuid.Nil {
 			err := c.loadDefaultNiomonIdentity()
 			if err != nil {
 				return fmt.Errorf("couldn't load default niomon identity: %v", err)
