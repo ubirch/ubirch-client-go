@@ -1,0 +1,101 @@
+stages:
+  - build
+  - publish
+
+include:
+  - project: "ubirch/ci-templates"
+    ref: "main"
+    file: "buildkit.gitlab-ci.yaml"
+
+variables:
+  NAME: "ubirch-client"
+  NOW: "$(date -u -Iminutes)"
+  SRC_URL: "https://github.com/ubirch/ubirch-client-go.git"
+  VERSION: "$(git describe --tags --match 'v[0-9]*' --dirty='-dirty' --always)"
+  REVISION: "$(git rev-parse --short HEAD)$(shell if ! git diff --no-ext-diff --quiet --exit-code; then echo -dirty; fi)"
+  GOVERSION: "1.19"
+
+.docker-build:
+  extends: .buildkit
+  variables:
+    ANNOTATIONS: "org.opencontainers.image.title=$NAME,org.opencontainers.image.created=$NOW,org.opencontainers.image.source=$SRC_URL,org.opencontainers.image.version=$VERSION,org.opencontainers.image.revision=$REVISION"
+    BUILD_ARGS: "build-arg:GOARCH=$ARCH,build-arg:VERSION=$VERSION,build-arg:REVISION=$REVISION,build-arg:GOVERSION=$GOVERSION"
+
+    DOCKERHUB_REGISTRY_IMAGE: "docker.io/ubirch/$CI_PROJECT_NAME"
+    IMAGE: "name=docker.io/ubirch/$CI_PROJECT_NAME:$CI_COMMIT_SHORT_SHA-$ARCH"
+    PUSH_IMAGE: "false"  # Only push the image on default branch or tag
+  rules:
+    # Always tag with SHA, on default branch also tag with latest
+    - if: "$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH"
+      variables:
+        IMAGE: "name=$DOCKERHUB_REGISTRY_IMAGE-$ARCH:$CI_COMMIT_SHORT_SHA,$DOCKERHUB_REGISTRY_IMAGE:latest-$ARCH"
+        PUSH_IMAGE: "true"
+    # Tag with git tag when set
+    - if: "$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_TAG != null"
+      variables:
+        IMAGE: "name=$DOCKERHUB_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA-$ARCH,$DOCKERHUB_REGISTRY_IMAGE:$CI_COMMIT_TAG-$ARCH"
+        PUSH_IMAGE: "true"
+    - when: always
+  script:
+    - >
+      echo "Docker context: $DOCKER_CONTEXT"
+      && echo "Dockerfile directory: $DOCKERFILE_DIR"
+      && echo "Cache image: $BUILD_CACHE"
+      && echo "Images:" $(echo $IMAGE | sed "s/name=//")
+    - '[[ -n "$DOCKERFILE_NAME" ]] && BUILDKIT_ARGS="$BUILDKIT_ARGS --frontend-opt filename=$DOCKERFILE_NAME"'
+    - echo $BUILDKIT_ARGS
+    - >
+      buildctl-daemonless.sh build --progress=plain
+      --frontend=dockerfile.v0 --local context=$DOCKER_CONTEXT --local dockerfile=$DOCKERFILE_DIR
+      --export-cache type=registry,mode=max,ref=$BUILD_CACHE
+      --import-cache type=registry,ref=$BUILD_CACHE
+      --opt \"$BUILD_ARGS\"
+      --output type=image,\"$IMAGE\",\"$ANNOTATIONS\",push=$PUSH_IMAGE
+      $BUILDKIT_ARGS
+
+docker-build-amd64:
+  extends: .docker-build
+  variables:
+    ARCH: "amd64"
+
+docker-build-arm:
+  extends: .docker-build
+  variables:
+    ARCH: "arm"
+
+docker-build-arm64:
+  extends: .docker-build
+  variables:
+    ARCH: "arm64"
+
+docker-build-386:
+  extends: .docker-build
+  variables:
+    ARCH: "386"
+
+publish-manifest:
+  stage: publish
+  image: quay.io/buildah/stable:v1.29
+  variables:
+    DOCKERHUB_REGISTRY_IMAGE: "docker.io/ubirch/$CI_PROJECT_NAME"
+    IMAGE: "docker.io/ubirch/$CI_PROJECT_NAME:$CI_COMMIT_SHORT_SHA"
+  rules:
+    # Always tag with SHA, on default branch also tag with latest
+    - if: "$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH"
+      variables:
+        IMAGE: "$DOCKERHUB_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA $DOCKERHUB_REGISTRY_IMAGE:latest"
+    # Tag with git tag when set
+    - if: "$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_TAG != null"
+      variables:
+        IMAGE: "$DOCKERHUB_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA $DOCKERHUB_REGISTRY_IMAGE:$CI_COMMIT_TAG"
+    - when: always
+  script:
+    - cat $CI_REGISTRY_PASSWORD | buildah login --username $CI_REGISTRY_USER --password-stdin docker.io
+    - for image in $IMAGE; do
+    - buildah manifest create "$image"
+    - buildah manifest add "$image" --os=linux --arch=amd64  "$image"-amd64
+    - buildah manifest add "$image" --os=linux --arch=arm --variant=v7 "$image"-arm
+    - buildah manifest add "$image" --os=linux --arch=arm64 --variant=v8 "$image"-arm64
+    - buildah manifest add "$image" --os=linux --arch=386 "$image"-386
+    - buildah manifest push --all "$image"
+    - done
